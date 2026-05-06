@@ -1,0 +1,12 @@
+{
+  "name": "trackpal.app",
+  "description": "Enterprise-grade pallet logistics and billing management system with real-time tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "Logistic tracking",
+    "QR scanning",
+    "Role-based dashboards"
+  ]
+}
