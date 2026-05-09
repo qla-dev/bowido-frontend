@@ -1,4 +1,4 @@
-import { RoleType, User, Pallet, PalletStatus, AuditLog, ClientDetail } from '../types';
+import { RoleType, User, ManagedUser, Pallet, PalletStatus, AuditLog, ClientDetail } from '../types';
 
 export const mockStatuses: PalletStatus[] = [
   { id: 1, name: 'Bowido BIH', is_active: false, is_billable: false, grace_period_days: 0, price_per_day: 0 },
@@ -11,13 +11,15 @@ export const mockStatuses: PalletStatus[] = [
   { id: 8, name: 'Onbekend', is_active: false, is_billable: false, grace_period_days: 0, price_per_day: 0 },
 ];
 
-export const mockUsers: User[] = [
-  { id: 1, name: 'Admin User', email: 'admin@palletify.com', role_id: 1, role_name: RoleType.ADMIN },
-  { id: 2, name: 'Dragan Driver', email: 'driver@palletify.com', role_id: 2, role_name: RoleType.VOZAC },
-  { id: 3, name: 'Marko Magaciner', email: 'warehouse@palletify.com', role_id: 3, role_name: RoleType.MAGACINER },
-  { id: 4, name: 'AutoNL Eindhoven', email: 'client@autonl.com', role_id: 4, role_name: RoleType.KLIJENT },
-  { id: 5, name: 'Sava Serviser', email: 'service@doboj.com', role_id: 5, role_name: RoleType.SERVISER },
+export const mockManagedUsers: ManagedUser[] = [
+  { id: 1, name: 'Admin User', email: 'admin@palletify.com', password: 'Admin123!', role_id: 1, role_name: RoleType.ADMIN },
+  { id: 2, name: 'Dragan Driver', email: 'driver@palletify.com', password: 'Driver123!', role_id: 2, role_name: RoleType.VOZAC },
+  { id: 3, name: 'Marko Magaciner', email: 'warehouse@palletify.com', password: 'Warehouse123!', role_id: 3, role_name: RoleType.MAGACINER },
+  { id: 4, name: 'AutoNL Eindhoven', email: 'client@autonl.com', password: 'Client123!', role_id: 4, role_name: RoleType.KLIJENT },
+  { id: 5, name: 'Sava Serviser', email: 'service@doboj.com', password: 'Service123!', role_id: 5, role_name: RoleType.SERVISER },
 ];
+
+export const mockUsers: User[] = mockManagedUsers.map(({ password, ...user }) => user);
 
 export const mockClients: ClientDetail[] = [
   { id: 1, user_id: 4, name: 'AutoNL Eindhoven', country: 'NL', grace_period_days: 14, price_per_day: 2.5, is_active: true },

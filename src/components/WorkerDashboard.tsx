@@ -5,7 +5,7 @@ import { DamageReportModal } from './DamageReportModal';
 import { RoleType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
-import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2 } from 'lucide-react';
+import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Ghost } from 'lucide-react';
 
 interface WorkerDashboardProps {
   role: RoleType;
@@ -13,7 +13,7 @@ interface WorkerDashboardProps {
 }
 
 export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) => {
-  const { pallets, auditLogs, t, serviceReports, pairGhostPallet, resolveService } = useApp();
+  const { pallets, auditLogs, t, serviceReports, pairGhostPallet, resolveService, setIsGhostReportOpen } = useApp();
   const [showDamageModal, setShowDamageModal] = useState(false);
   const [showPairModal, setShowPairModal] = useState(false);
   const [selectedGhostId, setSelectedGhostId] = useState<number | null>(null);
@@ -172,7 +172,22 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button 
+                  onClick={() => setIsGhostReportOpen(true)}
+                  className="flex items-center justify-between p-6 bg-rose-50 border-2 border-rose-100 rounded-[2rem] group"
+                >
+                   <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-rose-500 text-white rounded-xl flex items-center justify-center">
+                         <Ghost size={20} />
+                      </div>
+                      <div className="text-left">
+                         <p className="text-xs font-black text-rose-900 uppercase leading-none mb-1">{t('ghostReport')}</p>
+                         <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">{ghostPallets.length} otvorenih</p>
+                      </div>
+                   </div>
+                   <ArrowRight size={16} className="text-rose-300 group-hover:translate-x-1 transition-transform" />
+                </button>
                 <button 
                   onClick={() => setActiveTab('service')}
                   className="flex items-center justify-between p-6 bg-emerald-50 border-2 border-emerald-100 rounded-[2rem] group"
@@ -431,7 +446,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
 
       <AnimatePresence>
         {selectedPalletId && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="modal-overlay fixed inset-0 z-[200] flex items-center justify-center p-4">
              <motion.div 
                initial={{ scale: 0.9, opacity: 0 }} 
                animate={{ scale: 1, opacity: 1 }} 
@@ -505,7 +520,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
 
       <AnimatePresence>
         {showPairModal && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="modal-overlay fixed inset-0 z-[150] flex items-center justify-center p-4">
              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-md shadow-2xl">
                 <h3 className="text-xl font-black uppercase mb-6 text-center">Pair Unit</h3>
                 <div className="space-y-6">

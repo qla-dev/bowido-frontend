@@ -3,29 +3,48 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar, BottomNav, TopNavbar } from './components/Navigation';
 import { AdminDashboard } from './components/AdminDashboard';
 import { WorkerDashboard } from './components/WorkerDashboard';
 import { ClientDashboard } from './components/ClientDashboard';
 import { ServiceDashboard } from './components/ServiceDashboard';
 import { PalletScanner } from './components/PalletScanner';
-import { RoleType, User } from './types';
+import { GhostPalletCenter } from './components/GhostPalletCenter';
+import { ManagedUser, RoleType, User } from './types';
 import { mockUsers } from './lib/mockData';
 import { Package, Smartphone, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card } from './components/ui';
+import { apiService } from './services/api';
 
 export default function App() {
-  const { t, language, setLanguage, isScannerOpen, setIsScannerOpen } = useApp();
+  const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen } = useApp();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loginUsers, setLoginUsers] = useState<User[]>(mockUsers);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNightMode, setIsNightMode] = useState(false);
+
+  const loadLoginUsers = async () => {
+    try {
+      const storedUsers = await apiService.users.list();
+      setLoginUsers(storedUsers.map(({ password, ...user }: ManagedUser) => user));
+    } catch (error) {
+      console.error('Failed to load demo users', error);
+      setLoginUsers(mockUsers);
+    }
+  };
+
+  useEffect(() => {
+    void loadLoginUsers();
+  }, []);
 
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveTab('dashboard');
+    setIsGhostReportOpen(false);
+    void loadLoginUsers();
   };
 
   if (!currentUser) {
@@ -63,7 +82,7 @@ export default function App() {
               </div>
 
               <div className="space-y-3">
-                {mockUsers.map((user) => (
+                {loginUsers.map((user) => (
                   <button
                     id={`login-${user.role_name.toLowerCase()}`}
                     key={user.id}
@@ -128,11 +147,12 @@ export default function App() {
 
     switch (currentUser.role_name) {
       case RoleType.ADMIN: {
-        const adminTabsMap: Record<string, 'overview' | 'pallets' | 'clients' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'> = {
+        const adminTabsMap: Record<string, 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'> = {
           dashboard: 'overview',
           pallets: 'pallets',
           calendar: 'calendar',
           users: 'clients',
+          korisnici: 'users',
           roles: 'roles',
           invoices: 'billing',
           settings: 'settings',
@@ -204,6 +224,13 @@ export default function App() {
           <PalletScanner 
             currentUser={currentUser} 
             onClose={() => setIsScannerOpen(false)} 
+          />
+        )}
+
+        {isGhostReportOpen && currentUser && currentUser.role_name !== RoleType.SERVISER && (
+          <GhostPalletCenter
+            currentUser={currentUser}
+            onClose={() => setIsGhostReportOpen(false)}
           />
         )}
       </AnimatePresence>

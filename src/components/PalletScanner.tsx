@@ -77,7 +77,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
   };
 
   return (
-    <div id="scanner-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div id="scanner-modal" className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}

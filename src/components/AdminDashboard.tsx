@@ -12,13 +12,15 @@ import { BillingList } from './BillingList';
 import { RoleManager } from './RoleManager';
 import { PalletTableView } from './PalletTableView';
 import { BillingCalendar } from './BillingCalendar';
+import { UserManager } from './UserManager';
+import { OverdueInvoiceModal, OverdueInvoicePreview } from './OverdueInvoiceModal';
 import { useApp } from '../AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, Pallet, PalletStatus, ClientDetail, User } from '../types';
-import { LayoutGrid, List as ListIcon, CreditCard, Shield, Table as TableIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, CreditCard, Shield, Table as TableIcon, Calendar as CalendarIcon, Eye, Send, Ghost } from 'lucide-react';
 
 interface AdminDashboardProps {
-  initialView?: 'overview' | 'pallets' | 'clients' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar';
+  initialView?: 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar';
   user: User;
 }
 
@@ -26,9 +28,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   const { 
     pallets, statuses, clients, auditLogs, serviceReports,
     updateStatusSettings, addStatus, deleteStatus, addPallet, updatePallet, deletePallet,
-    addClient, updateClient, t 
+    addClient, updateClient, setIsGhostReportOpen, t 
   } = useApp();
-  const [view, setView] = useState<'overview' | 'pallets' | 'clients' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'>(initialView);
+  const [view, setView] = useState<'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'>(initialView);
   const [displayMode, setDisplayMode] = useState<'grid' | 'list' | 'table'>('grid');
   const [editingStatus, setEditingStatus] = useState<PalletStatus | null>(null);
   const [showAddStatus, setShowAddStatus] = useState(false);
@@ -48,6 +50,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
+  const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
   
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -85,9 +89,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     return (days - graceDays) * pricePerDay;
   };
 
+  const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
+
+  const formatDateTime = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  };
+
+  const buildRecipientEmail = (clientName?: string, userId?: number) => {
+    if (!clientName) {
+      return `warehouse-${userId ?? 1}@trackpal.demo`;
+    }
+
+    const slug = clientName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '.')
+      .replace(/^\.+|\.+$/g, '');
+
+    return `${slug || 'client'}@trackpal.demo`;
+  };
+
+  const buildOverdueInvoicePreview = (pallet: Pallet): OverdueInvoicePreview => {
+    const client = clients.find(c => c.user_id === pallet.user_id);
+    const status = statuses.find(s => s.id === pallet.current_status_id);
+    const graceDays = client?.grace_period_days ?? status?.grace_period_days ?? 0;
+    const pricePerDay = client?.price_per_day ?? status?.price_per_day ?? 0;
+    const totalDays = calculateDays(pallet.last_status_changed_at);
+    const overdueDays = Math.max(totalDays - graceDays, 1);
+    const now = new Date();
+    const sentAt = sentInvoiceTimestamps[pallet.id];
+    const billingEnd = new Date(now);
+    const billingStart = new Date(now);
+    billingStart.setDate(billingStart.getDate() - overdueDays + 1);
+    const issuedAt = new Date(now.getTime() - (pallet.id + 15) * 60 * 1000);
+
+    return {
+      id: 9000 + pallet.id,
+      invoice_number: `INV-OVD-2026-${String(pallet.id).padStart(4, '0')}`,
+      pallet_id: pallet.id,
+      pallet_qr: pallet.qr_code,
+      customer_name: client?.name || pallet.client_name || 'Warehouse Holding',
+      recipient_email: buildRecipientEmail(client?.name || pallet.client_name, pallet.user_id),
+      user_id: pallet.user_id ?? 1,
+      billing_period_start: formatDateOnly(billingStart),
+      billing_period_end: formatDateOnly(billingEnd),
+      total_amount: calculateDebt(pallet),
+      status: sentAt ? 'sent' : 'active',
+      issued_at: formatDateTime(issuedAt),
+      created_at: formatDateTime(issuedAt),
+      updated_at: sentAt || formatDateTime(new Date(issuedAt.getTime() + 15 * 60 * 1000)),
+      overdue_days: overdueDays,
+      rate_per_day: pricePerDay,
+      location: pallet.current_location,
+    };
+  };
+
+  const selectedOverdueInvoice = selectedOverduePalletId
+    ? (() => {
+        const pallet = pallets.find(item => item.id === selectedOverduePalletId);
+        return pallet ? buildOverdueInvoicePreview(pallet) : null;
+      })()
+    : null;
+
+  const handleSendInvoice = (pallet: Pallet) => {
+    setSentInvoiceTimestamps(prev => ({
+      ...prev,
+      [pallet.id]: formatDateTime(new Date()),
+    }));
+  };
+
   const renderOverview = () => {
     const overduePallets = pallets.filter(p => calculateDebt(p) > 0);
     const totalDebt = pallets.reduce((acc, p) => acc + calculateDebt(p), 0);
+    const ghostPallets = pallets.filter(p => p.is_ghost);
     
     return (
       <div className="space-y-6 pb-12">
@@ -114,18 +194,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                         <tr>
                           <th className="px-6 py-3">{t('qrCode')}</th>
                           <th className="px-6 py-3">{t('client')}</th>
+                          <th className="px-6 py-3">Faktura</th>
                           <th className="px-6 py-3 text-right">{t('owed')}</th>
                         </tr>
                       </thead>
                       <tbody className="text-[11px] divide-y divide-zinc-50">
-                        {overduePallets.slice(0, 5).map(p => {
+                        {overduePallets.map(p => {
                            const client = clients.find(c => c.user_id === p.user_id);
+                           const invoiceWasSent = Boolean(sentInvoiceTimestamps[p.id]);
                            return (
                             <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
                               <td className="px-6 py-3 font-mono font-black">{p.qr_code}</td>
                               <td className="px-6 py-3">
                                 <p className="font-bold text-zinc-900 leading-none mb-1">{client?.name || 'In Warehouse'}</p>
                                 <p className="text-[9px] text-zinc-400 uppercase tracking-tighter leading-none">{p.current_location}</p>
+                              </td>
+                              <td className="px-6 py-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => setSelectedOverduePalletId(p.id)}
+                                  >
+                                    <Eye size={13} className="mr-1.5" />
+                                    Pregled fakture
+                                  </Button>
+                                  <Button
+                                    variant={invoiceWasSent ? 'secondary' : 'primary'}
+                                    size="xs"
+                                    onClick={() => handleSendInvoice(p)}
+                                    disabled={invoiceWasSent}
+                                  >
+                                    <Send size={13} className="mr-1.5" />
+                                    {invoiceWasSent ? 'Poslano' : 'Posalji fakturu'}
+                                  </Button>
+                                </div>
                               </td>
                               <td className="px-6 py-3 text-right text-rose-600 font-mono font-black">
                                  €{calculateDebt(p).toFixed(2)}
@@ -227,6 +330,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     </div>
                   </div>
                </div>
+            </Card>
+
+            <Card
+              title="Ghost Reports"
+              action={
+                <Button variant="ghost" size="xs" onClick={() => setIsGhostReportOpen(true)}>
+                  Otvori
+                </Button>
+              }
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 rounded-2xl border border-rose-100 bg-rose-50/60">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center">
+                      <Ghost size={18} />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-500">Otvorene prijave</p>
+                      <p className="text-lg font-black uppercase tracking-tight text-rose-700">{ghostPallets.length}</p>
+                    </div>
+                  </div>
+                  <Badge variant={ghostPallets.length > 0 ? 'warning' : 'success'}>
+                    {ghostPallets.length > 0 ? 'Akcija' : 'Cisto'}
+                  </Badge>
+                </div>
+
+                <div className="space-y-3">
+                  {ghostPallets.length > 0 ? (
+                    ghostPallets.slice(0, 3).map((ghostPallet) => (
+                      <div key={`admin-ghost-${ghostPallet.id}`} className="p-4 rounded-2xl border border-zinc-100 bg-white">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">
+                              {ghostPallet.client_name || 'Nepoznat klijent'}
+                            </p>
+                            <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 mt-1 truncate">
+                              {ghostPallet.current_location}
+                            </p>
+                          </div>
+                          <Badge variant="warning">Ghost</Badge>
+                        </div>
+                        <p className="text-[10px] font-bold text-zinc-500 mt-3 leading-relaxed">
+                          {ghostPallet.note || 'Prijavljena paleta bez QR koda.'}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50 text-center">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                        Trenutno nema otvorenih ghost prijava.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </Card>
           </div>
         </div>
@@ -498,7 +656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       </Card>
 
       {showAddStatus && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6">
+        <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-6">
            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl relative">
              <h2 className="text-xl font-black mb-6 uppercase">{t('newStatus')}</h2>
              <div className="space-y-4">
@@ -551,7 +709,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       )}
 
        {editingStatus && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6">
+         <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-6">
             <div className="bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl relative">
               <h2 className="text-xl font-black mb-6 uppercase">Configure: {editingStatus.name}</h2>
               <div className="space-y-4">
@@ -591,6 +749,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       {view === 'overview' && renderOverview()}
       {view === 'pallets' && renderPallets()}
       {view === 'clients' && renderClients()}
+      {view === 'users' && <UserManager currentUser={user} />}
       {view === 'settings' && renderSettings()}
       {view === 'billing' && <BillingList />}
       {view === 'calendar' && <BillingCalendar />}
@@ -599,7 +758,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       {/* Modals for CRUD operations */}
       <AnimatePresence>
         {selectedPallet && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-xl shadow-2xl relative overflow-hidden">
                <div className="absolute top-0 left-0 right-0 h-2 bg-black"></div>
                <div className="flex justify-between items-start mb-8">
@@ -661,7 +820,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )}
 
         {editingPallet && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-lg shadow-2xl overflow-y-auto max-h-[95vh] no-scrollbar">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black uppercase">Edit Unit: {editingPallet.qr_code}</h3>
@@ -768,7 +927,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )}
 
         {showAddStatus && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
               <h3 className="text-xl font-black uppercase mb-6 text-center">New Operational Status</h3>
               <div className="space-y-4">
@@ -829,7 +988,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )}
 
         {showAddPallet && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
               <h3 className="text-xl font-black uppercase mb-6">New Pallet Entry</h3>
               <div className="space-y-4">
@@ -863,7 +1022,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )}
 
         {showAddClient && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <h3 className="text-xl font-black uppercase mb-6">Onboard New Client</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -906,7 +1065,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )}
 
         {editingClient && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black uppercase">Edit Client Rules</h3>
@@ -955,6 +1114,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
           <PalletScanner 
             currentUser={user} 
             onClose={() => setShowScanner(false)} 
+          />
+        )}
+
+        {selectedOverdueInvoice && (
+          <OverdueInvoiceModal
+            invoice={selectedOverdueInvoice}
+            onClose={() => setSelectedOverduePalletId(null)}
+            onSend={() => {
+              const pallet = pallets.find(item => item.id === selectedOverdueInvoice.pallet_id);
+              if (pallet) {
+                handleSendInvoice(pallet);
+              }
+            }}
           />
         )}
       </AnimatePresence>

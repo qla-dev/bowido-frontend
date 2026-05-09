@@ -29,6 +29,10 @@ export interface User {
   phone_number?: string;
 }
 
+export interface ManagedUser extends User {
+  password: string;
+}
+
 export interface PalletStatus {
   id: number;
   name: string;

@@ -15,7 +15,9 @@ interface AppContextType {
   notifications: AppNotification[];
   serviceReports: ServiceReport[];
   isScannerOpen: boolean;
+  isGhostReportOpen: boolean;
   setIsScannerOpen: (open: boolean) => void;
+  setIsGhostReportOpen: (open: boolean) => void;
   setLanguage: (lang: 'en' | 'bs') => void;
   t: (key: string) => string;
   updatePalletStatus: (palletId: number, statusId: number, userId: number, userName: string, location?: string, note?: string, clientId?: number) => void;
@@ -347,6 +349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     { id: 1, pallet_id: 3, reported_by_user_id: 2, problem_description: 'Damaged left corner board. Needs replacement.', created_at: new Date(Date.now() - 86400000).toISOString(), image_path: 'https://images.unsplash.com/photo-1589939705384-5185138a04b9?auto=format&fit=crop&q=80&w=400' }
   ]);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
 
   const fetchInvoices = async () => {
     try {
@@ -391,6 +394,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const markNotificationRead = (id: number) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const pushNotification = (title: string, message: string, type: AppNotification['type'] = 'alert') => {
+    setNotifications(prev => {
+      const nextId = prev.length > 0 ? Math.max(...prev.map(n => n.id)) + 1 : 1;
+      const newNotification: AppNotification = {
+        id: nextId,
+        title,
+        message,
+        type,
+        read: false,
+        created_at: new Date().toISOString()
+      };
+      return [newNotification, ...prev];
+    });
   };
 
   const updatePalletStatus = (
@@ -545,9 +563,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
       return [...prev, ...newPallets];
     });
+
+    pushNotification(
+      'Ghost Pallet Report',
+      `${count} unlabeled unit${count > 1 ? 's' : ''} reported for ${clientName}.${note ? ` Note: ${note}` : ''}`,
+      'alert'
+    );
   };
 
   const pairGhostPallet = (ghostId: number, newQrCode: string) => {
+    const ghost = pallets.find(p => p.id === ghostId);
+
     setPallets(prev => prev.map(p => {
       if (p.id === ghostId) {
         return {
@@ -559,6 +585,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return p;
     }));
+
+    if (ghost) {
+      pushNotification(
+        'Ghost Pallet Paired',
+        `${ghost.client_name || 'Client'} ghost pallet is now paired with QR ${newQrCode}.`,
+        'status'
+      );
+    }
   };
 
   const addClient = (c: Omit<ClientDetail, 'id'>) => {
@@ -605,7 +639,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notifications,
       serviceReports,
       isScannerOpen,
+      isGhostReportOpen,
       setIsScannerOpen,
+      setIsGhostReportOpen,
       setLanguage,
       t,
       updatePalletStatus, 

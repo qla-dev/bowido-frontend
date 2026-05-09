@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Users, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, Moon, Sun, UserCircle
+  Bell, Moon, Sun, UserCircle, Ghost
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -70,10 +70,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   isNightMode,
   onToggleNightMode,
 }) => {
-  const { t, notifications, markNotificationRead, setIsScannerOpen } = useApp();
+  const { t, notifications, markNotificationRead, setIsScannerOpen, setIsGhostReportOpen } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
+  const hasGhostAccess = [RoleType.ADMIN, RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role);
+  const highlightGhostAction = role === RoleType.VOZAC || role === RoleType.KLIJENT;
 
   const openSettings = () => {
     setActiveTab('settings');
@@ -96,14 +98,29 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {hasGhostAccess && (
+            <button
+              type="button"
+              title={t('ghostReport')}
+              onClick={() => setIsGhostReportOpen(true)}
+              className={cn(
+                "h-10 w-10 border rounded-xl flex items-center justify-center transition-all",
+                highlightGhostAction
+                  ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700"
+              )}
+            >
+              <Ghost size={18} />
+            </button>
+          )}
+
           <button
             type="button"
             title="QR scan"
             onClick={() => setIsScannerOpen(true)}
-            className="h-10 w-10 sm:w-auto sm:px-3 bg-[#00A655] text-white rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/15 hover:bg-[#008f49] active:scale-95 transition-all"
+            className="h-10 w-10 border border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all"
           >
-            <QrCode size={18} />
-            <span className="hidden lg:inline text-[10px] font-black uppercase tracking-tight">QR scan</span>
+            <QrCode size={18} className="text-[#00A655]" />
           </button>
 
           <div className="relative">
@@ -235,7 +252,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role }) => {
-  const { t } = useApp();
+  const { t, setIsScannerOpen } = useApp();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
@@ -249,6 +266,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
         { id: 'pallets', label: t('pallets'), icon: <Package /> },
         { id: 'calendar', label: t('calendar'), icon: <CalendarIcon /> },
         { id: 'users', label: t('clients'), icon: <Users /> },
+        { id: 'korisnici', label: 'Korisnici', icon: <UserCircle /> },
         { id: 'roles', label: t('roles'), icon: <Shield /> },
         { id: 'invoices', label: t('billing'), icon: <ClipboardList /> }
       );
@@ -271,31 +289,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
-        <div className="p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            {!isCollapsed && (
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-[#00A655] rounded-lg flex items-center justify-center shadow-lg shadow-emerald-900/10">
-                  <div className="w-2.5 h-2.5 border-2 border-white rounded-[1px] rotate-45"></div>
-                </div>
-                <span className="font-black text-lg tracking-tighter text-emerald-900 uppercase">trackpal</span>
-              </div>
-            )}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1.5 hover:bg-emerald-50 rounded-lg text-zinc-500 hover:text-emerald-700 transition-colors"
-            >
-              {isCollapsed ? <Menu size={18} /> : <X size={18} />}
-            </button>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-3 py-2 space-y-1">
-          {!isCollapsed && (
-            <div className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] px-3 mb-2 mt-4">
-              {t('menu')}
+        {isCollapsed && (
+          <div className="px-3 pt-3 pb-1">
+            <div className="flex items-center">
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="w-full px-3 py-2.5 rounded-xl flex items-center justify-start text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+              >
+                <Menu size={18} />
+              </button>
             </div>
-          )}
+          </div>
+        )}
+
+        <nav className={cn("flex-1 px-3 pb-3 space-y-1", isCollapsed ? "pt-2" : "pt-3")}>
           {getNavItems().map((item) => (
             <NavItem
               key={item.id}
@@ -306,20 +313,47 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
               collapsed={isCollapsed}
             />
           ))}
-          
-          <div className="pt-4 mt-4 border-t border-emerald-100">
-            <button
-              onClick={() => setShowHelp(true)}
-              className={cn(
-                "flex items-center gap-2 w-full px-3 py-2 rounded-xl text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all",
-                isCollapsed && "justify-center"
-              )}
-            >
-              <HelpCircle size={18} />
-              {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-tight">{t('needHelp')}</span>}
-            </button>
-          </div>
         </nav>
+
+        <div className="px-3 py-4 mt-auto border-t border-emerald-100 space-y-1">
+          <button
+            type="button"
+            onClick={() => setIsScannerOpen(true)}
+            className={cn(
+              "h-10 w-full rounded-xl bg-[#00A655] text-white shadow-lg shadow-emerald-900/15 hover:bg-[#008f49] active:scale-95 transition-all flex items-center gap-2",
+              isCollapsed ? "justify-center px-0" : "justify-start px-3"
+            )}
+          >
+            <QrCode size={18} className="shrink-0" />
+            {!isCollapsed && (
+              <span className="text-[11px] font-black uppercase tracking-tight">
+                QR scan
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowHelp(true)}
+            className={cn(
+              "h-10 flex items-center gap-2 w-full px-3 rounded-xl text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all",
+              isCollapsed && "justify-center"
+            )}
+          >
+            <HelpCircle size={18} />
+            {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-tight">{t('needHelp')}</span>}
+          </button>
+
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(true)}
+              className="h-10 w-full px-3 rounded-xl flex items-center gap-2 text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
+            >
+              <X size={18} />
+              <span className="text-[11px] font-black uppercase tracking-tight">Zatvori</span>
+            </button>
+          )}
+        </div>
       </aside>
 
       <AnimatePresence>
@@ -340,7 +374,8 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
 
     if (role === RoleType.ADMIN) {
       items.push(
-        { id: 'pallets', label: t('pallets'), icon: <Package size={18} /> }
+        { id: 'pallets', label: t('pallets'), icon: <Package size={18} /> },
+        { id: 'korisnici', label: 'Korisnici', icon: <UserCircle size={18} /> }
       );
     } else if (role === RoleType.KLIJENT) {
       items.push(

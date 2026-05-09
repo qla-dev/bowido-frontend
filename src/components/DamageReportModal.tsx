@@ -36,7 +36,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div className="modal-overlay fixed inset-0 z-[200] flex items-center justify-center p-4">
       <motion.div 
         initial={{ scale: 0.98, opacity: 0 }} 
         animate={{ scale: 1, opacity: 1 }}

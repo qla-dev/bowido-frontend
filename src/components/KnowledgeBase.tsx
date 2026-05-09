@@ -47,7 +47,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ role, onClose }) =
   const content = getRoleContent();
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}

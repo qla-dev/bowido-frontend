@@ -12,7 +12,7 @@ interface ClientDashboardProps {
 }
 
 export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTab = 'dashboard' }) => {
-  const { pallets, statuses, clients, reportGhostPallets, t } = useApp();
+  const { pallets, statuses, clients, reportGhostPallets, setIsGhostReportOpen, t } = useApp();
   const [showGhostModal, setShowGhostModal] = React.useState(false);
   const [ghostCount, setGhostCount] = React.useState(1);
   const [ghostNote, setGhostNote] = React.useState('');
@@ -158,14 +158,14 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   <p className="text-[10px] text-white/40 font-black uppercase tracking-widest">Prijavite jedinice bez QR labela na stanju</p>
                </div>
             </div>
-            <Button variant="outline" className="w-full md:w-auto bg-transparent border-white/20 text-white hover:bg-white hover:text-black" onClick={() => setShowGhostModal(true)}>
+            <Button variant="outline" className="w-full md:w-auto bg-transparent border-white/20 text-white hover:bg-white hover:text-black" onClick={() => setIsGhostReportOpen(true)}>
                {t('reportNow')}
             </Button>
          </div>
       </Card>
 
       {showGhostModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+        <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4">
            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-md shadow-2xl relative">
               <h3 className="text-xl font-black uppercase mb-6 text-center font-display">Prijava palete bez koda</h3>
               <div className="space-y-4">
