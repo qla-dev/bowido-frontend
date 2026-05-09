@@ -13,11 +13,12 @@ import { PalletScanner } from './components/PalletScanner';
 import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { ManagedUser, RoleType, User } from './types';
 import { mockUsers } from './lib/mockData';
-import { Package, Smartphone, LogIn } from 'lucide-react';
+import { Smartphone, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card } from './components/ui';
 import { apiService } from './services/api';
+import logoImage from './assets/logo.png';
 
 export default function App() {
   const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen } = useApp();
@@ -56,24 +57,24 @@ export default function App() {
           className="w-full max-w-md space-y-12"
         >
           <div className="flex flex-col items-center gap-6">
-            <div className="relative">
-              <div className="w-20 h-20 bg-[#00A655] rounded-2xl flex items-center justify-center shadow-2xl shadow-emerald-900/20">
-                <Package className="text-white" size={40} />
-              </div>
-              <button 
-                onClick={() => setLanguage(language === 'en' ? 'bs' : 'en')}
-                className="absolute -top-2 -right-2 w-10 h-10 bg-white border border-zinc-200 rounded-xl shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
-              >
-                <span className="text-[10px] font-black">{language.toUpperCase()}</span>
-              </button>
+            <div>
+              <img src={logoImage} alt="Logo" className="h-12 w-auto" />
             </div>
             <div className="text-center space-y-2">
-              <h1 className="text-5xl font-black tracking-tighter uppercase font-display">trackpal</h1>
               <p className="text-zinc-500 font-black uppercase tracking-[0.3em] text-[10px]">Logistics Ecosystem</p>
             </div>
           </div>
 
-          <Card title={t('welcome') || 'System Login'} noPadding>
+          <Card noPadding>
+            <div className="border-b border-emerald-50 px-8 py-4 flex items-center justify-between">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-emerald-700">{t('welcome') || 'System Login'}</h2>
+              <button 
+                onClick={() => setLanguage(language === 'en' ? 'bs' : 'en')}
+                className="w-10 h-10 bg-white border border-zinc-200 rounded-xl shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
+              >
+                <span className="text-[10px] font-black">{language.toUpperCase()}</span>
+              </button>
+            </div>
             <div className="p-8 space-y-6">
               <div className="space-y-1 text-center">
                 <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">

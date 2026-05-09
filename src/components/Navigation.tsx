@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
 import { KnowledgeBase } from './KnowledgeBase';
 import { useApp } from '../AppContext';
+import logoImage from '../assets/logo.png';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -87,14 +88,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-zinc-200 bg-white/95 backdrop-blur-xl shadow-sm shadow-zinc-200/60"
     >
       <div className="h-full px-4 md:px-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-9 h-9 bg-[#00A655] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/15 shrink-0">
-            <Package className="text-white" size={20} />
-          </div>
-          <div className="min-w-0">
-            <span className="block font-black text-lg tracking-tight text-emerald-900 uppercase font-display leading-none">trackpal</span>
-            <span className="hidden sm:block text-[8px] font-black uppercase tracking-[0.18em] text-emerald-600 truncate">{role}</span>
-          </div>
+        <div className="flex items-center min-w-0 flex-1">
+          <img src={logoImage} alt="Logo" className="h-6 w-auto" />
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
