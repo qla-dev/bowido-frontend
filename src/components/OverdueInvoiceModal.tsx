@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Badge, Button, Card } from './ui';
 import { CheckCircle2, Clock3, FileText, Mail, Package, Send, X } from 'lucide-react';
+import { useApp } from '../AppContext';
 
 export interface OverdueInvoicePreview {
   id: number;
@@ -34,6 +35,8 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
   onClose,
   onSend,
 }) => {
+  const { t } = useApp();
+
   return (
     <div className="modal-overlay fixed inset-0 z-[150] flex items-center justify-center p-4">
       <motion.div
@@ -49,7 +52,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
               </div>
               <div className="min-w-0">
                 <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-emerald-950 font-display">
-                  Pregled fakture
+                  {t('viewInvoice')}
                 </h2>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 truncate">
                   {invoice.invoice_number} / {invoice.pallet_qr}
@@ -72,7 +75,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                 <div className="p-5 rounded-2xl border border-zinc-200 bg-white">
                   <div className="flex items-center gap-2 mb-3 text-zinc-400">
                     <Mail size={15} />
-                    <span className="text-[9px] font-black uppercase tracking-[0.16em]">Primaoc</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.16em]">{t('recipient')}</span>
                   </div>
                   <p className="text-lg font-black uppercase tracking-tight text-emerald-950">
                     {invoice.customer_name}
@@ -85,7 +88,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                 <div className="p-5 rounded-2xl border border-zinc-200 bg-white">
                   <div className="flex items-center gap-2 mb-3 text-zinc-400">
                     <Package size={15} />
-                    <span className="text-[9px] font-black uppercase tracking-[0.16em]">Paleta</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.16em]">{t('palletLabel')}</span>
                   </div>
                   <p className="text-lg font-black uppercase tracking-tight text-emerald-950">
                     {invoice.pallet_qr}
@@ -100,7 +103,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                 <div className="flex items-center justify-between gap-4 mb-5">
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-500">
-                      Overdue obracun
+                      {t('overdueBreakdown')}
                     </p>
                     <p className="text-3xl font-black tracking-tight text-rose-600 mt-2">
                       EUR {invoice.total_amount.toFixed(2)}
@@ -114,7 +117,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                      Dana kasnjenja
+                      {t('overdueDays')}
                     </p>
                     <p className="text-lg font-black uppercase tracking-tight text-zinc-900 mt-2">
                       {invoice.overdue_days}
@@ -122,7 +125,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                   </div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                      Cijena po danu
+                      {t('ratePerDayLabel')}
                     </p>
                     <p className="text-lg font-black uppercase tracking-tight text-zinc-900 mt-2">
                       EUR {invoice.rate_per_day.toFixed(2)}
@@ -135,14 +138,14 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                 <div className="flex items-center gap-2 mb-4 text-zinc-400">
                   {invoice.status === 'sent' ? <CheckCircle2 size={15} /> : <Clock3 size={15} />}
                   <span className="text-[9px] font-black uppercase tracking-[0.16em]">
-                    Status slanja
+                    {t('sendingStatus')}
                   </span>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">
-                      Izdato
+                      {t('issued')}
                     </span>
                     <span className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
                       {invoice.issued_at}
@@ -150,7 +153,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">
-                      Zadnji update
+                      {t('lastUpdate')}
                     </span>
                     <span className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
                       {invoice.updated_at}
@@ -163,7 +166,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
 
           <div className="px-6 md:px-8 py-5 border-t border-zinc-100 bg-zinc-50/50 flex flex-col sm:flex-row gap-3">
             <Button variant="outline" className="flex-1" onClick={onClose}>
-              Zatvori
+              {t('close')}
             </Button>
             <Button
               className="flex-1"
@@ -171,7 +174,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
               disabled={invoice.status === 'sent'}
             >
               <Send size={15} className="mr-2" />
-              {invoice.status === 'sent' ? 'Faktura poslana' : 'Posalji fakturu'}
+              {invoice.status === 'sent' ? t('invoiceSent') : t('sendInvoice')}
             </Button>
           </div>
         </Card>

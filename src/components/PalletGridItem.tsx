@@ -4,6 +4,7 @@ import { Pallet, PalletStatus, ClientDetail } from '../types';
 import { motion } from 'motion/react';
 import { useApp } from '../AppContext';
 import { Badge, cn } from './ui';
+import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 
 interface PalletGridItemProps {
   pallet: Pallet;
@@ -14,7 +15,7 @@ interface PalletGridItemProps {
 }
 
 export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses, debt, onClick }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   
   const calculateDays = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -24,10 +25,12 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
   const days = calculateDays(pallet.last_status_changed_at);
 
   const getPalletImage = () => {
-    return "https://images.unsplash.com/photo-1591085686350-798c0f9faa7f?auto=format&fit=crop&q=80&w=600";
-  };
+  return "/images/palletexample.svg";
+};
 
   const isOverdue = debt > 0;
+  const palletTypeLabel = getPalletTypeLabel(pallet.type, language);
+  const statusLabel = getStatusLabel(pallet.current_status_name, language);
 
   return (
     <motion.div
@@ -45,19 +48,19 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
             {isOverdue && <Badge variant="danger">{t('overdue')}</Badge>}
           </div>
           <p className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500 truncate mt-0.5">
-            {pallet.type}
+            {palletTypeLabel}
           </p>
         </div>
         <Badge variant={pallet.current_status_id === 4 ? 'success' : pallet.current_status_id === 7 ? 'danger' : 'info'}>
-          {pallet.current_status_name}
+          {statusLabel}
         </Badge>
       </div>
 
       <div className="flex-1 p-5 flex flex-col">
-        <div className="aspect-[16/9] w-full rounded-xl overflow-hidden mb-4 bg-zinc-100 border border-zinc-200 shrink-0">
+        <div className="aspect-[4/3] w-full rounded-xl overflow-hidden mb-4 bg-zinc-100 border border-zinc-200 shrink-0">
            <img 
              src={getPalletImage()} 
-             alt={pallet.type}
+             alt={palletTypeLabel}
              className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500 ease-out" 
              referrerPolicy="no-referrer"
            />
@@ -65,7 +68,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
         
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-black text-zinc-950 truncate uppercase tracking-widest mb-1.5 font-display">
-             {pallet.client_name || t('inventory')}
+             {pallet.client_name || t('inStock')}
           </p>
           <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-tight">
             <MapPin size={10} className="text-zinc-400" />
@@ -78,7 +81,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
         <div>
           <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest block mb-1">{t('days')}</span>
           <p className={cn("text-[10px] font-black tracking-tight uppercase", days > 14 ? "text-rose-600" : "text-zinc-950")}>
-            {days} Days
+            {days} {t('days')}
           </p>
         </div>
         <div className="text-right">

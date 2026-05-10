@@ -4,9 +4,10 @@ import { Shield, ShieldCheck, Plus, Edit2, X, Check } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Button, Card, Input, Badge, cn } from './ui';
 import { Role } from '../types';
+import { getPermissionDescription, getPermissionLabel, getRoleDescription } from '../i18n';
 
 export const RoleManager: React.FC = () => {
-  const { roles, permissions, addRole, updateRole, t } = useApp();
+  const { roles, permissions, addRole, updateRole, t, language } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [currentRole, setCurrentRole] = useState<Partial<Role> | null>(null);
 
@@ -41,7 +42,7 @@ export const RoleManager: React.FC = () => {
         <div>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('manageRoles')}</h2>
           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-loose">
-            Define system access levels and permissions
+            {t('defineAccessLevels')}
           </p>
         </div>
         <Button 
@@ -81,7 +82,7 @@ export const RoleManager: React.FC = () => {
                 </div>
 
                 <h3 className="text-base font-black text-black uppercase tracking-tight mb-1">{role.name}</h3>
-                <p className="text-[10px] text-zinc-500 font-bold mb-6 line-clamp-2 uppercase tracking-wide">{role.description}</p>
+                <p className="text-[10px] text-zinc-500 font-bold mb-6 line-clamp-2 uppercase tracking-wide">{getRoleDescription(role.description, language)}</p>
 
                 <div className="space-y-3">
                   <h4 className="text-[8px] font-black uppercase tracking-[0.2em] text-zinc-300">{t('permissions')} ({role.permissions.length})</h4>
@@ -90,7 +91,7 @@ export const RoleManager: React.FC = () => {
                       const p = permissions.find(p => p.id === pid);
                       return p ? (
                         <Badge key={pid} variant="default">
-                          {p.name}
+                          {getPermissionLabel(p, language)}
                         </Badge>
                       ) : null;
                     })}
@@ -138,7 +139,7 @@ export const RoleManager: React.FC = () => {
                       <Input 
                         value={currentRole?.name || ''}
                         onChange={(e) => setCurrentRole(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="e.g. Master Logistics"
+                        placeholder={t('roleNamePlaceholder')}
                       />
                     </div>
                     <div>
@@ -147,7 +148,7 @@ export const RoleManager: React.FC = () => {
                         className="w-full bg-zinc-50 border-2 border-transparent focus:border-black rounded-2xl px-6 py-4 text-[11px] font-bold outline-none transition-all resize-none h-24 placeholder:text-zinc-300"
                         value={currentRole?.description || ''}
                         onChange={(e) => setCurrentRole(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Describe the responsibilities of this role..."
+                        placeholder={t('roleDescriptionPlaceholder')}
                       />
                     </div>
                   </div>
@@ -167,12 +168,12 @@ export const RoleManager: React.FC = () => {
                           )}
                         >
                           <div>
-                            <p className="font-black text-xs uppercase tracking-tight">{perm.name}</p>
+                            <p className="font-black text-xs uppercase tracking-tight">{getPermissionLabel(perm, language)}</p>
                             <p className={cn(
                               "text-[10px] font-bold uppercase tracking-wider",
                               currentRole?.permissions?.includes(perm.id) ? "text-zinc-400" : "text-zinc-300"
                             )}>
-                              {perm.description}
+                              {getPermissionDescription(perm, language)}
                             </p>
                           </div>
                           {currentRole?.permissions?.includes(perm.id) && <Check size={16} />}

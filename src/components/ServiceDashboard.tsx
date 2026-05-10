@@ -4,13 +4,14 @@ import { ImageIcon, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { User } from '../types';
 import { StatCard, Card, Button, Badge } from './ui';
+import { getPalletTypeLabel } from '../i18n';
 
 interface ServiceDashboardProps {
   user: User;
 }
 
 export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
-  const { pallets, updatePalletStatus, t } = useApp();
+  const { pallets, updatePalletStatus, t, language } = useApp();
   
   const servicePallets = pallets.filter(p => p.current_status_id === 7);
 
@@ -82,7 +83,7 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
                              <span className="font-mono font-black text-black text-sm uppercase tracking-tighter">{pallet.qr_code}</span>
                              <Badge variant="danger" className="text-[8px] italic">IN SERVICE</Badge>
                           </div>
-                          <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{pallet.type} • DAMAGE REPORT</p>
+                          <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{getPalletTypeLabel(pallet.type, language)} • DAMAGE REPORT</p>
                       </div>
                       <Button 
                         size="sm"

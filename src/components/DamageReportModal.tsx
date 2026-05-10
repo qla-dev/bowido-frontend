@@ -4,6 +4,7 @@ import { Camera, X, Search, Package, AlertCircle } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Button, Card, Badge, Input } from './ui';
+import { getPalletTypeLabel } from '../i18n';
 
 interface DamageReportModalProps {
   onClose: () => void;
@@ -11,7 +12,7 @@ interface DamageReportModalProps {
 }
 
 export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, currentUser }) => {
-  const { pallets, reportDamage, t } = useApp();
+  const { pallets, reportDamage, t, language } = useApp();
   const [search, setSearch] = useState('');
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [description, setDescription] = useState('');
@@ -28,6 +29,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
     reportDamage({
       pallet_id: selectedPallet.id,
       reported_by_user_id: currentUser.id,
+      reported_by_user_name: currentUser.name,
       problem_description: description,
       image_path: image || undefined
     });
@@ -81,7 +83,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
                         </div>
                         <div className="text-left">
                           <p className="text-[11px] font-black uppercase tracking-tight text-black">{p.qr_code}</p>
-                          <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tight">{p.type} • {p.current_location}</p>
+                          <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tight">{getPalletTypeLabel(p.type, language)} • {p.current_location}</p>
                         </div>
                       </div>
                       <AlertCircle size={16} className="text-zinc-200 group-hover:text-rose-500 transition-colors" />
@@ -101,7 +103,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
                       </div>
                       <div>
                         <p className="text-[11px] font-black uppercase tracking-tight text-black">{selectedPallet.qr_code}</p>
-                        <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{selectedPallet.type}</p>
+                        <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{getPalletTypeLabel(selectedPallet.type, language)}</p>
                       </div>
                    </div>
                    <Button variant="ghost" size="xs" onClick={() => setSelectedPallet(null)} className="text-rose-500">{t('cancel')}</Button>

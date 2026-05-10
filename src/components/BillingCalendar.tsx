@@ -16,9 +16,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Invoice } from '../types';
+import { localeMap } from '../i18n';
 
 interface DateNote {
-  note: string;
+  note?: string;
+  noteKey?: string;
   reminder: string;
 }
 
@@ -26,40 +28,38 @@ type MarkerKind = 'review' | 'collection' | 'followup' | 'ops';
 
 interface CalendarMarker {
   kind: MarkerKind;
-  title: string;
-  detail: string;
+  titleKey: string;
+  detailKey: string;
   time: string;
 }
 
-const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 const markerTheme: Record<
   MarkerKind,
-  { dot: string; badge: string; soft: string; label: string }
+  { dot: string; badge: string; soft: string; labelKey: string }
 > = {
   review: {
     dot: 'bg-amber-500',
     badge: 'bg-amber-50 text-amber-700 border-amber-100',
     soft: 'bg-amber-50/70 border-amber-100',
-    label: 'Review',
+    labelKey: 'calendarMarkerReview',
   },
   collection: {
     dot: 'bg-emerald-500',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     soft: 'bg-emerald-50/70 border-emerald-100',
-    label: 'Collection',
+    labelKey: 'calendarMarkerCollection',
   },
   followup: {
     dot: 'bg-blue-500',
     badge: 'bg-blue-50 text-blue-700 border-blue-100',
     soft: 'bg-blue-50/70 border-blue-100',
-    label: 'Follow-up',
+    labelKey: 'calendarMarkerFollowup',
   },
   ops: {
     dot: 'bg-zinc-400',
     badge: 'bg-zinc-100 text-zinc-700 border-zinc-200',
     soft: 'bg-zinc-50 border-zinc-100',
-    label: 'Ops',
+    labelKey: 'calendarMarkerOps',
   },
 };
 
@@ -71,7 +71,8 @@ const toDateKey = (year: number, month: number, day: number) =>
   `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
 export const BillingCalendar: React.FC = () => {
-  const { invoices, t } = useApp();
+  const { invoices, t, language } = useApp();
+  const locale = localeMap[language];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
   const [showNoteEditor, setShowNoteEditor] = useState(false);
@@ -83,17 +84,27 @@ export const BillingCalendar: React.FC = () => {
     const month = today.getMonth();
     return {
       [toDateKey(year, month, 6)]: {
-        note: 'Send the first reminder batch to clients with outstanding balances.',
+        noteKey: 'calendarSeedReminderBatch',
         reminder: '09:00',
       },
       [toDateKey(year, month, 18)]: {
-        note: 'Review local grace-period exceptions before the weekend close.',
+        noteKey: 'calendarSeedGraceReview',
         reminder: '14:30',
       },
     };
   });
 
-  const monthYearStr = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const weekDays = useMemo(() => {
+    const start = new Date(2024, 0, 7);
+    return Array.from({ length: 7 }, (_, index) =>
+      new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(
+        new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)
+      )
+    );
+  }, [locale]);
+
+  const monthYearStr = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(currentDate);
+  const shortMonthStr = new Intl.DateTimeFormat(locale, { month: 'short' }).format(currentDate);
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
@@ -118,36 +129,36 @@ export const BillingCalendar: React.FC = () => {
       {
         day: 4,
         kind: 'review',
-        title: 'Weekly reconciliation',
-        detail: 'Cross-check sent invoices against the open receivables list.',
+        titleKey: 'calendarTitleWeeklyReconciliation',
+        detailKey: 'calendarDetailWeeklyReconciliation',
         time: '08:30',
       },
       {
         day: 8,
         kind: 'collection',
-        title: 'Expected inbound payment',
-        detail: 'AutoNL settlement window is planned for this day.',
+        titleKey: 'calendarTitleExpectedInboundPayment',
+        detailKey: 'calendarDetailExpectedInboundPayment',
         time: '11:00',
       },
       {
         day: 13,
         kind: 'followup',
-        title: 'Client follow-up round',
-        detail: 'Reach out to accounts with partially paid balances.',
+        titleKey: 'calendarTitleClientFollowupRound',
+        detailKey: 'calendarDetailClientFollowupRound',
         time: '13:30',
       },
       {
         day: 19,
         kind: 'ops',
-        title: 'Billing handoff',
-        detail: 'Prepare warehouse notes for the next invoice export.',
+        titleKey: 'calendarTitleBillingHandoff',
+        detailKey: 'calendarDetailBillingHandoff',
         time: '10:15',
       },
       {
         day: 25,
         kind: 'review',
-        title: 'Month-end review',
-        detail: 'Validate overdue items and prepare the close-out summary.',
+        titleKey: 'calendarTitleMonthEndReview',
+        detailKey: 'calendarDetailMonthEndReview',
         time: '16:00',
       },
     ];
@@ -158,8 +169,8 @@ export const BillingCalendar: React.FC = () => {
         if (!acc[key]) acc[key] = [];
         acc[key].push({
           kind: marker.kind,
-          title: marker.title,
-          detail: marker.detail,
+          titleKey: marker.titleKey,
+          detailKey: marker.detailKey,
           time: marker.time,
         });
       }
@@ -171,6 +182,11 @@ export const BillingCalendar: React.FC = () => {
   const selectedDayInvoices = selectedDay ? invoicesByDay[selectedDay] || [] : [];
   const selectedNote = selectedDateKey ? dateNotes[selectedDateKey] : null;
   const selectedMarkers = selectedDateKey ? monthMarkers[selectedDateKey] || [] : [];
+  const resolveNoteText = (entry?: DateNote | null) => {
+    if (!entry) return '';
+    return entry.noteKey ? t(entry.noteKey) : entry.note || '';
+  };
+  const selectedNoteText = resolveNoteText(selectedNote);
   const monthlyInvoices: Invoice[] = (Object.values(invoicesByDay) as Invoice[][]).reduce<Invoice[]>(
     (allInvoices, dayInvoices) => allInvoices.concat(dayInvoices),
     []
@@ -203,7 +219,7 @@ export const BillingCalendar: React.FC = () => {
   const openNoteEditor = () => {
     if (!selectedDateKey) return;
     const current = dateNotes[selectedDateKey];
-    setNoteDraft(current?.note || '');
+    setNoteDraft(resolveNoteText(current));
     setReminderDraft(current?.reminder || '');
     setShowNoteEditor(true);
   };
@@ -239,13 +255,19 @@ export const BillingCalendar: React.FC = () => {
     setSelectedDay(null);
   };
 
+  const getInvoiceStatusLabel = (status: Invoice['status']) => {
+    if (status === 'paid') return t('paid');
+    if (status === 'sent') return t('sentLabel');
+    return t('unpaid');
+  };
+
   return (
     <div className="space-y-6 pb-12">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Month Due" value={formatCurrency(monthlyDue)} variant="success" />
-        <StatCard label="Invoices" value={monthlyInvoiceCount} variant="info" />
-        <StatCard label="Unpaid" value={monthlyUnpaidCount} variant="danger" />
-        <StatCard label="Marked Days" value={markedDayCount} variant="warning" />
+        <StatCard label={t('monthDue')} value={formatCurrency(monthlyDue)} variant="success" />
+        <StatCard label={t('invoicesLabel')} value={monthlyInvoiceCount} variant="info" />
+        <StatCard label={t('unpaid')} value={monthlyUnpaidCount} variant="danger" />
+        <StatCard label={t('markedDays')} value={markedDayCount} variant="warning" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -273,10 +295,10 @@ export const BillingCalendar: React.FC = () => {
             </div>
 
             <div className="px-6 py-4 border-b border-zinc-100 bg-zinc-50/40 flex flex-wrap gap-2">
-              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">Invoice due</Badge>
-              <Badge className="bg-rose-50 text-rose-600 border-rose-100">Unpaid</Badge>
-              <Badge className="bg-blue-50 text-blue-700 border-blue-100">Note</Badge>
-              <Badge className="bg-amber-50 text-amber-700 border-amber-100">Review task</Badge>
+              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">{t('calendarInvoiceDue')}</Badge>
+              <Badge className="bg-rose-50 text-rose-600 border-rose-100">{t('unpaid')}</Badge>
+              <Badge className="bg-blue-50 text-blue-700 border-blue-100">{t('note')}</Badge>
+              <Badge className="bg-amber-50 text-amber-700 border-amber-100">{t('calendarReviewTask')}</Badge>
             </div>
 
             <div className="p-4 md:p-6">
@@ -379,7 +401,7 @@ export const BillingCalendar: React.FC = () => {
                               selectedDay === day ? 'text-white/75' : 'text-zinc-300'
                             )}
                           >
-                            {dayMarkers.length} marker{dayMarkers.length > 1 ? 's' : ''}
+                            {dayMarkers.length} {dayMarkers.length > 1 ? t('markerPlural') : t('markerSingular')}
                           </p>
                         )}
 
@@ -390,7 +412,7 @@ export const BillingCalendar: React.FC = () => {
                               selectedDay === day ? 'text-white/75' : 'text-zinc-300'
                             )}
                           >
-                            note saved
+                            {t('calendarNoteSaved')}
                           </p>
                         )}
                       </div>
@@ -411,8 +433,8 @@ export const BillingCalendar: React.FC = () => {
                 </p>
                 <h4 className="text-2xl font-black uppercase tracking-tighter text-zinc-950">
                   {selectedDay
-                    ? `${selectedDay} ${currentDate.toLocaleString('default', { month: 'short' })}`
-                    : 'Select a date'}
+                    ? `${selectedDay} ${shortMonthStr}`
+                    : t('selectDate')}
                 </h4>
               </div>
               <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
@@ -423,13 +445,13 @@ export const BillingCalendar: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50/60">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">
-                  Due
+                  {t('dueLabel')}
                 </p>
                 <p className="text-xl font-black tracking-tight">{formatCurrency(totalOwedSelected)}</p>
               </div>
               <div className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50/60">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 mb-2">
-                  Items
+                  {t('itemsLabel')}
                 </p>
                 <p className="text-xl font-black tracking-tight">
                   {selectedDayInvoices.length + selectedMarkers.length + (selectedNote ? 1 : 0)}
@@ -437,13 +459,13 @@ export const BillingCalendar: React.FC = () => {
               </div>
               <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/60">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 mb-2">
-                  Paid
+                  {t('paid')}
                 </p>
                 <p className="text-xl font-black tracking-tight text-emerald-700">{formatCurrency(paidSelected)}</p>
               </div>
               <div className="p-4 rounded-2xl border border-rose-100 bg-rose-50/60">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500 mb-2">
-                  Unpaid
+                  {t('unpaid')}
                 </p>
                 <p className="text-xl font-black tracking-tight text-rose-600">{formatCurrency(unpaidSelected)}</p>
               </div>
@@ -451,7 +473,7 @@ export const BillingCalendar: React.FC = () => {
           </Card>
 
           <Card
-            title="Day activity"
+            title={t('dayActivity')}
             action={
               <Button variant="ghost" size="xs" onClick={openNoteEditor}>
                 <Plus size={14} />
@@ -464,13 +486,13 @@ export const BillingCalendar: React.FC = () => {
                   <div className="flex items-center gap-2 mb-2">
                     <MessageSquare size={14} className="text-blue-600" />
                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">
-                      Saved note
+                      {t('savedNote')}
                     </p>
                   </div>
-                  <p className="text-sm font-bold text-zinc-700 leading-relaxed">{selectedNote.note}</p>
+                  <p className="text-sm font-bold text-zinc-700 leading-relaxed">{selectedNoteText}</p>
                   {selectedNote.reminder && (
                     <Badge className="mt-3 bg-white text-blue-700 border-blue-100">
-                      Reminder {selectedNote.reminder}
+                      {t('reminderLabel')} {selectedNote.reminder}
                     </Badge>
                   )}
                 </div>
@@ -488,12 +510,12 @@ export const BillingCalendar: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <span className={cn('w-2.5 h-2.5 rounded-full', markerTheme[marker.kind].dot)} />
                       <p className="text-[10px] font-black uppercase tracking-widest text-zinc-700">
-                        {marker.title}
+                        {t(marker.titleKey)}
                       </p>
                     </div>
-                    <Badge className={markerTheme[marker.kind].badge}>{markerTheme[marker.kind].label}</Badge>
+                    <Badge className={markerTheme[marker.kind].badge}>{t(markerTheme[marker.kind].labelKey)}</Badge>
                   </div>
-                  <p className="text-sm font-bold text-zinc-600 leading-relaxed">{marker.detail}</p>
+                  <p className="text-sm font-bold text-zinc-600 leading-relaxed">{t(marker.detailKey)}</p>
                   <div className="flex items-center gap-2 text-zinc-400">
                     <Clock3 size={14} />
                     <span className="text-[10px] font-black uppercase tracking-widest">{marker.time}</span>
@@ -522,7 +544,7 @@ export const BillingCalendar: React.FC = () => {
                       {formatCurrency(invoice.total_amount)}
                     </p>
                     <Badge variant={invoice.status === 'paid' ? 'success' : 'danger'} className="mt-2">
-                      {invoice.status}
+                      {getInvoiceStatusLabel(invoice.status)}
                     </Badge>
                   </div>
                 </div>
@@ -532,25 +554,25 @@ export const BillingCalendar: React.FC = () => {
                 <div className="p-8 rounded-2xl border-2 border-dashed border-zinc-100 bg-zinc-50/50 text-center">
                   <CircleAlert size={18} className="mx-auto mb-3 text-zinc-300" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                    No activity planned for this date
+                    {t('noActivityPlanned')}
                   </p>
                 </div>
               )}
             </div>
           </Card>
 
-          <Card title="Month markers">
+          <Card title={t('monthMarkersTitle')}>
             <div className="space-y-3">
               {upcomingAgenda.map(({ key, day, markers }) => (
                 <div key={key} className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50/50">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                        {currentDate.toLocaleString('default', { month: 'short' })} {day}
+                        {shortMonthStr} {day}
                       </p>
                     </div>
                     <Badge className="bg-white text-zinc-700 border-zinc-200">
-                      {markers.length} item{markers.length > 1 ? 's' : ''}
+                      {markers.length} {markers.length > 1 ? t('itemPlural') : t('itemSingular')}
                     </Badge>
                   </div>
 
@@ -560,7 +582,7 @@ export const BillingCalendar: React.FC = () => {
                         <span className={cn('w-2 h-2 rounded-full mt-1.5', markerTheme[marker.kind].dot)} />
                         <div className="min-w-0">
                           <p className="text-[10px] font-black uppercase tracking-tight text-zinc-700">
-                            {marker.title}
+                            {t(marker.titleKey)}
                           </p>
                           <p className="text-sm font-bold text-zinc-500 leading-relaxed">{marker.time}</p>
                         </div>
@@ -585,7 +607,7 @@ export const BillingCalendar: React.FC = () => {
               <Card noPadding>
                 <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/40">
                   <h3 className="text-sm font-black uppercase tracking-tight">
-                    Day note: {selectedDay} {currentDate.toLocaleString('default', { month: 'short' })}
+                    {t('dayNoteLabel')}: {selectedDay} {shortMonthStr}
                   </h3>
                   <Button variant="ghost" size="sm" onClick={() => setShowNoteEditor(false)}>
                     <X size={18} />
@@ -595,11 +617,11 @@ export const BillingCalendar: React.FC = () => {
                 <div className="p-5 space-y-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                      Main note
+                      {t('mainNote')}
                     </label>
                     <textarea
                       autoFocus
-                      placeholder="Daily logs..."
+                      placeholder={t('dailyLogsPlaceholder')}
                       className="w-full p-4 bg-zinc-50 border-2 border-transparent focus:border-black rounded-2xl font-black text-sm h-24 outline-none transition-all resize-none tracking-tight"
                       value={noteDraft}
                       onChange={(event) => setNoteDraft(event.target.value)}
@@ -608,10 +630,10 @@ export const BillingCalendar: React.FC = () => {
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                      Reminder time
+                      {t('reminderTime')}
                     </label>
                     <Input
-                      placeholder="e.g. 10:00 AM"
+                      placeholder={t('reminderPlaceholder')}
                       value={reminderDraft}
                       onChange={(event) => setReminderDraft(event.target.value)}
                       className="h-11"
@@ -621,11 +643,11 @@ export const BillingCalendar: React.FC = () => {
 
                 <div className="p-5 bg-zinc-50/40 border-t border-zinc-100 flex gap-3">
                   <Button variant="outline" className="flex-1" onClick={() => setShowNoteEditor(false)}>
-                    Cancel
+                    {t('cancel')}
                   </Button>
                   <Button className="flex-1" onClick={saveNote}>
                     <BadgeCheck size={14} className="mr-2" />
-                    Save note
+                    {t('saveNote')}
                   </Button>
                 </div>
               </Card>

@@ -3,25 +3,31 @@ import { Input, Select, Badge, Card, Button } from './ui';
 import { Search, Hash, Package, User as UserIcon, MapPin, Edit } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
+import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 
 export const PalletTableView: React.FC = () => {
-  const { pallets, statuses, clients, t } = useApp();
+  const { pallets, statuses, clients, t, language } = useApp();
   const [search, setSearch] = useState('');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
   const filteredPallets = useMemo(() => {
-    return pallets.filter(p => {
-      const matchesSearch = p.qr_code.toLowerCase().includes(search.toLowerCase());
+    return pallets.filter((p) => {
+      const query = search.toLowerCase();
+      const matchesSearch =
+        p.qr_code.toLowerCase().includes(query) ||
+        getPalletTypeLabel(p.type, language).toLowerCase().includes(query) ||
+        getStatusLabel(p.current_status_name, language).toLowerCase().includes(query) ||
+        (clients.find((client) => client.user_id === p.user_id)?.name || '').toLowerCase().includes(query);
       const matchesClient = clientFilter === 'all' || p.user_id?.toString() === clientFilter;
       const matchesStatus = statusFilter === 'all' || p.current_status_id.toString() === statusFilter;
       const matchesType = typeFilter === 'all' || p.type === typeFilter;
       return matchesSearch && matchesClient && matchesStatus && matchesType;
     });
-  }, [pallets, search, clientFilter, statusFilter, typeFilter]);
+  }, [clientFilter, clients, language, pallets, search, statusFilter, typeFilter]);
 
-  const uniqueTypes = Array.from(new Set(pallets.map(p => p.type)));
+  const uniqueTypes: string[] = Array.from(new Set(pallets.map((p) => p.type)));
 
   return (
     <div className="space-y-6">
@@ -52,7 +58,11 @@ export const PalletTableView: React.FC = () => {
             className="h-10 bg-white"
           >
             <option value="all">{t('allStatuses')}</option>
-            {statuses.map(s => <option key={`table-filter-status-${s.id}`} value={s.id.toString()}>{s.name}</option>)}
+            {statuses.map((s) => (
+              <option key={`table-filter-status-${s.id}`} value={s.id.toString()}>
+                {getStatusLabel(s.name, language)}
+              </option>
+            ))}
           </Select>
 
           <Select 
@@ -61,7 +71,11 @@ export const PalletTableView: React.FC = () => {
             className="h-10 bg-white"
           >
             <option value="all">{t('allTypes')}</option>
-            {uniqueTypes.map(t_type => <option key={t_type} value={t_type}>{t_type}</option>)}
+            {uniqueTypes.map((palletType) => (
+              <option key={palletType} value={palletType}>
+                {getPalletTypeLabel(palletType, language)}
+              </option>
+            ))}
           </Select>
         </div>
 
@@ -69,7 +83,7 @@ export const PalletTableView: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-zinc-50/50 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 border-b border-zinc-100">
-                <th className="px-6 py-4">ID / QR</th>
+                <th className="px-6 py-4">{t('idQr')}</th>
                 <th className="px-6 py-4">{t('type')}</th>
                 <th className="px-6 py-4">{t('client')}</th>
                 <th className="px-6 py-4">{t('status')}</th>
@@ -100,24 +114,24 @@ export const PalletTableView: React.FC = () => {
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
                         <Package size={12} className="text-zinc-300" />
-                        <span className="text-[10px] font-black uppercase text-zinc-600">{p.type}</span>
+                        <span className="text-[10px] font-black uppercase text-zinc-600">{getPalletTypeLabel(p.type, language)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
                         <UserIcon size={12} className="text-zinc-300" />
-                        <span className="text-[10px] font-black text-black uppercase tracking-tight">{client?.name || 'In Stock'}</span>
+                        <span className="text-[10px] font-black text-black uppercase tracking-tight">{client?.name || t('inStock')}</span>
                       </div>
                     </td>
                     <td className="px-6 py-3">
                        <Badge variant={p.current_status_id === 7 ? 'danger' : p.current_status_id === 4 ? 'success' : 'info'}>
-                        {p.current_status_name}
+                        {getStatusLabel(p.current_status_name, language)}
                        </Badge>
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">
                         <MapPin size={12} className="text-zinc-300" />
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase">{p.current_location || 'N/A'}</span>
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase">{p.current_location || t('notAvailable')}</span>
                       </div>
                     </td>
                     <td className="px-6 py-3">
@@ -140,7 +154,7 @@ export const PalletTableView: React.FC = () => {
                <div className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-dashed border-zinc-100">
                   <Search size={20} className="text-zinc-200" />
                </div>
-               <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">No matching results</p>
+               <p className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">{t('noMatchingResults')}</p>
             </div>
           )}
         </div>

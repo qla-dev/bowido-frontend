@@ -10,6 +10,8 @@ import {
   cn,
 } from './ui';
 import { apiService } from '../services/api';
+import { useApp } from '../AppContext';
+import { getRoleLabel, getRolePermissions } from '../i18n';
 import { ManagedUser, RoleType, User } from '../types';
 import {
   CheckCircle2,
@@ -51,41 +53,13 @@ const roleBadgeClasses: Record<RoleType, string> = {
 
 const roleOptions = Object.values(RoleType);
 
-const rolePermissions: Record<RoleType, string[]> = {
-  [RoleType.ADMIN]: [
-    'Pregled svih modula',
-    'Kreiranje i uredjivanje korisnika',
-    'Upravljanje rolama i pristupima',
-    'Kontrola faktura i logistike',
-  ],
-  [RoleType.VOZAC]: [
-    'Pregled aktivnih voznji',
-    'Skeniranje i potvrda preuzimanja',
-    'Azuriranje statusa transporta',
-  ],
-  [RoleType.MAGACINER]: [
-    'Pregled skladista i stanja paleta',
-    'Evidencija prijema i izdavanja',
-    'Azuriranje lokacije robe',
-  ],
-  [RoleType.KLIJENT]: [
-    'Pregled vlastitih jedinica',
-    'Uvid u fakture i dugovanja',
-    'Pracenje statusa isporuke',
-  ],
-  [RoleType.SERVISER]: [
-    'Pregled servisnih zadataka',
-    'Prijava i zatvaranje kvarova',
-    'Unos servisnih biljeski',
-  ],
-};
-
 interface RoleSelectProps {
   value: RoleType;
   onChange: (role: RoleType) => void;
 }
 
 const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
+  const { t, language } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredRole, setHoveredRole] = useState<RoleType>(value);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -113,7 +87,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
   }, [isOpen]);
 
   const previewRole = hoveredRole || value;
-  const previewPermissions = rolePermissions[previewRole];
+  const previewPermissions = getRolePermissions(previewRole, language);
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -123,13 +97,15 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
         className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-zinc-50 hover:border-[#00A655] hover:bg-white transition-all flex items-center justify-between gap-3"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <Badge className={cn('border shrink-0', roleBadgeClasses[value])}>{value}</Badge>
+          <Badge className={cn('border shrink-0', roleBadgeClasses[value])}>
+            {getRoleLabel(value, language)}
+          </Badge>
           <div className="min-w-0 text-left">
             <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 truncate">
-              {rolePermissions[value].length} permisije
+              {getRolePermissions(value, language).length} {t('permissionsAvailable')}
             </p>
             <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400 truncate">
-              Hover za pregled pristupa
+              {t('hoverForAccessPreview')}
             </p>
           </div>
         </div>
@@ -171,14 +147,16 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
                         )}
                       >
                         <div className="min-w-0">
-                          <p className="text-[11px] font-black uppercase tracking-tight truncate">{role}</p>
+                          <p className="text-[11px] font-black uppercase tracking-tight truncate">
+                            {getRoleLabel(role, language)}
+                          </p>
                           <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400 truncate">
-                            {rolePermissions[role].length} dostupne permisije
+                            {getRolePermissions(role, language).length} {t('permissionsAvailable')}
                           </p>
                         </div>
                         {isSelected && (
                           <Badge variant="success" className="shrink-0">
-                            Aktivna
+                            {t('activeLabel')}
                           </Badge>
                         )}
                       </button>
@@ -186,13 +164,13 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
                       {hoveredRole === role && (
                         <div className="hidden xl:block pointer-events-none absolute right-full mr-3 top-1/2 -translate-y-1/2 w-60 rounded-2xl border border-emerald-100 bg-white p-4 shadow-2xl shadow-emerald-950/10">
                           <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
-                            {role}
+                            {getRoleLabel(role, language)}
                           </p>
                           <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
-                            Dummy pregled dozvoljenih akcija za ovu rolu.
+                            {t('dummyRoleActions')}
                           </p>
                           <div className="space-y-2">
-                            {rolePermissions[role].map((permission) => (
+                            {getRolePermissions(role, language).map((permission) => (
                               <div key={permission} className="flex items-start gap-2">
                                 <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
                                 <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
@@ -210,10 +188,10 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
 
               <div className="xl:hidden border-t border-zinc-100 bg-zinc-50/70 p-4">
                 <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
-                  {previewRole}
+                  {getRoleLabel(previewRole, language)}
                 </p>
                 <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
-                  Dummy permisije koje se prikazuju na hover za odabranu rolu.
+                  {t('dummyHoverPermissions')}
                 </p>
                 <div className="space-y-2">
                   {previewPermissions.map((permission) => (
@@ -235,6 +213,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
 };
 
 export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
+  const { t, language } = useApp();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -257,7 +236,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
       const loadedUsers = await apiService.users.list();
       setUsers(loadedUsers);
     } catch {
-      setErrorMessage('Korisnici se trenutno ne mogu ucitati.');
+      setErrorMessage(t('usersCannotLoad'));
     } finally {
       setIsLoading(false);
     }
@@ -271,7 +250,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
   const handleEdit = (user: ManagedUser) => {
     if (user.id === currentUser.id) {
-      setErrorMessage('Aktivna sesija se ne moze uredjivati iz ovog pregleda.');
+      setErrorMessage(t('activeSessionCannotEdit'));
       return;
     }
 
@@ -286,16 +265,16 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
   const handleDelete = async (user: ManagedUser) => {
     if (user.id === currentUser.id) {
-      setErrorMessage('Aktivna sesija se ne moze obrisati.');
+      setErrorMessage(t('activeSessionCannotDelete'));
       return;
     }
 
     if (users.length === 1) {
-      setErrorMessage('Posljednji demo korisnik mora ostati dostupan.');
+      setErrorMessage(t('lastDemoUserMustRemain'));
       return;
     }
 
-    const shouldDelete = window.confirm(`Obrisati korisnika ${user.email}?`);
+    const shouldDelete = window.confirm(`${t('deleteUserConfirm')} ${user.email}?`);
 
     if (!shouldDelete) {
       return;
@@ -317,12 +296,12 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
     const trimmedPassword = formState.password.trim();
 
     if (!trimmedEmail) {
-      setErrorMessage('Email je obavezan.');
+      setErrorMessage(t('emailRequired'));
       return;
     }
 
     if (!editingUserId && !trimmedPassword) {
-      setErrorMessage('Lozinka je obavezna za novog korisnika.');
+      setErrorMessage(t('passwordRequiredNew'));
       return;
     }
 
@@ -351,7 +330,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
       resetForm();
     } catch {
-      setErrorMessage('Promjene nisu sacuvane. Pokusaj ponovo.');
+      setErrorMessage(t('changesNotSaved'));
     } finally {
       setIsSaving(false);
     }
@@ -375,27 +354,27 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   return (
     <div className="space-y-6 pb-12">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label="Ukupno korisnika" value={users.length} />
-        <StatCard label="Admin pristup" value={adminCount} variant="success" />
-        <StatCard label="Aktivne role" value={activeRoles} variant="info" />
+        <StatCard label={t('totalUsers')} value={users.length} />
+        <StatCard label={t('adminAccess')} value={adminCount} variant="success" />
+        <StatCard label={t('activeRolesLabel')} value={activeRoles} variant="info" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_380px] gap-6 items-start">
         <Card
-          title="Korisnici"
+          title={t('systemUsers')}
           noPadding
           action={
             <Button variant="ghost" size="xs" onClick={() => void loadUsers()}>
               <RefreshCw size={12} className="mr-2" />
-              Osvjezi
+              {t('refresh')}
             </Button>
           }
         >
           <div className="p-5 border-b border-zinc-100 bg-zinc-50/60 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-600">Frontend only</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-600">{t('frontendOnly')}</p>
               <h2 className="text-2xl font-black uppercase tracking-tight text-emerald-950 font-display">
-                Demo imenik svih naloga
+                {t('demoAccountsDirectory')}
               </h2>
             </div>
 
@@ -405,7 +384,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                 <Input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Pretrazi email, ime ili rolu"
+                  placeholder={t('searchEmailNameRole')}
                   className="pl-11 bg-white"
                 />
               </div>
@@ -416,10 +395,10 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                   onChange={(event) => setRoleFilter(event.target.value as 'all' | RoleType)}
                   className="bg-white"
                 >
-                  <option value="all">Sve role</option>
+                  <option value="all">{t('allRoles')}</option>
                   {roleOptions.map((role) => (
                     <option key={role} value={role}>
-                      {role}
+                      {getRoleLabel(role, language)}
                     </option>
                   ))}
                 </Select>
@@ -431,10 +410,10 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
             <table className="w-full text-left">
               <thead className="bg-white text-[9px] font-black text-zinc-400 uppercase tracking-[0.18em] border-b border-zinc-100">
                 <tr>
-                  <th className="px-6 py-4">Korisnik</th>
-                  <th className="px-6 py-4">Rola</th>
-                  <th className="px-6 py-4">Pristup</th>
-                  <th className="px-6 py-4 text-right">Akcije</th>
+                  <th className="px-6 py-4">{t('user')}</th>
+                  <th className="px-6 py-4">{t('role')}</th>
+                  <th className="px-6 py-4">{t('access')}</th>
+                  <th className="px-6 py-4 text-right">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 text-[12px]">
@@ -458,14 +437,14 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                       </td>
                       <td className="px-6 py-4">
                         <Badge className={cn('border', roleBadgeClasses[user.role_name])}>
-                          {user.role_name}
+                          {getRoleLabel(user.role_name, language)}
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
                         {isCurrentSession ? (
-                          <Badge variant="success">Aktivna sesija</Badge>
+                          <Badge variant="success">{t('activeSessionBadge')}</Badge>
                         ) : (
-                          <Badge variant="default">Demo nalog</Badge>
+                          <Badge variant="default">{t('demoAccount')}</Badge>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -479,7 +458,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                             className="text-zinc-600 hover:text-emerald-700"
                           >
                             <Edit2 size={14} className="mr-1.5" />
-                            Edit
+                            {t('editUser')}
                           </Button>
                           <Button
                             type="button"
@@ -490,7 +469,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                             className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
                           >
                             <Trash2 size={14} className="mr-1.5" />
-                            Delete
+                            {t('remove')}
                           </Button>
                         </div>
                       </td>
@@ -522,15 +501,15 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                       </p>
                     </div>
                     <Badge className={cn('border shrink-0', roleBadgeClasses[user.role_name])}>
-                      {user.role_name}
+                      {getRoleLabel(user.role_name, language)}
                     </Badge>
                   </div>
 
                   <div className="flex items-center justify-between gap-3 pt-4 mt-4 border-t border-zinc-100">
                     {isCurrentSession ? (
-                      <Badge variant="success">Aktivna sesija</Badge>
+                      <Badge variant="success">{t('activeSessionBadge')}</Badge>
                     ) : (
-                      <Badge variant="default">Demo nalog</Badge>
+                      <Badge variant="default">{t('demoAccount')}</Badge>
                     )}
                     <div className="flex items-center gap-2">
                       <Button
@@ -564,9 +543,9 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
               <div className="w-14 h-14 mx-auto rounded-2xl bg-zinc-100 text-zinc-400 flex items-center justify-center mb-4">
                 <Users size={22} />
               </div>
-              <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900">Nema rezultata</h3>
+              <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900">{t('noResults')}</h3>
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-zinc-400 mt-2">
-                Promijeni pretragu ili filter i probaj ponovo.
+                {t('changeSearchTryAgain')}
               </p>
             </div>
           )}
@@ -574,14 +553,14 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           {isLoading && (
             <div className="p-10 text-center border-t border-zinc-100">
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                Ucitavanje korisnika...
+                {t('loadingUsers')}
               </p>
             </div>
           )}
         </Card>
 
         <div className="space-y-6 xl:sticky xl:top-24">
-          <Card title={editingUserId ? 'Uredi korisnika' : 'Kreiraj korisnika'}>
+          <Card title={editingUserId ? t('editUser') : t('createUser')}>
             <form className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
               <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/70">
                 <div className="flex items-start gap-3">
@@ -590,12 +569,12 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                      {editingUserId ? 'Azuriranje naloga' : 'Novi demo nalog'}
+                      {editingUserId ? t('accountUpdate') : t('newDemoAccount')}
                     </p>
                     <p className="text-[12px] font-bold text-emerald-900 leading-relaxed mt-1">
                       {editingUserId
-                        ? 'Promijeni email, rolu i po potrebi lozinku korisnika.'
-                        : 'Dodaj korisnika sa email adresom, lozinkom i odabranom rolom.'}
+                        ? t('updateUserDescription')
+                        : t('createUserDescription')}
                     </p>
                   </div>
                 </div>
@@ -617,7 +596,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                  Lozinka
+                  {t('password')}
                 </label>
                 <div className="relative">
                   <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" size={16} />
@@ -627,7 +606,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                     onChange={(event) =>
                       setFormState((previousState) => ({ ...previousState, password: event.target.value }))
                     }
-                    placeholder={editingUserId ? 'Ostavi prazno za zadrzavanje lozinke' : 'Unesi privremenu lozinku'}
+                    placeholder={editingUserId ? t('keepPasswordHint') : t('newPasswordHint')}
                     className="pl-11"
                   />
                 </div>
@@ -635,7 +614,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                  Rola
+                  {t('role')}
                 </label>
                 <RoleSelect
                   value={formState.role_name}
@@ -656,16 +635,16 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
               <div className="flex gap-3">
                 <Button type="button" variant="outline" className="flex-1" onClick={resetForm}>
-                  Reset
+                  {t('reset')}
                 </Button>
                 <Button type="submit" className="flex-[1.35]" disabled={isSaving}>
-                  {editingUserId ? 'Sacuvaj izmjene' : 'Dodaj korisnika'}
+                  {editingUserId ? t('saveChanges') : t('addUser')}
                 </Button>
               </div>
             </form>
           </Card>
 
-          <Card title="Napomena">
+          <Card title={t('note')}>
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-zinc-100 text-zinc-500 flex items-center justify-center shrink-0">
@@ -673,22 +652,21 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
-                    Vizualni demo
+                    {t('visualDemo')}
                   </p>
                   <p className="text-[12px] font-bold text-zinc-700 leading-relaxed mt-1">
-                    Ovaj ekran radi samo na frontendu i koristi dummy podatke sacuvane u browser
-                    `localStorage`.
+                    {t('frontendOnlyStorage')}
                   </p>
                 </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">Aktivna sesija</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{t('activeSession')}</p>
                 <p className="text-sm font-black uppercase tracking-tight text-zinc-900 mt-1">
                   {currentUser.email}
                 </p>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-400 mt-2">
-                  Aktivni admin nalog nije moguce urediti ili obrisati iz ovog prikaza.
+                  {t('currentSessionReadOnly')}
                 </p>
               </div>
             </div>

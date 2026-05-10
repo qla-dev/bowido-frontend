@@ -6,6 +6,7 @@ import { RoleType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
 import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Ghost } from 'lucide-react';
+import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 
 interface WorkerDashboardProps {
   role: RoleType;
@@ -13,7 +14,7 @@ interface WorkerDashboardProps {
 }
 
 export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) => {
-  const { pallets, auditLogs, t, serviceReports, pairGhostPallet, resolveService, setIsGhostReportOpen } = useApp();
+  const { pallets, auditLogs, t, serviceReports, pairGhostPallet, resolveService, setIsGhostReportOpen, setIsScannerOpen, language } = useApp();
   const [showDamageModal, setShowDamageModal] = useState(false);
   const [showPairModal, setShowPairModal] = useState(false);
   const [selectedGhostId, setSelectedGhostId] = useState<number | null>(null);
@@ -51,7 +52,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
     <div className="space-y-6 pb-20">
       <header className="flex h-16 items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[9px] font-black uppercase text-zinc-400 tracking-[0.3em]">{isDriver ? 'Driver Terminal' : 'Warehouse Terminal'}</span>
+          <span className="text-[9px] font-black uppercase text-zinc-400 tracking-[0.3em]">{isDriver ? t('driver') : t('warehouse')}</span>
           <h2 className="text-xl font-black tracking-tighter uppercase">{t('home')}</h2>
         </div>
       </header>
@@ -100,11 +101,11 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
           >
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-               <StatCard label="Today" value={todayLogs.length} />
-               <StatCard label="On Route" value={inTransport.length} variant="info" />
+               <StatCard label={t('todayLabel')} value={todayLogs.length} />
+               <StatCard label={t('onRoute')} value={inTransport.length} variant="info" />
                <div className="hidden md:block col-span-2">
                  <div className="h-full bg-zinc-50 border border-zinc-100 rounded-2xl flex items-center px-4">
-                    <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{isDriver ? 'Fleet active' : 'Warehouse operating'}</p>
+                    <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{isDriver ? t('fleetActive') : t('warehouseOperating')}</p>
                  </div>
                </div>
             </div>
@@ -113,8 +114,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                {/* Recent Scans List - Full Width */}
                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">Activity Log</h3>
-                    {todayLogs.length > 0 && <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none">{todayLogs.length} Scans today</span>}
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">{t('activityLog')}</h3>
+                    {todayLogs.length > 0 && <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none">{todayLogs.length} {t('scansToday')}</span>}
                   </div>
                   
                   <div className="bg-white border border-zinc-100 rounded-[2.5rem] p-2 space-y-1 min-h-[300px]">
@@ -139,12 +140,12 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                    <div className="flex items-center gap-2">
                                       <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{log.pallet_qr}</span>
                                       <Badge variant={log.new_status_name.toLowerCase().includes('damage') ? 'danger' : 'success'} className="px-1.5 py-0 text-[8px]">
-                                        {log.new_status_name}
+                                        {getStatusLabel(log.new_status_name, language)}
                                       </Badge>
                                    </div>
                                    <span className="text-[9px] font-black text-zinc-300 uppercase">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
-                                <p className="text-[12px] font-black uppercase tracking-tight truncate mb-1">{pallet?.type || 'Standard Unit'}</p>
+                                <p className="text-[12px] font-black uppercase tracking-tight truncate mb-1">{pallet ? getPalletTypeLabel(pallet.type, language) : t('standardUnit')}</p>
                                 <div className="flex items-center gap-2">
                                    <MapPin size={8} className="text-zinc-300" />
                                    <span className="text-[9px] font-black text-zinc-300 uppercase truncate">{log.new_location}</span>
@@ -157,7 +158,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                     ) : (
                       <div className="h-full min-h-[280px] flex flex-col items-center justify-center opacity-20 grayscale">
                          <Package size={40} className="mb-4" />
-                         <p className="text-[10px] font-black uppercase tracking-widest">No activity yet</p>
+                         <p className="text-[10px] font-black uppercase tracking-widest">{t('noActivityYet')}</p>
                       </div>
                     )}
                     {todayLogs.length > 10 && (
@@ -165,7 +166,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                         onClick={() => setActiveTab('history')}
                         className="w-full py-4 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 shadow-sm bg-white rounded-2xl mt-2 hover:bg-zinc-50 transition-colors"
                       >
-                        Explore history Archive
+                        {t('exploreHistoryArchive')}
                       </button>
                     )}
                   </div>
@@ -183,7 +184,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                       </div>
                       <div className="text-left">
                          <p className="text-xs font-black text-rose-900 uppercase leading-none mb-1">{t('ghostReport')}</p>
-                         <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">{ghostPallets.length} otvorenih</p>
+                         <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">{ghostPallets.length} | {t('openReports')}</p>
                       </div>
                    </div>
                    <ArrowRight size={16} className="text-rose-300 group-hover:translate-x-1 transition-transform" />
@@ -221,7 +222,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
              </div>
 
              {ghostPallets.length > 0 && (
-               <Card title="Unlabeled Units (Ghosts)" noPadding>
+               <Card title={t('unlabeledUnitsGhosts')} noPadding>
                     <div className="divide-y divide-zinc-50">
                       {ghostPallets.map(ghost => (
                         <div key={`ghost-${ghost.id}`} className="p-4 flex items-center justify-between">
@@ -231,7 +232,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                               </div>
                               <div>
                                  <p className="text-[11px] font-black uppercase tracking-tight leading-none mb-1">{ghost.qr_code}</p>
-                                 <p className="text-[9px] font-bold text-zinc-400 uppercase">From {ghost.client_name || 'Client'}</p>
+                                 <p className="text-[9px] font-bold text-zinc-400 uppercase">{t('fromClient')} {ghost.client_name || t('client')}</p>
                               </div>
                            </div>
                            <Button 
@@ -241,7 +242,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                setShowPairModal(true);
                              }}
                            >
-                              Pair
+                              {t('pair')}
                            </Button>
                         </div>
                       ))}
@@ -261,8 +262,8 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
             {isDriver && pendingPickups.length > 0 && (
               <div className="space-y-3">
                  <div className="flex items-center justify-between">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-rose-500">Pickups Waiting</h3>
-                    <Badge variant="danger">{pendingPickups.length} Units</Badge>
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-rose-500">{t('pickupsWaiting')}</h3>
+                    <Badge variant="danger">{pendingPickups.length} {t('totalUnits')}</Badge>
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {pendingPickups.map(p => (
@@ -272,16 +273,16 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                            <MapPin size={20} />
                         </div>
                         <div className="flex-1 min-w-0">
-                           <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest leading-none mb-1 truncate">{p.client_name || 'Individual'}</p>
+                           <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest leading-none mb-1 truncate">{p.client_name || t('individualLabel')}</p>
                            <p className="text-[11px] font-black uppercase tracking-tight leading-tight mb-2">{p.current_location}</p>
                            <Badge variant="danger">{p.qr_code}</Badge>
                         </div>
                         <Button 
                           variant="secondary"
                           size="xs"
-                          onClick={() => useApp().setIsScannerOpen(true)}
+                          onClick={() => setIsScannerOpen(true)}
                         >
-                           Scan
+                           {t('scanAction')}
                         </Button>
                       </div>
                    </Card>
@@ -290,7 +291,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
               </div>
             )}
 
-            <Card title="Current Assignments" noPadding>
+            <Card title={t('currentAssignments')} noPadding>
                <div className="divide-y divide-zinc-50">
                   {pallets.filter(p => [2, 6, 7].includes(p.current_status_id)).map(p => (
                     <div key={p.id} className="p-4 flex items-center justify-between">
@@ -300,18 +301,18 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                           </div>
                           <div className="min-w-0">
                              <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">{p.qr_code}</p>
-                             <p className="text-[11px] font-black uppercase tracking-tight truncate">{p.type}</p>
+                             <p className="text-[11px] font-black uppercase tracking-tight truncate">{getPalletTypeLabel(p.type, language)}</p>
                           </div>
                        </div>
                        <Badge variant={p.current_status_id === 7 ? 'danger' : 'info'}>
-                          {p.current_status_name}
+                          {getStatusLabel(p.current_status_name, language)}
                        </Badge>
                     </div>
                   ))}
                   {pallets.filter(p => [2, 6, 7].includes(p.current_status_id)).length === 0 && (
                     <div className="p-12 text-center opacity-40">
                        <Package size={32} className="mx-auto mb-2" />
-                       <p className="text-[10px] font-black uppercase tracking-widest">No assigned units</p>
+                       <p className="text-[10px] font-black uppercase tracking-widest">{t('noAssignedUnits')}</p>
                     </div>
                   )}
                </div>
@@ -326,7 +327,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
              animate={{ opacity: 1, x: 0 }}
              className="space-y-4"
            >
-              <Card title="Recent Logs" noPadding>
+              <Card title={t('recentLogs')} noPadding>
                  <div className="divide-y divide-zinc-50">
                     {todayLogs.map(log => (
                        <div key={log.id} className="p-4 flex items-center justify-between">
@@ -336,7 +337,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                              </div>
                              <div>
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">{log.pallet_qr}</p>
-                                <p className="text-[11px] font-black uppercase">{log.new_status_name}</p>
+                                <p className="text-[11px] font-black uppercase">{getStatusLabel(log.new_status_name, language)}</p>
                              </div>
                           </div>
                           <p className="text-[10px] font-black text-zinc-300 uppercase">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
@@ -345,7 +346,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                     {todayLogs.length === 0 && (
                        <div className="p-12 text-center opacity-40">
                           <History size={32} className="mx-auto mb-2" />
-                          <p className="text-[10px] font-black uppercase tracking-widest">No activity logged today</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest">{t('noActivityLoggedToday')}</p>
                        </div>
                     )}
                  </div>
@@ -379,7 +380,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                              <div className="flex justify-between items-start">
                                 <div>
                                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-none mb-1">{pallet.qr_code}</p>
-                                   <h4 className="text-lg font-black uppercase tracking-tighter">{pallet.type}</h4>
+                                   <h4 className="text-lg font-black uppercase tracking-tighter">{getPalletTypeLabel(pallet.type, language)}</h4>
                                 </div>
                                 <Badge variant="danger">{t('service')}</Badge>
                              </div>
@@ -395,7 +396,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                <div className="space-y-3 pt-2">
                                   <textarea 
                                     className="w-full p-4 bg-zinc-50 border-2 border-transparent focus:border-black rounded-2xl font-bold text-[11px] h-24 outline-none transition-all placeholder:text-zinc-300"
-                                    placeholder="Resolution details (what was fixed?)..."
+                                    placeholder={t('resolutionDetailsPlaceholder')}
                                     value={resolutionNote}
                                     onChange={e => setResolutionNote(e.target.value)}
                                   />
@@ -405,7 +406,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                        className="flex-1"
                                        onClick={() => setResolvingReportId(null)}
                                      >
-                                        Cancel
+                                        {t('cancel')}
                                      </Button>
                                      <Button 
                                        className="flex-1"
@@ -417,7 +418,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                           }
                                        }}
                                      >
-                                        Save
+                                        {t('save')}
                                      </Button>
                                   </div>
                                </div>
@@ -477,28 +478,28 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                       <div className="p-8 space-y-6">
                          <div className="space-y-1">
                             <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('inventory')}</p>
-                            <h3 className="text-2xl font-black uppercase tracking-tighter">{pallet.type}</h3>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter">{getPalletTypeLabel(pallet.type, language)}</h3>
                          </div>
                          
                          <div className="grid grid-cols-2 gap-4">
                             <div className="bg-zinc-50 p-4 rounded-2xl">
-                               <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">Status</p>
-                               <Badge variant={pallet.current_status_id === 7 ? 'danger' : 'info'}>{pallet.current_status_name}</Badge>
+                               <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{t('status')}</p>
+                               <Badge variant={pallet.current_status_id === 7 ? 'danger' : 'info'}>{getStatusLabel(pallet.current_status_name, language)}</Badge>
                             </div>
                             <div className="bg-zinc-50 p-4 rounded-2xl">
-                               <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">Location</p>
+                               <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{t('location')}</p>
                                <p className="text-[11px] font-black uppercase truncate">{pallet.current_location}</p>
                             </div>
                          </div>
 
                          <div className="space-y-4">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Unit Lifecycle</h4>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{t('unitLifecycle')}</h4>
                             <div className="space-y-3">
                                {auditLogs.filter(l => l.pallet_qr === pallet.qr_code).slice(0, 3).map(log => (
                                  <div key={log.id} className="flex gap-4">
                                     <div className="w-1.5 h-1.5 rounded-full bg-zinc-200 mt-1.5 shrink-0" />
                                     <div>
-                                       <p className="text-[11px] font-black uppercase leading-tight">{log.new_status_name}</p>
+                                       <p className="text-[11px] font-black uppercase leading-tight">{getStatusLabel(log.new_status_name, language)}</p>
                                        <p className="text-[9px] font-bold text-zinc-400 uppercase">{new Date(log.created_at).toLocaleDateString()}</p>
                                     </div>
                                  </div>
@@ -507,7 +508,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                          </div>
 
                          <Button className="w-full py-4 uppercase text-[11px]" onClick={() => setSelectedPalletId(null)}>
-                            Close Details
+                            {t('closeDetails')}
                          </Button>
                       </div>
                     </>
@@ -522,10 +523,10 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
         {showPairModal && (
           <div className="modal-overlay fixed inset-0 z-[150] flex items-center justify-center p-4">
              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-md shadow-2xl">
-                <h3 className="text-xl font-black uppercase mb-6 text-center">Pair Unit</h3>
+                <h3 className="text-xl font-black uppercase mb-6 text-center">{t('pairUnit')}</h3>
                 <div className="space-y-6">
                    <div className="space-y-2 text-center">
-                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">New QR Code</label>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">{t('newQrCode')}</label>
                       <Input 
                         className="text-center text-2xl uppercase tracking-tighter"
                         placeholder="TP-XXXXXX"
@@ -535,7 +536,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                       />
                    </div>
                    <div className="flex gap-4">
-                      <Button variant="ghost" className="flex-1" onClick={() => { setShowPairModal(false); setNewQrCode(''); }}>Cancel</Button>
+                      <Button variant="ghost" className="flex-1" onClick={() => { setShowPairModal(false); setNewQrCode(''); }}>{t('cancel')}</Button>
                       <Button 
                         className="flex-1"
                         onClick={() => {
@@ -546,7 +547,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                           }
                         }}
                       >
-                         Confirm
+                         {t('confirm')}
                       </Button>
                    </div>
                 </div>

@@ -16,11 +16,11 @@ export const BillingList: React.FC = () => {
         <div>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('billing')}</h2>
           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-            Manage payments and active invoices
+            {t('managePayments')}
           </p>
         </div>
         <Button variant="outline" size="sm">
-          <Filter size={14} className="mr-2" /> Filter
+          <Filter size={14} className="mr-2" /> {t('filter')}
         </Button>
       </div>
 

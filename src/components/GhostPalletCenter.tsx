@@ -119,10 +119,10 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
               </div>
               <div className="min-w-0">
                 <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-emerald-950 font-display">
-                  Ghost Pallet Report
+                  {t('ghostReportTitle')}
                 </h2>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 truncate">
-                  Prijava, provjera i uparivanje paleta bez QR koda
+                  {t('ghostReportSubtitle')}
                 </p>
               </div>
             </div>
@@ -144,7 +144,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     <AlertTriangle size={18} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">Otvorene prijave</p>
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('openReports')}</p>
                     <p className="text-2xl font-black tracking-tight text-emerald-950">{openGhostCount}</p>
                   </div>
                 </div>
@@ -156,7 +156,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     <Ghost size={18} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">Pogodjeni klijenti</p>
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('affectedClients')}</p>
                     <p className="text-2xl font-black tracking-tight text-emerald-950">{affectedClientCount}</p>
                   </div>
                 </div>
@@ -168,7 +168,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     <Link2 size={18} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">Spremno za uparivanje</p>
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('readyForPairing')}</p>
                     <p className="text-2xl font-black tracking-tight text-emerald-950">{openGhostCount}</p>
                   </div>
                 </div>
@@ -176,20 +176,20 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6 items-start">
-              <Card title="Nova prijava">
+              <Card title={t('newReport')}>
                 <div className="space-y-5">
                   <div className={getGhostActionStyles(emphasizeGhost) + ' p-4 rounded-2xl border'}>
                     <p className="text-[10px] font-black uppercase tracking-[0.18em]">
-                      {emphasizeGhost ? 'Posebno vazno' : 'Brza prijava'}
+                      {emphasizeGhost ? t('specialImportant') : t('quickReport')}
                     </p>
                     <p className="text-[12px] font-bold leading-relaxed mt-2">
-                      Kada primijetite paletu bez QR koda, prijavite je odmah kako bi admin i operativa imali evidenciju i mogli pokrenuti uparivanje.
+                      {t('ghostReportHelp')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                      Klijent
+                      {t('client')}
                     </label>
                     <Select
                       value={selectedClientId}
@@ -206,7 +206,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
 
                   <div className="space-y-2">
                     <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                      Kolicina
+                      {t('quantity')}
                     </label>
                     <Input
                       type="number"
@@ -218,7 +218,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
 
                   <div className="space-y-2">
                     <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                      Napomena
+                      {t('note')}
                     </label>
                     <textarea
                       value={ghostNote}
@@ -234,19 +234,19 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     disabled={!selectedClient}
                   >
                     <Send size={15} className="mr-2" />
-                    Posalji prijavu
+                    {t('sendReport')}
                   </Button>
                 </div>
               </Card>
 
-              <Card title="Otvorene ghost prijave" noPadding>
+              <Card title={t('openGhostEntries')} noPadding>
                 <div className="p-5 border-b border-zinc-100 bg-zinc-50/50 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                      Provjera i uparivanje
+                      {t('reviewAndPair')}
                     </p>
                     <p className="text-[12px] font-bold text-zinc-600 mt-1">
-                      Svaka prijavljena ghost paleta ostaje ovdje dok joj se ne dodijeli novi QR kod.
+                      {t('reviewAndPairDescription')}
                     </p>
                   </div>
                   <div className="relative w-full md:w-64">
@@ -254,7 +254,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     <Input
                       value={ghostSearch}
                       onChange={(event) => setGhostSearch(event.target.value)}
-                      placeholder="Pretrazi prijave"
+                      placeholder={t('searchReports')}
                       className="pl-11 bg-white"
                     />
                   </div>
@@ -271,16 +271,16 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2 mb-2">
                                 <Badge variant="warning">Ghost</Badge>
-                                <Badge variant="default">Bez QR-a</Badge>
+                                <Badge variant="default">{t('withoutQr')}</Badge>
                               </div>
                               <h3 className="text-sm font-black uppercase tracking-tight text-emerald-950">
-                                {ghostPallet.client_name || 'Nepoznat klijent'}
+                                {ghostPallet.client_name || t('unknownClient')}
                               </h3>
                               <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400 mt-1">
                                 {ghostPallet.current_location}
                               </p>
                               <p className="text-[11px] font-bold text-zinc-600 mt-3 leading-relaxed">
-                                {ghostPallet.note || 'Nema dodatne napomene za ovu prijavu.'}
+                                {ghostPallet.note || t('noAdditionalNote')}
                               </p>
                             </div>
 
@@ -294,7 +294,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                                 }}
                               >
                                 <PackageSearch size={15} className="mr-2" />
-                                Provjeri i upari
+                                {t('reviewAndPairAction')}
                               </Button>
                             </div>
                           </div>
@@ -304,7 +304,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
                                 <div className="space-y-2">
                                   <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
-                                    Novi QR kod
+                                    {t('newQrCode')}
                                   </label>
                                   <Input
                                     value={newQrCode}
@@ -330,7 +330,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                                     disabled={!newQrCode.trim()}
                                   >
                                     <Link2 size={15} className="mr-2" />
-                                    Upari
+                                    {t('pair')}
                                   </Button>
                                 </div>
                               </div>
@@ -343,7 +343,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     <div className="p-10 text-center text-zinc-400">
                       <Ghost size={28} className="mx-auto mb-3 opacity-40" />
                       <p className="text-[10px] font-black uppercase tracking-[0.18em]">
-                        Nema otvorenih ghost prijava
+                        {t('noOpenGhostReports')}
                       </p>
                     </div>
                   )}
