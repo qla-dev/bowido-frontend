@@ -265,6 +265,9 @@
 #app-container.dark .border-zinc-100,
 #app-container.dark .border-zinc-200,
 #app-container.dark .border-zinc-300,
+#app-container.dark .border-zinc-100\/50,
+#app-container.dark .border-zinc-100\/80,
+#app-container.dark .border-black,
 #app-container.dark .border-gray-100,
 #app-container.dark .border-gray-200,
 #app-container.dark .border-gray-300,
@@ -297,10 +300,12 @@
 
 #app-container.dark .bg-zinc-50,
 #app-container.dark .bg-zinc-50\/20,
+#app-container.dark .bg-zinc-50\/30,
 #app-container.dark .bg-zinc-50\/40,
 #app-container.dark .bg-zinc-50\/50,
 #app-container.dark .bg-zinc-50\/60,
 #app-container.dark .bg-zinc-50\/70,
+#app-container.dark .bg-zinc-50\/80,
 #app-container.dark .bg-gray-50,
 #app-container.dark .bg-gray-50\/40,
 #app-container.dark .bg-gray-50\/50,
@@ -330,6 +335,7 @@
 
 #app-container.dark .bg-rose-50,
 #app-container.dark .bg-rose-100,
+#app-container.dark .bg-rose-50\/10,
 #app-container.dark .bg-rose-50\/20,
 #app-container.dark .bg-rose-50\/30,
 #app-container.dark .bg-rose-50\/50,
@@ -373,6 +379,7 @@
 
 #app-container.dark .border-rose-100,
 #app-container.dark .border-rose-200,
+#app-container.dark .border-rose-50,
 #app-container.dark .border-blue-100,
 #app-container.dark .border-blue-200,
 #app-container.dark .border-indigo-100,
@@ -417,6 +424,7 @@
 }
 
 #app-container.dark .hover\:border-black:hover,
+#app-container.dark .focus\:border-black:focus,
 #app-container.dark .hover\:border-zinc-100:hover,
 #app-container.dark .hover\:border-zinc-200:hover,
 #app-container.dark .hover\:border-gray-100:hover,
@@ -455,6 +463,18 @@
 #app-container.dark .group:hover .group-hover\:text-black,
 #app-container.dark .group:hover .group-hover\:text-zinc-900 {
   color: var(--dark-text) !important;
+}
+
+#app-container.dark .group:hover .group-hover\:bg-black {
+  background-color: rgb(47 101 77 / 0.98) !important;
+}
+
+#app-container.dark .group:hover .group-hover\:border-black {
+  border-color: rgb(82 201 140 / 0.52) !important;
+}
+
+#app-container.dark .ring-white {
+  --tw-ring-color: rgb(26 51 39 / 0.96) !important;
 }
 
 #app-container.dark .shadow-zinc-200\/70,

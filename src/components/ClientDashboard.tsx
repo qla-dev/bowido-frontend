@@ -97,9 +97,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
   };
 
   const renderOverview = () => (
-    <div className="space-y-6 pb-12">
+    <div className="w-full space-y-6 pb-12">
       <Card title={t('quickActions')}>
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <button
             onClick={() => setIsScannerOpen(true)}
             className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}
@@ -181,35 +181,35 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
 
         <Card title={t('returnBoard')}>
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#203d31]">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
                   <RotateCcw size={18} />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('returnRequests')}</p>
-                  <p className="text-sm font-black uppercase tracking-tight">{returnRequestedPallets.length}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('returnRequests')}</p>
+                  <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">{returnRequestedPallets.length}</p>
                 </div>
               </div>
               <Badge variant="warning">{t('forPickup')}</Badge>
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#203d31]">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
                   <Package size={18} />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('activePallets')}</p>
-                  <p className="text-sm font-black uppercase tracking-tight">{atClientPallets.length}</p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('activePallets')}</p>
+                  <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">{atClientPallets.length}</p>
                 </div>
               </div>
               <Badge variant="info">{t('liveInventory')}</Badge>
             </div>
 
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('chargeAlert')}</p>
-              <p className="mt-2 text-[12px] font-black uppercase tracking-tight text-zinc-900">
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#203d31]">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('chargeAlert')}</p>
+              <p className="mt-2 text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-white">
                 {chargingPallets.length > 0 ? `${chargingPallets.length} ${t('activeCharges')}` : t('allUnitsStable')}
               </p>
             </div>
@@ -234,10 +234,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                           {getStatusLabel(pallet.current_status_name, language)}
                         </Badge>
                       </div>
-                      <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
+                      <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-emerald-50">
                         {getPalletTypeLabel(pallet.type, language)}
                       </p>
-                      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                         {pallet.current_location} / {days} d
                       </p>
                     </div>
@@ -267,7 +267,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">{t('currentFleetDetail')}</h3>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {clientPallets.map((pallet) => {
             const days = calculateDays(pallet.last_status_changed_at);
             const palletDebt = calculatePalletDebt(pallet);
@@ -280,32 +280,32 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{pallet.qr_code}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-[#9fcbb3]">{pallet.qr_code}</span>
                         {isCharging && <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />}
                       </div>
-                      <p className="mt-2 truncate text-[13px] font-black uppercase tracking-tight text-zinc-950">
+                      <p className="mt-2 truncate text-[13px] font-black uppercase tracking-tight text-zinc-950 dark:text-emerald-50">
                         {getPalletTypeLabel(pallet.type, language)}
                       </p>
-                      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">{pallet.current_location}</p>
+                      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">{pallet.current_location}</p>
                     </div>
                     <div className="text-right">
                       <Badge variant={pallet.current_status_id === 7 ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
                         {getStatusLabel(pallet.current_status_name, language)}
                       </Badge>
-                      <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">{days} d</p>
+                      <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">{days} d</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('chargeAlert')}</p>
-                      <p className={`mt-2 text-sm font-black uppercase tracking-tight ${isCharging ? 'text-rose-600' : 'text-zinc-900'}`}>
+                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('chargeAlert')}</p>
+                      <p className={`mt-2 text-sm font-black uppercase tracking-tight ${isCharging ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-900 dark:text-white'}`}>
                         {isCharging ? `EUR ${palletDebt.toFixed(2)}` : t('unitsInGrace')}
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('gracePeriodLabel')}</p>
-                      <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-900">{graceDays} d</p>
+                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('gracePeriodLabel')}</p>
+                      <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white">{graceDays} d</p>
                     </div>
                   </div>
 
@@ -332,7 +332,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
           })}
 
           {clientPallets.length === 0 && (
-            <div className="col-span-full flex flex-col items-center justify-center rounded-[3rem] border-2 border-dashed border-zinc-100 bg-zinc-50 py-20 text-zinc-400">
+            <div className="col-span-full flex flex-col items-center justify-center rounded-[3rem] border-2 border-dashed border-zinc-100 bg-zinc-50 py-20 text-zinc-400 dark:border-white/10 dark:bg-[#203d31] dark:text-[#9fcbb3]">
               <Package size={32} className="mb-4 opacity-20" />
               <p className="text-[10px] font-black uppercase tracking-widest leading-none">{t('noActiveUnits')}</p>
             </div>

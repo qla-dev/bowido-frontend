@@ -59,24 +59,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const [resolutionNote, setResolutionNote] = useState('');
 
   return (
-    <div className="min-h-full flex flex-col gap-4 pb-20 md:pb-4">
-      {(isDriver || isWarehouse) && (
-        <header className="hidden min-h-10 items-center justify-end md:flex">
-          {isDriver && (
-            <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-700">
-              <Truck size={16} />
-              <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('activeRoute')}</span>
-            </div>
-          )}
-          {isWarehouse && (
-            <div className="flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-sky-700">
-              <Package size={16} />
-              <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('readyForHandling')}</span>
-            </div>
-          )}
-        </header>
-      )}
-
+    <div className="flex min-h-full w-full flex-col gap-4 pb-20 md:pb-4">
       <div className="flex p-1 bg-zinc-100 rounded-2xl">
          <button 
            onClick={() => setActiveTab('scan')}
@@ -122,7 +105,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
             {isWarehouse ? (
               <div className="space-y-4">
                 <Card title={t('warehouseTools')}>
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <button
                       onClick={() => setIsScannerOpen(true)}
                       className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}
@@ -270,7 +253,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
             ) : (
               <div className="space-y-4">
                 <Card title={t('driverTools')}>
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                     <button
                       onClick={() => setIsScannerOpen(true)}
                       className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}

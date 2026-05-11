@@ -62,9 +62,9 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-4">
+    <div className="w-full space-y-6 pb-20 md:pb-4">
       <Card title={t('serviceTools')}>
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <button
             onClick={() => setIsScannerOpen(true)}
             className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}

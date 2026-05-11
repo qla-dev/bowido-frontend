@@ -74,25 +74,21 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-        <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight">{t('auditLogs')}</h2>
-          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-            {t('auditLogsSubtitle')}
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onExport}>
-          PDF
-        </Button>
-      </div>
-
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label={t('totalLogs')} value={auditLogs.length} />
         <StatCard label={t('statusChanges')} value={statusLogCount} variant="info" />
         <StatCard label={t('qrVersionChanges')} value={qrVersionLogCount} variant="success" />
       </div>
 
-      <Card title={t('auditLogs')} noPadding>
+      <Card
+        title={t('auditLogs')}
+        action={
+          <Button variant="outline" size="sm" onClick={onExport}>
+            PDF
+          </Button>
+        }
+        noPadding
+      >
         <div className="border-b border-zinc-100 bg-zinc-50/60 p-4">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="relative">
