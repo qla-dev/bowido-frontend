@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { 
   Package, Truck, AlertTriangle, Users, ArrowUpRight, Search, 
   Filter, MoreVertical, MapPin, Clock, Settings as SettingsIcon,
@@ -179,7 +179,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
           <StatCard label={t('totalPallets')} value={pallets.length.toString()} trend="+12%" trendUp />
           <StatCard label={t('inTransit')} value={pallets.filter(p => [2, 6].includes(p.current_status_id)).length.toString()} variant="info" />
           <StatCard label={t('overdueUnits')} value={overduePallets.length.toString()} trend={overduePallets.length > 0 ? t('actionRequired') : t('allGood')} trendUp={false} variant="danger" />
-          <StatCard label={t('totalAccrued')} value={`€${totalDebt.toFixed(2)}`} trend="Live" trendUp variant="success" />
+          <StatCard label={t('totalAccrued')} value={`\u20AC${totalDebt.toFixed(2)}`} trend="Live" trendUp variant="success" />
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -198,8 +198,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                         <tr>
                           <th className="px-6 py-3 align-middle">{t('qrCode')}</th>
                           <th className="px-6 py-3 align-middle">{t('client')}</th>
-                          <th className="px-6 py-3 align-middle">{t('invoiceLabel')}</th>
                           <th className="px-6 py-3 align-middle">{t('owed')}</th>
+                          <th className="px-6 py-3 align-middle">{t('invoiceLabel')}</th>
                         </tr>
                       </thead>
                       <tbody className="text-[11px] divide-y divide-zinc-50">
@@ -212,6 +212,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                               <td className="px-6 py-3 text-center align-middle">
                                 <p className="font-bold text-zinc-900 leading-none mb-1">{client?.name || t('inWarehouse')}</p>
                                 <p className="text-[9px] text-zinc-400 uppercase tracking-tighter leading-none">{p.current_location}</p>
+                              </td>
+                              <td className="px-6 py-3 text-center text-rose-600 font-mono font-black align-middle">
+                                 {"\u20AC"}{calculateDebt(p).toFixed(2)}
                               </td>
                               <td className="px-6 py-3 align-middle">
                                 <div className="grid min-w-[17rem] max-w-md mx-auto grid-cols-1 gap-2 sm:grid-cols-2">
@@ -236,8 +239,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                                   </Button>
                                 </div>
                               </td>
-                              <td className="px-6 py-3 text-center text-rose-600 font-mono font-black align-middle">
-                                 €{calculateDebt(p).toFixed(2)}
+                              <td className="hidden px-6 py-3 text-center text-rose-600 font-mono font-black align-middle">
+                                 {"\u20AC"}{calculateDebt(p).toFixed(2)}
                               </td>
                             </tr>
                            );
@@ -294,7 +297,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                       {pallets.slice(0, 5).map((pallet) => (
                         <tr key={`pallet-overview-${pallet.id}`} className="hover:bg-zinc-50">
                           <td className="px-6 py-3 font-mono font-black">{pallet.qr_code}</td>
-                          <td className="px-6 py-3 font-mono font-black text-emerald-600">€{calculateDebt(pallet).toFixed(2)}</td>
+                          <td className="px-6 py-3 font-mono font-black text-emerald-600">{"\u20AC"}{calculateDebt(pallet).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -543,7 +546,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                           <td className="px-6 py-3 text-gray-400 font-bold">{calculateDays(p.last_status_changed_at)} {t('days')}</td>
                           <td className="px-6 py-3 font-mono font-black">
                              <div className="flex items-center justify-between">
-                                <span>€{calculateDebt(p).toFixed(2)}</span>
+                                <span>{"\u20AC"}{calculateDebt(p).toFixed(2)}</span>
                              </div>
                           </td>
                         </tr>
@@ -595,7 +598,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                    </div>
                    <div>
                       <span className="text-[9px] font-bold text-gray-400 uppercase">{t('ratePerDayLabel')}</span>
-                      <p className="font-black text-xs">€{client.price_per_day}</p>
+                      <p className="font-black text-xs">{"\u20AC"}{client.price_per_day}</p>
                    </div>
                 </div>
                 <div className="pt-2">
@@ -694,7 +697,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                    <input type="number" value={newStatusData.grace_period_days} onChange={e => setNewStatusData({...newStatusData, grace_period_days: parseInt(e.target.value)})} className="w-full p-3 bg-gray-50 border-none rounded-xl focus:ring-1 focus:ring-black outline-none font-bold" />
                 </div>
                 <div className="space-y-1">
-                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('pricePerDayLabel')} (€)</label>
+                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('pricePerDayLabel')} ({'\u20AC'})</label>
                    <input type="number" step="0.1" value={newStatusData.price_per_day} onChange={e => setNewStatusData({...newStatusData, price_per_day: parseFloat(e.target.value)})} className="w-full p-3 bg-gray-50 border-none rounded-xl focus:ring-1 focus:ring-black outline-none font-bold" />
                 </div>
                 <div className="flex items-center justify-between pt-2">
@@ -737,7 +740,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     <input type="number" value={editingStatus.grace_period_days} onChange={e => setEditingStatus({...editingStatus, grace_period_days: parseInt(e.target.value)})} className="w-full p-3 bg-gray-50 border-none rounded-xl focus:ring-1 focus:ring-black outline-none font-bold" />
                  </div>
                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('pricePerDayLabel')} (€)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('pricePerDayLabel')} ({'\u20AC'})</label>
                     <input type="number" step="0.1" value={editingStatus.price_per_day} onChange={e => setEditingStatus({...editingStatus, price_per_day: parseFloat(e.target.value)})} className="w-full p-3 bg-gray-50 border-none rounded-xl focus:ring-1 focus:ring-black outline-none font-bold" />
                  </div>
                  <div className="flex items-center justify-between pt-2">
@@ -976,7 +979,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                          <input type="number" value={newStatusData.grace_period_days} onChange={e => setNewStatusData({...newStatusData, grace_period_days: parseInt(e.target.value)})} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
                       </div>
                       <div className="space-y-1">
-                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('pricePerDayLabel')} (€)</label>
+                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('pricePerDayLabel')} ({'\u20AC'})</label>
                          <input type="number" step="0.1" value={newStatusData.price_per_day} onChange={e => setNewStatusData({...newStatusData, price_per_day: parseFloat(e.target.value)})} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
                       </div>
                    </div>
@@ -1050,7 +1053,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     <input id="new-client-grace" type="number" defaultValue={14} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
                  </div>
                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('ratePerDayLabel')} (€)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('ratePerDayLabel')} ({'\u20AC'})</label>
                     <input id="new-client-rate" type="number" step="0.1" defaultValue={2.5} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
                  </div>
                  <div className="col-span-2 space-y-1">
@@ -1097,7 +1100,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     />
                  </div>
                  <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dailyRateOverride')} (€)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dailyRateOverride')} ({'\u20AC'})</label>
                     <input 
                       type="number" 
                       step="0.1"

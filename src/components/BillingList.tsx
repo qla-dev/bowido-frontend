@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Filter, FileText, ChevronRight } from 'lucide-react';
 import { Button, Card, Badge } from './ui';
 import { InvoiceViewer } from './InvoiceViewer';
@@ -10,14 +10,19 @@ export const BillingList: React.FC = () => {
   const { invoices, t } = useApp();
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  const getInvoiceStatusLabel = (status: Invoice['status']) => {
+    if (status === 'paid') return t('paid');
+    if (status === 'overdue') return t('overdue');
+    if (status === 'sent') return t('sentLabel');
+    return status;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between px-2">
         <div>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('billing')}</h2>
-          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-            {t('managePayments')}
-          </p>
+          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('managePayments')}</p>
         </div>
         <Button variant="outline" size="sm">
           <Filter size={14} className="mr-2" /> {t('filter')}
@@ -44,19 +49,17 @@ export const BillingList: React.FC = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-black text-base text-black truncate uppercase tracking-tight">{invoice.invoice_number}</h3>
                       <Badge variant={invoice.status === 'paid' ? 'success' : 'danger'}>
-                        {invoice.status}
+                        {getInvoiceStatusLabel(invoice.status)}
                       </Badge>
                     </div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest truncate">
-                      {invoice.customer_name}
-                    </p>
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest truncate">{invoice.customer_name}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-10 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0 border-zinc-50">
                   <div className="text-left sm:text-right">
                     <p className="text-[9px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">{t('payableAmount')}</p>
-                    <p className="text-2xl font-black text-black tracking-tighter">€{invoice.total_amount.toFixed(2)}</p>
+                    <p className="text-2xl font-black text-black tracking-tighter">{`\u20AC${invoice.total_amount.toFixed(2)}`}</p>
                   </div>
                   <div className="w-10 h-10 border-2 border-zinc-50 group-hover:border-black rounded-full flex items-center justify-center transition-all shrink-0">
                     <ChevronRight className="text-zinc-200 group-hover:text-black" size={16} />
@@ -68,12 +71,7 @@ export const BillingList: React.FC = () => {
         ))}
       </div>
 
-      {selectedInvoice && (
-        <InvoiceViewer 
-          invoice={selectedInvoice} 
-          onClose={() => setSelectedInvoice(null)} 
-        />
-      )}
+      {selectedInvoice && <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
     </div>
   );
 };

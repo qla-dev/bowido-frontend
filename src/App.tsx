@@ -16,10 +16,39 @@ import { mockUsers } from './lib/mockData';
 import { ChevronDown, Languages, LogIn, Moon, Package, Smartphone, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
-import { Card, Select } from './components/ui';
+import { Card, Select, cn } from './components/ui';
 import { apiService } from './services/api';
 import logoImage from './assets/logo.png';
 import { getRoleLabel, languageOptions } from './i18n';
+
+const AppFooter = ({ className }: { className?: string }) => {
+  const { t } = useApp();
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <footer
+      className={cn(
+        'w-full shrink-0 bg-white/95 backdrop-blur-xl dark:bg-[#0c1712]/94',
+        className
+      )}
+    >
+      <div className="flex min-h-16 w-full flex-col items-start gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 md:px-6">
+        <div className="flex min-w-[118px] shrink-0 items-center gap-3">
+          <img src={logoImage} alt="Trackpal logo" className="h-6 w-auto max-w-[118px] shrink-0 object-contain object-left opacity-50 sm:h-7 sm:max-w-[132px]" />
+        </div>
+
+        <div className="w-full text-left sm:ml-auto sm:w-auto sm:text-right">
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300">
+            {t('footerTagline')}
+          </p>
+          <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">
+            © {currentYear} Bowido · {t('footerRights')} · {t('footerRegion')}
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+};
 
 export default function App() {
   const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen } = useApp();
@@ -53,70 +82,69 @@ export default function App() {
   return (
     <div
       id="login-screen"
-      className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-emerald-900 font-sans"
+      className="min-h-screen bg-white flex flex-col text-emerald-900 font-sans"
     >
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-12"
-      >
-        <div className="flex flex-col items-center gap-6">
-          <div className="relative">
-            <div className="flex items-center justify-center">
-              <img src={logoImage} alt="Logo" className="h-12 w-auto" />
-            </div>
-
-          
-          </div>
-
-          
-        </div>
-
-        <Card title={t('welcome') || 'System Login'} noPadding>
-          <div className="p-8 space-y-6 text-center">
-            <div className="space-y-1 text-center">
-              <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">
-                {t('loggedAs') === 'Logged as'
-                  ? 'Select a role to preview'
-                  : 'Odaberite ulogu'}
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {loginUsers.map((user) => (
-                <button
-                  id={`login-${user.role_name.toLowerCase()}`}
-                  key={user.id}
-                  onClick={() => setCurrentUser(user)}
-                  className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#11231b] dark:border-white/10 dark:hover:border-[#00A655]"
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
-                      {getRoleLabel(user.role_name, language)}
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest">
-                      {user.email}
-                    </span>
-                  </div>
-
-                  <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#0c1a13] dark:border-white/10">
-                    <LogIn size={18} />
-                  </div>
-                </button>
-              ))}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md space-y-12"
+        >
+          <div className="flex flex-col items-center gap-6">
+            <div className="relative">
+              <div className="flex items-center justify-center">
+                <img src={logoImage} alt="Logo" className="h-12 w-auto" />
+              </div>
             </div>
           </div>
-        </Card>
 
-        <div className="flex flex-col items-center gap-4 pt-8 border-t border-zinc-100 dark:border-white/10">
-          <div className="flex items-center gap-2">
-            <Smartphone size={16} className="text-zinc-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-              {t('mobileResponsiveReady')}
-            </span>
+          <Card title={t('welcome') || 'System Login'} noPadding>
+            <div className="p-8 space-y-6 text-center">
+              <div className="space-y-1 text-center">
+                <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">
+                  {t('loggedAs') === 'Logged as'
+                    ? 'Select a role to preview'
+                    : 'Odaberite ulogu'}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {loginUsers.map((user) => (
+                  <button
+                    id={`login-${user.role_name.toLowerCase()}`}
+                    key={user.id}
+                    onClick={() => setCurrentUser(user)}
+                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#11231b] dark:border-white/10 dark:hover:border-[#00A655]"
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
+                        {getRoleLabel(user.role_name, language)}
+                      </span>
+                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest">
+                        {user.email}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#0c1a13] dark:border-white/10">
+                      <LogIn size={18} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <div className="flex flex-col items-center gap-4 pt-8 border-t border-zinc-100 dark:border-white/10">
+            <div className="flex items-center gap-2">
+              <Smartphone size={16} className="text-zinc-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                {t('mobileResponsiveReady')}
+              </span>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
+      <AppFooter />
     </div>
   );
 }
@@ -205,7 +233,7 @@ export default function App() {
         onToggleNightMode={() => setIsNightMode(!isNightMode)}
       />
 
-      <div className="flex flex-col md:flex-row min-h-screen pt-16 bg-white dark:bg-transparent">
+      <div className="flex flex-col md:flex-row min-h-screen pt-28 md:pt-16 bg-white dark:bg-transparent">
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -213,8 +241,8 @@ export default function App() {
         onLogout={handleLogout} 
       />
       
-      <main className="flex-1 h-[calc(100vh-4rem)] bg-white overflow-y-auto pb-28 md:pb-0 relative scroll-smooth no-scrollbar md:no-scrollbar dark:bg-transparent">
-        <div className="w-full bg-white p-4 sm:p-5 md:p-6 lg:p-8 dark:bg-transparent">
+      <main className="flex-1 h-[calc(100vh-7rem)] md:h-[calc(100vh-4rem)] bg-white overflow-y-auto pb-28 md:pb-0 relative scroll-smooth no-scrollbar md:no-scrollbar dark:bg-transparent flex flex-col">
+        <div className="w-full flex-1 bg-white p-4 sm:p-5 md:p-6 lg:p-8 dark:bg-transparent">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${currentUser.id}-${activeTab}`}
@@ -227,6 +255,7 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </div>
+        <AppFooter className="mt-auto" />
       </main>
 
       <BottomNav 

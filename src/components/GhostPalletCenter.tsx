@@ -223,7 +223,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     <textarea
                       value={ghostNote}
                       onChange={(event) => setGhostNote(event.target.value)}
-                      placeholder="Lokacija, tip palete, stanje ili dodatni komentar..."
+                      placeholder={t('ghostNotePlaceholder')}
                       className="w-full min-h-28 px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all placeholder:text-zinc-300 tracking-tight resize-none"
                     />
                   </div>

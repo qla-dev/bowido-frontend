@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StatCard, Card, Button, Input, Badge } from './ui';
 import { PalletScanner } from './PalletScanner';
 import { DamageReportModal } from './DamageReportModal';
 import { RoleType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
-import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Ghost } from 'lucide-react';
+import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Ghost, Truck, Route } from 'lucide-react';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 
 interface WorkerDashboardProps {
@@ -24,6 +24,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const isDriver = role === RoleType.VOZAC;
   const isWarehouse = role === RoleType.MAGACINER;
   const isTechnician = role === RoleType.SERVISER;
+  const roleLabel = isDriver ? t('driver') : isWarehouse ? t('warehouse') : t('technician');
 
   // Set initial tab for technician
   React.useEffect(() => {
@@ -42,19 +43,39 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
 
   const pendingPickups = pallets.filter(p => p.current_status_id === 5); // Voor retour
   const inTransport = pallets.filter(p => [2, 6].includes(p.current_status_id));
+  const warehouseDispatch = pallets.filter(p => [2, 6].includes(p.current_status_id));
+  const warehouseReturns = pallets.filter(p => p.current_status_id === 5);
   const serviceJobs = pallets.filter(p => p.current_status_id === 7 || serviceReports.some(r => r.pallet_id === p.id && !r.resolved_at));
   const ghostPallets = pallets.filter(p => p.is_ghost);
+  const driverStops = (pendingPickups.length > 0 ? pendingPickups : inTransport).slice(0, 4);
+  const warehouseQueue = pallets.filter(p => [5, 2, 6, 7, 1, 3].includes(p.current_status_id)).slice(0, 6);
+  const activeRoutePallet = inTransport[0] || pendingPickups[0] || pallets[0];
+  const nextStopLabel = pendingPickups[0]?.current_location || activeRoutePallet?.current_location || 'Eindhoven Hub';
+  const routeClientLabel = pendingPickups[0]?.client_name || activeRoutePallet?.client_name || t('client');
+  const routeUnitsLabel = activeRoutePallet ? activeRoutePallet.qr_code : 'PAL-0000';
 
   const [resolvingReportId, setResolvingReportId] = useState<number | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
 
   return (
-    <div className="space-y-6 pb-20">
-      <header className="flex h-16 items-center justify-between">
+    <div className="min-h-full flex flex-col gap-4 pb-20 md:pb-4">
+      <header className="flex min-h-14 items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[9px] font-black uppercase text-zinc-400 tracking-[0.3em]">{isDriver ? t('driver') : t('warehouse')}</span>
+          <span className="text-[9px] font-black uppercase text-zinc-400 tracking-[0.3em]">{roleLabel}</span>
           <h2 className="text-xl font-black tracking-tighter uppercase">{t('home')}</h2>
         </div>
+        {isDriver && (
+          <div className="hidden md:flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-700">
+            <Truck size={16} />
+            <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('activeRoute')}</span>
+          </div>
+        )}
+        {isWarehouse && (
+          <div className="hidden md:flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-sky-700">
+            <Package size={16} />
+            <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('readyForHandling')}</span>
+          </div>
+        )}
       </header>
 
       <div className="flex p-1 bg-zinc-100 rounded-2xl">
@@ -97,129 +118,354 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="space-y-6"
+            className="flex flex-1 flex-col gap-4"
           >
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-               <StatCard label={t('todayLabel')} value={todayLogs.length} />
-               <StatCard label={t('onRoute')} value={inTransport.length} variant="info" />
-               <div className="hidden md:block col-span-2">
-                 <div className="h-full bg-zinc-50 border border-zinc-100 rounded-2xl flex items-center px-4">
-                    <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">{isDriver ? t('fleetActive') : t('warehouseOperating')}</p>
-                 </div>
-               </div>
-            </div>
+            {isWarehouse ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <StatCard label={t('readyForDispatch')} value={warehouseDispatch.length} variant="info" />
+                  <StatCard label={t('inboundReturns')} value={warehouseReturns.length} variant="warning" />
+                  <StatCard label={t('serviceQueue')} value={serviceJobs.length} variant="success" />
+                  <StatCard label={t('exceptionQueue')} value={ghostPallets.length} variant="danger" />
+                </div>
 
-            <div className="grid grid-cols-1 gap-6 relative">
-               {/* Recent Scans List - Full Width */}
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">{t('activityLog')}</h3>
-                    {todayLogs.length > 0 && <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none">{todayLogs.length} {t('scansToday')}</span>}
-                  </div>
-                  
-                  <div className="bg-white border border-zinc-100 rounded-[2.5rem] p-2 space-y-1 min-h-[300px]">
-                    {todayLogs.length > 0 ? (
-                      todayLogs.slice(0, 10).map(log => {
-                        const pallet = pallets.find(p => p.qr_code === log.pallet_qr);
-                        return (
-                          <div 
-                            key={log.id} 
-                            onClick={() => pallet && setSelectedPalletId(pallet.id)}
-                            className="flex items-center gap-4 p-4 bg-zinc-50/50 hover:bg-zinc-50 border border-transparent hover:border-zinc-100 rounded-3xl transition-all group cursor-pointer"
-                          >
-                             <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-zinc-100 overflow-hidden">
-                                <img 
-                                  src="https://images.unsplash.com/photo-1591085686350-798c0f9faa7f?auto=format&fit=crop&q=80&w=100" 
-                                  className="w-full h-full object-cover grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all"
-                                  alt="" 
-                                />
-                             </div>
-                             <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                   <div className="flex items-center gap-2">
-                                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{log.pallet_qr}</span>
-                                      <Badge variant={log.new_status_name.toLowerCase().includes('damage') ? 'danger' : 'success'} className="px-1.5 py-0 text-[8px]">
-                                        {getStatusLabel(log.new_status_name, language)}
-                                      </Badge>
-                                   </div>
-                                   <span className="text-[9px] font-black text-zinc-300 uppercase">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                                <p className="text-[12px] font-black uppercase tracking-tight truncate mb-1">{pallet ? getPalletTypeLabel(pallet.type, language) : t('standardUnit')}</p>
-                                <div className="flex items-center gap-2">
-                                   <MapPin size={8} className="text-zinc-300" />
-                                   <span className="text-[9px] font-black text-zinc-300 uppercase truncate">{log.new_location}</span>
-                                </div>
-                             </div>
-                             <ArrowRight size={14} className="text-zinc-300 group-hover:translate-x-1 transition-transform" />
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)]">
+                  <Card title={t('warehouseFlow')}>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                            <Package size={18} />
                           </div>
-                        );
-                      })
-                    ) : (
-                      <div className="h-full min-h-[280px] flex flex-col items-center justify-center opacity-20 grayscale">
-                         <Package size={40} className="mb-4" />
-                         <p className="text-[10px] font-black uppercase tracking-widest">{t('noActivityYet')}</p>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('inboundReturns')}</p>
+                            <p className="text-sm font-black uppercase tracking-tight">{t('forPickup')}</p>
+                          </div>
+                        </div>
+                        <Badge variant="warning">{warehouseReturns.length}</Badge>
                       </div>
-                    )}
-                    {todayLogs.length > 10 && (
-                      <button 
-                        onClick={() => setActiveTab('history')}
-                        className="w-full py-4 text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 shadow-sm bg-white rounded-2xl mt-2 hover:bg-zinc-50 transition-colors"
+
+                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                            <Truck size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('readyForDispatch')}</p>
+                            <p className="text-sm font-black uppercase tracking-tight">{t('onRoute')}</p>
+                          </div>
+                        </div>
+                        <Badge variant="info">{warehouseDispatch.length}</Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                            <AlertTriangle size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('serviceQueue')}</p>
+                            <p className="text-sm font-black uppercase tracking-tight">{t('reportDamage')}</p>
+                          </div>
+                        </div>
+                        <Badge variant="danger">{serviceJobs.length}</Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                            <Ghost size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('exceptionQueue')}</p>
+                            <p className="text-sm font-black uppercase tracking-tight">{t('ghostReport')}</p>
+                          </div>
+                        </div>
+                        <Badge variant="default">{ghostPallets.length}</Badge>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card title={t('warehouseTools')}>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => setIsScannerOpen(true)}
+                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-emerald-100 bg-emerald-50 p-4 text-left"
                       >
-                        {t('exploreHistoryArchive')}
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                            <QrCode size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('scanToUpdate')}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-emerald-300" />
                       </button>
+
+                      <button
+                        onClick={() => setShowDamageModal(true)}
+                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-amber-100 bg-amber-50 p-4 text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
+                            <AlertTriangle size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase leading-none text-amber-900">{t('service')}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-amber-600">{serviceJobs.length} {t('activeJobs')}</p>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-amber-300" />
+                      </button>
+
+                      <button
+                        onClick={() => setIsGhostReportOpen(true)}
+                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-rose-100 bg-rose-50 p-4 text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500 text-white">
+                            <Ghost size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{ghostPallets.length} | {t('openReports')}</p>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-rose-300" />
+                      </button>
+                    </div>
+                  </Card>
+                </div>
+
+                <Card title={t('readyForHandling')} noPadding>
+                  <div className="divide-y divide-zinc-100">
+                    {warehouseQueue.length > 0 ? (
+                      warehouseQueue.map((pallet) => (
+                        <div key={`warehouse-queue-${pallet.id}`} className="flex items-center justify-between gap-4 p-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{pallet.qr_code}</span>
+                              <Badge variant={pallet.current_status_id === 7 ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
+                                {getStatusLabel(pallet.current_status_name, language)}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
+                              {getPalletTypeLabel(pallet.type, language)}
+                            </p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">{pallet.current_location}</p>
+                          </div>
+                          <Button size="xs" variant="secondary" onClick={() => setIsScannerOpen(true)}>
+                            {t('scanAction')}
+                          </Button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-12 text-center opacity-40">
+                        <Package size={32} className="mx-auto mb-2" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">{t('noAssignedUnits')}</p>
+                      </div>
                     )}
                   </div>
-               </div>
-            </div>
+                </Card>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+                  <Card title={t('activeRoute')} className="overflow-hidden">
+                    <div className="space-y-4">
+                      <div className="rounded-[2rem] border border-emerald-100 bg-[linear-gradient(135deg,#effcf5_0%,#ffffff_55%,#f4fbff_100%)] p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-emerald-700">
+                              <Truck size={16} />
+                              <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('driver')}</span>
+                            </div>
+                            <p className="text-lg font-black uppercase tracking-tight text-emerald-950">{routeClientLabel}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">{routeUnitsLabel}</p>
+                          </div>
+                          <Badge variant="info">{t('onRoute')}</Badge>
+                        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button 
-                  onClick={() => setIsGhostReportOpen(true)}
-                  className="flex items-center justify-between p-6 bg-rose-50 border-2 border-rose-100 rounded-[2rem] group"
-                >
-                   <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-rose-500 text-white rounded-xl flex items-center justify-center">
-                         <Ghost size={20} />
+                        <div className="mt-5 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-white shadow-sm">
+                            <MapPin size={16} className="text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">{t('activeRoute')}</p>
+                            <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900">{activeRoutePallet?.current_location || 'Sarajevo Hub'}</p>
+                          </div>
+
+                          <div className="relative flex h-16 w-10 items-center justify-center">
+                            <div className="absolute h-full w-px bg-emerald-200" />
+                            <div className="absolute top-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+                            <div className="absolute bottom-1 h-2.5 w-2.5 rounded-full bg-zinc-300 ring-4 ring-white" />
+                            <Route size={14} className="relative z-10 text-emerald-500" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">{t('nextStop')}</p>
+                            <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900">{nextStopLabel}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-left">
-                         <p className="text-xs font-black text-rose-900 uppercase leading-none mb-1">{t('ghostReport')}</p>
-                         <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">{ghostPallets.length} | {t('openReports')}</p>
-                      </div>
-                   </div>
-                   <ArrowRight size={16} className="text-rose-300 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button 
-                  onClick={() => setActiveTab('service')}
-                  className="flex items-center justify-between p-6 bg-emerald-50 border-2 border-emerald-100 rounded-[2rem] group"
-                >
-                   <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center">
-                         <CheckCircle2 size={20} />
-                      </div>
-                      <div className="text-left">
-                         <p className="text-xs font-black text-emerald-900 uppercase leading-none mb-1">{t('service')}</p>
-                         <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">{serviceJobs.length} {t('activeJobs')}</p>
-                      </div>
-                   </div>
-                   <ArrowRight size={16} className="text-emerald-300 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button 
-                  onClick={() => setShowDamageModal(true)}
-                  className="flex items-center justify-between p-6 bg-rose-50 border-2 border-rose-100 rounded-[2rem] group"
-                >
-                   <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-rose-500 text-white rounded-xl flex items-center justify-center">
-                         <AlertTriangle size={20} />
-                      </div>
-                      <div className="text-left">
-                         <p className="text-xs font-black text-rose-900 uppercase leading-none mb-1">{t('reportDamage')}</p>
-                         <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">{t('technician')}</p>
-                      </div>
-                   </div>
-                   <ArrowRight size={16} className="text-rose-300 group-hover:translate-x-1 transition-transform" />
-                </button>
-             </div>
+
+                    </div>
+                  </Card>
+
+                  <Card title={t('pickupBoard')} noPadding>
+                    <div className="divide-y divide-zinc-100">
+                      {driverStops.length > 0 ? (
+                        driverStops.map((pallet) => (
+                          <div key={`driver-stop-${pallet.id}`} className="flex items-center justify-between gap-4 p-4">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{pallet.qr_code}</span>
+                                <Badge variant={pallet.current_status_id === 5 ? 'warning' : 'info'}>
+                                  {getStatusLabel(pallet.current_status_name, language)}
+                                </Badge>
+                              </div>
+                              <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
+                                {pallet.client_name || t('client')}
+                              </p>
+                              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                                {pallet.current_location}
+                              </p>
+                            </div>
+                            <Button size="xs" variant="secondary" onClick={() => setIsScannerOpen(true)}>
+                              {t('scanAction')}
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-12 text-center opacity-40">
+                          <MapPin size={28} className="mx-auto mb-2" />
+                          <p className="text-[10px] font-black uppercase tracking-widest">{t('noAssignedUnits')}</p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <StatCard label={t('todayLabel')} value={todayLogs.length} />
+                  <StatCard label={t('onRoute')} value={inTransport.length} variant="info" />
+                  <StatCard label={t('pickupsWaiting')} value={pendingPickups.length} variant="warning" />
+                  <StatCard label={t('activeJobs')} value={serviceJobs.length} variant="success" />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
+                  <Card
+                    title={t('activityLog')}
+                    action={
+                      todayLogs.length > 0 ? (
+                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none">
+                          {todayLogs.length} {t('scansToday')}
+                        </span>
+                      ) : null
+                    }
+                    noPadding
+                  >
+                    <div className="divide-y divide-zinc-100">
+                      {todayLogs.length > 0 ? (
+                        todayLogs.slice(0, 6).map((log) => {
+                          const pallet = pallets.find(p => p.qr_code === log.pallet_qr);
+                          return (
+                            <div
+                              key={log.id}
+                              onClick={() => pallet && setSelectedPalletId(pallet.id)}
+                              className="flex cursor-pointer items-center gap-4 p-4 transition-all hover:bg-zinc-50"
+                            >
+                              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm shrink-0">
+                                <img
+                                  src="https://images.unsplash.com/photo-1591085686350-798c0f9faa7f?auto=format&fit=crop&q=80&w=100"
+                                  className="h-full w-full object-cover grayscale opacity-60"
+                                  alt=""
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{log.pallet_qr}</span>
+                                  <span className="text-[9px] font-black uppercase text-zinc-300">
+                                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="mt-1 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
+                                  {pallet ? getPalletTypeLabel(pallet.type, language) : t('standardUnit')}
+                                </p>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <Badge variant={log.new_status_name.toLowerCase().includes('damage') ? 'danger' : 'success'} className="px-1.5 py-0 text-[8px]">
+                                    {getStatusLabel(log.new_status_name, language)}
+                                  </Badge>
+                                  <span className="truncate text-[9px] font-black uppercase text-zinc-300">{log.new_location}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex min-h-[220px] flex-col items-center justify-center opacity-20 grayscale">
+                          <Package size={36} className="mb-4" />
+                          <p className="text-[10px] font-black uppercase tracking-widest">{t('noActivityYet')}</p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+
+                  <Card title={t('driverTools')}>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => setIsScannerOpen(true)}
+                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-emerald-100 bg-emerald-50 p-4 text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                            <QrCode size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('scanToUpdate')}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-emerald-300" />
+                      </button>
+
+                      <button
+                        onClick={() => setIsGhostReportOpen(true)}
+                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-rose-100 bg-rose-50 p-4 text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500 text-white">
+                            <Ghost size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{ghostPallets.length} | {t('openReports')}</p>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-rose-300" />
+                      </button>
+
+                      <button
+                        onClick={() => setShowDamageModal(true)}
+                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-amber-100 bg-amber-50 p-4 text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
+                            <AlertTriangle size={18} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase leading-none text-amber-900">{t('reportDamage')}</p>
+                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-amber-600">{t('serviceDamageHint')}</p>
+                          </div>
+                        </div>
+                        <ArrowRight size={16} className="text-amber-300" />
+                      </button>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            )}
 
              {ghostPallets.length > 0 && (
                <Card title={t('unlabeledUnitsGhosts')} noPadding>
