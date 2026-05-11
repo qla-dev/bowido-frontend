@@ -49,7 +49,34 @@ const getStoredUsers = (): ManagedUser[] => {
 
   try {
     const parsedUsers = JSON.parse(storedUsers) as ManagedUser[];
-    return parsedUsers.length > 0 ? parsedUsers : mockManagedUsers;
+    if (parsedUsers.length === 0) {
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mockManagedUsers));
+      return mockManagedUsers;
+    }
+
+    let nextUserId = Math.max(...parsedUsers.map((user) => user.id), 0) + 1;
+    const missingDemoUsers = mockManagedUsers.filter(
+      (demoUser) => !parsedUsers.some((storedUser) => storedUser.role_name === demoUser.role_name)
+    ).map((demoUser) => {
+      const hasIdConflict = parsedUsers.some((storedUser) => storedUser.id === demoUser.id);
+
+      if (!hasIdConflict) {
+        return demoUser;
+      }
+
+      return {
+        ...demoUser,
+        id: nextUserId++,
+      };
+    });
+
+    if (missingDemoUsers.length > 0) {
+      const mergedUsers = [...parsedUsers, ...missingDemoUsers];
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mergedUsers));
+      return mergedUsers;
+    }
+
+    return parsedUsers;
   } catch {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mockManagedUsers));
     return mockManagedUsers;

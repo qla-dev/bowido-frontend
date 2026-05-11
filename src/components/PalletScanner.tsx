@@ -80,13 +80,13 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
   };
 
   return (
-    <div id="scanner-modal" className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div id="scanner-modal" className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-3 sm:p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-4xl"
+        className="my-auto flex w-full max-w-4xl items-center justify-center"
       >
-        <Card noPadding className="shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col h-[90vh] md:h-auto md:max-h-[85vh] rounded-2xl">
+        <Card noPadding className="mx-auto flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] md:h-auto md:max-h-[85vh]">
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-zinc-950 text-white shrink-0">
             <div className="flex items-center gap-2">
               <QrCode size={18} />
@@ -97,7 +97,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col items-center bg-white no-scrollbar">
+          <div className="flex flex-1 flex-col items-center overflow-y-auto bg-white p-5 md:p-8 no-scrollbar">
             {!scanMode ? (
               <div className="w-full max-w-2xl py-12 space-y-8 flex flex-col items-center">
                 <div className="text-center space-y-1">
@@ -275,7 +275,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
           </div>
 
           {scanMode && (
-            <div className="p-8 border-t border-zinc-100 flex gap-4 shrink-0 bg-zinc-50">
+            <div className="flex shrink-0 flex-col gap-3 border-t border-zinc-100 bg-zinc-50 p-4 sm:flex-row sm:p-6 md:p-8">
               <Button variant="outline" className="flex-1" onClick={onClose}>{t('cancel')}</Button>
               <Button
                 className="flex-[2]"

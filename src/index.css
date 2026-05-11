@@ -15,13 +15,13 @@
     --brand-dark: #008f49;
     --brand-soft: #E8FFF3;
     --ink: #14532d;
-    --surface-dark: #0d1812;
-    --surface-dark-elevated: #11231a;
-    --surface-dark-soft: #183126;
-    --surface-dark-muted: #21392d;
-    --dark-border: rgb(236 253 243 / 0.12);
-    --dark-text: #f5fff8;
-    --dark-muted: #97b5a3;
+    --surface-dark: #13241b;
+    --surface-dark-elevated: #1a3327;
+    --surface-dark-soft: #234437;
+    --surface-dark-muted: #315849;
+    --dark-border: rgb(220 252 231 / 0.18);
+    --dark-text: #f7fff9;
+    --dark-muted: #b6d1c1;
   }
 
   body {
@@ -156,9 +156,9 @@
 #app-container.dark {
   color-scheme: dark;
   background:
-    radial-gradient(circle at top left, rgb(16 185 129 / 0.12), transparent 34%),
-    radial-gradient(circle at top right, rgb(59 130 246 / 0.08), transparent 28%),
-    linear-gradient(180deg, #07130d 0%, #0c1712 42%, #09110d 100%);
+    radial-gradient(circle at top left, rgb(16 185 129 / 0.13), transparent 34%),
+    radial-gradient(circle at top right, rgb(59 130 246 / 0.1), transparent 28%),
+    linear-gradient(180deg, #12241b 0%, #17291f 46%, #122017 100%);
 }
 
 #app-container.dark main,
@@ -168,11 +168,11 @@
 
 #app-container.dark header,
 #app-container.dark #mobile-bottom-nav {
-  background-color: rgb(9 21 16 / 0.92) !important;
+  background-color: rgb(21 39 31 / 0.94) !important;
 }
 
 #app-container.dark .bg-white {
-  background-color: rgb(17 33 25 / 0.96) !important;
+  background-color: rgb(27 51 40 / 0.97) !important;
 }
 
 #app-container.dark .text-black,
@@ -218,6 +218,34 @@
   color: #ffd88f !important;
 }
 
+#app-container.dark .text-blue-900,
+#app-container.dark .text-blue-800,
+#app-container.dark .text-blue-700,
+#app-container.dark .text-blue-600,
+#app-container.dark .text-indigo-900,
+#app-container.dark .text-indigo-800,
+#app-container.dark .text-indigo-700,
+#app-container.dark .text-indigo-600 {
+  color: #dbeafe !important;
+}
+
+#app-container.dark .text-orange-700,
+#app-container.dark .text-orange-600,
+#app-container.dark .text-orange-500 {
+  color: #fed7aa !important;
+}
+
+#app-container.dark .text-white\/40 {
+  color: rgb(247 255 249 / 0.68) !important;
+}
+
+#app-container.dark .text-white\/50,
+#app-container.dark .text-white\/60,
+#app-container.dark .text-white\/70,
+#app-container.dark .text-white\/75 {
+  color: rgb(247 255 249 / 0.78) !important;
+}
+
 #app-container.dark .text-zinc-700,
 #app-container.dark .text-zinc-600,
 #app-container.dark .text-gray-700,
@@ -244,6 +272,29 @@
   border-color: var(--dark-border) !important;
 }
 
+#app-container.dark .border-white\/10,
+#app-container.dark .border-white\/15,
+#app-container.dark .border-white\/20 {
+  border-color: var(--dark-border) !important;
+}
+
+#app-container.dark .divide-zinc-50 > :not([hidden]) ~ :not([hidden]),
+#app-container.dark .divide-zinc-100 > :not([hidden]) ~ :not([hidden]),
+#app-container.dark .divide-emerald-50 > :not([hidden]) ~ :not([hidden]),
+#app-container.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--dark-border) !important;
+}
+
+#app-container.dark .bg-white\/5 {
+  background-color: rgb(255 255 255 / 0.08) !important;
+}
+
+#app-container.dark .bg-white\/10,
+#app-container.dark .bg-white\/15,
+#app-container.dark .bg-white\/20 {
+  background-color: rgb(255 255 255 / 0.12) !important;
+}
+
 #app-container.dark .bg-zinc-50,
 #app-container.dark .bg-zinc-50\/20,
 #app-container.dark .bg-zinc-50\/40,
@@ -254,18 +305,18 @@
 #app-container.dark .bg-gray-50\/40,
 #app-container.dark .bg-gray-50\/50,
 #app-container.dark .bg-gray-100 {
-  background-color: rgb(22 41 31 / 0.92) !important;
+  background-color: rgb(34 61 48 / 0.94) !important;
 }
 
 #app-container.dark .bg-zinc-100 {
-  background-color: rgb(29 49 38 / 0.96) !important;
+  background-color: rgb(42 74 59 / 0.96) !important;
 }
 
 #app-container.dark .bg-black,
 #app-container.dark .bg-zinc-950,
 #app-container.dark .bg-zinc-900,
 #app-container.dark .bg-gray-900 {
-  background-color: rgb(12 24 18 / 0.96) !important;
+  background-color: rgb(25 49 38 / 0.98) !important;
 }
 
 #app-container.dark .bg-emerald-50,
@@ -274,7 +325,7 @@
 #app-container.dark .bg-emerald-50\/50,
 #app-container.dark .bg-emerald-50\/60,
 #app-container.dark .bg-emerald-50\/70 {
-  background-color: rgb(16 185 129 / 0.16) !important;
+  background-color: rgb(16 185 129 / 0.22) !important;
 }
 
 #app-container.dark .bg-rose-50,
@@ -284,7 +335,7 @@
 #app-container.dark .bg-rose-50\/50,
 #app-container.dark .bg-rose-50\/70,
 #app-container.dark .bg-rose-50\/60 {
-  background-color: rgb(244 63 94 / 0.16) !important;
+  background-color: rgb(244 63 94 / 0.22) !important;
 }
 
 #app-container.dark .bg-amber-50,
@@ -292,7 +343,7 @@
 #app-container.dark .bg-amber-50\/40,
 #app-container.dark .bg-amber-50\/60,
 #app-container.dark .bg-amber-50\/70 {
-  background-color: rgb(245 158 11 / 0.17) !important;
+  background-color: rgb(245 158 11 / 0.23) !important;
 }
 
 #app-container.dark .bg-blue-50,
@@ -306,18 +357,18 @@
 #app-container.dark .bg-indigo-50\/40,
 #app-container.dark .bg-indigo-50\/60,
 #app-container.dark .bg-indigo-50\/70 {
-  background-color: rgb(59 130 246 / 0.16) !important;
+  background-color: rgb(59 130 246 / 0.22) !important;
 }
 
 #app-container.dark .bg-orange-50,
 #app-container.dark .bg-orange-50\/40,
 #app-container.dark .bg-orange-50\/60 {
-  background-color: rgb(249 115 22 / 0.17) !important;
+  background-color: rgb(249 115 22 / 0.23) !important;
 }
 
 #app-container.dark .border-emerald-100,
 #app-container.dark .border-emerald-200 {
-  border-color: rgb(52 211 153 / 0.24) !important;
+  border-color: rgb(52 211 153 / 0.34) !important;
 }
 
 #app-container.dark .border-rose-100,

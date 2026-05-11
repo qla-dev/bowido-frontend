@@ -64,12 +64,18 @@ export interface AuditLog {
   pallet_qr: string;
   made_by_user_id: number;
   made_by_user_name: string;
+  type?: 'status' | 'qr_version';
   old_status_id?: number;
   new_status_id: number;
   old_status_name?: string;
   new_status_name: string;
+  old_client_id?: number;
+  new_client_id?: number;
   old_location?: string;
   new_location: string;
+  qr_version?: string;
+  old_qr_code?: string;
+  new_qr_code?: string;
   note?: string;
   created_at: string;
 }

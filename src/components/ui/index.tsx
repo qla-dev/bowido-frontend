@@ -17,11 +17,11 @@ export const Badge: React.FC<BadgeProps> = ({
   ...props 
 }) => {
   const styles = {
-    default: 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-[#22352b] dark:text-[#e7f4ec] dark:border-white/10',
-    info: 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-[#15253a] dark:text-[#dbe8ff] dark:border-[#365984]',
-    warning: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-[#2b220f] dark:text-[#ffe8b0] dark:border-[#816528]',
-    success: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-[#122a1b] dark:text-[#d7ffe5] dark:border-[#2c7651]',
-    danger: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-[#32141d] dark:text-[#ffd8df] dark:border-[#8d3850]',
+    default: 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-[#2a4c3b] dark:text-[#f0fff5] dark:border-white/15',
+    info: 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-[#203d5f] dark:text-[#eef5ff] dark:border-[#5f86b8]',
+    warning: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-[#4a3917] dark:text-[#fff0c4] dark:border-[#aa8230]',
+    success: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-[#173d2a] dark:text-[#e5ffed] dark:border-[#3fa972]',
+    danger: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-[#4a1f2b] dark:text-[#ffe1e7] dark:border-[#b24c67]',
   };
 
   return (
@@ -49,9 +49,9 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   const variants = {
     primary: 'bg-[#00A655] text-white hover:bg-[#008f49] border-[#00A655] shadow-md shadow-emerald-900/10',
-    secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-zinc-200 dark:bg-[#1b3025] dark:text-[#f6fff8] dark:border-white/10 dark:hover:bg-[#274034]',
-    outline: 'bg-transparent border-zinc-200 text-zinc-900 hover:border-[#00A655] hover:bg-emerald-50 dark:border-white/10 dark:text-white dark:hover:bg-[#193126] dark:hover:border-[#2f8c5c]',
-    ghost: 'bg-transparent text-zinc-500 hover:bg-zinc-50 border-transparent dark:text-zinc-200 dark:hover:bg-white/5 dark:hover:text-white',
+    secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-zinc-200 dark:bg-[#2a4a39] dark:text-[#f6fff8] dark:border-white/15 dark:hover:bg-[#345c48]',
+    outline: 'bg-transparent border-zinc-200 text-zinc-900 hover:border-[#00A655] hover:bg-emerald-50 dark:border-white/15 dark:text-white dark:hover:bg-[#284f3e] dark:hover:border-[#52c98c]',
+    ghost: 'bg-transparent text-zinc-500 hover:bg-zinc-50 border-transparent dark:text-[#cfe4d6] dark:hover:bg-white/10 dark:hover:text-white',
     danger: 'bg-rose-600 text-white hover:bg-rose-700 border-rose-600 shadow-md shadow-rose-900/10',
   };
 
@@ -93,7 +93,7 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   return (
     <div className={cn(
-      "bg-white border border-zinc-200 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] rounded-2xl flex flex-col dark:bg-[#112119] dark:border-white/10 dark:shadow-[0_24px_70px_-24px_rgba(0,0,0,0.55)]",
+      "bg-white border border-zinc-200 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] rounded-2xl flex flex-col dark:bg-[#1a3327] dark:border-white/15 dark:shadow-[0_24px_70px_-24px_rgba(0,0,0,0.45)]",
       className
     )} {...props}>
       {(title || action) && (
@@ -121,7 +121,7 @@ export const Input: React.FC<InputProps> = ({ className, ...props }) => {
   return (
     <input 
       className={cn(
-        "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all placeholder:text-zinc-300 uppercase tracking-tight dark:bg-[#16281e] dark:border-white/10 dark:text-white dark:placeholder:text-zinc-500 dark:focus:bg-[#1d3126] dark:focus:border-[#35c97a]",
+        "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all placeholder:text-zinc-300 uppercase tracking-tight dark:bg-[#243f32] dark:border-white/15 dark:text-white dark:placeholder:text-[#87a995] dark:focus:bg-[#2c4d3d] dark:focus:border-[#52c98c]",
         className
       )}
       {...props}
@@ -136,7 +136,7 @@ export const Select: React.FC<SelectProps> = ({ children, className, ...props })
     <div className="relative w-full">
       <select 
         className={cn(
-          "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all uppercase tracking-tight appearance-none cursor-pointer pr-10 dark:bg-[#16281e] dark:border-white/10 dark:text-white dark:focus:bg-[#1d3126] dark:focus:border-[#35c97a]",
+          "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all uppercase tracking-tight appearance-none cursor-pointer pr-10 dark:bg-[#243f32] dark:border-white/15 dark:text-white dark:focus:bg-[#2c4d3d] dark:focus:border-[#52c98c]",
           className
         )}
         {...props}
@@ -158,11 +158,11 @@ export const StatCard: React.FC<{
   trendUp?: boolean;
 }> = ({ label, value, variant = 'default', trend, trendUp }) => {
   const styles = {
-    default: 'border-zinc-200 bg-white text-zinc-950 dark:border-white/10 dark:bg-[#11231a] dark:text-white',
-    info: 'border-indigo-100 bg-indigo-50/40 text-indigo-900 dark:border-[#355783] dark:bg-[#101c2b] dark:text-[#e9f1ff]',
-    warning: 'border-amber-100 bg-amber-50/40 text-amber-900 dark:border-[#7b5c22] dark:bg-[#241a0d] dark:text-[#fff0c4]',
-    success: 'border-emerald-100 bg-emerald-50/40 text-emerald-900 dark:border-[#2a6d4c] dark:bg-[#0f2418] dark:text-[#e7fff0]',
-    danger: 'border-rose-100 bg-rose-50/40 text-rose-900 dark:border-[#7f3245] dark:bg-[#291018] dark:text-[#ffe6eb]',
+    default: 'border-zinc-200 bg-white text-zinc-950 dark:border-white/15 dark:bg-[#1a3327] dark:text-white',
+    info: 'border-indigo-100 bg-indigo-50/40 text-indigo-900 dark:border-[#5f86b8] dark:bg-[#203d5f] dark:text-[#eef5ff]',
+    warning: 'border-amber-100 bg-amber-50/40 text-amber-900 dark:border-[#aa8230] dark:bg-[#4a3917] dark:text-[#fff0c4]',
+    success: 'border-emerald-100 bg-emerald-50/40 text-emerald-900 dark:border-[#3fa972] dark:bg-[#173d2a] dark:text-[#e5ffed]',
+    danger: 'border-rose-100 bg-rose-50/40 text-rose-900 dark:border-[#b24c67] dark:bg-[#4a1f2b] dark:text-[#ffe1e7]',
   };
 
   return (

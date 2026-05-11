@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Users, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, Moon, Sun, UserCircle, Ghost
+  Bell, Moon, Sun, UserCircle, Ghost, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -99,73 +99,29 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   return (
     <header
       id="app-top-navbar"
-      className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur-xl shadow-sm shadow-zinc-200/60 dark:border-white/10 dark:bg-[#102219]/92 dark:shadow-black/30 md:h-16"
+      className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur-xl shadow-sm shadow-zinc-200/60 dark:border-white/10 dark:bg-[#172d22]/92 dark:shadow-black/30 md:h-16"
     >
-      <div className="flex flex-col gap-3 px-4 py-3 md:h-full md:flex-row md:items-center md:justify-between md:gap-3 md:px-5 md:py-0">
-        <div className="flex items-center justify-between gap-3 md:min-w-0 md:flex-1">
+      <div className="flex flex-col gap-2 px-4 py-2 md:h-full md:flex-row md:items-center md:justify-between md:gap-3 md:px-5 md:py-0">
+        <div className="flex items-center justify-center md:min-w-0 md:flex-1 md:justify-start">
           <div className="flex min-w-[118px] shrink-0 items-center sm:min-w-[132px]">
             <img src={logoImage} alt="Logo" className="h-6 w-auto max-w-[118px] shrink-0 object-contain object-left sm:h-7 sm:max-w-[132px]" />
           </div>
-
-          <div className="relative md:hidden">
-            <button
-              type="button"
-              title={t('account')}
-              onClick={() => {
-                setShowProfile(!showProfile);
-                setShowLanguageMenu(false);
-                setShowNotifications(false);
-              }}
-              className="h-9 w-9 border border-emerald-100 bg-white rounded-xl flex items-center justify-center transition-all dark:border-white/10 dark:bg-[#163126]"
-            >
-              <div className="w-7 h-7 bg-[#00A655] text-white rounded-lg flex items-center justify-center font-black text-[10px]">
-                {user.name[0]?.toUpperCase() || role[0].toUpperCase()}
-              </div>
-            </button>
-
-            <AnimatePresence>
-              {showProfile && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className="absolute right-0 top-full mt-3 w-64 bg-white border border-emerald-100 rounded-2xl shadow-2xl shadow-emerald-950/10 overflow-hidden dark:border-white/10 dark:bg-[#163126]"
-                >
-                  <div className="p-4 flex items-center gap-3 border-b border-emerald-50 dark:border-white/10">
-                    <UserCircle size={34} className="text-emerald-600" />
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-black uppercase text-zinc-950 dark:text-white truncate">{user.name}</p>
-                      <p className="text-[9px] font-bold uppercase text-zinc-400 truncate">{user.email}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="w-full px-4 py-3 flex items-center gap-2 text-rose-500 hover:bg-rose-50 transition-colors dark:hover:bg-rose-500/10"
-                  >
-                    <LogOut size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-tight">{t('logout')}</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
         </div>
 
-        <div className="flex w-full items-center gap-1.5 overflow-x-auto no-scrollbar md:w-auto md:overflow-visible md:gap-2">
+        <div className="flex w-full items-center justify-center gap-2 md:w-auto md:justify-start">
           {hasGhostAccess && (
             <button
               type="button"
               title={t('ghostReport')}
               onClick={() => setIsGhostReportOpen(true)}
               className={cn(
-                "h-10 w-10 shrink-0 border rounded-xl flex items-center justify-center transition-all",
+                "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
                 highlightGhostAction
                   ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
               )}
             >
-              <Ghost size={18} />
+              <Ghost size={19} />
             </button>
           )}
 
@@ -174,7 +130,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               type="button"
               title={t('language')}
               onClick={cycleLanguage}
-              className="h-10 w-10 border border-emerald-100 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em] bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+              className="h-10 w-10 border-2 border-emerald-100 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em] bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
             >
               {currentLanguageOption.shortLabel}
             </button>
@@ -190,10 +146,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowProfile(false);
               }}
               className={cn(
-                "h-10 w-10 border rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em]",
+                "h-10 w-10 border-2 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em]",
                 showLanguageMenu
                   ? "bg-[#00A655] text-white border-[#00A655]"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
               )}
             >
               {currentLanguageOption.shortLabel}
@@ -205,7 +161,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className="absolute left-1/2 top-full mt-3 w-36 -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#163126]"
+                  className="absolute left-1/2 top-full mt-3 w-36 -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#1f3a2d]"
                 >
                   <div className="border-b border-emerald-50 bg-emerald-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/5">
                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
@@ -242,9 +198,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             type="button"
             title={t('qrScan')}
             onClick={() => setIsScannerOpen(true)}
-            className="hidden h-10 w-10 shrink-0 border border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+            className="hidden h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
           >
-            <QrCode size={18} className="text-[#00A655]" />
+            <QrCode size={19} className="text-[#00A655]" />
           </button>
 
           <div className="relative shrink-0">
@@ -256,9 +212,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowLanguageMenu(false);
                 setShowProfile(false);
               }}
-              className="relative h-10 w-10 border border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+              className="relative h-10 w-10 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
             >
-              <Bell size={18} />
+              <Bell size={19} />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-[#00A655] text-white text-[8px] font-black rounded-full border-2 border-white flex items-center justify-center">
                   {unreadCount}
@@ -277,7 +233,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     initial={{ opacity: 0, y: 6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                    className="fixed left-4 right-4 top-20 z-[60] overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:hidden dark:border-white/10 dark:bg-[#163126]"
+                    className="fixed left-4 right-4 top-24 z-[60] overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:hidden dark:border-white/10 dark:bg-[#1f3a2d]"
                   >
                     <div className="flex items-center justify-between border-b border-emerald-50 bg-emerald-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/5">
                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">{t('activity')}</span>
@@ -323,7 +279,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     initial={{ opacity: 0, y: 6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                    className="absolute left-1/2 top-full mt-3 hidden w-[21rem] -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:block dark:border-white/10 dark:bg-[#163126]"
+                    className="absolute left-1/2 top-full mt-3 hidden w-[21rem] -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:block dark:border-white/10 dark:bg-[#1f3a2d]"
                   >
                     <div className="px-4 py-3 border-b border-emerald-50 bg-emerald-50/60 dark:border-white/10 dark:bg-white/5">
                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">{t('activity')}</span>
@@ -366,9 +322,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             type="button"
             title={t('nightMode')}
             onClick={onToggleNightMode}
-          className="h-10 w-10 shrink-0 border border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+          className="h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
           >
-            {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
+            {isNightMode ? <Sun size={19} /> : <Moon size={19} />}
           </button>
 
           <button
@@ -376,14 +332,58 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             title={t('settings')}
             onClick={openSettings}
             className={cn(
-              "h-10 w-10 shrink-0 border rounded-xl flex items-center justify-center transition-all",
+              "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
               activeTab === 'settings'
                 ? "bg-[#00A655] text-white border-[#00A655]"
-                : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#163126] dark:text-zinc-200 dark:hover:text-emerald-200"
+                : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
             )}
           >
-            <Settings size={18} />
+            <Settings size={19} />
           </button>
+
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              title={t('account')}
+              onClick={() => {
+                setShowProfile(!showProfile);
+                setShowLanguageMenu(false);
+                setShowNotifications(false);
+              }}
+              className="h-10 w-10 border-2 border-emerald-100 bg-white rounded-xl flex items-center justify-center transition-all hover:border-emerald-300 dark:border-white/10 dark:bg-[#1f3a2d]"
+            >
+              <div className="w-7 h-7 bg-[#00A655] text-white rounded-lg flex items-center justify-center font-black text-[10px]">
+                {user.name[0]?.toUpperCase() || role[0].toUpperCase()}
+              </div>
+            </button>
+
+            <AnimatePresence>
+              {showProfile && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                  className="absolute right-0 top-full z-[70] mt-3 w-64 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#1f3a2d]"
+                >
+                  <div className="flex items-center gap-3 border-b border-emerald-50 p-4 dark:border-white/10">
+                    <UserCircle size={34} className="text-emerald-600" />
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] font-black uppercase text-zinc-950 dark:text-white">{user.name}</p>
+                      <p className="truncate text-[9px] font-bold uppercase text-zinc-400">{user.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-rose-500 transition-colors hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                  >
+                    <LogOut size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-tight">{t('logout')}</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <div className="relative hidden md:block">
             <button
@@ -394,7 +394,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowLanguageMenu(false);
                 setShowNotifications(false);
               }}
-              className="h-10 pl-1 pr-2 sm:pr-3 border border-emerald-100 bg-white rounded-xl flex items-center gap-2 hover:border-emerald-300 transition-all dark:border-white/10 dark:bg-[#163126]"
+              className="h-10 pl-1 pr-2 sm:pr-3 border border-emerald-100 bg-white rounded-xl flex items-center gap-2 hover:border-emerald-300 transition-all dark:border-white/10 dark:bg-[#1f3a2d]"
             >
               <div className="w-8 h-8 bg-[#00A655] text-white rounded-lg flex items-center justify-center font-black text-xs">
                 {user.name[0]?.toUpperCase() || role[0].toUpperCase()}
@@ -408,7 +408,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className="absolute right-0 top-full mt-3 w-64 bg-white border border-emerald-100 rounded-2xl shadow-2xl shadow-emerald-950/10 overflow-hidden dark:border-white/10 dark:bg-[#163126]"
+                  className="absolute right-0 top-full mt-3 w-64 bg-white border border-emerald-100 rounded-2xl shadow-2xl shadow-emerald-950/10 overflow-hidden dark:border-white/10 dark:bg-[#1f3a2d]"
                 >
                   <div className="p-4 flex items-center gap-3 border-b border-emerald-50 dark:border-white/10">
                     <UserCircle size={34} className="text-emerald-600" />
@@ -441,7 +441,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
   const [showHelp, setShowHelp] = useState(false);
 
   const getNavItems = () => {
-    const items = [
+    const items: Array<{
+      id: string;
+      label: string;
+      icon: React.ReactNode;
+      onClick?: () => void;
+      isActive?: boolean;
+    }> = [
       { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard /> },
     ];
 
@@ -449,6 +455,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
       items.push(
         { id: 'pallets', label: t('pallets'), icon: <Package /> },
         { id: 'calendar', label: t('calendar'), icon: <CalendarIcon /> },
+        { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
         { id: 'users', label: t('clients'), icon: <Users /> },
         { id: 'korisnici', label: t('systemUsers'), icon: <UserCircle /> },
         { id: 'roles', label: t('roles'), icon: <Shield /> },
@@ -458,7 +465,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
     } else if (role === RoleType.SERVISER) {
     } else if (role === RoleType.KLIJENT) {
       items.push(
-        { id: 'invoices', label: t('billing'), icon: <ClipboardList /> }
+        {
+          id: 'invoices',
+          label: t('billing'),
+          icon: <ClipboardList />,
+          onClick: () => setActiveTab(activeTab === 'invoices' ? 'dashboard' : 'invoices'),
+          isActive: activeTab === 'invoices',
+        }
       );
     }
 
@@ -469,7 +482,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
     <>
       <aside
         id="desktop-sidebar"
-        className={`hidden md:flex flex-col border-r border-zinc-200 bg-white h-[calc(100vh-4rem)] sticky top-16 transition-all duration-300 dark:border-white/10 dark:bg-[#102219] ${
+        className={`hidden md:flex flex-col border-r border-zinc-200 bg-white h-[calc(100vh-4rem)] sticky top-16 transition-all duration-300 dark:border-white/10 dark:bg-[#172d22] ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
@@ -492,8 +505,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
               key={item.id}
               icon={item.icon}
               label={item.label}
-              isActive={activeTab === item.id}
-              onClick={() => setActiveTab(item.id)}
+              isActive={item.isActive ?? activeTab === item.id}
+              onClick={item.onClick || (() => setActiveTab(item.id))}
               collapsed={isCollapsed}
             />
           ))}
@@ -566,7 +579,7 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
         { id: 'pallets', label: t('pallets'), icon: <Package size={18} />, isActive: activeTab === 'pallets' },
         { id: 'korisnici', label: t('systemUsers'), icon: <UserCircle size={18} />, isActive: activeTab === 'korisnici' }
       );
-    } else if ([RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role)) {
+    } else if ([RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT, RoleType.SERVISER].includes(role)) {
       items.push({
         id: 'qr-scan',
         label: t('qrScan'),
@@ -591,7 +604,7 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
   return (
     <nav
       id="mobile-bottom-nav"
-      className="md:hidden fixed bottom-5 left-4 right-4 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-1.5 rounded-2xl flex justify-around items-center shadow-2xl shadow-zinc-200/70 z-50 overflow-hidden dark:border-white/10 dark:bg-[#102219]/95 dark:shadow-black/40"
+      className="md:hidden fixed bottom-5 left-4 right-4 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-1.5 rounded-2xl flex justify-around items-center shadow-2xl shadow-zinc-200/70 z-50 overflow-hidden dark:border-white/10 dark:bg-[#172d22]/95 dark:shadow-black/40"
     >
       {getNavItems().map((item) => (
         <button

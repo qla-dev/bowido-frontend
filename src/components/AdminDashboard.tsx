@@ -14,6 +14,7 @@ import { PalletTableView } from './PalletTableView';
 import { BillingCalendar } from './BillingCalendar';
 import { UserManager } from './UserManager';
 import { OverdueInvoiceModal, OverdueInvoicePreview } from './OverdueInvoiceModal';
+import { AdminAuditLogs } from './AdminAuditLogs';
 import { useApp } from '../AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, Pallet, PalletStatus, ClientDetail, User } from '../types';
@@ -266,7 +267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                         </tr>
                       </thead>
                       <tbody className="text-[11px] divide-y divide-zinc-50">
-                        {auditLogs.slice(0, 5).map(log => (
+                        {auditLogs.filter(log => (log.type || 'status') === 'status').slice(0, 5).map(log => (
                           <tr key={`audit-log-${log.id}`} className="hover:bg-zinc-50/50">
                             <td className="px-6 py-3 font-mono font-black underline underline-offset-2">{log.pallet_qr}</td>
                             <td className="px-6 py-3">
@@ -819,7 +820,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                           <History size={14} className="text-gray-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-[10px] font-black text-gray-900 uppercase tracking-tight">{getStatusLabel(log.new_status_name, language)}</p>
+                          <p className="text-[10px] font-black text-gray-900 uppercase tracking-tight">
+                            {(log.type || 'status') === 'qr_version'
+                              ? `${t('qrVersionChange')} ${log.qr_version ? `(${log.qr_version})` : ''}`
+                              : getStatusLabel(log.new_status_name, language)}
+                          </p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-tight">
+                            {(log.type || 'status') === 'qr_version'
+                              ? `${log.old_qr_code || '-'} -> ${log.new_qr_code || '-'}`
+                              : `${getStatusLabel(log.old_status_name || '-', language)} -> ${getStatusLabel(log.new_status_name, language)}`}
+                          </p>
                           <p className="text-[9px] font-bold text-gray-400 uppercase">{new Date(log.created_at).toLocaleDateString()}</p>
                         </div>
                         <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">#{auditLogs.length - i}</span>
@@ -934,7 +944,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                  </button>
                  <button onClick={() => setEditingPallet(null)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
                  <button onClick={() => {
-                   updatePallet(editingPallet);
+                   updatePallet(editingPallet, { id: user.id, name: user.name });
                    setEditingPallet(null);
                    setSelectedPallet(null);
                  }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/20 hover:scale-[1.02] transition-transform">{t('saveChanges')}</button>
@@ -1149,44 +1159,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )}
       </AnimatePresence>
       {view === 'logs' && (
-        <Card title="Audit History" action={<button onClick={handleExportPdf} className="text-[10px] font-black uppercase text-gray-400 flex items-center gap-2 hover:text-black shrink-0">PDF REPORT <ArrowUpRight size={12} /></button>}>
-           <div className="overflow-auto max-h-[600px] no-scrollbar">
-              <table className="w-full text-left">
-                 <thead className="bg-[#F9FAFB] text-[10px] font-black text-gray-400 uppercase tracking-widest sticky top-0 bg-white z-10">
-                    <tr>
-                      <th className="px-6 py-4">Timestamp</th>
-                      <th className="px-6 py-4">Pallet ID</th>
-                      <th className="px-6 py-4">Performed By</th>
-                      <th className="px-6 py-4">New Status</th>
-                      <th className="px-6 py-4">New Location</th>
-                      <th className="px-6 py-4">Note</th>
-                    </tr>
-                 </thead>
-                 <tbody className="text-xs divide-y divide-gray-50">
-                   {auditLogs.map(log => (
-                     <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-3 text-gray-400 whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</td>
-                        <td className="px-6 py-3 font-black text-black">
-                           <button onClick={() => setSelectedPallet(pallets.find(p => p.qr_code === log.pallet_qr) || null)} className="hover:underline underline-offset-4 decoration-black">
-                              {log.pallet_qr}
-                           </button>
-                        </td>
-                        <td className="px-6 py-3">
-                           <span className="font-bold text-gray-900">{log.made_by_user_name}</span>
-                        </td>
-                        <td className="px-6 py-3">
-                           <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-tight ${log.new_status_id === 7 ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>
-                              {getStatusLabel(log.new_status_name, language)}
-                           </span>
-                        </td>
-                        <td className="px-6 py-3 text-gray-400 font-bold uppercase">{log.new_location}</td>
-                        <td className="px-6 py-3 text-gray-400 italic truncate max-w-[150px]">{log.note || '-'}</td>
-                     </tr>
-                   ))}
-                 </tbody>
-              </table>
-           </div>
-        </Card>
+        <AdminAuditLogs
+          auditLogs={auditLogs}
+          pallets={pallets}
+          clients={clients}
+          language={language}
+          t={t}
+          onSelectPallet={setSelectedPallet}
+          onExport={handleExportPdf}
+        />
       )}
     </div>
   );

@@ -24,7 +24,6 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const isDriver = role === RoleType.VOZAC;
   const isWarehouse = role === RoleType.MAGACINER;
   const isTechnician = role === RoleType.SERVISER;
-  const roleLabel = isDriver ? t('driver') : isWarehouse ? t('warehouse') : t('technician');
 
   // Set initial tab for technician
   React.useEffect(() => {
@@ -53,30 +52,30 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const nextStopLabel = pendingPickups[0]?.current_location || activeRoutePallet?.current_location || 'Eindhoven Hub';
   const routeClientLabel = pendingPickups[0]?.client_name || activeRoutePallet?.client_name || t('client');
   const routeUnitsLabel = activeRoutePallet ? activeRoutePallet.qr_code : 'PAL-0000';
+  const toolButtonClass = 'flex min-h-[96px] w-full items-center justify-between rounded-[1.75rem] border-2 p-4 text-left';
+  const toolButtonContentClass = 'flex min-w-0 items-center gap-4';
 
   const [resolvingReportId, setResolvingReportId] = useState<number | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
 
   return (
     <div className="min-h-full flex flex-col gap-4 pb-20 md:pb-4">
-      <header className="flex min-h-14 items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-[9px] font-black uppercase text-zinc-400 tracking-[0.3em]">{roleLabel}</span>
-          <h2 className="text-xl font-black tracking-tighter uppercase">{t('home')}</h2>
-        </div>
-        {isDriver && (
-          <div className="hidden md:flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-700">
-            <Truck size={16} />
-            <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('activeRoute')}</span>
-          </div>
-        )}
-        {isWarehouse && (
-          <div className="hidden md:flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-sky-700">
-            <Package size={16} />
-            <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('readyForHandling')}</span>
-          </div>
-        )}
-      </header>
+      {(isDriver || isWarehouse) && (
+        <header className="hidden min-h-10 items-center justify-end md:flex">
+          {isDriver && (
+            <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-700">
+              <Truck size={16} />
+              <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('activeRoute')}</span>
+            </div>
+          )}
+          {isWarehouse && (
+            <div className="flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-sky-700">
+              <Package size={16} />
+              <span className="text-[9px] font-black uppercase tracking-[0.18em]">{t('readyForHandling')}</span>
+            </div>
+          )}
+        </header>
+      )}
 
       <div className="flex p-1 bg-zinc-100 rounded-2xl">
          <button 
@@ -122,121 +121,119 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
           >
             {isWarehouse ? (
               <div className="space-y-4">
+                <Card title={t('warehouseTools')}>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setIsScannerOpen(true)}
+                      className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}
+                    >
+                      <div className={toolButtonContentClass}>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                          <QrCode size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('scanToUpdate')}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-emerald-300" />
+                    </button>
+
+                    <button
+                      onClick={() => setShowDamageModal(true)}
+                      className={`${toolButtonClass} border-amber-100 bg-amber-50`}
+                    >
+                      <div className={toolButtonContentClass}>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white">
+                          <AlertTriangle size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase leading-none text-amber-900">{t('service')}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-amber-600">{serviceJobs.length} {t('activeJobs')}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-amber-300" />
+                    </button>
+
+                    <button
+                      onClick={() => setIsGhostReportOpen(true)}
+                      className={`${toolButtonClass} border-rose-100 bg-rose-50`}
+                    >
+                      <div className={toolButtonContentClass}>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
+                          <Ghost size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{ghostPallets.length} | {t('openReports')}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-rose-300" />
+                    </button>
+                  </div>
+                </Card>
+
+                <Card title={t('warehouseFlow')}>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                          <Package size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('inboundReturns')}</p>
+                          <p className="text-sm font-black uppercase tracking-tight">{t('forPickup')}</p>
+                        </div>
+                      </div>
+                      <Badge variant="warning">{warehouseReturns.length}</Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                          <Truck size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('readyForDispatch')}</p>
+                          <p className="text-sm font-black uppercase tracking-tight">{t('onRoute')}</p>
+                        </div>
+                      </div>
+                      <Badge variant="info">{warehouseDispatch.length}</Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                          <AlertTriangle size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('serviceQueue')}</p>
+                          <p className="text-sm font-black uppercase tracking-tight">{t('reportDamage')}</p>
+                        </div>
+                      </div>
+                      <Badge variant="danger">{serviceJobs.length}</Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
+                          <Ghost size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('exceptionQueue')}</p>
+                          <p className="text-sm font-black uppercase tracking-tight">{t('ghostReport')}</p>
+                        </div>
+                      </div>
+                      <Badge variant="default">{ghostPallets.length}</Badge>
+                    </div>
+                  </div>
+                </Card>
+
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                   <StatCard label={t('readyForDispatch')} value={warehouseDispatch.length} variant="info" />
                   <StatCard label={t('inboundReturns')} value={warehouseReturns.length} variant="warning" />
                   <StatCard label={t('serviceQueue')} value={serviceJobs.length} variant="success" />
                   <StatCard label={t('exceptionQueue')} value={ghostPallets.length} variant="danger" />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)]">
-                  <Card title={t('warehouseFlow')}>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
-                            <Package size={18} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('inboundReturns')}</p>
-                            <p className="text-sm font-black uppercase tracking-tight">{t('forPickup')}</p>
-                          </div>
-                        </div>
-                        <Badge variant="warning">{warehouseReturns.length}</Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
-                            <Truck size={18} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('readyForDispatch')}</p>
-                            <p className="text-sm font-black uppercase tracking-tight">{t('onRoute')}</p>
-                          </div>
-                        </div>
-                        <Badge variant="info">{warehouseDispatch.length}</Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
-                            <AlertTriangle size={18} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('serviceQueue')}</p>
-                            <p className="text-sm font-black uppercase tracking-tight">{t('reportDamage')}</p>
-                          </div>
-                        </div>
-                        <Badge variant="danger">{serviceJobs.length}</Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
-                            <Ghost size={18} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('exceptionQueue')}</p>
-                            <p className="text-sm font-black uppercase tracking-tight">{t('ghostReport')}</p>
-                          </div>
-                        </div>
-                        <Badge variant="default">{ghostPallets.length}</Badge>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card title={t('warehouseTools')}>
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => setIsScannerOpen(true)}
-                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-emerald-100 bg-emerald-50 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white">
-                            <QrCode size={18} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('scanToUpdate')}</p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={16} className="text-emerald-300" />
-                      </button>
-
-                      <button
-                        onClick={() => setShowDamageModal(true)}
-                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-amber-100 bg-amber-50 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
-                            <AlertTriangle size={18} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black uppercase leading-none text-amber-900">{t('service')}</p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-amber-600">{serviceJobs.length} {t('activeJobs')}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={16} className="text-amber-300" />
-                      </button>
-
-                      <button
-                        onClick={() => setIsGhostReportOpen(true)}
-                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-rose-100 bg-rose-50 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500 text-white">
-                            <Ghost size={18} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{ghostPallets.length} | {t('openReports')}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={16} className="text-rose-300" />
-                      </button>
-                    </div>
-                  </Card>
                 </div>
 
                 <Card title={t('readyForHandling')} noPadding>
@@ -272,10 +269,62 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
               </div>
             ) : (
               <div className="space-y-4">
+                <Card title={t('driverTools')}>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setIsScannerOpen(true)}
+                      className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}
+                    >
+                      <div className={toolButtonContentClass}>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                          <QrCode size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('scanToUpdate')}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-emerald-300" />
+                    </button>
+
+                    <button
+                      onClick={() => setIsGhostReportOpen(true)}
+                      className={`${toolButtonClass} border-rose-100 bg-rose-50`}
+                    >
+                      <div className={toolButtonContentClass}>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
+                          <Ghost size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{ghostPallets.length} | {t('openReports')}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-rose-300" />
+                    </button>
+
+                    <button
+                      onClick={() => setShowDamageModal(true)}
+                      className={`${toolButtonClass} border-amber-100 bg-amber-50`}
+                    >
+                      <div className={toolButtonContentClass}>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white">
+                          <AlertTriangle size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase leading-none text-amber-900">{t('reportDamage')}</p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-amber-600">{t('serviceDamageHint')}</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-amber-300" />
+                    </button>
+                  </div>
+                </Card>
+
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
                   <Card title={t('activeRoute')} className="overflow-hidden">
                     <div className="space-y-4">
-                      <div className="rounded-[2rem] border border-emerald-100 bg-[linear-gradient(135deg,#effcf5_0%,#ffffff_55%,#f4fbff_100%)] p-5">
+                      <div className="rounded-[2rem] border border-emerald-100 bg-[linear-gradient(135deg,#effcf5_0%,#ffffff_55%,#f4fbff_100%)] p-5 dark:bg-[linear-gradient(135deg,#244d3b_0%,#1a3327_58%,#203d5f_100%)]">
                         <div className="flex items-start justify-between gap-4">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-emerald-700">
@@ -354,116 +403,62 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                   <StatCard label={t('activeJobs')} value={serviceJobs.length} variant="success" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
-                  <Card
-                    title={t('activityLog')}
-                    action={
-                      todayLogs.length > 0 ? (
-                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none">
-                          {todayLogs.length} {t('scansToday')}
-                        </span>
-                      ) : null
-                    }
-                    noPadding
-                  >
-                    <div className="divide-y divide-zinc-100">
-                      {todayLogs.length > 0 ? (
-                        todayLogs.slice(0, 6).map((log) => {
-                          const pallet = pallets.find(p => p.qr_code === log.pallet_qr);
-                          return (
-                            <div
-                              key={log.id}
-                              onClick={() => pallet && setSelectedPalletId(pallet.id)}
-                              className="flex cursor-pointer items-center gap-4 p-4 transition-all hover:bg-zinc-50"
-                            >
-                              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm shrink-0">
-                                <img
-                                  src="https://images.unsplash.com/photo-1591085686350-798c0f9faa7f?auto=format&fit=crop&q=80&w=100"
-                                  className="h-full w-full object-cover grayscale opacity-60"
-                                  alt=""
-                                />
+                <Card
+                  title={t('activityLog')}
+                  action={
+                    todayLogs.length > 0 ? (
+                      <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest leading-none">
+                        {todayLogs.length} {t('scansToday')}
+                      </span>
+                    ) : null
+                  }
+                  noPadding
+                >
+                  <div className="divide-y divide-zinc-100">
+                    {todayLogs.length > 0 ? (
+                      todayLogs.slice(0, 6).map((log) => {
+                        const pallet = pallets.find(p => p.qr_code === log.pallet_qr);
+                        return (
+                          <div
+                            key={log.id}
+                            onClick={() => pallet && setSelectedPalletId(pallet.id)}
+                            className="flex cursor-pointer items-center gap-4 p-4 transition-all hover:bg-zinc-50"
+                          >
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm">
+                              <img
+                                src="https://images.unsplash.com/photo-1591085686350-798c0f9faa7f?auto=format&fit=crop&q=80&w=100"
+                                className="h-full w-full object-cover grayscale opacity-60"
+                                alt=""
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{log.pallet_qr}</span>
+                                <span className="text-[9px] font-black uppercase text-zinc-300">
+                                  {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{log.pallet_qr}</span>
-                                  <span className="text-[9px] font-black uppercase text-zinc-300">
-                                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                                <p className="mt-1 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
-                                  {pallet ? getPalletTypeLabel(pallet.type, language) : t('standardUnit')}
-                                </p>
-                                <div className="mt-2 flex items-center gap-2">
-                                  <Badge variant={log.new_status_name.toLowerCase().includes('damage') ? 'danger' : 'success'} className="px-1.5 py-0 text-[8px]">
-                                    {getStatusLabel(log.new_status_name, language)}
-                                  </Badge>
-                                  <span className="truncate text-[9px] font-black uppercase text-zinc-300">{log.new_location}</span>
-                                </div>
+                              <p className="mt-1 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
+                                {pallet ? getPalletTypeLabel(pallet.type, language) : t('standardUnit')}
+                              </p>
+                              <div className="mt-2 flex items-center gap-2">
+                                <Badge variant={log.new_status_name.toLowerCase().includes('damage') ? 'danger' : 'success'} className="px-1.5 py-0 text-[8px]">
+                                  {getStatusLabel(log.new_status_name, language)}
+                                </Badge>
+                                <span className="truncate text-[9px] font-black uppercase text-zinc-300">{log.new_location}</span>
                               </div>
                             </div>
-                          );
-                        })
-                      ) : (
-                        <div className="flex min-h-[220px] flex-col items-center justify-center opacity-20 grayscale">
-                          <Package size={36} className="mb-4" />
-                          <p className="text-[10px] font-black uppercase tracking-widest">{t('noActivityYet')}</p>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-
-                  <Card title={t('driverTools')}>
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => setIsScannerOpen(true)}
-                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-emerald-100 bg-emerald-50 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white">
-                            <QrCode size={18} />
                           </div>
-                          <div>
-                            <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('scanToUpdate')}</p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={16} className="text-emerald-300" />
-                      </button>
-
-                      <button
-                        onClick={() => setIsGhostReportOpen(true)}
-                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-rose-100 bg-rose-50 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500 text-white">
-                            <Ghost size={18} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{ghostPallets.length} | {t('openReports')}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={16} className="text-rose-300" />
-                      </button>
-
-                      <button
-                        onClick={() => setShowDamageModal(true)}
-                        className="flex w-full items-center justify-between rounded-[1.75rem] border-2 border-amber-100 bg-amber-50 p-4 text-left"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white">
-                            <AlertTriangle size={18} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black uppercase leading-none text-amber-900">{t('reportDamage')}</p>
-                            <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-amber-600">{t('serviceDamageHint')}</p>
-                          </div>
-                        </div>
-                        <ArrowRight size={16} className="text-amber-300" />
-                      </button>
-                    </div>
-                  </Card>
-                </div>
+                        );
+                      })
+                    ) : (
+                      <div className="flex min-h-[220px] flex-col items-center justify-center opacity-20 grayscale">
+                        <Package size={36} className="mb-4" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">{t('noActivityYet')}</p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
               </div>
             )}
 

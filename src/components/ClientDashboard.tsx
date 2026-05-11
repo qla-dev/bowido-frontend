@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock3, Package, RotateCcw, Smartphone } from 'lucide-react';
+import { ArrowRight, Clock3, Ghost, Package, QrCode, RotateCcw } from 'lucide-react';
 import { StatCard, Card, Badge, Button } from './ui';
 import { BillingList } from './BillingList';
 import { useApp } from '../AppContext';
@@ -9,10 +9,11 @@ import { getPalletTypeLabel, getStatusLabel, localeMap } from '../i18n';
 interface ClientDashboardProps {
   user: User;
   activeTab?: string;
+  onNavigateHome?: () => void;
 }
 
-export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTab = 'dashboard' }) => {
-  const { pallets, statuses, clients, setIsGhostReportOpen, t, updatePalletStatus, language } = useApp();
+export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTab = 'dashboard', onNavigateHome }) => {
+  const { pallets, statuses, clients, setIsGhostReportOpen, setIsScannerOpen, t, updatePalletStatus, language } = useApp();
 
   const clientPallets = pallets.filter((pallet) => pallet.user_id === user.id);
   const clientInfo = clients.find((client) => client.user_id === user.id);
@@ -89,9 +90,66 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
 
   const attentionPallets = [...chargingPallets, ...returnRequestedPallets.filter((pallet) => calculatePalletDebt(pallet) === 0)]
     .slice(0, 4);
+  const toolButtonClass = 'flex min-h-[96px] w-full items-center justify-between rounded-[1.75rem] border-2 p-4 text-left';
+  const toolButtonContentClass = 'flex min-w-0 items-center gap-4';
+  const scrollToFleet = () => {
+    document.getElementById('client-fleet-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const renderOverview = () => (
     <div className="space-y-6 pb-12">
+      <Card title={t('quickActions')}>
+        <div className="space-y-3">
+          <button
+            onClick={() => setIsScannerOpen(true)}
+            className={`${toolButtonClass} border-emerald-100 bg-emerald-50`}
+          >
+            <div className={toolButtonContentClass}>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                <QrCode size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('qrScan')}</p>
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
+              </div>
+            </div>
+            <ArrowRight size={16} className="shrink-0 text-emerald-300" />
+          </button>
+
+          <button
+            onClick={() => setIsGhostReportOpen(true)}
+            className={`${toolButtonClass} border-rose-100 bg-rose-50`}
+          >
+            <div className={toolButtonContentClass}>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
+                <Ghost size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{t('reportNow')}</p>
+              </div>
+            </div>
+            <ArrowRight size={16} className="shrink-0 text-rose-300" />
+          </button>
+
+          <button
+            onClick={scrollToFleet}
+            className={`${toolButtonClass} border-blue-100 bg-blue-50`}
+          >
+            <div className={toolButtonContentClass}>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500 text-white">
+                <Package size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase leading-none text-blue-900">{t('liveInventory')}</p>
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-blue-600">{t('activePallets')}</p>
+              </div>
+            </div>
+            <ArrowRight size={16} className="shrink-0 text-blue-300" />
+          </button>
+        </div>
+      </Card>
+
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard label={t('totalUnits')} value={clientPallets.length} />
         <StatCard label={t('activeCharges')} value={`EUR ${calculateTotalDebt().toFixed(0)}`} variant="success" />
@@ -202,30 +260,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
             </div>
           )}
         </Card>
-
-        <Card className="border-zinc-900 bg-zinc-900 shadow-zinc-900/10">
-          <div className="flex h-full flex-col justify-between gap-6">
-            <div className="flex gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-zinc-400">
-                <Smartphone size={24} />
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase text-white leading-none mb-1">{t('ghostReportCardTitle')}</h3>
-                <p className="text-[10px] text-white/40 font-black uppercase tracking-widest">{t('ghostReportCardText')}</p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              className="w-full bg-transparent border-white/20 text-white hover:bg-white hover:text-black"
-              onClick={() => setIsGhostReportOpen(true)}
-            >
-              {t('reportNow')}
-            </Button>
-          </div>
-        </Card>
       </div>
 
-      <div className="space-y-4">
+      <div id="client-fleet-section" className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">{t('currentFleetDetail')}</h3>
         </div>
@@ -305,21 +342,5 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
     </div>
   );
 
-  return (
-    <div className="space-y-6">
-      <header className="mb-6 flex flex-col gap-3 text-black md:mb-8 md:h-12 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3 text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-          <span>{t('home')}</span>
-          <span>/</span>
-          <span className="text-black">{activeTab === 'invoices' ? t('billing') : t('overview')}</span>
-        </div>
-        <div className="text-left md:text-right">
-          <span className="text-[9px] font-black uppercase text-zinc-400 tracking-widest">{t('company')}</span>
-          <p className="text-xs font-black uppercase">{clientInfo?.name || user.name}</p>
-        </div>
-      </header>
-
-      {activeTab === 'invoices' ? <BillingList /> : renderOverview()}
-    </div>
-  );
+  return activeTab === 'invoices' ? <BillingList onBack={onNavigateHome} compact /> : renderOverview();
 };

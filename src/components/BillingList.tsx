@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Filter, FileText, ChevronRight } from 'lucide-react';
+import { Filter, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Button, Card, Badge } from './ui';
 import { InvoiceViewer } from './InvoiceViewer';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
 
-export const BillingList: React.FC = () => {
+interface BillingListProps {
+  onBack?: () => void;
+  compact?: boolean;
+}
+
+export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = false }) => {
   const { invoices, t } = useApp();
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
@@ -19,12 +24,22 @@ export const BillingList: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between px-2">
-        <div>
-          <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('billing')}</h2>
-          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('managePayments')}</p>
+      <div className={`flex ${compact ? 'items-center justify-between gap-3' : 'items-center justify-between'} px-1 sm:px-2`}>
+        <div className="flex flex-wrap items-center gap-2">
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack} className="h-10 rounded-xl px-3 text-zinc-500">
+              <ArrowLeft size={14} className="mr-2" />
+              {t('dashboard')}
+            </Button>
+          )}
+          {!compact && (
+            <div>
+              <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('billing')}</h2>
+              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('managePayments')}</p>
+            </div>
+          )}
         </div>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className={`${compact ? 'h-10 self-start sm:self-auto' : ''}`}>
           <Filter size={14} className="mr-2" /> {t('filter')}
         </Button>
       </div>

@@ -28,7 +28,7 @@ const AppFooter = ({ className }: { className?: string }) => {
   return (
     <footer
       className={cn(
-        'w-full shrink-0 bg-white/95 backdrop-blur-xl dark:bg-[#0c1712]/94',
+        'w-full shrink-0 bg-white/95 backdrop-blur-xl dark:bg-[#17291f]/94',
         className
       )}
     >
@@ -114,7 +114,7 @@ export default function App() {
                     id={`login-${user.role_name.toLowerCase()}`}
                     key={user.id}
                     onClick={() => setCurrentUser(user)}
-                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#11231b] dark:border-white/10 dark:hover:border-[#00A655]"
+                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#1a3327] dark:border-white/10 dark:hover:border-[#00A655]"
                   >
                     <div className="flex flex-col items-start">
                       <span className="font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
@@ -125,7 +125,7 @@ export default function App() {
                       </span>
                     </div>
 
-                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#0c1a13] dark:border-white/10">
+                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#234437] dark:border-white/10">
                       <LogIn size={18} />
                     </div>
                   </button>
@@ -176,7 +176,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setIsNightMode(!isNightMode)}
-                className="p-4 rounded-2xl border border-emerald-100 bg-white text-left hover:border-emerald-300 transition-colors dark:bg-[#0f1f17] dark:border-white/10"
+                className="p-4 rounded-2xl border border-emerald-100 bg-white text-left hover:border-emerald-300 transition-colors dark:bg-[#1a3327] dark:border-white/10"
               >
                 <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
                   {t('nightMode')}
@@ -197,6 +197,7 @@ export default function App() {
           dashboard: 'overview',
           pallets: 'pallets',
           calendar: 'calendar',
+          'audit-logs': 'logs',
           users: 'clients',
           korisnici: 'users',
           roles: 'roles',
@@ -210,7 +211,7 @@ export default function App() {
       case RoleType.MAGACINER:
         return <WorkerDashboard role={currentUser.role_name} user={currentUser} />;
       case RoleType.KLIJENT:
-        return <ClientDashboard user={currentUser} activeTab={activeTab} />;
+        return <ClientDashboard user={currentUser} activeTab={activeTab} onNavigateHome={() => setActiveTab('dashboard')} />;
       case RoleType.SERVISER:
         return <ServiceDashboard user={currentUser} />;
       default:

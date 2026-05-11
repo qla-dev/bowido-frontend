@@ -47,7 +47,7 @@ interface AppContextType {
   ) => void;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
-  updatePallet: (pallet: Pallet) => void;
+  updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => void;
   deletePallet: (id: number) => void;
   addClient: (client: Omit<ClientDetail, 'id'>) => void;
   updateClient: (client: ClientDetail) => void;
@@ -186,6 +186,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications((prev) => prev.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)));
   };
 
+  const getNextQrVersion = (palletId: number) => {
+    const existingVersionLogs = auditLogs.filter(
+      (log) => log.type === 'qr_version' && log.pallet_id === palletId
+    ).length;
+
+    return `1.${String(existingVersionLogs + 12).padStart(2, '0')}`;
+  };
+
   const pushNotification = (
     title: string,
     message: string,
@@ -253,10 +261,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pallet_qr: pallet.qr_code,
         made_by_user_id: userId,
         made_by_user_name: userName,
+        type: 'status',
         old_status_id: oldStatusId,
         old_status_name: oldStatusName,
         new_status_id: statusId,
         new_status_name: status.name,
+        old_client_id: pallet.user_id,
+        new_client_id: clientId || pallet.user_id,
         old_location: oldLocation,
         new_location: location || pallet.current_location,
         note,
@@ -301,8 +312,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const updatePallet = (pallet: Pallet) => {
+  const updatePallet = (pallet: Pallet, actor?: { id: number; name: string }) => {
+    const previousPallet = pallets.find((item) => item.id === pallet.id);
     setPallets((prev) => prev.map((item) => (item.id === pallet.id ? pallet : item)));
+
+    if (previousPallet && previousPallet.qr_code !== pallet.qr_code) {
+      const nextId = auditLogs.length > 0 ? Math.max(...auditLogs.map((log) => log.id)) + 1 : 1;
+      const qrVersion = getNextQrVersion(pallet.id);
+
+      setAuditLogs((prev) => [
+        {
+          id: nextId,
+          pallet_id: pallet.id,
+          pallet_qr: pallet.qr_code,
+          made_by_user_id: actor?.id ?? 1,
+          made_by_user_name: actor?.name ?? 'Admin User',
+          type: 'qr_version',
+          old_status_id: previousPallet.current_status_id,
+          new_status_id: pallet.current_status_id,
+          old_status_name: previousPallet.current_status_name,
+          new_status_name: pallet.current_status_name,
+          old_client_id: previousPallet.user_id,
+          new_client_id: pallet.user_id,
+          old_location: previousPallet.current_location,
+          new_location: pallet.current_location,
+          qr_version: qrVersion,
+          old_qr_code: previousPallet.qr_code,
+          new_qr_code: pallet.qr_code,
+          note: pallet.note || 'QR code version updated from admin panel.',
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+
+      pushNotification(
+        'QR Version Update',
+        `${previousPallet.qr_code} updated to ${pallet.qr_code} (${qrVersion}).`,
+        'status'
+      );
+    }
   };
 
   const deletePallet = (id: number) => {
@@ -406,6 +454,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (ghost) {
+      const nextId = auditLogs.length > 0 ? Math.max(...auditLogs.map((log) => log.id)) + 1 : 1;
+      const qrVersion = getNextQrVersion(ghost.id);
+
+      setAuditLogs((prev) => [
+        {
+          id: nextId,
+          pallet_id: ghost.id,
+          pallet_qr: newQrCode,
+          made_by_user_id: 1,
+          made_by_user_name: 'Operations',
+          type: 'qr_version',
+          old_status_id: ghost.current_status_id,
+          new_status_id: ghost.current_status_id,
+          old_status_name: ghost.current_status_name,
+          new_status_name: ghost.current_status_name,
+          old_client_id: ghost.user_id,
+          new_client_id: ghost.user_id,
+          old_location: ghost.current_location,
+          new_location: ghost.current_location,
+          qr_version: qrVersion,
+          old_qr_code: ghost.qr_code,
+          new_qr_code: newQrCode,
+          note: `Ghost pallet paired with a new QR code (${qrVersion}).`,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+
       pushNotification(
         'Ghost Pallet Paired',
         `${ghost.client_name || 'Client'} ghost pallet is now paired with QR ${newQrCode}.`,
