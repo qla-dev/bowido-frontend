@@ -11,9 +11,10 @@ import { ClientDashboard } from './components/ClientDashboard';
 import { ServiceDashboard } from './components/ServiceDashboard';
 import { PalletScanner } from './components/PalletScanner';
 import { GhostPalletCenter } from './components/GhostPalletCenter';
+import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { ManagedUser, RoleType, User } from './types';
 import { mockUsers } from './lib/mockData';
-import { ChevronDown, Languages, LogIn, Moon, Package, Smartphone, Sun } from 'lucide-react';
+import { LogIn, LogOut, Moon, Settings, Smartphone, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card, Select, cn } from './components/ui';
@@ -208,6 +209,7 @@ export default function App() {
         return <AdminDashboard initialView={view} user={currentUser} />;
       }
       case RoleType.VOZAC:
+        return <DriverMobileDashboard user={currentUser} />;
       case RoleType.MAGACINER:
         return <WorkerDashboard role={currentUser.role_name} user={currentUser} />;
       case RoleType.KLIJENT:
@@ -218,6 +220,82 @@ export default function App() {
         return <AdminDashboard />;
     }
   };
+
+  const isDriverShell = currentUser.role_name === RoleType.VOZAC;
+
+  if (isDriverShell) {
+    return (
+      <div
+        id="driver-app-container"
+        className={`min-h-screen bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#13241b] dark:text-white ${isNightMode ? 'dark' : ''}`}
+      >
+        <header className="sticky top-0 z-40 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
+          <div className="mx-auto flex h-16 w-full max-w-md items-center justify-between px-4">
+            <img src={logoImage} alt="Trackpal logo" className="h-6 w-auto" />
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                title={t('settings')}
+                onClick={() => setActiveTab(activeTab === 'settings' ? 'dashboard' : 'settings')}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100",
+                  activeTab === 'settings'
+                    ? "border-[#00A655] bg-[#00A655] text-white"
+                    : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700"
+                )}
+              >
+                <Settings size={18} />
+              </button>
+              <button
+                type="button"
+                title={t('nightMode')}
+                onClick={() => setIsNightMode(!isNightMode)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-white text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100"
+              >
+                {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+              <button
+                type="button"
+                title={t('language')}
+                onClick={() => {
+                  const currentIndex = languageOptions.findIndex((option) => option.code === language);
+                  const nextOption = languageOptions[(currentIndex + 1) % languageOptions.length] || languageOptions[0];
+                  setLanguage(nextOption.code);
+                }}
+                className="h-10 min-w-10 rounded-xl border border-emerald-100 bg-white px-3 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100"
+              >
+                {language.toUpperCase()}
+              </button>
+              <button
+                type="button"
+                title={t('logout')}
+                onClick={handleLogout}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col px-4 py-4 dark:bg-transparent">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${currentUser.id}-driver-mobile-${activeTab}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+              className="flex-1"
+            >
+              {renderDashboard()}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div
