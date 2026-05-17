@@ -105,7 +105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     {
       id: 2,
       title: 'Pallet Movement',
-      message: 'PAL-0022 was delivered to Rotterdam Port.',
+      message: 'BOWNL-0005 was delivered to Waalhaven Zuidzijde 19, Rotterdam.',
       type: 'status',
       read: false,
       created_at: new Date(Date.now() - 3600000).toISOString(),
@@ -113,7 +113,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     {
       id: 3,
       title: 'Service Required',
-      message: 'PAL-0003 reported with damaged frame.',
+      message: 'BOWNL-0003 reported with damaged frame.',
       type: 'alert',
       read: true,
       created_at: new Date(Date.now() - 86400000).toISOString(),
@@ -225,6 +225,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const pallet = pallets.find((item) => item.id === palletId);
     const status = statuses.find((item) => item.id === statusId);
+    const shouldClearClient = statusId !== 4 && clientId === undefined;
 
     if (!pallet || !status) {
       return;
@@ -246,8 +247,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           current_status_name: status.name,
           current_location: location || item.current_location,
           last_status_changed_at: new Date().toISOString(),
-          user_id: clientId || item.user_id,
-          client_name: clientId ? clients.find((client) => client.user_id === clientId)?.name : item.client_name,
+          user_id: shouldClearClient ? undefined : clientId || item.user_id,
+          client_name: shouldClearClient
+            ? undefined
+            : clientId
+              ? clients.find((client) => client.user_id === clientId)?.name
+              : item.client_name,
           note: note || item.note,
         };
       })
@@ -267,7 +272,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         new_status_id: statusId,
         new_status_name: status.name,
         old_client_id: pallet.user_id,
-        new_client_id: clientId || pallet.user_id,
+        new_client_id: shouldClearClient ? undefined : clientId || pallet.user_id,
         old_location: oldLocation,
         new_location: location || pallet.current_location,
         note,
