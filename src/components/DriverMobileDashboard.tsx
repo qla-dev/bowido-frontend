@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Camera, ChevronDown, RefreshCcw, X } from 'lucide-react';
+import { AlertTriangle, Camera, ChevronDown, History, RefreshCcw, X } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Badge, Card, cn } from './ui';
@@ -75,6 +75,7 @@ type DriverCopy = {
   emptyStatus: string;
   selectClient: string;
   scannedPallets: string;
+  historyPallets: string;
   showAll: string;
   liveDot: string;
   statusUpdatedTitle: string;
@@ -98,6 +99,8 @@ type DriverCopy = {
   warehouseDefault: string;
   warehouseSecondary: string;
   thirdAddress: string;
+  addAddress: string;
+  addAnotherAddress: string;
   useCurrentLocation: string;
   manualLocation: string;
   manualLocationPlaceholder: string;
@@ -121,6 +124,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     emptyStatus: 'No status',
     selectClient: 'Select client',
     scannedPallets: 'Scanned pallets',
+    historyPallets: 'Pallet history',
     showAll: 'View all',
     liveDot: 'Live camera',
     statusUpdatedTitle: 'Status updated',
@@ -144,9 +148,11 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     warehouseDefault: 'Warehouse 1',
     warehouseSecondary: 'Warehouse 2',
     thirdAddress: 'Third address',
+    addAddress: 'Add address',
+    addAnotherAddress: 'Add another',
     useCurrentLocation: 'Current location',
     manualLocation: 'Manual search',
-    manualLocationPlaceholder: 'Enter address',
+    manualLocationPlaceholder: 'Enter new address',
     applyLocation: 'Set',
   },
   nl: {
@@ -165,6 +171,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     emptyStatus: 'Geen status',
     selectClient: 'Klant kiezen',
     scannedPallets: 'Gescande pallets',
+    historyPallets: 'Palletgeschiedenis',
     showAll: 'Toon alles',
     liveDot: 'Live camera',
     statusUpdatedTitle: 'Status bijgewerkt',
@@ -188,9 +195,11 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     warehouseDefault: 'Magazijn 1',
     warehouseSecondary: 'Magazijn 2',
     thirdAddress: 'Derde adres',
+    addAddress: 'Adres toevoegen',
+    addAnotherAddress: 'Ander adres',
     useCurrentLocation: 'Huidige locatie',
     manualLocation: 'Handmatig zoeken',
-    manualLocationPlaceholder: 'Adres invoeren',
+    manualLocationPlaceholder: 'Nieuw adres invoeren',
     applyLocation: 'Instellen',
   },
   bs: {
@@ -209,6 +218,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     emptyStatus: 'Bez statusa',
     selectClient: 'Odaberi klijenta',
     scannedPallets: 'Skenirane palete',
+    historyPallets: 'Historija paleta',
     showAll: 'Prikaži sve',
     liveDot: 'Live kamera',
     statusUpdatedTitle: 'Status ažuriran',
@@ -232,9 +242,11 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     warehouseDefault: 'Magacin 1',
     warehouseSecondary: 'Magacin 2',
     thirdAddress: 'Treća adresa',
+    addAddress: 'Dodaj adresu',
+    addAnotherAddress: 'Dodaj drugu',
     useCurrentLocation: 'Trenutna lokacija',
     manualLocation: 'Ručno unesi',
-    manualLocationPlaceholder: 'Unesi adresu',
+    manualLocationPlaceholder: 'Unesi novu adresu',
     applyLocation: 'Postavi',
   },
 };
@@ -309,6 +321,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [activeScannedPalletId, setActiveScannedPalletId] = useState<number | null>(null);
   const [openChangeMenu, setOpenChangeMenu] = useState<OpenChangeMenu>(null);
+  const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
+  const [isEditingAlternateAddress, setIsEditingAlternateAddress] = useState(false);
   const [draftStatusId, setDraftStatusId] = useState<number>(4);
   const [draftClientId, setDraftClientId] = useState<number | undefined>(undefined);
   const [draftLocationMode, setDraftLocationMode] = useState<DriverLocationMode>('warehouse_1');
@@ -352,10 +366,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     .filter((item): item is Pallet => Boolean(item));
   const activeScannedPallet =
     scannedPallets.find((item) => item.id === activeScannedPalletId) || scannedPallets[0] || null;
+  const damageTargetPallet = selectedPallet || activeScannedPallet;
   const actionButtonClass =
-    'flex h-[4.45rem] w-full items-center justify-center gap-2 rounded-[1.55rem] border border-emerald-300 bg-[#00A655] px-4 text-center text-[0.82rem] font-black uppercase leading-[1.15] tracking-[0.08em] text-white shadow-[0_22px_44px_-22px_rgba(0,166,85,0.65)] transition-all active:scale-[0.99] dark:border-emerald-400/25 dark:shadow-[0_22px_44px_-22px_rgba(0,0,0,0.55)]';
+    'flex h-full w-full items-center justify-center gap-2 rounded-[0.95rem] bg-[#00A655] px-4 text-center text-[0.83rem] font-black uppercase leading-[1.15] tracking-[0.06em] text-white transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100';
   const changeTriggerClass =
-    'inline-flex h-9 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 text-[10px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 shadow-[0_10px_24px_-18px_rgba(0,166,85,0.45)] transition-all active:scale-[0.98] hover:border-emerald-300 hover:text-emerald-900 dark:border-white/10 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
+    'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
   const getVisibleClientName = (statusId: number, clientName?: string) =>
     statusId === 4 ? clientName || text.clientEmpty : null;
   const getDriverStatusLabel = (statusName?: string) => {
@@ -454,14 +469,21 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     return {
       sentAtLabel: dateFormatter.format(sentDate),
       dueDateLabel: dateFormatter.format(dueDate),
-      deadlineTitle: isOverdue ? returnWindowText.overdue : returnWindowText.withinDeadline,
-      deadlineDetail: isOverdue
+      deadlineText: isOverdue
         ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
         : `${remainingDays} ${returnWindowText.daysLeft}`,
       isOverdue,
     };
   };
   const clientReturnInfo = getClientReturnInfo(selectedPallet, draftStatusId === 4 ? draftClientId : undefined);
+  const changeModalTitle =
+    openChangeMenu === 'status'
+      ? text.changeStatus
+      : openChangeMenu === 'client'
+        ? text.summaryClient
+        : openChangeMenu === 'location'
+          ? text.summaryLocation
+          : '';
 
   useEffect(() => {
     palletsRef.current = allDriverPallets;
@@ -929,6 +951,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
   const handleLocationSelection = (mode: DriverLocationMode) => {
     setOpenChangeMenu(null);
+    setIsAddAddressModalOpen(false);
+    setIsEditingAlternateAddress(false);
     setDraftLocationMode(mode);
     const nextLocation = getLocationMeta(mode, activeLocationClientId).address;
 
@@ -937,19 +961,35 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
   };
 
-  const handleManualLocationApply = () => {
-    const nextLocation = manualLocationInput.trim();
+  const handleManualLocationApply = (nextLocationInput?: string) => {
+    const nextLocation = (nextLocationInput ?? manualLocationInput).trim();
 
     if (!nextLocation) {
       return;
     }
 
     setOpenChangeMenu(null);
+    setIsAddAddressModalOpen(false);
+    setIsEditingAlternateAddress(false);
     setDraftLocationMode('manual');
+    setManualLocationInput(nextLocation);
 
     if (selectedPallet) {
       persistDriverStatus(draftStatusId, draftStatusId === 4 ? draftClientId : undefined, nextLocation);
     }
+  };
+
+  const closeAddAddressModal = () => {
+    setIsAddAddressModalOpen(false);
+    setIsEditingAlternateAddress(false);
+    setManualLocationInput('');
+  };
+
+  const openAddAddressModal = () => {
+    setOpenChangeMenu(null);
+    setIsEditingAlternateAddress(false);
+    setManualLocationInput('');
+    setIsAddAddressModalOpen(true);
   };
 
   const openPalletPhotoPicker = () => {
@@ -974,6 +1014,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const openDamageModal = () => {
+    if (!damageTargetPallet) {
+      return;
+    }
+
     clearDamageDraft();
     setIsDamageModalOpen(true);
   };
@@ -1001,7 +1045,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const handleDamageReportSubmit = () => {
-    if (!selectedPallet || !damagePhotoUrl || !damageDescription.trim()) {
+    if (!damageTargetPallet || !damagePhotoUrl || !damageDescription.trim()) {
       return;
     }
 
@@ -1071,9 +1115,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-md flex-col gap-4 pb-6">
+    <div
+      className={cn(
+        'mx-auto flex h-full min-h-0 w-full max-w-md flex-col gap-4',
+        isScannerOpen ? 'pb-0' : 'pb-[5.45rem]'
+      )}
+    >
       {isScannerOpen && (
-        <div className="flex min-h-[80dvh] flex-col justify-center px-1 py-2 transition-all duration-500">
+        <div className="flex h-[calc(100dvh-11.5rem)] min-h-0 flex-col justify-start px-1 pb-1 pt-0 transition-all duration-500">
           <input
             ref={scanImageInputRef}
             type="file"
@@ -1083,25 +1132,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             onChange={handleScanImageChange}
           />
 
-          <div className="relative text-center">
-            <h1 className="mt-3 text-[2rem] font-black leading-none tracking-[-0.04em] text-emerald-950 dark:text-white">
-              {text.title}
-            </h1>
-          </div>
-
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.button
-              key="scanner-view"
-              type="button"
-              onClick={handleScannerFrameClick}
-              initial={{ opacity: 0.82, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className={cn(
-                'relative mx-auto mt-8 flex h-[60dvh] min-h-[30rem] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white shadow-[0_30px_60px_-28px_rgba(0,166,85,0.28)] transition-all duration-500 dark:border-white/10 dark:bg-[#172d22] dark:shadow-[0_32px_64px_-28px_rgba(0,0,0,0.55)]',
-                cameraState === 'ready' ? '' : 'active:scale-[0.98]'
-              )}
-            >
+          <div className="mt-1 flex flex-1">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.button
+                key="scanner-view"
+                type="button"
+                onClick={handleScannerFrameClick}
+                initial={{ opacity: 0.82, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                className={cn(
+                  'relative mx-auto flex h-full min-h-[26rem] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white transition-all duration-500 dark:border-white/10 dark:bg-[#172d22]',
+                  cameraState === 'ready' ? '' : 'active:scale-[0.98]'
+                )}
+              >
               <video
                 ref={videoRef}
                 autoPlay
@@ -1119,7 +1163,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               {(cameraState === 'ready' || cameraState === 'preview') && (
                 <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">
                   <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400/70" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.9)]" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
                   <span className="sr-only">{text.liveDot}</span>
                 </div>
               )}
@@ -1145,71 +1189,30 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 className="absolute bottom-7 right-7 h-14 w-14 rounded-br-[1.2rem] border-b-4 border-r-4 border-emerald-400/95"
               />
 
-              {cameraState === 'ready' ? (
-                <motion.div
-                  animate={{ y: [-158, 158, -158] }}
-                  transition={{ duration: 1.45, repeat: Infinity, ease: 'linear' }}
-                  className="absolute left-12 right-12 h-[2px] bg-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.9)]"
-                />
-              ) : isScanning || cameraState === 'loading' ? (
-                <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/60">
-                  <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
-                </div>
-              ) : (
-                <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 shadow-inner shadow-emerald-100/80 dark:border-white/10 dark:bg-[#1f3a2d] dark:shadow-black/25">
-                  <div className="grid grid-cols-2 gap-2">
-                    <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
-                    <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
-                    <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
-                    <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                {cameraState === 'ready' ? (
+                  <motion.div
+                    animate={{ y: [-158, 158, -158] }}
+                    transition={{ duration: 1.45, repeat: Infinity, ease: 'linear' }}
+                    className="absolute left-12 right-12 h-[2px] bg-emerald-400"
+                  />
+                ) : isScanning || cameraState === 'loading' ? (
+                  <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/60">
+                    <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
-                </div>
-              )}
-            </motion.button>
-          </AnimatePresence>
+                ) : (
+                  <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#1f3a2d]">
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                      <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
+                      <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
+                      <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                    </div>
+                  </div>
+                )}
+              </motion.button>
+            </AnimatePresence>
+          </div>
 
-          {scannedPallets.length > 0 && (
-            <div className="mt-4 h-44 w-full">
-              <div className="h-full overflow-hidden rounded-[1.65rem] border border-emerald-100 bg-white shadow-[0_18px_40px_-28px_rgba(0,166,85,0.22)] dark:border-white/10 dark:bg-[#1a3327] dark:shadow-[0_24px_48px_-28px_rgba(0,0,0,0.55)]">
-                <div className="flex items-center justify-between gap-3 border-b border-emerald-100 px-4 py-3 dark:border-white/10">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-200">
-                    {text.scannedPallets}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={openScannedPalletsModal}
-                    className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600 transition-colors hover:text-emerald-800 dark:text-emerald-200 dark:hover:text-white"
-                  >
-                    {text.showAll}
-                  </button>
-                </div>
-                <div className="h-[calc(100%-2.8rem)] overflow-y-auto p-2">
-                  <div className="space-y-2">
-                    {scannedPallets.map((pallet) => (
-                      <div
-                        key={pallet.id}
-                        className="flex items-start justify-between gap-3 rounded-[1.15rem] border border-emerald-100 bg-emerald-50/60 px-3 py-3 dark:border-white/10 dark:bg-[#203d31]"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-black uppercase tracking-tight text-emerald-950 dark:text-white">
-                            {pallet.qr_code}
-                          </p>
-                          {getVisibleClientName(pallet.current_status_id, pallet.client_name) && (
-                            <p className="mt-1 truncate text-[11px] font-bold text-zinc-500 dark:text-[#9fcbb3]">
-                              {getVisibleClientName(pallet.current_status_id, pallet.client_name)}
-                            </p>
-                          )}
-                        </div>
-                        <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
-                          {getDriverStatusLabel(pallet.current_status_name)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1221,7 +1224,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             exit={{ opacity: 0, y: -10 }}
             className="pointer-events-none fixed inset-x-0 top-24 z-[70] flex justify-center px-4"
           >
-            <Card className="w-full max-w-sm border-emerald-100 bg-white/95 shadow-[0_26px_50px_-28px_rgba(0,166,85,0.35)] dark:border-white/10 dark:bg-[#1a3327]/95 dark:shadow-[0_26px_50px_-28px_rgba(0,0,0,0.55)]">
+            <Card className="w-full max-w-sm border-emerald-100 bg-white/95 dark:border-white/10 dark:bg-[#1a3327]/95">
               <div>
                   <Badge variant={flashMessage.variant}>{flashMessage.title}</Badge>
                   <p className="mt-2 text-[12px] font-bold leading-5 text-zinc-600 dark:text-zinc-300">
@@ -1240,36 +1243,41 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="mx-auto flex min-h-[82dvh] w-full max-w-[25rem] flex-col justify-between pt-8"
+            className="mx-auto flex h-full min-h-0 w-full max-w-[25rem] flex-col justify-between pt-1"
           >
-            <Card noPadding className="mx-auto flex min-h-full w-full flex-col overflow-visible border-transparent bg-transparent shadow-none">
-              <div className="px-5 pb-5 pt-8">
+            <Card noPadding className="mx-auto flex h-full w-full flex-col overflow-visible border-transparent bg-transparent shadow-none">
+              <div
+                className={cn(
+                  'flex min-h-0 flex-1 flex-col px-5 pb-5 pt-1',
+                  !selectedClientName && 'justify-between'
+                )}
+              >
                 <div className="text-center">
-                  <p className="text-[1.15rem] font-black uppercase tracking-[0.14em] text-emerald-900 dark:text-white">
+                  <p className="text-[1.2rem] font-black uppercase tracking-[0.12em] text-emerald-900 dark:text-white">
                     {selectedPallet.qr_code}
                   </p>
                   {clientReturnInfo && (
-                    <div className="mx-auto mt-4 grid max-w-[21rem] grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                    <div className="mx-auto mt-3 grid w-full max-w-[22rem] grid-cols-3 items-start justify-items-center gap-3 text-center">
+                      <div className="flex min-w-0 flex-col items-center">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                           {returnWindowText.sentAt}
                         </p>
-                        <p className="mt-1.5 text-[12px] font-black tracking-tight text-emerald-950 dark:text-white">
+                        <p className="mt-1.5 text-[14px] font-black tracking-tight text-emerald-950 dark:text-white">
                           {clientReturnInfo.sentAtLabel}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                      <div className="flex min-w-0 flex-col items-center">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                           {returnWindowText.returnDue}
                         </p>
-                        <p className="mt-1.5 text-[12px] font-black tracking-tight text-emerald-950 dark:text-white">
+                        <p className="mt-1.5 text-[14px] font-black tracking-tight text-emerald-950 dark:text-white">
                           {clientReturnInfo.dueDateLabel}
                         </p>
                       </div>
-                      <div>
+                      <div className="flex min-w-0 flex-col items-center">
                         <p
                           className={cn(
-                            'text-[9px] font-black uppercase tracking-[0.16em]',
+                            'text-[10px] font-black uppercase tracking-[0.16em]',
                             clientReturnInfo.isOverdue
                               ? 'text-rose-600 dark:text-rose-200'
                               : 'text-emerald-600 dark:text-emerald-200'
@@ -1279,307 +1287,410 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         </p>
                         <p
                           className={cn(
-                            'mt-1.5 text-[12px] font-black tracking-tight',
+                            'mt-1.5 whitespace-nowrap text-center text-[13px] font-black tracking-tight',
                             clientReturnInfo.isOverdue
                               ? 'text-rose-700 dark:text-rose-100'
                               : 'text-emerald-950 dark:text-white'
                           )}
                         >
-                          {clientReturnInfo.deadlineTitle}
-                        </p>
-                        <p
-                          className={cn(
-                            'mt-1 text-[10px] font-black leading-4',
-                            clientReturnInfo.isOverdue
-                              ? 'text-rose-600 dark:text-rose-200'
-                              : 'text-zinc-600 dark:text-[#cce0d3]'
-                          )}
-                        >
-                          {clientReturnInfo.deadlineDetail}
+                          {clientReturnInfo.deadlineText}
                         </p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="relative mt-8 rounded-[2rem] border border-emerald-100 bg-white/90 px-6 py-7 text-center shadow-[0_24px_44px_-28px_rgba(0,166,85,0.26)] dark:border-white/10 dark:bg-[#1a3327]/92 dark:shadow-[0_24px_44px_-28px_rgba(0,0,0,0.5)]">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                <div
+                  className={cn(
+                    'relative rounded-[2.15rem] bg-white/90 px-7 text-center dark:bg-[#1a3327]/92',
+                    selectedClientName ? 'mt-5 py-8' : 'mt-6 py-9'
+                  )}
+                >
+                  <p className="text-[15px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-200">
                     {text.currentStatus}
                   </p>
-                  <p className="mt-3 text-[2.75rem] font-black uppercase leading-[0.96] tracking-[-0.07em] text-emerald-950 dark:text-white">
+                  <p className="mt-3.5 text-[3.75rem] font-black uppercase leading-[0.9] tracking-[-0.07em] text-emerald-950 dark:text-white">
                     {getDriverStatusLabel(selectedPallet.current_status_name)}
                   </p>
                   <button
                     type="button"
                     onClick={() => setOpenChangeMenu((current) => (current === 'status' ? null : 'status'))}
-                    className={cn(changeTriggerClass, 'mt-4 h-10 px-4 text-[11px]')}
+                    className={cn(changeTriggerClass, 'mt-4 h-12 px-5 text-[13px]')}
                   >
                     {text.changeStatus}
                     <ChevronDown
-                      size={13}
+                      size={14}
                       className={cn('transition-transform', openChangeMenu === 'status' && 'rotate-180')}
                     />
                   </button>
-                  <AnimatePresence>
-                    {openChangeMenu === 'status' && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                        className="absolute left-1/2 top-[calc(100%+0.8rem)] z-20 w-[13rem] -translate-x-1/2 overflow-hidden rounded-[1.2rem] border border-emerald-100 bg-white p-2 shadow-[0_24px_44px_-26px_rgba(0,166,85,0.45)] dark:border-white/10 dark:bg-[#1f3a2d] dark:shadow-[0_24px_44px_-26px_rgba(0,0,0,0.55)]"
-                      >
-                        <div className="space-y-1">
-                          {driverStatusOptions.map((status) => (
-                            <button
-                              key={status.id}
-                              type="button"
-                              onClick={() => handleStatusSelection(status.id)}
-                              className={cn(
-                                'flex w-full items-center justify-center rounded-[0.95rem] px-3 py-2.5 text-center text-[12px] font-black uppercase tracking-tight transition-all',
-                                draftStatusId === status.id
-                                  ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                                  : 'text-zinc-600 hover:bg-emerald-50/80 hover:text-emerald-700 dark:text-zinc-300 dark:hover:bg-white/5 dark:hover:text-emerald-100'
-                              )}
-                            >
-                              {getDriverStatusLabel(status.name)}
-                            </button>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
 
-                <div className="mt-5 space-y-3.5 text-left">
+                <div
+                  className={cn(
+                    'text-left',
+                    selectedClientName ? 'mt-4 space-y-3' : 'mt-0 space-y-4'
+                  )}
+                >
                   {selectedClientName && (
-                    <div className="relative rounded-[1.6rem] border border-emerald-100 bg-white/88 p-5 shadow-[0_18px_34px_-28px_rgba(0,166,85,0.18)] dark:border-white/10 dark:bg-[#1a3327]/88">
-                      <div className="flex items-start justify-between gap-3">
+                    <div className="relative rounded-[1.6rem] bg-white/88 p-6 dark:bg-[#1a3327]/88">
+                      <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                             {text.summaryClient}
                           </p>
-                          <p className="mt-1 text-[1.24rem] font-black leading-6 tracking-[-0.03em] text-emerald-950 dark:text-white">
+                          <p className="mt-1 text-[1.5rem] font-black leading-8 tracking-[-0.03em] text-emerald-950 dark:text-white">
                             {selectedClientName}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setOpenChangeMenu((current) => (current === 'client' ? null : 'client'))}
-                          className={changeTriggerClass}
+                          className={cn(changeTriggerClass, 'shrink-0 self-center')}
                         >
                           {text.changeLabel}
                           <ChevronDown
-                            size={13}
+                            size={14}
                             className={cn('transition-transform', openChangeMenu === 'client' && 'rotate-180')}
                           />
                         </button>
                       </div>
-                      <AnimatePresence>
-                        {openChangeMenu === 'client' && draftStatusId === 4 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                            className="absolute left-0 top-[calc(100%+0.65rem)] z-20 w-full overflow-hidden rounded-[1.2rem] border border-emerald-100 bg-white p-2 shadow-[0_24px_44px_-26px_rgba(0,166,85,0.45)] dark:border-white/10 dark:bg-[#1f3a2d] dark:shadow-[0_24px_44px_-26px_rgba(0,0,0,0.55)]"
-                          >
-                            <div className="max-h-48 space-y-1 overflow-y-auto">
-                              {clients.map((client) => (
-                                <button
-                                  key={client.id}
-                                  type="button"
-                                  onClick={() => handleClientSelection(client.user_id.toString())}
-                                  className={cn(
-                                    'flex w-full items-center justify-center rounded-[0.95rem] px-3 py-2 text-center text-[12px] font-black uppercase tracking-tight transition-all',
-                                    draftClientId === client.user_id
-                                      ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                                      : 'text-zinc-600 hover:bg-emerald-50/80 hover:text-emerald-700 dark:text-zinc-300 dark:hover:bg-white/5 dark:hover:text-emerald-100'
-                                  )}
-                                >
-                                  {client.name}
-                                </button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
                     </div>
                   )}
 
-                  <div className="relative rounded-[1.6rem] border border-emerald-100 bg-white/88 p-5 shadow-[0_18px_34px_-28px_rgba(0,166,85,0.18)] dark:border-white/10 dark:bg-[#1a3327]/88">
-                    <div className="flex items-start justify-between gap-3">
+                  <div
+                    className={cn(
+                      'relative rounded-[1.6rem] bg-white/88 dark:bg-[#1a3327]/88',
+                      selectedClientName ? 'p-6' : 'p-7'
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                        <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                           {text.summaryLocation}
                         </p>
-                        <p className="mt-1 text-[1.24rem] font-black leading-6 tracking-[-0.03em] text-emerald-950 dark:text-white">
+                        <p className="mt-1 text-[1.5rem] font-black leading-8 tracking-[-0.03em] text-emerald-950 dark:text-white">
                           {selectedLocationMeta.label}
                         </p>
-                        <p className="mt-1.5 text-[15px] font-bold leading-6 text-zinc-600 dark:text-[#cce0d3]">
+                        <p className="mt-1 text-[17px] font-bold leading-7 text-zinc-600 dark:text-[#cce0d3]">
                           {selectedLocationMeta.address}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setOpenChangeMenu((current) => (current === 'location' ? null : 'location'))}
-                        className={changeTriggerClass}
+                        className={cn(changeTriggerClass, 'shrink-0 self-center')}
                       >
                         {text.changeLabel}
                         <ChevronDown
-                          size={13}
+                          size={14}
                           className={cn('transition-transform', openChangeMenu === 'location' && 'rotate-180')}
                         />
                       </button>
                     </div>
-                    <AnimatePresence>
-                      {openChangeMenu === 'location' && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                          className="absolute left-0 top-[calc(100%+0.65rem)] z-20 w-full overflow-hidden rounded-[1.2rem] border border-emerald-100 bg-white p-2 shadow-[0_24px_44px_-26px_rgba(0,166,85,0.45)] dark:border-white/10 dark:bg-[#1f3a2d] dark:shadow-[0_24px_44px_-26px_rgba(0,0,0,0.55)]"
-                        >
-                          <div className="space-y-1">
-                            <button
-                              type="button"
-                              onClick={() => handleLocationSelection('warehouse_1')}
-                              className={cn(
-                                'flex w-full items-center justify-between rounded-[0.95rem] px-3 py-2 text-left text-[12px] font-black uppercase tracking-tight transition-all',
-                                draftLocationMode === 'warehouse_1'
-                                  ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                                  : 'text-zinc-600 hover:bg-emerald-50/80 hover:text-emerald-700 dark:text-zinc-300 dark:hover:bg-white/5 dark:hover:text-emerald-100'
-                              )}
-                            >
-                              <span>{text.warehouseDefault}</span>
-                              <span className="truncate pl-3 text-[10px] font-bold normal-case tracking-normal opacity-70">
-                                {getLocationMeta('warehouse_1', activeLocationClientId).address}
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleLocationSelection('warehouse_2')}
-                              className={cn(
-                                'flex w-full items-center justify-between rounded-[0.95rem] px-3 py-2 text-left text-[12px] font-black uppercase tracking-tight transition-all',
-                                draftLocationMode === 'warehouse_2'
-                                  ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                                  : 'text-zinc-600 hover:bg-emerald-50/80 hover:text-emerald-700 dark:text-zinc-300 dark:hover:bg-white/5 dark:hover:text-emerald-100'
-                              )}
-                            >
-                              <span>{text.warehouseSecondary}</span>
-                              <span className="truncate pl-3 text-[10px] font-bold normal-case tracking-normal opacity-70">
-                                {getLocationMeta('warehouse_2', activeLocationClientId).address}
-                              </span>
-                            </button>
-                          </div>
-
-                          <div className="mt-3 rounded-[1rem] bg-emerald-50/80 p-3 dark:bg-white/5">
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
-                              {text.thirdAddress}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleLocationSelection('driver_current')}
-                              className={cn(
-                                'mt-2 flex w-full items-center justify-between rounded-[0.95rem] px-3 py-2 text-left text-[12px] font-black uppercase tracking-tight transition-all',
-                                draftLocationMode === 'driver_current'
-                                  ? 'bg-white text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                                  : 'bg-white/80 text-zinc-600 hover:bg-white dark:bg-[#203d31] dark:text-zinc-300 dark:hover:bg-white/10'
-                              )}
-                            >
-                              <span>{text.useCurrentLocation}</span>
-                              <span className="truncate pl-3 text-[10px] font-bold normal-case tracking-normal opacity-70">
-                                {getLocationMeta('driver_current', activeLocationClientId).address}
-                              </span>
-                            </button>
-
-                            <div className="mt-2 flex gap-2">
-                              <input
-                                value={manualLocationInput}
-                                onChange={(event) => setManualLocationInput(event.target.value)}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    event.preventDefault();
-                                    handleManualLocationApply();
-                                  }
-                                }}
-                                placeholder={text.manualLocationPlaceholder}
-                                className="h-10 flex-1 rounded-[0.95rem] border border-emerald-200 bg-white px-3 text-[12px] font-bold text-emerald-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 dark:border-white/10 dark:bg-[#203d31] dark:text-white dark:placeholder:text-zinc-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={handleManualLocationApply}
-                                className="rounded-[0.95rem] bg-[#00A655] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98]"
-                              >
-                                {text.applyLocation}
-                              </button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-auto flex flex-col items-center space-y-4 p-5 pb-5 pt-7">
-                <input
-                  ref={palletPhotoInputRef}
-                  id="driver-pallet-photo"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handlePalletPhotoChange}
-                />
+              <input
+                ref={palletPhotoInputRef}
+                id="driver-pallet-photo"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handlePalletPhotoChange}
+              />
 
-                <div className="w-full max-w-[22.25rem] space-y-3.5">
-                  <button
-                    type="button"
-                    className={actionButtonClass}
-                    onClick={handleScanNext}
-                  >
-                    <RefreshCcw size={18} className="shrink-0" />
-                    {text.scanNext}
-                  </button>
-
-                  <div className="grid w-full grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={openPalletPhotoPicker}
-                      className={actionButtonClass}
-                    >
-                      <Camera size={18} className="shrink-0" />
-                      {text.capturePalletPhoto}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openDamageModal}
-                      className={actionButtonClass}
-                    >
-                      <AlertTriangle size={18} className="shrink-0" />
-                      {text.reportDamage}
-                    </button>
-                  </div>
-                </div>
-
-                {palletPhotoUrl && (
-                  <div className="w-full overflow-hidden rounded-[1.7rem] border border-emerald-100 bg-white p-2 shadow-[0_18px_40px_-28px_rgba(0,166,85,0.32)] dark:border-white/10 dark:bg-[#1a3327] dark:shadow-[0_18px_40px_-28px_rgba(0,0,0,0.55)]">
+              {palletPhotoUrl && (
+                <div className="px-5 pb-4 pt-1">
+                  <div className="w-full overflow-hidden rounded-[1.7rem] bg-white p-2 dark:bg-[#1a3327]">
                     <div className="relative overflow-hidden rounded-[1.3rem] bg-emerald-50 dark:bg-[#203d31]">
                       <img
                         src={palletPhotoUrl}
                         alt={text.capturePalletPhoto}
-                        className="h-40 w-full object-cover"
+                        className="h-44 w-full object-cover"
                       />
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </Card>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {(isScannerOpen || selectedPallet) && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-3">
+          <div className="pointer-events-auto h-16 w-full max-w-md">
+            {isScannerOpen ? (
+              <div className="grid h-full grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={openDamageModal}
+                  disabled={!damageTargetPallet}
+                  className={actionButtonClass}
+                >
+                  <AlertTriangle size={20} className="shrink-0" />
+                  {text.reportDamage}
+                </button>
+                <button
+                  type="button"
+                  onClick={openScannedPalletsModal}
+                  disabled={scannedPallets.length === 0}
+                  className={actionButtonClass}
+                >
+                  <History size={20} className="shrink-0" />
+                  {text.historyPallets}
+                </button>
+              </div>
+            ) : (
+              <div className="grid h-full grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  className={actionButtonClass}
+                  onClick={handleScanNext}
+                >
+                  <RefreshCcw size={20} className="shrink-0" />
+                  {text.scanNext}
+                </button>
+                <button
+                  type="button"
+                  onClick={openPalletPhotoPicker}
+                  className={actionButtonClass}
+                >
+                  <Camera size={20} className="shrink-0" />
+                  {text.capturePalletPhoto}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <AnimatePresence>
-        {isDamageModalOpen && selectedPallet && (
+        {openChangeMenu && selectedPallet && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/25 px-4 py-6 backdrop-blur-[2px] dark:bg-black/45"
+            onClick={() => setOpenChangeMenu(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              onClick={(event) => event.stopPropagation()}
+              className="flex min-h-[24rem] w-full max-w-[26rem] flex-col justify-center overflow-hidden rounded-[2rem] bg-white dark:bg-[#172d22]"
+            >
+              <div className="flex items-center justify-between px-5 py-4">
+                <div>
+                  <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
+                    {changeModalTitle}
+                  </p>
+                  <p className="mt-1 text-[15px] font-black uppercase tracking-[0.08em] text-emerald-950 dark:text-white">
+                    {selectedPallet.qr_code}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpenChangeMenu(null)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 transition-all active:scale-[0.98] dark:bg-[#1f3a2d] dark:text-emerald-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {openChangeMenu === 'status' && (
+                <div className="space-y-2.5 p-5">
+                  {driverStatusOptions.map((status) => (
+                    <button
+                      key={status.id}
+                      type="button"
+                      onClick={() => handleStatusSelection(status.id)}
+                      className={cn(
+                        'flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all',
+                        draftStatusId === status.id
+                          ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
+                          : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                      )}
+                    >
+                      {getDriverStatusLabel(status.name)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {openChangeMenu === 'client' && draftStatusId === 4 && (
+                <div className="p-5">
+                  <div className="max-h-80 space-y-2.5 overflow-y-auto">
+                    {clients.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => handleClientSelection(client.user_id.toString())}
+                        className={cn(
+                          'flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all',
+                          draftClientId === client.user_id
+                            ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
+                            : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                        )}
+                      >
+                        {client.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {openChangeMenu === 'location' && (
+                <div className="space-y-3.5 p-5">
+                  <div className="space-y-2.5">
+                    <button
+                      type="button"
+                      onClick={() => handleLocationSelection('warehouse_1')}
+                      className={cn(
+                        'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
+                        draftLocationMode === 'warehouse_1'
+                          ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
+                          : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                      )}
+                    >
+                      <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseDefault}</span>
+                      <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                        {getLocationMeta('warehouse_1', activeLocationClientId).address}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLocationSelection('warehouse_2')}
+                      className={cn(
+                        'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
+                        draftLocationMode === 'warehouse_2'
+                          ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
+                          : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                      )}
+                    >
+                      <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseSecondary}</span>
+                      <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                        {getLocationMeta('warehouse_2', activeLocationClientId).address}
+                      </span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={openAddAddressModal}
+                    className="flex w-full items-center justify-center rounded-[1rem] bg-white px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight text-zinc-700 transition-all hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                  >
+                    {text.addAddress}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAddAddressModalOpen && selectedPallet && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-emerald-950/25 px-4 py-6 backdrop-blur-[2px] dark:bg-black/45"
+            onClick={closeAddAddressModal}
+          >
+            <div className="relative w-full max-w-[24.25rem]">
+              <button
+                type="button"
+                onClick={closeAddAddressModal}
+                className="absolute -top-12 right-1 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white text-emerald-700 transition-all active:scale-[0.98] dark:bg-[#1f3a2d] dark:text-emerald-100"
+              >
+                <X size={18} />
+              </button>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                onClick={(event) => event.stopPropagation()}
+                className="flex w-full flex-col justify-center overflow-hidden rounded-[2rem] bg-white dark:bg-[#172d22]"
+              >
+                <div className="mx-auto w-full max-w-[21.75rem] space-y-3.5 px-5 py-5">
+                  {!isEditingAlternateAddress ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleLocationSelection('driver_current')}
+                        className="flex w-full flex-col rounded-[1.2rem] bg-white px-4 py-4 text-left text-zinc-700 transition-all hover:bg-zinc-50 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                      >
+                        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-200">
+                          {text.useCurrentLocation}
+                        </span>
+                        <span className="mt-2 text-[15px] font-black leading-5 text-emerald-950 dark:text-white">
+                          {getLocationMeta('driver_current', activeLocationClientId).address}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManualLocationInput('');
+                          setIsEditingAlternateAddress(true);
+                        }}
+                        className="flex w-full items-center justify-center rounded-[1.1rem] bg-white px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all hover:bg-zinc-50 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                      >
+                        {text.addAnotherAddress}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-3.5">
+                      <input
+                        value={manualLocationInput}
+                        onChange={(event) => setManualLocationInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            handleManualLocationApply();
+                          }
+                        }}
+                        placeholder={text.manualLocationPlaceholder}
+                        className="h-12 w-full rounded-[1rem] border-2 border-emerald-200 bg-white px-4 text-[14px] font-bold text-emerald-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 focus:bg-white dark:border-white/10 dark:bg-[#203d31] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
+                      />
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManualLocationInput('');
+                            setIsEditingAlternateAddress(false);
+                          }}
+                          className="flex items-center justify-center rounded-[1rem] bg-white px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all hover:bg-zinc-50 active:scale-[0.98] dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                        >
+                          {text.damageModalCancel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleManualLocationApply()}
+                          className="flex items-center justify-center rounded-[1rem] bg-[#00A655] px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98]"
+                        >
+                          {text.applyLocation}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isDamageModalOpen && damageTargetPallet && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1593,7 +1704,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               exit={{ opacity: 0, y: 24, scale: 0.98 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               onClick={(event) => event.stopPropagation()}
-              className="w-full max-w-sm overflow-hidden rounded-[2rem] border border-emerald-100 bg-white shadow-[0_30px_60px_-28px_rgba(0,166,85,0.32)] dark:border-white/10 dark:bg-[#172d22] dark:shadow-[0_30px_60px_-28px_rgba(0,0,0,0.65)]"
+              className="w-full max-w-sm overflow-hidden rounded-[2rem] border border-emerald-100 bg-white dark:border-white/10 dark:bg-[#172d22]"
             >
               <div className="flex items-center justify-between border-b border-emerald-100 px-5 py-4 dark:border-white/10">
                 <div>
@@ -1601,7 +1712,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     {text.damageModalTitle}
                   </p>
                   <p className="mt-1 text-[13px] font-black uppercase tracking-[0.08em] text-emerald-950 dark:text-white">
-                    {selectedPallet.qr_code}
+                    {damageTargetPallet.qr_code}
                   </p>
                 </div>
                 <button
@@ -1651,7 +1762,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         <button
                           type="button"
                           onClick={clearDamagePhoto}
-                          className="absolute right-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-[0_14px_28px_-20px_rgba(0,166,85,0.55)] dark:bg-[#172d22]/92 dark:text-emerald-100"
+                          className="absolute right-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:bg-[#172d22]/92 dark:text-emerald-100"
                         >
                           {text.damageModalRemove}
                         </button>
@@ -1707,9 +1818,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               exit={{ opacity: 0, y: 24, scale: 0.98 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               onClick={(event) => event.stopPropagation()}
-              className="w-full max-w-sm overflow-hidden rounded-[2rem] border border-emerald-100 bg-white shadow-[0_30px_60px_-28px_rgba(0,166,85,0.32)] dark:border-white/10 dark:bg-[#172d22] dark:shadow-[0_30px_60px_-28px_rgba(0,0,0,0.65)]"
+              className="relative w-full max-w-sm overflow-hidden rounded-[2rem] border border-emerald-100 bg-white dark:border-white/10 dark:bg-[#172d22]"
             >
-              <div className="flex items-center justify-between border-b border-emerald-100 px-5 py-4 dark:border-white/10">
+              <div className="flex items-center justify-between px-4 py-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
                   {text.scannedPallets}
                 </p>
@@ -1722,7 +1833,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </button>
               </div>
 
-              <div className="space-y-4 p-4">
+              <div className="space-y-4 p-4 pt-0">
                 <div className="max-h-48 overflow-y-auto">
                   <div className="space-y-2">
                     {scannedPallets.map((pallet) => (
