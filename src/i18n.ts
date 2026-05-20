@@ -139,6 +139,11 @@ export const rolePermissionCatalog: Record<AppLanguage, Record<RoleType, string[
 };
 
 export const palletTypeValues = [
+  'Siva',
+  'L Paleta',
+  'L Paleta (120x80)',
+  'L Paleta (200x100)',
+  'A Paleta',
   'Kraksna (Standard)',
   'G-Stalak za Prozore',
   'Kraksna (A-Frame)',
@@ -152,6 +157,11 @@ export const palletTypeValues = [
 
 const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
   en: {
+    Siva: 'Grey Pallet',
+    'L Paleta': 'L-pallet',
+    'L Paleta (120x80)': 'L-pallet (120x80)',
+    'L Paleta (200x100)': 'L-pallet (200x100)',
+    'A Paleta': 'A-pallet for Glass',
     'Kraksna (Standard)': 'Rack Frame (Standard)',
     'G-Stalak za Prozore': 'G-Frame for Windows',
     'Kraksna (A-Frame)': 'Rack Frame (A-Frame)',
@@ -163,6 +173,11 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
     Industrial: 'Industrial',
   },
   nl: {
+    Siva: 'Grijs',
+    'L Paleta': 'L-pallet',
+    'L Paleta (120x80)': 'L-pallet (120x80)',
+    'L Paleta (200x100)': 'L-pallet (200x100)',
+    'A Paleta': 'A-pallet voor glas',
     'Kraksna (Standard)': 'Bok (Standaard)',
     'G-Stalak za Prozore': 'G-rek voor ramen',
     'Kraksna (A-Frame)': 'Bok (A-frame)',
@@ -174,6 +189,11 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
     Industrial: 'Industrieel',
   },
   bs: {
+    Siva: 'Siva',
+    'L Paleta': 'L paleta',
+    'L Paleta (120x80)': 'L paleta (120x80)',
+    'L Paleta (200x100)': 'L paleta (200x100)',
+    'A Paleta': 'A paleta',
     'Kraksna (Standard)': 'Kraksna (Standard)',
     'G-Stalak za Prozore': 'G-stalak za prozore',
     'Kraksna (A-Frame)': 'Kraksna (A-Frame)',
@@ -184,6 +204,42 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
     'H1 Plastic': 'H1 plastika',
     Industrial: 'Industrijska',
   },
+};
+
+const getDynamicPalletTypeLabel = (type: string, language: AppLanguage) => {
+  const normalizedType = type.trim();
+  const compactType = normalizedType.replace(/\s+/g, ' ');
+  const lowerType = compactType.toLowerCase();
+
+  if (lowerType === 'siva' || lowerType === 'grijs') {
+    return palletTypeLabels[language].Siva || palletTypeLabels.en.Siva;
+  }
+
+  const lPalletMatch = compactType.match(/^l\s*paleta(?:\s*(.*))?$/i);
+  if (lPalletMatch) {
+    const suffix = lPalletMatch[1]?.trim();
+    const baseLabel =
+      language === 'bs'
+        ? 'L paleta'
+        : 'L-pallet';
+
+    return suffix ? `${baseLabel} ${suffix}`.trim() : baseLabel;
+  }
+
+  const aPalletMatch = compactType.match(/^a\s*paleta(?:\s*(.*))?$/i);
+  if (aPalletMatch) {
+    const suffix = aPalletMatch[1]?.trim();
+    const baseLabel =
+      language === 'nl'
+        ? 'A-pallet voor glas'
+        : language === 'en'
+          ? 'A-pallet for Glass'
+          : 'A paleta';
+
+    return suffix ? `${baseLabel} ${suffix}`.trim() : baseLabel;
+  }
+
+  return null;
 };
 
 const statusLabels: Record<AppLanguage, Record<string, string>> = {
@@ -1593,7 +1649,10 @@ export const getRolePermissions = (role: RoleType, language: AppLanguage) =>
   rolePermissionCatalog[language][role] || rolePermissionCatalog.en[role] || [];
 
 export const getPalletTypeLabel = (type: string, language: AppLanguage) =>
-  palletTypeLabels[language][type] || palletTypeLabels.en[type] || type;
+  palletTypeLabels[language][type] ||
+  palletTypeLabels.en[type] ||
+  getDynamicPalletTypeLabel(type, language) ||
+  type;
 
 export const getStatusLabel = (status: string, language: AppLanguage) =>
   statusLabels[language][status] || statusLabels.en[status] || status;

@@ -24,9 +24,11 @@ import { getCountryLabel, getPalletTypeLabel, getStatusLabel, palletTypeValues }
 interface AdminDashboardProps {
   initialView?: 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar';
   user: User;
+  isNightMode?: boolean;
+  onToggleNightMode?: () => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'overview', user }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'overview', user, isNightMode = false, onToggleNightMode }) => {
   const { 
     pallets, statuses, clients, auditLogs, serviceReports,
     updateStatusSettings, addStatus, deleteStatus, addPallet, updatePallet, deletePallet,
@@ -628,6 +630,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
          </button>
       </div>
 
+      <Card title={t('settings')}>
+         <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">{t('nightMode')}</p>
+               <p className="mt-2 text-lg font-black uppercase tracking-tight text-emerald-950">{isNightMode ? t('on') : t('off')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onToggleNightMode?.()}
+              className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition-colors hover:border-emerald-300"
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t('updateSettings')}</p>
+              <p className="mt-2 text-lg font-black uppercase tracking-tight text-zinc-950">{t('nightMode')}</p>
+            </button>
+         </div>
+      </Card>
+
       <Card title={t('statusConfiguratorTitle')}>
          <div className="p-4 space-y-2">
             {statuses.map(status => (
@@ -864,17 +883,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('palletType')}</label>
-                      <select 
-                        value={editingPallet.type} 
+                      <input
+                        list="admin-pallet-type-options"
+                        value={editingPallet.type}
                         onChange={e => setEditingPallet({...editingPallet, type: e.target.value})}
                         className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                      >
-                         {palletTypeValues.map((palletType) => (
-                           <option key={palletType} value={palletType}>
-                             {getPalletTypeLabel(palletType, language)}
-                           </option>
-                         ))}
-                      </select>
+                      />
+                      <datalist id="admin-pallet-type-options">
+                        {palletTypeValues.map((palletType) => (
+                          <option
+                            key={palletType}
+                            value={palletType}
+                            label={getPalletTypeLabel(palletType, language)}
+                          />
+                        ))}
+                      </datalist>
                     </div>
                  </div>
 
@@ -1025,20 +1048,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                  </div>
                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('palletType')}</label>
-                    <select className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" id="new-pallet-type">
-                       {palletTypeValues.map((palletType) => (
-                         <option key={palletType} value={palletType}>
-                           {getPalletTypeLabel(palletType, language)}
-                         </option>
-                       ))}
-                    </select>
+                    <input
+                      className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                      id="new-pallet-type"
+                      list="new-pallet-type-options"
+                      defaultValue={palletTypeValues[0]}
+                    />
+                    <datalist id="new-pallet-type-options">
+                      {palletTypeValues.map((palletType) => (
+                        <option
+                          key={palletType}
+                          value={palletType}
+                          label={getPalletTypeLabel(palletType, language)}
+                        />
+                      ))}
+                    </datalist>
                  </div>
               </div>
               <div className="flex gap-4 mt-8">
                  <button onClick={() => setShowAddPallet(false)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
                  <button onClick={() => {
                     const qr = (document.getElementById('new-pallet-qr') as HTMLInputElement).value;
-                    const type = (document.getElementById('new-pallet-type') as HTMLSelectElement).value;
+                    const type = (document.getElementById('new-pallet-type') as HTMLInputElement).value;
                     if (qr) {
                        addPallet(qr, type);
                        setShowAddPallet(false);

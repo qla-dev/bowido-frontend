@@ -4,6 +4,7 @@ import { AlertTriangle, Camera, ChevronDown, History, RefreshCcw, X } from 'luci
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Badge, Card, cn } from './ui';
+import { getPalletTypeLabel } from '../i18n';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -62,6 +63,8 @@ const clientWarehouseDirectories: Record<
 type DriverCopy = {
   title: string;
   resultLabel: string;
+  palletNameLabel: string;
+  palletTypeLabel: string;
   currentStatus: string;
   changeLabel: string;
   changeStatus: string;
@@ -74,6 +77,8 @@ type DriverCopy = {
   clientEmpty: string;
   emptyStatus: string;
   selectClient: string;
+  searchClientPlaceholder: string;
+  noClientsFound: string;
   scannedPallets: string;
   historyPallets: string;
   showAll: string;
@@ -81,6 +86,7 @@ type DriverCopy = {
   statusUpdatedTitle: string;
   statusSavedDetailAtClient: string;
   statusSavedDetailReturn: string;
+  statusSavedDetailTransport: string;
   statusSavedDetailWarehouse: string;
   damageReportedTitle: string;
   damageReportedDetail: string;
@@ -111,6 +117,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
   en: {
     title: 'Scan QR code',
     resultLabel: 'Scanned pallet',
+    palletNameLabel: 'Pallet name',
+    palletTypeLabel: 'Pallet type',
     currentStatus: 'Current status',
     changeLabel: 'Change',
     changeStatus: 'Change status',
@@ -123,6 +131,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     clientEmpty: 'No client',
     emptyStatus: 'No status',
     selectClient: 'Select client',
+    searchClientPlaceholder: 'Search client',
+    noClientsFound: 'No clients found',
     scannedPallets: 'Scanned pallets',
     historyPallets: 'Pallet history',
     showAll: 'View all',
@@ -130,6 +140,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     statusUpdatedTitle: 'Status updated',
     statusSavedDetailAtClient: 'The pallet is marked at the client.',
     statusSavedDetailReturn: 'The pallet is marked ready for return.',
+    statusSavedDetailTransport: 'The pallet is marked in transport.',
     statusSavedDetailWarehouse: 'The pallet is marked at Bowido warehouse.',
     damageReportedTitle: 'Damage reported',
     damageReportedDetail: 'The damage report is saved for this pallet.',
@@ -158,6 +169,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
   nl: {
     title: 'Scan QR-code',
     resultLabel: 'Gescande pallet',
+    palletNameLabel: 'Palletnaam',
+    palletTypeLabel: 'Pallettype',
     currentStatus: 'Huidige status',
     changeLabel: 'Wijzig',
     changeStatus: 'Status wijzigen',
@@ -170,6 +183,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     clientEmpty: 'Geen klant',
     emptyStatus: 'Geen status',
     selectClient: 'Klant kiezen',
+    searchClientPlaceholder: 'Zoek klant',
+    noClientsFound: 'Geen klanten gevonden',
     scannedPallets: 'Gescande pallets',
     historyPallets: 'Palletgeschiedenis',
     showAll: 'Toon alles',
@@ -177,6 +192,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     statusUpdatedTitle: 'Status bijgewerkt',
     statusSavedDetailAtClient: 'De pallet staat nu bij de klant.',
     statusSavedDetailReturn: 'De pallet staat nu klaar voor retour.',
+    statusSavedDetailTransport: 'De pallet staat nu in transport.',
     statusSavedDetailWarehouse: 'De pallet staat nu in Bowido magazijn.',
     damageReportedTitle: 'Schade gemeld',
     damageReportedDetail: 'De schademelding is opgeslagen voor deze pallet.',
@@ -205,6 +221,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
   bs: {
     title: 'Skeniraj QR kod',
     resultLabel: 'Skenirana paleta',
+    palletNameLabel: 'Naziv palete',
+    palletTypeLabel: 'Tip palete',
     currentStatus: 'Trenutni status',
     changeLabel: 'Promijeni',
     changeStatus: 'Promijeni status',
@@ -217,6 +235,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     clientEmpty: 'Bez klijenta',
     emptyStatus: 'Bez statusa',
     selectClient: 'Odaberi klijenta',
+    searchClientPlaceholder: 'Pretraži klijenta',
+    noClientsFound: 'Nema pronađenih klijenata',
     scannedPallets: 'Skenirane palete',
     historyPallets: 'Historija paleta',
     showAll: 'Prikaži sve',
@@ -224,6 +244,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     statusUpdatedTitle: 'Status ažuriran',
     statusSavedDetailAtClient: 'Paleta je označena kod klijenta.',
     statusSavedDetailReturn: 'Paleta je označena za povrat.',
+    statusSavedDetailTransport: 'Paleta je označena u transportu.',
     statusSavedDetailWarehouse: 'Paleta je označena u Bowido magacinu.',
     damageReportedTitle: 'Šteta prijavljena',
     damageReportedDetail: 'Prijava štete je sačuvana za ovu paletu.',
@@ -308,6 +329,74 @@ const driverReturnWindowCopy = {
   },
 } as const;
 
+const driverTransportWindowCopy = {
+  en: {
+    startedAt: 'Started',
+    dueBy: 'Due by',
+    laneBihToNl: 'BiH -> NL',
+    laneNlToBih: 'NL -> BiH',
+  },
+  nl: {
+    startedAt: 'Gestart',
+    dueBy: 'Af te ronden voor',
+    laneBihToNl: 'BiH -> NL',
+    laneNlToBih: 'NL -> BiH',
+  },
+  bs: {
+    startedAt: 'Početak',
+    dueBy: 'Završiti do',
+    laneBihToNl: 'BiH -> NL',
+    laneNlToBih: 'NL -> BiH',
+  },
+} as const;
+
+const clientLinkedStatusIds = [4, 5];
+const transportStatusIds = [2, 6];
+
+const getPalletColorTheme = (type: string) => {
+  const normalizedType = type.trim().toLowerCase();
+
+  if (normalizedType === 'siva' || normalizedType === 'grijs') {
+    return {
+      surface: 'bg-white/92 dark:bg-[#1a3327]/92',
+      softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
+      strongSurface: 'bg-slate-200/70 dark:bg-slate-700/45',
+      border: 'border-slate-300/80 dark:border-slate-400/28',
+      label: 'text-slate-600 dark:text-slate-300',
+      heading: 'text-slate-900 dark:text-white',
+      body: 'text-slate-700 dark:text-slate-200',
+      button: 'bg-slate-200/88 text-slate-700 dark:bg-slate-700/55 dark:text-slate-100',
+      buttonHover: 'hover:text-slate-900 dark:hover:text-white',
+    };
+  }
+
+  if (/^l\s*paleta/i.test(type)) {
+    return {
+      surface: 'bg-white/92 dark:bg-[#1a3327]/92',
+      softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
+      strongSurface: 'bg-sky-200/70 dark:bg-sky-900/38',
+      border: 'border-sky-300/80 dark:border-sky-400/28',
+      label: 'text-sky-700 dark:text-sky-200',
+      heading: 'text-sky-950 dark:text-white',
+      body: 'text-sky-800 dark:text-sky-100',
+      button: 'bg-sky-200/90 text-sky-800 dark:bg-sky-900/45 dark:text-sky-100',
+      buttonHover: 'hover:text-sky-950 dark:hover:text-white',
+    };
+  }
+
+  return {
+    surface: 'bg-white/92 dark:bg-[#1a3327]/92',
+    softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
+    strongSurface: 'bg-white/90 dark:bg-[#1a3327]/92',
+    border: 'border-emerald-300/75 dark:border-emerald-400/28',
+    label: 'text-emerald-600 dark:text-emerald-200',
+    heading: 'text-emerald-950 dark:text-white',
+    body: 'text-emerald-700 dark:text-emerald-100',
+    button: 'bg-emerald-50 text-emerald-700 dark:bg-white/10 dark:text-emerald-100',
+    buttonHover: 'hover:text-emerald-900 dark:hover:text-white',
+  };
+};
+
 export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {
   const { pallets, clients, updatePalletStatus, statuses, language } = useApp();
   const [demoPallets, setDemoPallets] = useState<Pallet[]>([]);
@@ -325,6 +414,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [isEditingAlternateAddress, setIsEditingAlternateAddress] = useState(false);
   const [draftStatusId, setDraftStatusId] = useState<number>(4);
   const [draftClientId, setDraftClientId] = useState<number | undefined>(undefined);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [draftLocationMode, setDraftLocationMode] = useState<DriverLocationMode>('warehouse_1');
   const [manualLocationInput, setManualLocationInput] = useState('');
   const [cameraState, setCameraState] = useState<CameraState>('loading');
@@ -358,7 +448,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const selectedPallet = selectedPalletId
     ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
     : null;
-  const driverStatusOptions = [4, 3, 1, 5]
+  const driverStatusOptions = [4, 5, 2, 6, 3, 1]
     .map((statusId) => statuses.find((item) => item.id === statusId))
     .filter((status): status is NonNullable<typeof status> => Boolean(status));
   const scannedPallets = scannedPalletIds
@@ -372,7 +462,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const changeTriggerClass =
     'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
   const getVisibleClientName = (statusId: number, clientName?: string) =>
-    statusId === 4 ? clientName || text.clientEmpty : null;
+    clientLinkedStatusIds.includes(statusId) ? clientName || text.clientEmpty : null;
   const getDriverStatusLabel = (statusName?: string) => {
     if (!statusName) {
       return text.emptyStatus;
@@ -391,11 +481,27 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     if (statusName === 'Voor retour') {
+      if (language === 'bs') {
+        return 'Za povrat';
+      }
+
+      if (language === 'en') {
+        return 'Ready for return';
+      }
+
       return 'Voor retour';
     }
 
     if (statusName === 'Bowido BIH') {
       return 'Bowido BIH';
+    }
+
+    if (statusName === 'Transport BiH/NL') {
+      return 'Transport BIH -> NL';
+    }
+
+    if (statusName === 'Transport (NL/BiH)') {
+      return 'Transport NL -> BIH';
     }
 
     if (statusName === 'Bowido(NL)') {
@@ -425,10 +531,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         return { label: text.warehouseDefault, address: directory.warehouse1 };
     }
   };
-  const activeLocationClientId = draftStatusId === 4 ? draftClientId : undefined;
+  const activeLocationClientId = clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined;
   const selectedLocationMeta = getLocationMeta(draftLocationMode, activeLocationClientId);
   const selectedClientName =
-    draftStatusId === 4
+    clientLinkedStatusIds.includes(draftStatusId)
       ? clients.find((client) => client.user_id === draftClientId)?.name ||
         selectedPallet?.client_name ||
         text.clientEmpty
@@ -436,6 +542,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const isAndroidDevice =
     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
   const returnWindowText = driverReturnWindowCopy[language] || driverReturnWindowCopy.en;
+  const transportWindowText = driverTransportWindowCopy[language] || driverTransportWindowCopy.en;
   const getClientReturnInfo = (pallet: Pallet | null, clientId?: number) => {
     if (!pallet || !clientId) {
       return null;
@@ -475,7 +582,68 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       isOverdue,
     };
   };
-  const clientReturnInfo = getClientReturnInfo(selectedPallet, draftStatusId === 4 ? draftClientId : undefined);
+  const getTransportWindowInfo = (pallet: Pallet | null) => {
+    if (!pallet || !transportStatusIds.includes(pallet.current_status_id)) {
+      return null;
+    }
+
+    const transportStatus = statuses.find((item) => item.id === pallet.current_status_id);
+    const counterDays = transportStatus?.grace_period_days || 3;
+    const startedAt = new Date(pallet.last_status_changed_at);
+    const startedAtMidnight = new Date(
+      startedAt.getFullYear(),
+      startedAt.getMonth(),
+      startedAt.getDate()
+    );
+    const today = new Date();
+    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysInTransport = Math.max(
+      0,
+      Math.floor((todayAtMidnight.getTime() - startedAtMidnight.getTime()) / msPerDay)
+    );
+    const dueDate = new Date(startedAtMidnight);
+    dueDate.setDate(dueDate.getDate() + counterDays);
+    const remainingDays = counterDays - daysInTransport;
+    const isOverdue = remainingDays < 0;
+    const dateFormatter = new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+
+    return {
+      laneLabel:
+        pallet.current_status_id === 2
+          ? transportWindowText.laneBihToNl
+          : transportWindowText.laneNlToBih,
+      startedAtLabel: dateFormatter.format(startedAt),
+      dueDateLabel: dateFormatter.format(dueDate),
+      deadlineText: isOverdue
+        ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
+        : `${remainingDays} ${returnWindowText.daysLeft}`,
+      isOverdue,
+    };
+  };
+  const clientReturnInfo =
+    selectedPallet?.current_status_id === 4
+      ? getClientReturnInfo(selectedPallet, selectedPallet.user_id)
+      : null;
+  const transportWindowInfo = getTransportWindowInfo(selectedPallet);
+  const selectedPalletTheme = getPalletColorTheme(selectedPallet?.type || '');
+  const filteredClients = clients.filter((client) => {
+    const query = clientSearchTerm.trim().toLowerCase();
+
+    if (!query) {
+      return true;
+    }
+
+    return (
+      client.name.toLowerCase().includes(query) ||
+      client.country.toLowerCase().includes(query) ||
+      client.user_id.toString().includes(query)
+    );
+  });
   const changeModalTitle =
     openChangeMenu === 'status'
       ? text.changeStatus
@@ -499,8 +667,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     setOpenChangeMenu(null);
-    setDraftStatusId([1, 3, 4, 5].includes(selectedPallet.current_status_id) ? selectedPallet.current_status_id : 0);
+    setDraftStatusId(
+      [1, 2, 3, 4, 5, 6].includes(selectedPallet.current_status_id)
+        ? selectedPallet.current_status_id
+        : 0
+    );
     setDraftClientId(selectedPallet.user_id);
+    setClientSearchTerm('');
     const nextLocationMode = inferLocationModeFromAddress(
       selectedPallet.current_location,
       selectedPallet.user_id
@@ -522,6 +695,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     setActiveScannedPalletId(scannedPallets[0].id);
   }, [activeScannedPalletId, scannedPallets]);
+
+  useEffect(() => {
+    if (openChangeMenu === 'client') {
+      setClientSearchTerm('');
+    }
+  }, [openChangeMenu]);
 
   useEffect(() => {
     return () => {
@@ -606,7 +785,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     qr_code: rawValue.trim() || `DEMO-${Math.abs(nextDemoPalletIdRef.current)}`,
     current_status_id: 0,
     current_status_name: '',
-    type: 'Kraksna (Standard)',
+    type: 'Siva',
     current_location: defaultWarehouseDirectory.warehouse1,
     is_ghost: false,
     is_active: true,
@@ -860,13 +1039,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     clientId?: number,
     nextLocation = selectedLocationMeta.address
   ) => {
-    if (!selectedPallet || (nextStatusId === 4 && !clientId)) {
+    if (
+      !selectedPallet ||
+      (clientLinkedStatusIds.includes(nextStatusId) && !clientId && !selectedPallet.user_id)
+    ) {
       return;
     }
 
     const nextStatusName = statuses.find((item) => item.id === nextStatusId)?.name || '';
-    const nextClientName = clientId
-      ? clients.find((client) => client.user_id === clientId)?.name
+    const preserveClientAssignment = clientLinkedStatusIds.includes(nextStatusId);
+    const nextClientId = preserveClientAssignment ? clientId ?? selectedPallet.user_id : undefined;
+    const nextClientName = nextClientId
+      ? clients.find((client) => client.user_id === nextClientId)?.name || selectedPallet.client_name
       : undefined;
     const isDemoPallet = selectedPallet.id < 0;
 
@@ -883,8 +1067,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             current_status_name: nextStatusName,
             current_location: nextLocation,
             last_status_changed_at: new Date().toISOString(),
-            user_id: nextStatusId === 4 ? clientId : undefined,
-            client_name: nextStatusId === 4 ? nextClientName : undefined,
+            user_id: nextClientId,
+            client_name: nextClientName,
           };
         })
       );
@@ -899,8 +1083,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           ? 'Driver marked pallet as Bij de klant.'
           : nextStatusId === 5
             ? 'Driver marked pallet as Voor retour.'
+            : transportStatusIds.includes(nextStatusId)
+              ? 'Driver marked pallet in transport.'
             : 'Driver marked pallet in Bowido warehouse.',
-        nextStatusId === 4 ? clientId : undefined
+        nextClientId
       );
     }
 
@@ -910,6 +1096,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         ? text.statusSavedDetailAtClient
         : nextStatusId === 5
           ? text.statusSavedDetailReturn
+          : transportStatusIds.includes(nextStatusId)
+            ? text.statusSavedDetailTransport
           : text.statusSavedDetailWarehouse,
       'success'
     );
@@ -918,24 +1106,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const handleStatusSelection = (statusId: number) => {
     setOpenChangeMenu(null);
     setDraftStatusId(statusId);
-    const nextLocationClientId = statusId === 4 ? draftClientId : undefined;
+    const nextClientId = clientLinkedStatusIds.includes(statusId)
+      ? draftClientId ?? selectedPallet?.user_id
+      : undefined;
+    const nextLocationClientId = clientLinkedStatusIds.includes(statusId) ? nextClientId : undefined;
     const nextLocation = getLocationMeta(
       draftLocationMode,
       nextLocationClientId,
       manualLocationInput
     ).address;
 
-    if (statusId === 5 || statusId === 1 || statusId === 3) {
-      persistDriverStatus(statusId, undefined, nextLocation);
+    if (clientLinkedStatusIds.includes(statusId) && !nextClientId) {
+      setOpenChangeMenu('client');
       return;
     }
 
-    if (draftClientId) {
-      persistDriverStatus(4, draftClientId, nextLocation);
-      return;
-    }
-
-    setOpenChangeMenu('client');
+    persistDriverStatus(statusId, nextClientId, nextLocation);
   };
 
   const handleClientSelection = (value: string) => {
@@ -943,9 +1129,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setOpenChangeMenu(null);
     setDraftClientId(nextClientId);
 
-    if (draftStatusId === 4 && nextClientId) {
+    if (clientLinkedStatusIds.includes(draftStatusId) && nextClientId) {
       const nextLocation = getLocationMeta(draftLocationMode, nextClientId, manualLocationInput).address;
-      persistDriverStatus(4, nextClientId, nextLocation);
+      persistDriverStatus(draftStatusId, nextClientId, nextLocation);
     }
   };
 
@@ -957,7 +1143,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     const nextLocation = getLocationMeta(mode, activeLocationClientId).address;
 
     if (selectedPallet) {
-      persistDriverStatus(draftStatusId, draftStatusId === 4 ? draftClientId : undefined, nextLocation);
+      persistDriverStatus(
+        draftStatusId,
+        clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined,
+        nextLocation
+      );
     }
   };
 
@@ -975,7 +1165,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setManualLocationInput(nextLocation);
 
     if (selectedPallet) {
-      persistDriverStatus(draftStatusId, draftStatusId === 4 ? draftClientId : undefined, nextLocation);
+      persistDriverStatus(
+        draftStatusId,
+        clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined,
+        nextLocation
+      );
     }
   };
 
@@ -1117,8 +1311,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   return (
     <div
       className={cn(
-        'mx-auto flex h-full min-h-0 w-full max-w-md flex-col gap-4',
-        isScannerOpen ? 'pb-0' : 'pb-[5.45rem]'
+        'mx-auto flex min-h-[calc(100dvh-6rem)] w-full max-w-md flex-col',
+        isScannerOpen ? 'gap-4 pb-0' : 'gap-2 pb-[5.45rem]'
       )}
     >
       {isScannerOpen && (
@@ -1243,54 +1437,75 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="mx-auto flex h-full min-h-0 w-full max-w-[25rem] flex-col justify-between pt-1"
+            className="mx-auto flex h-[calc(100dvh-11.35rem)] min-h-0 w-full max-w-[24rem] flex-col justify-between overflow-hidden pt-1"
           >
-            <Card noPadding className="mx-auto flex h-full w-full flex-col overflow-visible border-transparent bg-transparent shadow-none">
-              <div
-                className={cn(
-                  'flex min-h-0 flex-1 flex-col px-5 pb-5 pt-1',
-                  !selectedClientName && 'justify-between'
-                )}
-              >
-                <div className="text-center">
-                  <p className="text-[1.2rem] font-black uppercase tracking-[0.12em] text-emerald-900 dark:text-white">
-                    {selectedPallet.qr_code}
-                  </p>
+            <Card noPadding className="mx-auto flex h-full w-full flex-col overflow-hidden border-transparent bg-transparent shadow-none">
+              <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-1">
+                <div
+                  className={cn(
+                    'min-h-[11.6rem] rounded-[1.45rem] border px-4 py-4',
+                    selectedPalletTheme.surface,
+                    selectedPalletTheme.border
+                  )}
+                >
+                  <div className="grid grid-cols-2 gap-4 text-left">
+                    <div className="min-w-0">
+                      <p className={cn('text-[10px] font-black uppercase tracking-[0.16em]', selectedPalletTheme.label)}>
+                        {text.palletNameLabel}
+                      </p>
+                      <p className={cn('mt-1 break-words text-[1.06rem] font-black uppercase leading-5 tracking-[0.08em]', selectedPalletTheme.heading)}>
+                        {selectedPallet.qr_code}
+                      </p>
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <p className={cn('text-[10px] font-black uppercase tracking-[0.16em]', selectedPalletTheme.label)}>
+                        {text.palletTypeLabel}
+                      </p>
+                      <p className={cn('mt-1 break-words text-[1.06rem] font-black uppercase leading-5 tracking-[0.08em]', selectedPalletTheme.body)}>
+                        {getPalletTypeLabel(selectedPallet.type, language)}
+                      </p>
+                    </div>
+                  </div>
                   {clientReturnInfo && (
-                    <div className="mx-auto mt-3 grid w-full max-w-[22rem] grid-cols-3 items-start justify-items-center gap-3 text-center">
+                    <div
+                      className={cn(
+                        'mx-auto mt-3 grid w-full max-w-[20rem] grid-cols-3 items-start justify-items-center gap-2.5 rounded-[1rem] px-3 py-2.5 text-center',
+                        selectedPalletTheme.softSurface
+                      )}
+                    >
                       <div className="flex min-w-0 flex-col items-center">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                        <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                           {returnWindowText.sentAt}
                         </p>
-                        <p className="mt-1.5 text-[14px] font-black tracking-tight text-emerald-950 dark:text-white">
+                        <p className={cn('mt-1 text-[12px] font-black tracking-tight', selectedPalletTheme.heading)}>
                           {clientReturnInfo.sentAtLabel}
                         </p>
                       </div>
                       <div className="flex min-w-0 flex-col items-center">
-                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                        <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                           {returnWindowText.returnDue}
                         </p>
-                        <p className="mt-1.5 text-[14px] font-black tracking-tight text-emerald-950 dark:text-white">
+                        <p className={cn('mt-1 text-[12px] font-black tracking-tight', selectedPalletTheme.heading)}>
                           {clientReturnInfo.dueDateLabel}
                         </p>
                       </div>
                       <div className="flex min-w-0 flex-col items-center">
                         <p
                           className={cn(
-                            'text-[10px] font-black uppercase tracking-[0.16em]',
+                            'text-[9px] font-black uppercase tracking-[0.14em]',
                             clientReturnInfo.isOverdue
                               ? 'text-rose-600 dark:text-rose-200'
-                              : 'text-emerald-600 dark:text-emerald-200'
+                              : selectedPalletTheme.label
                           )}
                         >
                           {returnWindowText.deadlineStatus}
                         </p>
                         <p
                           className={cn(
-                            'mt-1.5 whitespace-nowrap text-center text-[13px] font-black tracking-tight',
+                            'mt-1 text-center text-[11px] font-black leading-4 tracking-tight',
                             clientReturnInfo.isOverdue
                               ? 'text-rose-700 dark:text-rose-100'
-                              : 'text-emerald-950 dark:text-white'
+                              : selectedPalletTheme.heading
                           )}
                         >
                           {clientReturnInfo.deadlineText}
@@ -1298,47 +1513,99 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       </div>
                     </div>
                   )}
+                  {transportWindowInfo && (
+                    <div
+                      className={cn(
+                        'mx-auto mt-3 w-full max-w-[20rem] rounded-[1rem] px-3 py-2.5',
+                        selectedPalletTheme.softSurface
+                      )}
+                    >
+                      <p className={cn('text-[10px] font-black uppercase tracking-[0.16em] text-center', selectedPalletTheme.label)}>
+                        {transportWindowInfo.laneLabel}
+                      </p>
+                      <div className="mt-2 grid grid-cols-3 items-start justify-items-center gap-2.5 text-center">
+                        <div className="flex min-w-0 flex-col items-center">
+                          <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                            {transportWindowText.startedAt}
+                          </p>
+                          <p className={cn('mt-1 text-[12px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                            {transportWindowInfo.startedAtLabel}
+                          </p>
+                        </div>
+                        <div className="flex min-w-0 flex-col items-center">
+                          <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                            {transportWindowText.dueBy}
+                          </p>
+                          <p className={cn('mt-1 text-[12px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                            {transportWindowInfo.dueDateLabel}
+                          </p>
+                        </div>
+                        <div className="flex min-w-0 flex-col items-center">
+                          <p
+                            className={cn(
+                              'text-[9px] font-black uppercase tracking-[0.14em]',
+                              transportWindowInfo.isOverdue
+                                ? 'text-rose-600 dark:text-rose-200'
+                                : selectedPalletTheme.label
+                            )}
+                          >
+                            {returnWindowText.deadlineStatus}
+                          </p>
+                          <p
+                            className={cn(
+                              'mt-1 text-center text-[11px] font-black leading-4 tracking-tight',
+                              transportWindowInfo.isOverdue
+                                ? 'text-rose-700 dark:text-rose-100'
+                                : selectedPalletTheme.heading
+                            )}
+                          >
+                            {transportWindowInfo.deadlineText}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div
-                  className={cn(
-                    'relative rounded-[2.15rem] bg-white/90 px-7 text-center dark:bg-[#1a3327]/92',
-                    selectedClientName ? 'mt-5 py-8' : 'mt-6 py-9'
-                  )}
-                >
-                  <p className="text-[15px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-200">
-                    {text.currentStatus}
-                  </p>
-                  <p className="mt-3.5 text-[3.75rem] font-black uppercase leading-[0.9] tracking-[-0.07em] text-emerald-950 dark:text-white">
-                    {getDriverStatusLabel(selectedPallet.current_status_name)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setOpenChangeMenu((current) => (current === 'status' ? null : 'status'))}
-                    className={cn(changeTriggerClass, 'mt-4 h-12 px-5 text-[13px]')}
+                <div className="mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
+                  <div
+                    className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-5 py-5 text-center dark:bg-[#1a3327]/92"
                   >
-                    {text.changeStatus}
-                    <ChevronDown
-                      size={14}
-                      className={cn('transition-transform', openChangeMenu === 'status' && 'rotate-180')}
-                    />
-                  </button>
-                </div>
+                    <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                      {text.currentStatus}
+                    </p>
+                    <p className="mt-3 break-words text-[2.65rem] font-black uppercase leading-[0.94] tracking-[-0.05em] text-emerald-950 dark:text-white">
+                      {getDriverStatusLabel(selectedPallet.current_status_name)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setOpenChangeMenu((current) => (current === 'status' ? null : 'status'))}
+                      className={cn(changeTriggerClass, 'mt-3 h-10 self-center px-4 text-[12px]')}
+                    >
+                      {text.changeStatus}
+                      <ChevronDown
+                        size={14}
+                        className={cn('transition-transform', openChangeMenu === 'status' && 'rotate-180')}
+                      />
+                    </button>
+                  </div>
 
-                <div
-                  className={cn(
-                    'text-left',
-                    selectedClientName ? 'mt-4 space-y-3' : 'mt-0 space-y-4'
-                  )}
-                >
+                  <div
+                    className={cn(
+                      'grid min-h-0 flex-[1.12] auto-rows-fr gap-2.5 text-left',
+                      selectedClientName ? 'grid-rows-[minmax(0,1fr)_minmax(0,1fr)]' : 'grid-rows-[minmax(0,1fr)]'
+                    )}
+                  >
                   {selectedClientName && (
-                    <div className="relative rounded-[1.6rem] bg-white/88 p-6 dark:bg-[#1a3327]/88">
+                    <div
+                      className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 p-4 dark:bg-[#1a3327]/88"
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                             {text.summaryClient}
                           </p>
-                          <p className="mt-1 text-[1.5rem] font-black leading-8 tracking-[-0.03em] text-emerald-950 dark:text-white">
+                          <p className="mt-1 break-words text-[1.1rem] font-black leading-5 tracking-[-0.02em] text-emerald-950 dark:text-white">
                             {selectedClientName}
                           </p>
                         </div>
@@ -1359,19 +1626,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
                   <div
                     className={cn(
-                      'relative rounded-[1.6rem] bg-white/88 dark:bg-[#1a3327]/88',
-                      selectedClientName ? 'p-6' : 'p-7'
+                      'relative rounded-[1.45rem] bg-white/88 dark:bg-[#1a3327]/88',
+                      selectedClientName ? 'p-4' : 'p-5'
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex h-full items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                           {text.summaryLocation}
                         </p>
-                        <p className="mt-1 text-[1.5rem] font-black leading-8 tracking-[-0.03em] text-emerald-950 dark:text-white">
+                        <p className="mt-1 break-words text-[1.1rem] font-black leading-5 tracking-[-0.02em] text-emerald-950 dark:text-white">
                           {selectedLocationMeta.label}
                         </p>
-                        <p className="mt-1 text-[17px] font-bold leading-7 text-zinc-600 dark:text-[#cce0d3]">
+                        <p className="mt-1 break-words text-[13px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
                           {selectedLocationMeta.address}
                         </p>
                       </div>
@@ -1389,6 +1656,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
 
               <input
@@ -1402,13 +1670,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               />
 
               {palletPhotoUrl && (
-                <div className="px-5 pb-4 pt-1">
-                  <div className="w-full overflow-hidden rounded-[1.7rem] bg-white p-2 dark:bg-[#1a3327]">
+                <div className="px-4 pb-3 pt-0.5">
+                  <div className="w-full overflow-hidden rounded-[1.45rem] bg-white p-2 dark:bg-[#1a3327]">
                     <div className="relative overflow-hidden rounded-[1.3rem] bg-emerald-50 dark:bg-[#203d31]">
                       <img
                         src={palletPhotoUrl}
                         alt={text.capturePalletPhoto}
-                        className="h-44 w-full object-cover"
+                        className="h-28 w-full object-cover"
                       />
                     </div>
                   </div>
@@ -1484,15 +1752,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               onClick={(event) => event.stopPropagation()}
               className="flex min-h-[24rem] w-full max-w-[26rem] flex-col justify-center overflow-hidden rounded-[2rem] bg-white dark:bg-[#172d22]"
             >
-              <div className="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
-                    {changeModalTitle}
-                  </p>
-                  <p className="mt-1 text-[15px] font-black uppercase tracking-[0.08em] text-emerald-950 dark:text-white">
-                    {selectedPallet.qr_code}
-                  </p>
-                </div>
+              <div
+                className={cn(
+                  'flex items-center justify-between',
+                  openChangeMenu === 'client' ? 'px-5 pb-1 pt-4' : 'px-5 py-4'
+                )}
+              >
+                {openChangeMenu === 'client' ? (
+                  <div />
+                ) : (
+                  <div>
+                    <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
+                      {changeModalTitle}
+                    </p>
+                    <p className="mt-1 text-[15px] font-black uppercase tracking-[0.08em] text-emerald-950 dark:text-white">
+                      {selectedPallet.qr_code}
+                    </p>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setOpenChangeMenu(null)}
@@ -1522,10 +1799,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </div>
               )}
 
-              {openChangeMenu === 'client' && draftStatusId === 4 && (
+              {openChangeMenu === 'client' && clientLinkedStatusIds.includes(draftStatusId) && (
                 <div className="p-5">
+                  <input
+                    type="text"
+                    value={clientSearchTerm}
+                    onChange={(event) => setClientSearchTerm(event.target.value)}
+                    placeholder={text.searchClientPlaceholder}
+                    className="mb-3 h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 px-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
+                  />
                   <div className="max-h-80 space-y-2.5 overflow-y-auto">
-                    {clients.map((client) => (
+                    {filteredClients.map((client) => (
                       <button
                         key={client.id}
                         type="button"
@@ -1537,9 +1821,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
                         )}
                       >
-                        {client.name}
+                        <div className="text-center">
+                          <p>{client.name}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-400">
+                            {client.country} / #{client.user_id}
+                          </p>
+                        </div>
                       </button>
                     ))}
+                    {filteredClients.length === 0 && (
+                      <div className="rounded-[1rem] border border-dashed border-emerald-100 bg-emerald-50/40 px-4 py-6 text-center text-[11px] font-black uppercase tracking-[0.12em] text-emerald-500 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-300">
+                        {text.noClientsFound}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1866,9 +2160,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   </div>
                 </div>
 
-                <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/60 p-4 dark:border-white/10 dark:bg-[#203d31]">
+                <div
+                  className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/60 p-4 dark:border-white/10 dark:bg-[#203d31]"
+                >
                   <p className="text-[1.25rem] font-black uppercase tracking-[-0.04em] text-emerald-950 dark:text-white">
                     {activeScannedPallet.qr_code}
+                  </p>
+                  <p className="mt-2 text-[0.85rem] font-black uppercase tracking-[0.02em] text-zinc-600 dark:text-[#cce0d3]">
+                    {getPalletTypeLabel(activeScannedPallet.type, language)}
                   </p>
 
                   <div className="mt-4 space-y-2.5">
@@ -1879,7 +2178,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       activeScannedPallet.current_status_id,
                       activeScannedPallet.client_name
                     ) && (
-                      <p className="text-[0.98rem] font-black leading-6 text-emerald-900 dark:text-emerald-100">
+                      <p className="text-[0.98rem] font-black leading-6 text-emerald-950 dark:text-white">
                         {getVisibleClientName(
                           activeScannedPallet.current_status_id,
                           activeScannedPallet.client_name

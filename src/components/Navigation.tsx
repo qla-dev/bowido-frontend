@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Users, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, Moon, Sun, UserCircle, Ghost, History
+  Bell, UserCircle, Ghost, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -61,8 +61,6 @@ interface SidebarProps {
 
 interface TopNavbarProps extends SidebarProps {
   user: User;
-  isNightMode: boolean;
-  onToggleNightMode: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -71,8 +69,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   role,
   user,
   onLogout,
-  isNightMode,
-  onToggleNightMode,
 }) => {
   const { t, language, setLanguage, notifications, markNotificationRead, setIsScannerOpen, setIsGhostReportOpen } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -317,15 +313,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               )}
             </AnimatePresence>
           </div>
-
-          <button
-            type="button"
-            title={t('nightMode')}
-            onClick={onToggleNightMode}
-          className="h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
-          >
-            {isNightMode ? <Sun size={19} /> : <Moon size={19} />}
-          </button>
 
           <button
             type="button"

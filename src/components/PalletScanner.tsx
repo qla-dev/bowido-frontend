@@ -23,7 +23,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
   const getAllowedStatusIds = () => {
     switch (currentUser.role_id) {
       case 2:
-        return [4, 5, 3];
+        return [4, 5, 2, 6, 3, 1];
       case 3:
         return [1, 2, 3, 4, 6, 7];
       case 5:

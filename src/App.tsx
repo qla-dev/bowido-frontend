@@ -14,7 +14,7 @@ import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { ManagedUser, RoleType, User } from './types';
 import { mockUsers } from './lib/mockData';
-import { LogIn, LogOut, Moon, Settings, Smartphone, Sun } from 'lucide-react';
+import { LogIn, LogOut, Settings, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card, Select, cn } from './components/ui';
@@ -206,7 +206,14 @@ export default function App() {
           settings: 'settings',
         };
         const view = adminTabsMap[activeTab] || 'overview';
-        return <AdminDashboard initialView={view} user={currentUser} />;
+        return (
+          <AdminDashboard
+            initialView={view}
+            user={currentUser}
+            isNightMode={isNightMode}
+            onToggleNightMode={() => setIsNightMode(!isNightMode)}
+          />
+        );
       }
       case RoleType.VOZAC:
         return <DriverMobileDashboard user={currentUser} />;
@@ -217,7 +224,13 @@ export default function App() {
       case RoleType.SERVISER:
         return <ServiceDashboard user={currentUser} />;
       default:
-        return <AdminDashboard />;
+        return (
+          <AdminDashboard
+            user={currentUser}
+            isNightMode={isNightMode}
+            onToggleNightMode={() => setIsNightMode(!isNightMode)}
+          />
+        );
     }
   };
 
@@ -246,14 +259,6 @@ export default function App() {
                 )}
               >
                 <Settings size={18} />
-              </button>
-              <button
-                type="button"
-                title={t('nightMode')}
-                onClick={() => setIsNightMode(!isNightMode)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-white text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100"
-              >
-                {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <button
                 type="button"
@@ -308,8 +313,6 @@ export default function App() {
         role={currentUser.role_name}
         user={currentUser}
         onLogout={handleLogout}
-        isNightMode={isNightMode}
-        onToggleNightMode={() => setIsNightMode(!isNightMode)}
       />
 
       <div className="flex flex-col md:flex-row min-h-screen pt-28 md:pt-16 bg-white dark:bg-transparent">
