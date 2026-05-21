@@ -1130,7 +1130,7 @@ export const translations = {
     filter: 'Filter',
     recipient: 'Ontvanger',
     palletLabel: 'Pallet',
-    palletType: 'Pallettype',
+    palletType: 'Type bok',
     overdueBreakdown: 'Achterstallige berekening',
     overdueDays: 'Dagen achterstallig',
     ratePerDayLabel: 'Tarief per dag',

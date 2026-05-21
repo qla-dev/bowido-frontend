@@ -284,7 +284,12 @@ export default function App() {
           </div>
         </header>
 
-        <main className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col px-4 py-4 dark:bg-transparent">
+        <main
+          className={cn(
+            'mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col py-4 dark:bg-transparent',
+            activeTab === 'settings' ? 'px-4' : 'px-0'
+          )}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={`${currentUser.id}-driver-mobile-${activeTab}`}
