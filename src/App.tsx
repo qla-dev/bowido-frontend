@@ -57,6 +57,13 @@ export default function App() {
   const [loginUsers, setLoginUsers] = useState<User[]>(mockUsers);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNightMode, setIsNightMode] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
 
   const loadLoginUsers = async () => {
     try {
@@ -71,6 +78,77 @@ export default function App() {
   useEffect(() => {
     void loadLoginUsers();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const syncMobileViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    syncMobileViewport();
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncMobileViewport);
+      return () => mediaQuery.removeEventListener('change', syncMobileViewport);
+    }
+
+    mediaQuery.addListener(syncMobileViewport);
+    return () => mediaQuery.removeListener(syncMobileViewport);
+  }, []);
+
+  const isDriverShell = currentUser?.role_name === RoleType.VOZAC;
+  const usesFixedMobileShell = Boolean(currentUser) && isMobileViewport && !isDriverShell;
+  const usesInternalScrollShell = Boolean(currentUser) && (isDriverShell || usesFixedMobileShell);
+
+  useEffect(() => {
+    if (!usesInternalScrollShell) {
+      return;
+    }
+
+    const root = document.documentElement;
+    root.classList.add('bowido-mobile-shell-active');
+
+    return () => {
+      root.classList.remove('bowido-mobile-shell-active');
+    };
+  }, [usesInternalScrollShell]);
+
+  useEffect(() => {
+    if (!usesInternalScrollShell) {
+      return;
+    }
+
+    const root = document.documentElement;
+    root.classList.add('bowido-ios-tint-refresh');
+
+    const rafId = window.requestAnimationFrame(() => {
+      root.classList.remove('bowido-ios-tint-refresh');
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      root.classList.remove('bowido-ios-tint-refresh');
+    };
+  }, [activeTab, currentUser?.id, usesInternalScrollShell]);
+
+  useEffect(() => {
+    if (!usesInternalScrollShell) {
+      return;
+    }
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [usesInternalScrollShell]);
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -234,15 +312,18 @@ export default function App() {
     }
   };
 
-  const isDriverShell = currentUser.role_name === RoleType.VOZAC;
-
   if (isDriverShell) {
     return (
       <div
         id="driver-app-container"
-        className={`min-h-screen bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#13241b] dark:text-white ${isNightMode ? 'dark' : ''}`}
+        className={cn(
+          'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#13241b] dark:text-white',
+          isNightMode && 'dark',
+          'fixed inset-0 flex flex-col overflow-hidden'
+        )}
       >
-        <header className="sticky top-0 z-40 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
+        <div className="safari-tint-sentinel" aria-hidden="true" />
+        <header className="shrink-0 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
           <div className="mx-auto flex h-16 w-full max-w-md items-center justify-between px-4">
             <img src={logoImage} alt="Trackpal logo" className="h-6 w-auto" />
 
@@ -286,9 +367,10 @@ export default function App() {
 
         <main
           className={cn(
-            'mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-md flex-col py-4 dark:bg-transparent',
+            'mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-y-auto overscroll-y-contain py-4 no-scrollbar dark:bg-transparent',
             activeTab === 'settings' ? 'px-4' : 'px-0'
           )}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -310,8 +392,13 @@ export default function App() {
   return (
     <div
       id="app-container"
-      className={`min-h-screen bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors ${isNightMode ? 'dark' : ''}`}
+      className={cn(
+        'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors',
+        isNightMode && 'dark',
+        usesFixedMobileShell ? 'fixed inset-0 flex flex-col overflow-hidden' : 'min-h-screen'
+      )}
     >
+      <div className="safari-tint-sentinel" aria-hidden="true" />
       <TopNavbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -320,37 +407,50 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      <div className="flex flex-col md:flex-row min-h-screen pt-28 md:pt-16 bg-white dark:bg-transparent">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        role={currentUser.role_name} 
-        onLogout={handleLogout} 
-      />
+      <div
+        className={cn(
+          'flex flex-col md:flex-row bg-white dark:bg-transparent',
+          usesFixedMobileShell ? 'min-h-0 flex-1 pt-28' : 'min-h-screen pt-28 md:pt-16'
+        )}
+      >
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          role={currentUser.role_name} 
+          onLogout={handleLogout} 
+        />
       
-      <main className="flex-1 h-[calc(100vh-7rem)] md:h-[calc(100vh-4rem)] bg-white overflow-y-auto pb-28 md:pb-0 relative scroll-smooth no-scrollbar md:no-scrollbar dark:bg-transparent flex flex-col">
-        <div className="w-full flex-1 bg-white p-4 sm:p-5 md:p-6 lg:p-8 dark:bg-transparent">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${currentUser.id}-${activeTab}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-            >
-              {renderDashboard()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-        <AppFooter className="mt-auto" />
-      </main>
+        <main
+          className={cn(
+            'relative flex flex-1 flex-col bg-white dark:bg-transparent',
+            usesFixedMobileShell
+              ? 'min-h-0 overflow-y-auto overscroll-y-contain pb-[calc(env(safe-area-inset-bottom)+5.5rem)] scroll-smooth no-scrollbar'
+              : 'h-[calc(100vh-7rem)] overflow-y-auto pb-28 scroll-smooth no-scrollbar md:h-[calc(100vh-4rem)] md:pb-0'
+          )}
+          style={usesFixedMobileShell ? { WebkitOverflowScrolling: 'touch' } : undefined}
+        >
+          <div className="w-full flex-1 bg-white p-4 sm:p-5 md:p-6 lg:p-8 dark:bg-transparent">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${currentUser.id}-${activeTab}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                {renderDashboard()}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <AppFooter className="mt-auto" />
+        </main>
 
-      <BottomNav 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        role={currentUser.role_name} 
-        onLogout={handleLogout} 
-      />
+        <BottomNav 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          role={currentUser.role_name} 
+          onLogout={handleLogout} 
+        />
       </div>
 
       <AnimatePresence>

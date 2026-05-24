@@ -30,6 +30,13 @@
     transition: background-color 180ms ease, color 180ms ease;
   }
 
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    background-color: #fff;
+  }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   select,
@@ -528,4 +535,28 @@
 
 #app-container main .text-xl {
   font-size: 1.375rem !important;
+}
+
+.safari-tint-sentinel {
+  display: none;
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  height: 4px;
+  background: #fff;
+  pointer-events: none;
+  z-index: 999999;
+}
+
+.bowido-mobile-shell-active .safari-tint-sentinel {
+  display: block;
+  visibility: hidden;
+}
+
+.bowido-ios-tint-refresh #mobile-bottom-nav {
+  transform: translateZ(0);
+}
+
+#app-container.dark .safari-tint-sentinel {
+  background: #13241b;
 }

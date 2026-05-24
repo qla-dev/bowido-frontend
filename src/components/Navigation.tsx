@@ -588,17 +588,19 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
     return items;
   };
 
+  const navItems = getNavItems();
+
   return (
     <nav
       id="mobile-bottom-nav"
-      className="md:hidden fixed bottom-5 left-4 right-4 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-1.5 rounded-2xl flex justify-around items-center shadow-2xl shadow-zinc-200/70 z-50 overflow-hidden dark:border-white/10 dark:bg-[#172d22]/95 dark:shadow-black/40"
+      className="fixed inset-x-0 bottom-0 z-[60] flex min-h-16 items-start justify-around gap-1 overflow-hidden border-t border-zinc-200 bg-white/95 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] shadow-[0_-10px_30px_rgba(113,113,122,0.18)] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#172d22]/95 dark:shadow-black/40"
     >
-      {getNavItems().map((item) => (
+      {navItems.map((item) => (
         <button
           key={item.id}
           onClick={item.onClick || (() => setActiveTab(item.id))}
           className={cn(
-            "relative flex-1 flex flex-col items-center justify-center py-3 rounded-xl transition-all overflow-hidden",
+            "relative flex min-h-[3.5rem] flex-1 flex-col items-center justify-center overflow-hidden rounded-xl px-1 py-2.5 transition-all",
             item.isActive ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'
           )}
         >
@@ -612,7 +614,9 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
           <div className="relative z-10 shrink-0">
             {item.icon}
           </div>
-          <span className="relative z-10 text-[9px] mt-1 font-black uppercase tracking-tight">{item.label}</span>
+          <span className="relative z-10 mt-1 w-full truncate px-1 text-center text-[9px] font-black uppercase tracking-tight">
+            {item.label}
+          </span>
         </button>
       ))}
     </nav>

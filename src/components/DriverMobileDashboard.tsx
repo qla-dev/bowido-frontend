@@ -458,7 +458,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     scannedPallets.find((item) => item.id === activeScannedPalletId) || scannedPallets[0] || null;
   const damageTargetPallet = selectedPallet || activeScannedPallet;
   const actionButtonClass =
-    'flex h-full w-full items-center justify-center gap-2 rounded-[0.95rem] bg-[#00A655] px-4 text-center text-[0.83rem] font-black uppercase leading-[1.15] tracking-[0.06em] text-white transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100';
+    'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-emerald-600 transition-colors active:scale-[0.99] dark:text-emerald-300';
   const changeTriggerClass =
     'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
   const getVisibleClientName = (statusId: number, clientName?: string) =>
@@ -1370,12 +1370,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   return (
     <div
       className={cn(
-        'mx-auto flex min-h-[calc(100dvh-6rem)] w-full max-w-md flex-col',
-        isScannerOpen ? 'gap-4 pb-0' : 'gap-2 pb-[5.45rem]'
+        'mx-auto flex min-h-full w-full max-w-md flex-col',
+        isScannerOpen ? 'gap-4 pb-0' : 'gap-2 pb-[calc(env(safe-area-inset-bottom)+4.75rem)]'
       )}
     >
       {isScannerOpen && (
-        <div className="flex h-[calc(100dvh-11.5rem)] min-h-0 flex-col justify-start px-4 pb-1 pt-0 transition-all duration-500">
+        <div className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-1 pt-0 transition-all duration-500">
           <input
             ref={scanImageInputRef}
             type="file"
@@ -1496,10 +1496,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="mx-auto flex h-[calc(100dvh-11.35rem)] min-h-0 w-full max-w-md flex-col justify-between overflow-hidden pt-1"
+            className="mx-auto flex w-full max-w-md flex-col pt-1"
           >
-            <Card noPadding className="mx-auto flex h-full w-full flex-col overflow-hidden border-transparent bg-transparent shadow-none">
-              <div className="flex min-h-0 flex-1 flex-col px-0 pb-3 pt-1">
+            <Card noPadding className="mx-auto flex w-full flex-col border-transparent bg-transparent shadow-none">
+              <div className="flex flex-col px-0 pb-3 pt-1">
                 <DriverPalletSummaryCard
                   nameLabel={text.palletNameLabel}
                   code={selectedPallet.qr_code}
@@ -1788,15 +1788,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       </AnimatePresence>
 
       {(isScannerOpen || selectedPallet) && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-3">
-          <div className="pointer-events-auto h-16 w-full max-w-md">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
+          <div className="pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-zinc-200 bg-white/95 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-md shadow-[0_-10px_40px_rgba(161,161,170,0.18)] dark:border-white/10 dark:bg-[#172d22]/95 dark:shadow-black/40">
             {isScannerOpen ? (
               <div className="grid h-full grid-cols-1">
                 <button
                   type="button"
                   onClick={openScannedPalletsModal}
                   disabled={scannedPallets.length === 0}
-                  className={actionButtonClass}
+                  className={cn(
+                    actionButtonClass,
+                    scannedPallets.length === 0
+                      ? 'cursor-not-allowed text-zinc-400 active:scale-100 dark:text-zinc-500'
+                      : 'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                  )}
                 >
                   <History size={20} className="shrink-0" />
                   {text.historyPallets}
@@ -1805,13 +1810,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             ) : (
               <div
                 className={cn(
-                  'grid h-full gap-2',
+                  'grid h-full gap-1',
                   shouldShowPalletPhotoAction ? 'grid-cols-3' : 'grid-cols-2'
                 )}
               >
                 <button
                   type="button"
-                  className={cn(actionButtonClass, 'px-2.5 text-[0.72rem] leading-[1.05]')}
+                  className={cn(
+                    actionButtonClass,
+                    'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                  )}
                   onClick={handleScanNext}
                 >
                   <RefreshCcw size={20} className="shrink-0" />
@@ -1821,7 +1829,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   <button
                     type="button"
                     onClick={openPalletPhotoPicker}
-                    className={cn(actionButtonClass, 'px-2.5 text-[0.72rem] leading-[1.05]')}
+                    className={cn(
+                      actionButtonClass,
+                      'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                    )}
                   >
                     <Camera size={20} className="shrink-0" />
                     {text.capturePalletPhoto}
@@ -1831,7 +1842,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   type="button"
                   onClick={openDamageModal}
                   disabled={!damageTargetPallet}
-                  className={cn(actionButtonClass, 'px-2.5 text-[0.72rem] leading-[1.05]')}
+                  className={cn(
+                    actionButtonClass,
+                    damageTargetPallet
+                      ? 'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                      : 'cursor-not-allowed text-zinc-400 active:scale-100 dark:text-zinc-500'
+                  )}
                 >
                   <AlertTriangle size={20} className="shrink-0" />
                   {text.reportDamage}
