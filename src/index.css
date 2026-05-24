@@ -93,6 +93,67 @@
   }
 }
 
+html:has(.modal-overlay),
+html:has(.scanner-overlay),
+html:has([data-lock-scroll-modal="true"]),
+body:has(.modal-overlay),
+body:has(.scanner-overlay),
+body:has([data-lock-scroll-modal="true"]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root:has(.modal-overlay) #app-container main,
+#root:has(.scanner-overlay) #app-container main,
+#root:has([data-lock-scroll-modal="true"]) #app-container main,
+#root:has(.modal-overlay) #driver-app-container main,
+#root:has(.scanner-overlay) #driver-app-container main,
+#root:has([data-lock-scroll-modal="true"]) #driver-app-container main {
+  overflow: hidden !important;
+}
+
+.modal-overlay .text-\[9px\],
+.scanner-overlay .text-\[9px\],
+[data-lock-scroll-modal="true"] .text-\[9px\] {
+  font-size: 10px !important;
+}
+
+.modal-overlay .text-\[10px\],
+.scanner-overlay .text-\[10px\],
+[data-lock-scroll-modal="true"] .text-\[10px\] {
+  font-size: 11px !important;
+}
+
+.modal-overlay .text-\[11px\],
+.scanner-overlay .text-\[11px\],
+[data-lock-scroll-modal="true"] .text-\[11px\] {
+  font-size: 12px !important;
+}
+
+.modal-overlay .text-\[12px\],
+.scanner-overlay .text-\[12px\],
+[data-lock-scroll-modal="true"] .text-\[12px\] {
+  font-size: 13px !important;
+}
+
+.modal-overlay .text-\[13px\],
+.scanner-overlay .text-\[13px\],
+[data-lock-scroll-modal="true"] .text-\[13px\] {
+  font-size: 14px !important;
+}
+
+.modal-overlay .text-xs,
+.scanner-overlay .text-xs,
+[data-lock-scroll-modal="true"] .text-xs {
+  font-size: 0.875rem !important;
+}
+
+.modal-overlay .text-sm,
+.scanner-overlay .text-sm,
+[data-lock-scroll-modal="true"] .text-sm {
+  font-size: 0.975rem !important;
+}
+
 @layer utilities {
   .brand-primary {
     background-color: var(--brand);

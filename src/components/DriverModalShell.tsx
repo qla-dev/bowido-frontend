@@ -67,6 +67,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
 
   return (
     <motion.div
+      data-lock-scroll-modal="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

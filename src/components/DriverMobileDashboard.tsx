@@ -587,6 +587,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return {
         statusChangedAtLabel: dateFormatter.format(sentDate),
         dueDateLabel: null,
+        deadlineLabel: returnWindowText.deadlineStatus,
         deadlineText: null,
         isOverdue: false,
       };
@@ -608,8 +609,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     return {
       statusChangedAtLabel: dateFormatter.format(sentDate),
       dueDateLabel: dateFormatter.format(dueDate),
+      deadlineLabel: isOverdue ? returnWindowText.overdue : returnWindowText.deadlineStatus,
       deadlineText: isOverdue
-        ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
+        ? language === 'bs'
+          ? `${Math.abs(remainingDays)} dana`
+          : `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
         : `${remainingDays} ${returnWindowText.daysLeft}`,
       isOverdue,
     };
@@ -651,8 +655,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           : transportWindowText.laneNlToBih,
       startedAtLabel: dateFormatter.format(startedAt),
       dueDateLabel: dateFormatter.format(dueDate),
+      deadlineLabel: isOverdue ? returnWindowText.overdue : returnWindowText.deadlineStatus,
       deadlineText: isOverdue
-        ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
+        ? language === 'bs'
+          ? `${Math.abs(remainingDays)} dana`
+          : `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
         : `${remainingDays} ${returnWindowText.daysLeft}`,
       isOverdue,
     };
@@ -1528,11 +1535,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {clientStatusInfo && selectedPallet.current_status_id === 4 && (
                     <div
                       className={cn(
-                        'mt-3 grid w-full grid-cols-3 items-start justify-items-center gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0 text-center',
+                        'mt-3 grid w-full grid-cols-3 items-start gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0',
                         selectedPalletTheme.softSurface
                       )}
                     >
-                      <div className="flex min-w-0 flex-col items-center">
+                      <div className="flex min-w-0 w-full flex-col items-start text-left">
                         <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                           {returnWindowText.sentAt}
                         </p>
@@ -1540,7 +1547,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           {clientStatusInfo.statusChangedAtLabel}
                         </p>
                       </div>
-                      <div className="flex min-w-0 flex-col items-center">
+                      <div className="flex min-w-0 w-full flex-col items-center text-center">
                         <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                           {returnWindowText.returnDue}
                         </p>
@@ -1548,18 +1555,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           {clientStatusInfo.dueDateLabel}
                         </p>
                       </div>
-                      <div className="flex min-w-0 flex-col items-center">
+                      <div className="flex min-w-0 w-full flex-col items-end text-right">
                         <p
                           className={cn(
                             'text-[10px] font-black uppercase tracking-[0.14em]',
                             selectedPalletTheme.label
                           )}
                         >
-                          {returnWindowText.deadlineStatus}
+                          {clientStatusInfo.deadlineLabel}
                         </p>
                         <p
                           className={cn(
-                            'mt-1 text-center text-[12px] font-black leading-4 tracking-tight',
+                            'mt-1 text-right text-[12px] font-black leading-4 tracking-tight',
                             clientStatusInfo.isOverdue
                               ? 'text-rose-700 dark:text-rose-100'
                               : selectedPalletTheme.heading
@@ -1594,8 +1601,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         selectedPalletTheme.softSurface
                       )}
                     >
-                      <div className="grid grid-cols-3 items-start justify-items-center gap-2.5 text-center">
-                        <div className="flex min-w-0 flex-col items-center">
+                      <div className="grid grid-cols-3 items-start gap-2.5">
+                        <div className="flex min-w-0 w-full flex-col items-start text-left">
                           <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                             {transportWindowText.startedAt}
                           </p>
@@ -1603,7 +1610,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {transportWindowInfo.startedAtLabel}
                           </p>
                         </div>
-                        <div className="flex min-w-0 flex-col items-center">
+                        <div className="flex min-w-0 w-full flex-col items-center text-center">
                           <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                             {transportWindowText.dueBy}
                           </p>
@@ -1611,18 +1618,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {transportWindowInfo.dueDateLabel}
                           </p>
                         </div>
-                        <div className="flex min-w-0 flex-col items-center">
+                        <div className="flex min-w-0 w-full flex-col items-end text-right">
                           <p
                             className={cn(
                               'text-[10px] font-black uppercase tracking-[0.14em]',
                               selectedPalletTheme.label
                             )}
                           >
-                            {returnWindowText.deadlineStatus}
+                            {transportWindowInfo.deadlineLabel}
                           </p>
                           <p
                             className={cn(
-                              'mt-1 text-center text-[12px] font-black leading-4 tracking-tight',
+                              'mt-1 text-right text-[12px] font-black leading-4 tracking-tight',
                               transportWindowInfo.isOverdue
                                 ? 'text-rose-700 dark:text-rose-100'
                                 : selectedPalletTheme.heading
