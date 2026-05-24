@@ -458,7 +458,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     scannedPallets.find((item) => item.id === activeScannedPalletId) || scannedPallets[0] || null;
   const damageTargetPallet = selectedPallet || activeScannedPallet;
   const actionButtonClass =
-    'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-emerald-600 transition-colors active:scale-[0.99] dark:text-emerald-300';
+    'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-white transition-colors active:scale-[0.99]';
   const changeTriggerClass =
     'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
   const getVisibleClientName = (statusId: number, clientName?: string) =>
@@ -1511,7 +1511,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {isCheckInStatus && (
                     <div
                       className={cn(
-                        'mt-3 flex w-full justify-center rounded-[1rem] px-4 py-2.5 text-center',
+                        'mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center',
                         selectedPalletTheme.softSurface
                       )}
                     >
@@ -1528,7 +1528,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {clientStatusInfo && selectedPallet.current_status_id === 4 && (
                     <div
                       className={cn(
-                        'mt-3 grid w-full grid-cols-3 items-start justify-items-center gap-2.5 rounded-[1rem] px-4 py-2.5 text-center',
+                        'mt-3 grid w-full grid-cols-3 items-start justify-items-center gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0 text-center',
                         selectedPalletTheme.softSurface
                       )}
                     >
@@ -1573,7 +1573,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {clientStatusInfo && selectedPallet.current_status_id === 5 && (
                     <div
                       className={cn(
-                        'mt-3 flex w-full justify-center rounded-[1rem] px-4 py-2.5 text-center',
+                        'mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center',
                         selectedPalletTheme.softSurface
                       )}
                     >
@@ -1590,7 +1590,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {transportWindowInfo && (
                     <div
                       className={cn(
-                        'mt-3 w-full rounded-[1rem] px-4 py-2.5',
+                        'mt-3 w-full rounded-[1rem] px-0 pt-2.5 pb-0',
                         selectedPalletTheme.softSurface
                       )}
                     >
@@ -1638,7 +1638,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
                 <div className="mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
                   <div
-                    className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 py-5 text-center dark:bg-[#1a3327]/92"
+                    className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#1a3327]/92"
                   >
                     <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                       {text.currentStatus}
@@ -1789,7 +1789,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
       {(isScannerOpen || selectedPallet) && (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
-          <div className="pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-zinc-200 bg-white/95 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-md shadow-[0_-10px_40px_rgba(161,161,170,0.18)] dark:border-white/10 dark:bg-[#172d22]/95 dark:shadow-black/40">
+          <div className="pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-white/15 bg-[#00A655]/92 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-xl shadow-[0_-12px_36px_rgba(0,166,85,0.35)]">
             {isScannerOpen ? (
               <div className="grid h-full grid-cols-1">
                 <button
@@ -1799,8 +1799,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   className={cn(
                     actionButtonClass,
                     scannedPallets.length === 0
-                      ? 'cursor-not-allowed text-zinc-400 active:scale-100 dark:text-zinc-500'
-                      : 'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                      ? 'cursor-not-allowed text-white/45 active:scale-100'
+                      : 'hover:bg-white/10 hover:text-white'
                   )}
                 >
                   <History size={20} className="shrink-0" />
@@ -1818,7 +1818,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   type="button"
                   className={cn(
                     actionButtonClass,
-                    'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                    'hover:bg-white/10 hover:text-white'
                   )}
                   onClick={handleScanNext}
                 >
@@ -1831,7 +1831,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     onClick={openPalletPhotoPicker}
                     className={cn(
                       actionButtonClass,
-                      'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
+                      'hover:bg-white/10 hover:text-white'
                     )}
                   >
                     <Camera size={20} className="shrink-0" />
@@ -1845,8 +1845,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   className={cn(
                     actionButtonClass,
                     damageTargetPallet
-                      ? 'hover:bg-emerald-50/80 hover:text-emerald-700 dark:hover:bg-white/5 dark:hover:text-emerald-200'
-                      : 'cursor-not-allowed text-zinc-400 active:scale-100 dark:text-zinc-500'
+                      ? 'hover:bg-white/10 hover:text-white'
+                      : 'cursor-not-allowed text-white/45 active:scale-100'
                   )}
                 >
                   <AlertTriangle size={20} className="shrink-0" />
