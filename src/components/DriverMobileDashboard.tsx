@@ -5,7 +5,7 @@ import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Badge, Card, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
-import { getPalletTypeLabel } from '../i18n';
+import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -31,8 +31,8 @@ type OpenChangeMenu = 'client' | 'status' | 'location' | null;
 type DriverLocationMode = 'warehouse_1' | 'warehouse_2' | 'driver_current' | 'manual';
 
 const defaultWarehouseDirectory = {
-  warehouse1: 'Maxwellstraat 2-4 3316 GP Dordecht',
-  warehouse2: 'Nikole Tesle 71, Doboj 74000',
+  warehouse1: 'Maxwellstraat 2-4, 3316 GP Dordrecht',
+  warehouse2: 'Nikole Tesle 71',
   driverCurrent: 'Flight Forum 240, Eindhoven',
 };
 
@@ -89,6 +89,7 @@ type DriverCopy = {
   statusSavedDetailReturn: string;
   statusSavedDetailTransport: string;
   statusSavedDetailWarehouse: string;
+  statusSavedDetailRepair: string;
   damageReportedTitle: string;
   damageReportedDetail: string;
   damageModalTitle: string;
@@ -118,8 +119,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
   en: {
     title: 'Scan QR code',
     resultLabel: 'Scanned pallet',
-    palletNameLabel: 'Pallet name',
-    palletTypeLabel: 'Pallet type',
+    palletNameLabel: 'Pallet',
+    palletTypeLabel: 'Type',
     currentStatus: 'Current status',
     changeLabel: 'Change',
     changeStatus: 'Change status',
@@ -143,6 +144,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     statusSavedDetailReturn: 'The pallet is marked ready for return.',
     statusSavedDetailTransport: 'The pallet is marked in transport.',
     statusSavedDetailWarehouse: 'The pallet is marked at Bowido warehouse.',
+    statusSavedDetailRepair: 'The pallet is marked in repair.',
     damageReportedTitle: 'Damage reported',
     damageReportedDetail: 'The damage report is saved for this pallet.',
     damageModalTitle: 'Report damage',
@@ -165,13 +167,13 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     useCurrentLocation: 'Current location',
     manualLocation: 'Manual search',
     manualLocationPlaceholder: 'Enter new address',
-    applyLocation: 'Set',
+    applyLocation: 'Select',
   },
   nl: {
     title: 'Scan QR-code',
-    resultLabel: 'Gescande pallet',
+    resultLabel: 'Gescande bok',
     palletNameLabel: 'Boknummer',
-    palletTypeLabel: 'Type bok',
+    palletTypeLabel: 'Type',
     currentStatus: 'Huidige status',
     changeLabel: 'Wijzig',
     changeStatus: 'Status wijzigen',
@@ -186,21 +188,22 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     selectClient: 'Klant kiezen',
     searchClientPlaceholder: 'Zoek klant',
     noClientsFound: 'Geen klanten gevonden',
-    scannedPallets: 'Gescande pallets',
-    historyPallets: 'Palletgeschiedenis',
+    scannedPallets: 'Gescande bokken',
+    historyPallets: 'Bokgeschiedenis',
     showAll: 'Toon alles',
     liveDot: 'Live camera',
     statusUpdatedTitle: 'Status bijgewerkt',
-    statusSavedDetailAtClient: 'De pallet staat nu bij de klant.',
-    statusSavedDetailReturn: 'De pallet staat nu klaar voor retour.',
-    statusSavedDetailTransport: 'De pallet staat nu in transport.',
-    statusSavedDetailWarehouse: 'De pallet staat nu in Bowido magazijn.',
+    statusSavedDetailAtClient: 'De bok staat nu bij de klant.',
+    statusSavedDetailReturn: 'De bok staat nu klaar voor retour.',
+    statusSavedDetailTransport: 'De bok staat nu in transport.',
+    statusSavedDetailWarehouse: 'De bok staat nu in Bowido magazijn.',
+    statusSavedDetailRepair: 'De bok staat nu in reparatie.',
     damageReportedTitle: 'Schade gemeld',
-    damageReportedDetail: 'De schademelding is opgeslagen voor deze pallet.',
+    damageReportedDetail: 'De schademelding is opgeslagen voor deze bok.',
     damageModalTitle: 'Schade melden',
     damageModalDescription: 'Omschrijving schade',
     damageModalPhoto: 'Foto toevoegen',
-    damageModalPlaceholder: 'Beschrijf wat er beschadigd is aan de pallet',
+    damageModalPlaceholder: 'Beschrijf wat er beschadigd is aan de bok',
     damageModalUpload: 'Foto toevoegen',
     damageModalCancel: 'Annuleren',
     damageModalSubmit: 'Melding opslaan',
@@ -217,13 +220,13 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     useCurrentLocation: 'Huidige locatie',
     manualLocation: 'Handmatig zoeken',
     manualLocationPlaceholder: 'Nieuw adres invoeren',
-    applyLocation: 'Instellen',
+    applyLocation: 'Selecteren',
   },
   bs: {
     title: 'Skeniraj QR kod',
     resultLabel: 'Skenirana paleta',
-    palletNameLabel: 'Naziv palete',
-    palletTypeLabel: 'Tip palete',
+    palletNameLabel: 'Paleta',
+    palletTypeLabel: 'Tip',
     currentStatus: 'Trenutni status',
     changeLabel: 'Promijeni',
     changeStatus: 'Promijeni status',
@@ -247,6 +250,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     statusSavedDetailReturn: 'Paleta je označena za povrat.',
     statusSavedDetailTransport: 'Paleta je označena u transportu.',
     statusSavedDetailWarehouse: 'Paleta je označena u Bowido magacinu.',
+    statusSavedDetailRepair: 'Paleta je označena za reparaciju.',
     damageReportedTitle: 'Šteta prijavljena',
     damageReportedDetail: 'Prijava štete je sačuvana za ovu paletu.',
     damageModalTitle: 'Prijavi štetu',
@@ -269,7 +273,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     useCurrentLocation: 'Trenutna lokacija',
     manualLocation: 'Ručno unesi',
     manualLocationPlaceholder: 'Unesi novu adresu',
-    applyLocation: 'Postavi',
+    applyLocation: 'Odaberi',
   },
 };
 
@@ -304,6 +308,7 @@ const driverReturnWindowCopy = {
   en: {
     sentAt: 'Sent',
     returnDue: 'Return by',
+    reportedAt: 'Reported on',
     deadlineStatus: 'Deadline',
     withinDeadline: 'Within deadline',
     overdue: 'Overdue',
@@ -312,7 +317,8 @@ const driverReturnWindowCopy = {
   },
   nl: {
     sentAt: 'Verzonden',
-    returnDue: 'Retour voor',
+    returnDue: 'Retour',
+    reportedAt: 'Gemeld op',
     deadlineStatus: 'Termijn',
     withinDeadline: 'Binnen termijn',
     overdue: 'Over tijd',
@@ -322,6 +328,7 @@ const driverReturnWindowCopy = {
   bs: {
     sentAt: 'Poslana',
     returnDue: 'Povrat do',
+    reportedAt: 'Prijavljeno',
     deadlineStatus: 'Rok',
     withinDeadline: 'U roku',
     overdue: 'Van roka',
@@ -338,8 +345,8 @@ const driverTransportWindowCopy = {
     laneNlToBih: 'NL -> BiH',
   },
   nl: {
-    startedAt: 'Gestart',
-    dueBy: 'Af te ronden voor',
+    startedAt: 'Verzonden',
+    dueBy: 'Aankomst',
     laneBihToNl: 'BiH -> NL',
     laneNlToBih: 'NL -> BiH',
   },
@@ -354,48 +361,40 @@ const driverTransportWindowCopy = {
 const clientLinkedStatusIds = [4, 5];
 const transportStatusIds = [2, 6];
 
-const getPalletColorTheme = (type: string) => {
-  const normalizedType = type.trim().toLowerCase();
-
-  if (normalizedType === 'siva' || normalizedType === 'grijs') {
-    return {
-      surface: 'bg-white/92 dark:bg-[#1a3327]/92',
-      softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
-      strongSurface: 'bg-slate-200/70 dark:bg-slate-700/45',
-      border: 'border-slate-300/80 dark:border-slate-400/28',
-      label: 'text-slate-600 dark:text-slate-300',
-      heading: 'text-slate-900 dark:text-white',
-      body: 'text-slate-700 dark:text-slate-200',
-      button: 'bg-slate-200/88 text-slate-700 dark:bg-slate-700/55 dark:text-slate-100',
-      buttonHover: 'hover:text-slate-900 dark:hover:text-white',
-    };
-  }
-
-  if (/^l\s*paleta/i.test(type)) {
-    return {
-      surface: 'bg-white/92 dark:bg-[#1a3327]/92',
-      softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
-      strongSurface: 'bg-sky-200/70 dark:bg-sky-900/38',
-      border: 'border-sky-300/80 dark:border-sky-400/28',
-      label: 'text-sky-700 dark:text-sky-200',
-      heading: 'text-sky-950 dark:text-white',
-      body: 'text-sky-800 dark:text-sky-100',
-      button: 'bg-sky-200/90 text-sky-800 dark:bg-sky-900/45 dark:text-sky-100',
-      buttonHover: 'hover:text-sky-950 dark:hover:text-white',
-    };
-  }
-
+const getPalletColorTheme = () => {
   return {
     surface: 'bg-white/92 dark:bg-[#1a3327]/92',
     softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
-    strongSurface: 'bg-white/90 dark:bg-[#1a3327]/92',
-    border: 'border-emerald-300/75 dark:border-emerald-400/28',
-    label: 'text-emerald-600 dark:text-emerald-200',
-    heading: 'text-emerald-950 dark:text-white',
-    body: 'text-emerald-700 dark:text-emerald-100',
-    button: 'bg-emerald-50 text-emerald-700 dark:bg-white/10 dark:text-emerald-100',
-    buttonHover: 'hover:text-emerald-900 dark:hover:text-white',
+    strongSurface: 'bg-slate-200/70 dark:bg-slate-700/45',
+    border: 'border-slate-300/80 dark:border-slate-400/28',
+    label: 'text-slate-600 dark:text-slate-300',
+    heading: 'text-slate-900 dark:text-white',
+    body: 'text-slate-700 dark:text-slate-200',
+    button: 'bg-slate-200/88 text-slate-700 dark:bg-slate-700/55 dark:text-slate-100',
+    buttonHover: 'hover:text-slate-900 dark:hover:text-white',
   };
+};
+
+const getDriverPalletTypeLabel = (type: string) => {
+  const normalizedType = type.trim().toLowerCase();
+
+  if (normalizedType === 'siva' || normalizedType === 'grijs') {
+    return 'Grijs';
+  }
+
+  if (normalizedType.includes('120x80')) {
+    return 'L120';
+  }
+
+  if (/^l\s*paleta/i.test(type)) {
+    return 'l180';
+  }
+
+  if (/^a\s*paleta/i.test(type)) {
+    return 'A180';
+  }
+
+  return type;
 };
 
 export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {
@@ -449,7 +448,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const selectedPallet = selectedPalletId
     ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
     : null;
-  const driverStatusOptions = [4, 5, 2, 6, 3, 1]
+  const driverStatusOptions = [4, 5, 2, 6, 3, 1, 7]
     .map((statusId) => statuses.find((item) => item.id === statusId))
     .filter((status): status is NonNullable<typeof status> => Boolean(status));
   const scannedPallets = scannedPalletIds
@@ -511,6 +510,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return 'Bowido NL';
     }
 
+    if (statusName === 'Servis') {
+      if (language === 'bs') {
+        return 'Reparacija';
+      }
+
+      if (language === 'en') {
+        return 'Repair';
+      }
+
+      return 'Reparatie';
+    }
+
     return statusName;
   };
   const getLocationMeta = (
@@ -535,28 +546,52 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
   };
   const activeLocationClientId = clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined;
+  const isClientChangeDisabled = draftStatusId === 5;
   const selectedLocationMeta = getLocationMeta(draftLocationMode, activeLocationClientId);
+  const fixedWarehouseLocationMeta =
+    draftStatusId === 3
+      ? {
+          label: 'Maxwellstraat 2-4',
+          address: '3316 GP Dordrecht',
+        }
+      : draftStatusId === 1
+        ? {
+            label: 'Nikole Tesle 71',
+            address: '',
+          }
+        : null;
   const selectedClientName =
     clientLinkedStatusIds.includes(draftStatusId)
       ? clients.find((client) => client.user_id === draftClientId)?.name ||
         selectedPallet?.client_name ||
         text.clientEmpty
       : null;
-  const showSelectedLocationSummary = shouldShowLocationForStatus(selectedPallet?.current_status_id);
   const returnWindowText = driverReturnWindowCopy[language] || driverReturnWindowCopy.en;
   const transportWindowText = driverTransportWindowCopy[language] || driverTransportWindowCopy.en;
-  const getClientReturnInfo = (pallet: Pallet | null, clientId?: number) => {
-    if (!pallet || !clientId) {
-      return null;
-    }
-
-    const clientDetail = clients.find((client) => client.user_id === clientId);
-
-    if (!clientDetail) {
+  const getClientStatusInfo = (pallet: Pallet | null, clientId?: number) => {
+    if (!pallet) {
       return null;
     }
 
     const sentDate = new Date(pallet.last_status_changed_at);
+    const dateFormatter = new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    const clientDetail = clientId
+      ? clients.find((client) => client.user_id === clientId)
+      : undefined;
+
+    if (!clientDetail) {
+      return {
+        statusChangedAtLabel: dateFormatter.format(sentDate),
+        dueDateLabel: null,
+        deadlineText: null,
+        isOverdue: false,
+      };
+    }
+
     const sentAtMidnight = new Date(sentDate.getFullYear(), sentDate.getMonth(), sentDate.getDate());
     const today = new Date();
     const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -569,14 +604,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     dueDate.setDate(dueDate.getDate() + clientDetail.grace_period_days);
     const remainingDays = clientDetail.grace_period_days - daysSinceSent;
     const isOverdue = remainingDays < 0;
-    const dateFormatter = new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
 
     return {
-      sentAtLabel: dateFormatter.format(sentDate),
+      statusChangedAtLabel: dateFormatter.format(sentDate),
       dueDateLabel: dateFormatter.format(dueDate),
       deadlineText: isOverdue
         ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
@@ -627,12 +657,29 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       isOverdue,
     };
   };
-  const clientReturnInfo =
-    selectedPallet?.current_status_id === 4
-      ? getClientReturnInfo(selectedPallet, selectedPallet.user_id)
+  const clientStatusInfo =
+    clientLinkedStatusIds.includes(selectedPallet?.current_status_id ?? -1)
+      ? getClientStatusInfo(selectedPallet, selectedPallet.user_id)
       : null;
   const transportWindowInfo = getTransportWindowInfo(selectedPallet);
-  const selectedPalletTheme = getPalletColorTheme(selectedPallet?.type || '');
+  const selectedPalletTheme = getPalletColorTheme();
+  const isTransportStatus = transportStatusIds.includes(selectedPallet?.current_status_id ?? -1);
+  const isRepairStatus = draftStatusId === 7;
+  const isLocationChangeDisabled = isTransportStatus || Boolean(fixedWarehouseLocationMeta);
+  const isWarehouseStatus = [1, 3].includes(selectedPallet?.current_status_id ?? -1);
+  const isCheckInStatus = [1, 3, 7].includes(selectedPallet?.current_status_id ?? -1);
+  const shouldShowPalletPhotoAction = !isTransportStatus && !isWarehouseStatus && !isRepairStatus;
+  const shouldTopAlignSummaryCard = [1, 3, 5, 7].includes(draftStatusId);
+  const transportLocationLabel =
+    language === 'nl' ? 'Onderweg' : language === 'bs' ? 'Na putu' : 'On the way';
+  const showSelectedLocationSummary = Boolean(selectedPallet);
+  const warehouseCheckInDateLabel = selectedPallet
+    ? new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(selectedPallet.last_status_changed_at))
+    : '';
   const filteredClients = clients.filter((client) => {
     const query = clientSearchTerm.trim().toLowerCase();
 
@@ -670,7 +717,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     setOpenChangeMenu(null);
     setDraftStatusId(
-      [1, 2, 3, 4, 5, 6].includes(selectedPallet.current_status_id)
+      [1, 2, 3, 4, 5, 6, 7].includes(selectedPallet.current_status_id)
         ? selectedPallet.current_status_id
         : 0
     );
@@ -1085,6 +1132,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           ? 'Driver marked pallet as Bij de klant.'
           : nextStatusId === 5
             ? 'Driver marked pallet as Voor retour.'
+            : nextStatusId === 7
+              ? 'Driver marked pallet in repair.'
             : transportStatusIds.includes(nextStatusId)
               ? 'Driver marked pallet in transport.'
             : 'Driver marked pallet in Bowido warehouse.',
@@ -1098,6 +1147,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         ? text.statusSavedDetailAtClient
         : nextStatusId === 5
           ? text.statusSavedDetailReturn
+          : nextStatusId === 7
+            ? text.statusSavedDetailRepair
           : transportStatusIds.includes(nextStatusId)
             ? text.statusSavedDetailTransport
           : text.statusSavedDetailWarehouse,
@@ -1112,13 +1163,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       ? draftClientId ?? selectedPallet?.user_id
       : undefined;
     const nextLocationClientId = clientLinkedStatusIds.includes(statusId) ? nextClientId : undefined;
-    const nextLocation = getLocationMeta(
-      draftLocationMode,
-      nextLocationClientId,
-      manualLocationInput
-    ).address;
+    const nextLocation =
+      statusId === 3
+        ? defaultWarehouseDirectory.warehouse1
+        : statusId === 1
+          ? defaultWarehouseDirectory.warehouse2
+        : getLocationMeta(
+            draftLocationMode,
+            nextLocationClientId,
+            manualLocationInput
+          ).address;
 
-    if (clientLinkedStatusIds.includes(statusId) && !nextClientId) {
+    if (statusId === 3 || statusId === 1) {
+      setDraftLocationMode(statusId === 3 ? 'warehouse_1' : 'warehouse_2');
+      setManualLocationInput('');
+    }
+
+    if (statusId === 4 && !nextClientId) {
       setOpenChangeMenu('client');
       return;
     }
@@ -1127,6 +1188,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const handleClientSelection = (value: string) => {
+    if (isClientChangeDisabled) {
+      setOpenChangeMenu(null);
+      return;
+    }
+
     const nextClientId = value ? Number(value) : undefined;
     setOpenChangeMenu(null);
     setDraftClientId(nextClientId);
@@ -1434,32 +1500,32 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           >
             <Card noPadding className="mx-auto flex h-full w-full flex-col overflow-hidden border-transparent bg-transparent shadow-none">
               <div className="flex min-h-0 flex-1 flex-col px-0 pb-3 pt-1">
-                <div
-                  className={cn(
-                    'mx-4 flex min-h-[11.6rem] flex-col justify-center rounded-[1.45rem] border px-4 py-4',
-                    selectedPalletTheme.surface,
-                    selectedPalletTheme.border
-                  )}
+                <DriverPalletSummaryCard
+                  nameLabel={text.palletNameLabel}
+                  code={selectedPallet.qr_code}
+                  typeLabel={text.palletTypeLabel}
+                  typeValue={getDriverPalletTypeLabel(selectedPallet.type)}
+                  theme={selectedPalletTheme}
+                  alignTop={shouldTopAlignSummaryCard}
                 >
-                  <div className="grid grid-cols-2 gap-4 text-left">
-                    <div className="min-w-0">
-                      <p className={cn('text-[11px] font-black uppercase tracking-[0.16em]', selectedPalletTheme.label)}>
-                        {text.palletNameLabel}
-                      </p>
-                      <p className={cn('mt-1 break-words text-[1.16rem] font-black uppercase leading-6 tracking-[0.08em]', selectedPalletTheme.heading)}>
-                        {selectedPallet.qr_code}
-                      </p>
+                  {isCheckInStatus && (
+                    <div
+                      className={cn(
+                        'mt-3 flex w-full justify-center rounded-[1rem] px-4 py-2.5 text-center',
+                        selectedPalletTheme.softSurface
+                      )}
+                    >
+                      <div className="flex min-w-0 flex-col items-center">
+                        <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                          Check in
+                        </p>
+                        <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                          {warehouseCheckInDateLabel}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0 text-right">
-                      <p className={cn('text-[11px] font-black uppercase tracking-[0.16em]', selectedPalletTheme.label)}>
-                        {text.palletTypeLabel}
-                      </p>
-                      <p className={cn('mt-1 break-words text-[1.16rem] font-black uppercase leading-6 tracking-[0.08em]', selectedPalletTheme.body)}>
-                        {getPalletTypeLabel(selectedPallet.type, language)}
-                      </p>
-                    </div>
-                  </div>
-                  {clientReturnInfo && (
+                  )}
+                  {clientStatusInfo && selectedPallet.current_status_id === 4 && (
                     <div
                       className={cn(
                         'mt-3 grid w-full grid-cols-3 items-start justify-items-center gap-2.5 rounded-[1rem] px-4 py-2.5 text-center',
@@ -1471,7 +1537,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           {returnWindowText.sentAt}
                         </p>
                         <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
-                          {clientReturnInfo.sentAtLabel}
+                          {clientStatusInfo.statusChangedAtLabel}
                         </p>
                       </div>
                       <div className="flex min-w-0 flex-col items-center">
@@ -1479,16 +1545,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           {returnWindowText.returnDue}
                         </p>
                         <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
-                          {clientReturnInfo.dueDateLabel}
+                          {clientStatusInfo.dueDateLabel}
                         </p>
                       </div>
                       <div className="flex min-w-0 flex-col items-center">
                         <p
                           className={cn(
                             'text-[10px] font-black uppercase tracking-[0.14em]',
-                            clientReturnInfo.isOverdue
-                              ? 'text-rose-600 dark:text-rose-200'
-                              : selectedPalletTheme.label
+                            selectedPalletTheme.label
                           )}
                         >
                           {returnWindowText.deadlineStatus}
@@ -1496,12 +1560,29 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         <p
                           className={cn(
                             'mt-1 text-center text-[12px] font-black leading-4 tracking-tight',
-                            clientReturnInfo.isOverdue
+                            clientStatusInfo.isOverdue
                               ? 'text-rose-700 dark:text-rose-100'
                               : selectedPalletTheme.heading
                           )}
                         >
-                          {clientReturnInfo.deadlineText}
+                          {clientStatusInfo.deadlineText}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {clientStatusInfo && selectedPallet.current_status_id === 5 && (
+                    <div
+                      className={cn(
+                        'mt-3 flex w-full justify-center rounded-[1rem] px-4 py-2.5 text-center',
+                        selectedPalletTheme.softSurface
+                      )}
+                    >
+                      <div className="flex min-w-0 flex-col items-center">
+                        <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                          {returnWindowText.reportedAt}
+                        </p>
+                        <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                          {clientStatusInfo.statusChangedAtLabel}
                         </p>
                       </div>
                     </div>
@@ -1513,10 +1594,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         selectedPalletTheme.softSurface
                       )}
                     >
-                      <p className={cn('text-[11px] font-black uppercase tracking-[0.16em] text-center', selectedPalletTheme.label)}>
-                        {transportWindowInfo.laneLabel}
-                      </p>
-                      <div className="mt-2 grid grid-cols-3 items-start justify-items-center gap-2.5 text-center">
+                      <div className="grid grid-cols-3 items-start justify-items-center gap-2.5 text-center">
                         <div className="flex min-w-0 flex-col items-center">
                           <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                             {transportWindowText.startedAt}
@@ -1537,9 +1615,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           <p
                             className={cn(
                               'text-[10px] font-black uppercase tracking-[0.14em]',
-                              transportWindowInfo.isOverdue
-                                ? 'text-rose-600 dark:text-rose-200'
-                                : selectedPalletTheme.label
+                              selectedPalletTheme.label
                             )}
                           >
                             {returnWindowText.deadlineStatus}
@@ -1558,7 +1634,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       </div>
                     </div>
                   )}
-                </div>
+                </DriverPalletSummaryCard>
 
                 <div className="mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
                   <div
@@ -1607,8 +1683,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           </div>
                           <button
                             type="button"
-                            onClick={() => setOpenChangeMenu((current) => (current === 'client' ? null : 'client'))}
-                            className={cn(changeTriggerClass, 'shrink-0 self-center')}
+                            disabled={isClientChangeDisabled}
+                            onClick={() => {
+                              if (isClientChangeDisabled) {
+                                return;
+                              }
+
+                              setOpenChangeMenu((current) => (current === 'client' ? null : 'client'));
+                            }}
+                            className={cn(
+                              changeTriggerClass,
+                              'shrink-0 self-center',
+                              isClientChangeDisabled && 'cursor-not-allowed opacity-45 hover:text-inherit'
+                            )}
                           >
                             {text.changeLabel}
                             <ChevronDown
@@ -1633,28 +1720,42 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                               {text.summaryLocation}
                             </p>
                             <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
-                              {selectedLocationMeta.label}
+                              {isTransportStatus
+                                ? transportLocationLabel
+                                : fixedWarehouseLocationMeta
+                                  ? fixedWarehouseLocationMeta.label
+                                  : selectedLocationMeta.label}
                             </p>
-                            <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
-                              {selectedLocationMeta.address}
-                            </p>
+                            {fixedWarehouseLocationMeta?.address && (
+                              <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
+                                {fixedWarehouseLocationMeta.address}
+                              </p>
+                            )}
+                            {!isLocationChangeDisabled && (
+                              <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
+                                {selectedLocationMeta.address}
+                              </p>
+                            )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setOpenChangeMenu((current) => (current === 'location' ? null : 'location'))}
-                            className={cn(changeTriggerClass, 'shrink-0 self-center')}
-                          >
-                            {text.changeLabel}
-                            <ChevronDown
-                              size={14}
-                              className={cn('transition-transform', openChangeMenu === 'location' && 'rotate-180')}
-                            />
-                          </button>
+                          {!isLocationChangeDisabled && (
+                            <button
+                              type="button"
+                              onClick={() => setOpenChangeMenu((current) => (current === 'location' ? null : 'location'))}
+                              className={cn(changeTriggerClass, 'shrink-0 self-center')}
+                            >
+                              {text.changeLabel}
+                              <ChevronDown
+                                size={14}
+                                className={cn('transition-transform', openChangeMenu === 'location' && 'rotate-180')}
+                              />
+                            </button>
+                          )}
                         </div>
                       </div>
                     )}
                   </div>
                   )}
+
                 </div>
               </div>
 
@@ -1702,7 +1803,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </button>
               </div>
             ) : (
-              <div className="grid h-full grid-cols-3 gap-2">
+              <div
+                className={cn(
+                  'grid h-full gap-2',
+                  shouldShowPalletPhotoAction ? 'grid-cols-3' : 'grid-cols-2'
+                )}
+              >
                 <button
                   type="button"
                   className={cn(actionButtonClass, 'px-2.5 text-[0.72rem] leading-[1.05]')}
@@ -1711,14 +1817,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   <RefreshCcw size={20} className="shrink-0" />
                   {text.scanNext}
                 </button>
-                <button
-                  type="button"
-                  onClick={openPalletPhotoPicker}
-                  className={cn(actionButtonClass, 'px-2.5 text-[0.72rem] leading-[1.05]')}
-                >
-                  <Camera size={20} className="shrink-0" />
-                  {text.capturePalletPhoto}
-                </button>
+                {shouldShowPalletPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={openPalletPhotoPicker}
+                    className={cn(actionButtonClass, 'px-2.5 text-[0.72rem] leading-[1.05]')}
+                  >
+                    <Camera size={20} className="shrink-0" />
+                    {text.capturePalletPhoto}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={openDamageModal}
@@ -1766,7 +1874,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </div>
             )}
 
-            {openChangeMenu === 'client' && clientLinkedStatusIds.includes(draftStatusId) && (
+            {openChangeMenu === 'client' && draftStatusId === 4 && (
               <div className="p-5">
                 <div className="relative mb-3">
                   <Search
@@ -1811,7 +1919,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </div>
             )}
 
-            {openChangeMenu === 'location' && (
+            {openChangeMenu === 'location' && !isLocationChangeDisabled && (
               <div className="space-y-3.5 p-5">
                 <div className="space-y-2.5">
                   <button
@@ -1846,13 +1954,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={openAddAddressModal}
-                  className="flex w-full items-center justify-center rounded-[1rem] bg-white px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight text-zinc-700 transition-all hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
-                >
-                  {text.addAddress}
-                </button>
+                {!isRepairStatus && (
+                  <button
+                    type="button"
+                    onClick={openAddAddressModal}
+                    className="flex w-full items-center justify-center rounded-[1rem] bg-white px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight text-zinc-700 transition-all hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                  >
+                    {text.addAddress}
+                  </button>
+                )}
               </div>
             )}
           </DriverModalShell>
@@ -2071,8 +2181,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 <p className="text-[1.25rem] font-black uppercase tracking-[-0.04em] text-emerald-950 dark:text-white">
                   {activeScannedPallet.qr_code}
                 </p>
-                <p className="mt-2 text-[0.85rem] font-black uppercase tracking-[0.02em] text-zinc-600 dark:text-[#cce0d3]">
-                  {getPalletTypeLabel(activeScannedPallet.type, language)}
+                <p className="mt-2 text-[0.85rem] font-black tracking-[0.02em] text-zinc-600 dark:text-[#cce0d3]">
+                  {getDriverPalletTypeLabel(activeScannedPallet.type)}
                 </p>
 
                 <div className="mt-4 space-y-2.5">
