@@ -1559,7 +1559,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         <p
                           className={cn(
                             'text-[10px] font-black uppercase tracking-[0.14em]',
-                            selectedPalletTheme.label
+                            clientStatusInfo.isOverdue
+                              ? 'text-rose-700 dark:text-rose-100'
+                              : selectedPalletTheme.label
                           )}
                         >
                           {clientStatusInfo.deadlineLabel}
@@ -1622,7 +1624,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           <p
                             className={cn(
                               'text-[10px] font-black uppercase tracking-[0.14em]',
-                              selectedPalletTheme.label
+                              transportWindowInfo.isOverdue
+                                ? 'text-rose-700 dark:text-rose-100'
+                                : selectedPalletTheme.label
                             )}
                           >
                             {transportWindowInfo.deadlineLabel}
