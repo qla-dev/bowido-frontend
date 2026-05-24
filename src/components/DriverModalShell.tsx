@@ -23,9 +23,9 @@ interface DriverModalShellProps {
 }
 
 const widthClassMap: Record<DriverModalWidth, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-[24.25rem]',
-  lg: 'max-w-[26rem]',
+  sm: 'md:max-w-sm',
+  md: 'md:max-w-[24.25rem]',
+  lg: 'md:max-w-[26rem]',
 };
 
 export const DriverModalShell: React.FC<DriverModalShellProps> = ({
@@ -71,7 +71,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/25 px-4 py-6 backdrop-blur-[2px] dark:bg-black/45',
+        'fixed inset-0 z-50 flex items-stretch justify-center bg-emerald-950/25 p-0 backdrop-blur-[2px] dark:bg-black/45 md:items-center md:px-4 md:py-6',
         overlayClassName
       )}
       onClick={onClose}
@@ -83,7 +83,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
         transition={{ duration: 0.2, ease: 'easeOut' }}
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          'flex w-full flex-col overflow-hidden rounded-[2rem] border border-emerald-100 bg-white dark:border-white/10 dark:bg-[#172d22]',
+          'flex h-[100dvh] max-h-[100dvh] w-full min-h-0 flex-col overflow-hidden rounded-none border-0 bg-white dark:bg-[#172d22] md:h-auto md:max-h-[92dvh] md:rounded-[2rem] md:border md:border-emerald-100 md:dark:border-white/10',
           widthClassMap[width],
           contentClassName
         )}
@@ -105,7 +105,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
           </button>
         </div>
 
-        <div className={cn('flex-1', bodyClassName)}>{children}</div>
+        <div className={cn('min-h-0 flex-1 overflow-y-auto', bodyClassName)}>{children}</div>
 
         {footer && (
           <div
