@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Camera, ChevronDown, ChevronLeft, History, MapPin, Plus, RefreshCcw, Search } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, History, MapPin, Plus, RefreshCcw, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Card, cn } from './ui';
@@ -728,6 +728,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const showLocationModalNavActions =
     openChangeMenu === 'location' && !isAddAddressModalOpen && !isRepairStatus;
   const showAddAddressModalNavActions = isAddAddressModalOpen && !isEditingAlternateAddress;
+  const showDamageModalNavActions = isDamageModalOpen;
+  const isDamageReportSubmitDisabled = !damagePhotoUrl || !damageDescription.trim();
 
   useEffect(() => {
     palletsRef.current = allDriverPallets;
@@ -1339,6 +1341,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setIsDamageModalOpen(false);
   };
 
+  const blurActiveElement = () => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
+  };
+
   const handleDamagePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
@@ -1357,6 +1371,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const handleDamageReportSubmit = () => {
+    blurActiveElement();
+
     if (!damageTargetPallet || !damagePhotoUrl || !damageDescription.trim()) {
       return;
     }
@@ -1430,6 +1446,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     if (isDamageModalOpen) {
+      blurActiveElement();
       closeDamageModal();
       return;
     }
@@ -1443,6 +1460,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       setOpenChangeMenu(null);
     }
   };
+
+  const isBottomNavVisible = isScannerOpen || Boolean(selectedPallet);
 
   return (
     <div
@@ -1642,7 +1661,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="mx-auto flex w-full max-w-md flex-col pt-1"
+            className="mx-auto flex w-full max-w-md flex-col bg-white pt-1 dark:bg-[#13241b]"
           >
             <Card noPadding className="mx-auto flex w-full flex-col border-transparent bg-transparent shadow-none">
               <div className="flex flex-col px-0 pb-3 pt-1">
@@ -1937,109 +1956,131 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         )}
       </AnimatePresence>
 
-      {(isScannerOpen || selectedPallet) && (
+      {isBottomNavVisible && (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[70]">
-          <div className="pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-white/15 bg-[#00A655]/92 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-xl shadow-[0_-12px_36px_rgba(0,166,85,0.35)]">
-            {isFullscreenModalOpen ? (
-              <div
-                className={cn(
-                  'grid h-full gap-1',
-                  showLocationModalNavActions || showAddAddressModalNavActions ? 'grid-cols-2' : 'grid-cols-1'
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={handleFullscreenModalBack}
-                  className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
-                >
-                  <ChevronLeft size={20} className="shrink-0" />
-                  {text.back}
-                </button>
-                {showLocationModalNavActions && (
-                  <button
-                    type="button"
-                    onClick={openAddAddressModal}
-                    className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
-                  >
-                    <Plus size={20} className="shrink-0" />
-                    {text.addAddress}
-                  </button>
-                )}
-                {showAddAddressModalNavActions && (
-                  <button
-                    type="button"
-                    onClick={handleSelectOnMap}
-                    className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
-                  >
-                    <MapPin size={20} className="shrink-0" />
-                    {text.selectOnMap}
-                  </button>
-                )}
-              </div>
-            ) : isScannerOpen ? (
-              <div className="grid h-full grid-cols-1">
-                <button
-                  type="button"
-                  onClick={openScannedPalletsModal}
-                  disabled={scannedPallets.length === 0}
+          <div
+            className={cn(
+              'pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-transparent bg-[#00A655] px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-12px_36px_rgba(0,166,85,0.35)]'
+            )}
+          >
+              {isFullscreenModalOpen ? (
+                <div
                   className={cn(
-                    actionButtonClass,
-                    scannedPallets.length === 0
-                      ? 'cursor-not-allowed text-white/45 active:scale-100'
-                      : 'hover:bg-white/10 hover:text-white'
+                    'grid h-full gap-1',
+                    showLocationModalNavActions || showAddAddressModalNavActions || showDamageModalNavActions
+                      ? 'grid-cols-2'
+                      : 'grid-cols-1'
                   )}
                 >
-                  <History size={20} className="shrink-0" />
-                  {text.historyPallets}
-                </button>
-              </div>
-            ) : (
-              <div
-                className={cn(
-                  'grid h-full gap-1',
-                  shouldShowPalletPhotoAction ? 'grid-cols-3' : 'grid-cols-2'
-                )}
-              >
-                <button
-                  type="button"
-                  className={cn(
-                    actionButtonClass,
-                    'hover:bg-white/10 hover:text-white'
-                  )}
-                  onClick={handleScanNext}
-                >
-                  <RefreshCcw size={20} className="shrink-0" />
-                  {text.scanNext}
-                </button>
-                {shouldShowPalletPhotoAction && (
                   <button
                     type="button"
-                    onClick={openPalletPhotoPicker}
+                    onClick={handleFullscreenModalBack}
+                    className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
+                  >
+                    <ChevronLeft size={20} className="shrink-0" />
+                    {text.back}
+                  </button>
+                  {showLocationModalNavActions && (
+                    <button
+                      type="button"
+                      onClick={openAddAddressModal}
+                      className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
+                    >
+                      <Plus size={20} className="shrink-0" />
+                      {text.addAddress}
+                    </button>
+                  )}
+                  {showAddAddressModalNavActions && (
+                    <button
+                      type="button"
+                      onClick={handleSelectOnMap}
+                      className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
+                    >
+                      <MapPin size={20} className="shrink-0" />
+                      {text.selectOnMap}
+                    </button>
+                  )}
+                  {showDamageModalNavActions && (
+                    <button
+                      type="button"
+                      onClick={handleDamageReportSubmit}
+                      disabled={isDamageReportSubmitDisabled}
+                      className={cn(
+                        modalNavButtonClass,
+                        isDamageReportSubmitDisabled
+                          ? 'cursor-not-allowed text-white/45 active:scale-100'
+                          : 'hover:bg-white/10 hover:text-white'
+                      )}
+                    >
+                      <Check size={20} className="shrink-0" />
+                      {text.damageModalSubmit}
+                    </button>
+                  )}
+                </div>
+              ) : isScannerOpen ? (
+                <div className="grid h-full grid-cols-1">
+                  <button
+                    type="button"
+                    onClick={openScannedPalletsModal}
+                    disabled={scannedPallets.length === 0}
+                    className={cn(
+                      actionButtonClass,
+                      scannedPallets.length === 0
+                        ? 'cursor-not-allowed text-white/45 active:scale-100'
+                        : 'hover:bg-white/10 hover:text-white'
+                    )}
+                  >
+                    <History size={20} className="shrink-0" />
+                    {text.historyPallets}
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    'grid h-full gap-1',
+                    shouldShowPalletPhotoAction ? 'grid-cols-3' : 'grid-cols-2'
+                  )}
+                >
+                  <button
+                    type="button"
                     className={cn(
                       actionButtonClass,
                       'hover:bg-white/10 hover:text-white'
                     )}
+                    onClick={handleScanNext}
                   >
-                    <Camera size={20} className="shrink-0" />
-                    {text.capturePalletPhoto}
+                    <RefreshCcw size={20} className="shrink-0" />
+                    {text.scanNext}
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={openDamageModal}
-                  disabled={!damageTargetPallet}
-                  className={cn(
-                    actionButtonClass,
-                    damageTargetPallet
-                      ? 'hover:bg-white/10 hover:text-white'
-                      : 'cursor-not-allowed text-white/45 active:scale-100'
+                  {shouldShowPalletPhotoAction && (
+                    <button
+                      type="button"
+                      onClick={openPalletPhotoPicker}
+                      className={cn(
+                        actionButtonClass,
+                        'hover:bg-white/10 hover:text-white'
+                      )}
+                    >
+                      <Camera size={20} className="shrink-0" />
+                      {text.capturePalletPhoto}
+                    </button>
                   )}
-                >
-                  <AlertTriangle size={20} className="shrink-0" />
-                  {text.reportDamage}
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={openDamageModal}
+                    disabled={!damageTargetPallet}
+                    className={cn(
+                      actionButtonClass,
+                      damageTargetPallet
+                        ? 'hover:bg-white/10 hover:text-white'
+                        : 'cursor-not-allowed text-white/45 active:scale-100'
+                    )}
+                  >
+                    <AlertTriangle size={20} className="shrink-0" />
+                    {text.reportDamage}
+                  </button>
+                </div>
+              )}
           </div>
         </div>
       )}
@@ -2243,26 +2284,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             subtitle={damageTargetPallet.qr_code}
             width="sm"
             bodyClassName="p-0"
-            footer={
-              <>
-                <button
-                  type="button"
-                  onClick={closeDamageModal}
-                  className="flex items-center justify-center rounded-[1.3rem] border border-emerald-200 bg-white px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-emerald-800 transition-all active:scale-[0.98] dark:border-white/10 dark:bg-[#1f3a2d] dark:text-emerald-100"
-                >
-                  {text.damageModalCancel}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDamageReportSubmit}
-                  disabled={!damagePhotoUrl || !damageDescription.trim()}
-                  className="flex items-center justify-center rounded-[1.3rem] border border-emerald-300 bg-[#00A655] px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 dark:border-emerald-400/25"
-                >
-                  {text.damageModalSubmit}
-                </button>
-              </>
-            }
-            footerClassName="grid grid-cols-2 gap-3 p-5"
           >
             <div className="space-y-4 p-5">
               <div>
@@ -2273,7 +2294,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   value={damageDescription}
                   onChange={(event) => setDamageDescription(event.target.value)}
                   placeholder={text.damageModalPlaceholder}
-                  className="mt-2 h-28 w-full resize-none rounded-[1.2rem] border border-emerald-100 bg-emerald-50/55 px-4 py-3 text-[13px] font-bold leading-5 text-emerald-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white dark:placeholder:text-zinc-500"
+                  className="mt-2 h-28 w-full resize-none rounded-[1.2rem] border border-emerald-100 bg-emerald-50/55 px-4 py-3 text-[16px] font-bold leading-6 text-emerald-950 outline-none transition-colors placeholder:text-zinc-400 md:text-[13px] md:leading-5 focus:border-emerald-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white dark:placeholder:text-zinc-500"
                 />
               </div>
 
@@ -2333,7 +2354,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             bodyClassName="p-0"
             headerClassName="items-center"
           >
-            <div className="p-4 pt-2">
+            <div className="p-4 pt-3.5">
               <div className="max-h-[24rem] overflow-y-auto">
                 <div className="space-y-2">
                   {scannedPallets.map((pallet) => (

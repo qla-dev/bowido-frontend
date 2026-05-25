@@ -101,6 +101,7 @@ export default function App() {
   const isDriverShell = currentUser?.role_name === RoleType.VOZAC;
   const usesFixedMobileShell = Boolean(currentUser) && isMobileViewport && !isDriverShell;
   const usesInternalScrollShell = Boolean(currentUser) && (isDriverShell || usesFixedMobileShell);
+  const chromeTintColor = isDriverShell ? '#00A655' : isNightMode ? '#17291f' : '#ffffff';
 
   useEffect(() => {
     if (!usesInternalScrollShell) {
@@ -131,7 +132,7 @@ export default function App() {
       window.cancelAnimationFrame(rafId);
       root.classList.remove('bowido-ios-tint-refresh');
     };
-  }, [activeTab, currentUser?.id, usesInternalScrollShell]);
+  }, [activeTab, chromeTintColor, currentUser?.id, usesInternalScrollShell]);
 
   useEffect(() => {
     if (!usesInternalScrollShell) {
@@ -149,6 +150,47 @@ export default function App() {
       document.body.style.overflow = previousBodyOverflow;
     };
   }, [usesInternalScrollShell]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    const rootElement = document.getElementById('root');
+    const previousThemeColor = themeColorMeta?.getAttribute('content') ?? null;
+    const previousHtmlBackground = document.documentElement.style.backgroundColor;
+    const previousBodyBackground = document.body.style.backgroundColor;
+    const previousRootBackground = rootElement?.style.backgroundColor ?? '';
+
+    if (themeColorMeta) {
+      themeColorMeta.setAttribute('content', chromeTintColor);
+    }
+
+    document.documentElement.style.backgroundColor = chromeTintColor;
+    document.body.style.backgroundColor = chromeTintColor;
+
+    if (rootElement) {
+      rootElement.style.backgroundColor = chromeTintColor;
+    }
+
+    return () => {
+      if (themeColorMeta) {
+        if (previousThemeColor === null) {
+          themeColorMeta.removeAttribute('content');
+        } else {
+          themeColorMeta.setAttribute('content', previousThemeColor);
+        }
+      }
+
+      document.documentElement.style.backgroundColor = previousHtmlBackground;
+      document.body.style.backgroundColor = previousBodyBackground;
+
+      if (rootElement) {
+        rootElement.style.backgroundColor = previousRootBackground;
+      }
+    };
+  }, [chromeTintColor]);
 
   const handleLogout = () => {
     setCurrentUser(null);

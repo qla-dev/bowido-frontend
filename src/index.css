@@ -631,7 +631,7 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 .safari-tint-sentinel--driver {
-  background: rgb(0 166 85 / 0.92);
+  background: #00A655;
 }
 
 @media (max-width: 768px) and (hover: none) and (pointer: coarse) {
