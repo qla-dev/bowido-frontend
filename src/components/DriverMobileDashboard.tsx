@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Camera, ChevronDown, History, RefreshCcw, Search } from 'lucide-react';
+import { AlertTriangle, Camera, ChevronDown, ChevronLeft, History, MapPin, Plus, RefreshCcw, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
-import { Badge, Card, cn } from './ui';
+import { Card, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
 import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
 
@@ -83,6 +83,7 @@ type DriverCopy = {
   scannedPallets: string;
   historyPallets: string;
   showAll: string;
+  back: string;
   liveDot: string;
   statusUpdatedTitle: string;
   statusSavedDetailAtClient: string;
@@ -113,11 +114,13 @@ type DriverCopy = {
   manualLocation: string;
   manualLocationPlaceholder: string;
   applyLocation: string;
+  selectOnMap: string;
+  comingSoon: string;
 };
 
 const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
   en: {
-    title: 'Scan QR code',
+    title: 'Scan QR code on pallet',
     resultLabel: 'Scanned pallet',
     palletNameLabel: 'Pallet',
     palletTypeLabel: 'Type',
@@ -138,6 +141,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     scannedPallets: 'Scanned pallets',
     historyPallets: 'Pallet history',
     showAll: 'View all',
+    back: 'Back',
     liveDot: 'Live camera',
     statusUpdatedTitle: 'Status updated',
     statusSavedDetailAtClient: 'The pallet is marked at the client.',
@@ -168,9 +172,11 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     manualLocation: 'Manual search',
     manualLocationPlaceholder: 'Enter new address',
     applyLocation: 'Select',
+    selectOnMap: 'Select on map',
+    comingSoon: 'Soon',
   },
   nl: {
-    title: 'Scan QR-code',
+    title: 'Scan QR-code op pallet',
     resultLabel: 'Gescande bok',
     palletNameLabel: 'Boknummer',
     palletTypeLabel: 'Type',
@@ -191,6 +197,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     scannedPallets: 'Gescande bokken',
     historyPallets: 'Bokgeschiedenis',
     showAll: 'Toon alles',
+    back: 'Terug',
     liveDot: 'Live camera',
     statusUpdatedTitle: 'Status bijgewerkt',
     statusSavedDetailAtClient: 'De bok staat nu bij de klant.',
@@ -221,9 +228,11 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     manualLocation: 'Handmatig zoeken',
     manualLocationPlaceholder: 'Nieuw adres invoeren',
     applyLocation: 'Selecteren',
+    selectOnMap: 'Kies op kaart',
+    comingSoon: 'Binnenkort',
   },
   bs: {
-    title: 'Skeniraj QR kod',
+    title: 'Skeniraj QR code na paleti',
     resultLabel: 'Skenirana paleta',
     palletNameLabel: 'Paleta',
     palletTypeLabel: 'Tip',
@@ -244,6 +253,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     scannedPallets: 'Skenirane palete',
     historyPallets: 'Historija paleta',
     showAll: 'Prikaži sve',
+    back: 'Nazad',
     liveDot: 'Live kamera',
     statusUpdatedTitle: 'Status ažuriran',
     statusSavedDetailAtClient: 'Paleta je označena kod klijenta.',
@@ -274,6 +284,8 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     manualLocation: 'Ručno unesi',
     manualLocationPlaceholder: 'Unesi novu adresu',
     applyLocation: 'Odaberi',
+    selectOnMap: 'Odaberi na mapi',
+    comingSoon: 'Uskoro',
   },
 };
 
@@ -459,6 +471,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const damageTargetPallet = selectedPallet || activeScannedPallet;
   const actionButtonClass =
     'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-white transition-colors active:scale-[0.99]';
+  const modalNavButtonClass =
+    'flex h-full w-full items-center justify-center gap-2 rounded-xl px-3 text-center text-[0.72rem] font-black uppercase tracking-[0.14em] text-white transition-colors active:scale-[0.99]';
   const changeTriggerClass =
     'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
   const getVisibleClientName = (statusId: number, clientName?: string) =>
@@ -708,6 +722,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         : openChangeMenu === 'location'
           ? text.summaryLocation
           : '';
+  const isFullscreenModalOpen = Boolean(
+    openChangeMenu || isAddAddressModalOpen || isDamageModalOpen || isScannedPalletsModalOpen
+  );
+  const showLocationModalNavActions =
+    openChangeMenu === 'location' && !isAddAddressModalOpen && !isRepairStatus;
+  const showAddAddressModalNavActions = isAddAddressModalOpen && !isEditingAlternateAddress;
 
   useEffect(() => {
     palletsRef.current = allDriverPallets;
@@ -1007,9 +1027,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
       if (flashTimeoutRef.current) {
         window.clearTimeout(flashTimeoutRef.current);
+        flashTimeoutRef.current = null;
       }
     };
   }, [isScannerOpen]);
+
+  const dismissFlash = () => {
+    if (flashTimeoutRef.current) {
+      window.clearTimeout(flashTimeoutRef.current);
+      flashTimeoutRef.current = null;
+    }
+
+    setFlashMessage(null);
+  };
 
   const showFlash = (title: string, detail: string, variant: DriverBadgeVariant) => {
     setFlashMessage({ title, detail, variant });
@@ -1019,6 +1049,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     flashTimeoutRef.current = window.setTimeout(() => {
+      flashTimeoutRef.current = null;
       setFlashMessage(null);
     }, 2400);
   };
@@ -1251,7 +1282,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const closeAddAddressModal = () => {
     setIsAddAddressModalOpen(false);
     setIsEditingAlternateAddress(false);
-    setManualLocationInput('');
+    setManualLocationInput(
+      draftLocationMode === 'manual' && selectedPallet ? selectedPallet.current_location : ''
+    );
   };
 
   const openAddAddressModal = () => {
@@ -1259,6 +1292,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setIsEditingAlternateAddress(false);
     setManualLocationInput('');
     setIsAddAddressModalOpen(true);
+  };
+
+  const handleSelectOnMap = () => {
+    setOpenChangeMenu(null);
+    setIsAddAddressModalOpen(false);
+    setIsEditingAlternateAddress(false);
+    setManualLocationInput(
+      draftLocationMode === 'manual' && selectedPallet ? selectedPallet.current_location : ''
+    );
+    showFlash(text.comingSoon, '', 'info');
   };
 
   const openPalletPhotoPicker = () => {
@@ -1374,6 +1417,33 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setIsScannedPalletsModalOpen(true);
   };
 
+  const handleHistoryPalletOpen = (palletCode: string) => {
+    setIsScannedPalletsModalOpen(false);
+    handleDetectedCode(palletCode);
+  };
+
+  const handleFullscreenModalBack = () => {
+    if (isAddAddressModalOpen) {
+      closeAddAddressModal();
+      setOpenChangeMenu('location');
+      return;
+    }
+
+    if (isDamageModalOpen) {
+      closeDamageModal();
+      return;
+    }
+
+    if (isScannedPalletsModalOpen) {
+      setIsScannedPalletsModalOpen(false);
+      return;
+    }
+
+    if (openChangeMenu) {
+      setOpenChangeMenu(null);
+    }
+  };
+
   return (
     <div
       className={cn(
@@ -1392,7 +1462,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             onChange={handleScanImageChange}
           />
 
-          <div className="mt-1 flex flex-1">
+          <div className="px-1 pt-1 pb-5 text-center">
+            <p className="text-[13px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+              {text.title}
+            </p>
+          </div>
+
+          <div className="flex flex-1">
             <AnimatePresence mode="wait" initial={false}>
               <motion.button
                 key="scanner-view"
@@ -1479,19 +1555,82 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       <AnimatePresence>
         {flashMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="pointer-events-none fixed inset-x-0 top-24 z-[70] flex justify-center px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-emerald-950/25 px-5 backdrop-blur-[2px] dark:bg-black/45"
+            onClick={dismissFlash}
           >
-            <Card className="w-full max-w-sm border-emerald-100 bg-white/95 dark:border-white/10 dark:bg-[#1a3327]/95">
-              <div>
-                  <Badge variant={flashMessage.variant}>{flashMessage.title}</Badge>
-                  <p className="mt-2 text-[12px] font-bold leading-5 text-zinc-600 dark:text-zinc-300">
-                    {flashMessage.detail}
+            <motion.div
+              key={`${flashMessage.variant}-${flashMessage.title}-${flashMessage.detail}`}
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.96 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="w-full max-w-sm"
+              onClick={(event) => event.stopPropagation()}
+              role="alertdialog"
+              aria-modal="true"
+            >
+              <Card className="border-emerald-100 bg-white/98 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.32)] dark:border-white/10 dark:bg-[#1a3327]/98">
+                <div className="text-center">
+                  {flashMessage.variant === 'success' ? (
+                    <motion.div
+                      initial={{ scale: 0.82, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ duration: 0.24, ease: 'easeOut' }}
+                      className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-50 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.16)] dark:bg-emerald-500/10"
+                    >
+                      <motion.svg
+                        viewBox="0 0 52 52"
+                        className="h-14 w-14 text-emerald-500 dark:text-emerald-300"
+                        fill="none"
+                      >
+                        <motion.circle
+                          cx="26"
+                          cy="26"
+                          r="20"
+                          stroke="currentColor"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          initial={{ pathLength: 0, opacity: 0.45 }}
+                          animate={{ pathLength: 1, opacity: 1 }}
+                          transition={{ duration: 0.34, ease: 'easeOut' }}
+                        />
+                        <motion.path
+                          d="M16 27.5l6.5 6.5L36.5 20"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          initial={{ pathLength: 0, opacity: 0 }}
+                          animate={{ pathLength: 1, opacity: 1 }}
+                          transition={{ duration: 0.28, delay: 0.18, ease: 'easeOut' }}
+                        />
+                      </motion.svg>
+                    </motion.div>
+                  ) : (
+                    <div
+                      className={cn(
+                        'mx-auto h-2.5 w-20 rounded-full',
+                        flashMessage.variant === 'warning' && 'bg-amber-500',
+                        flashMessage.variant === 'danger' && 'bg-rose-500',
+                        flashMessage.variant === 'info' && 'bg-indigo-500',
+                        flashMessage.variant === 'default' && 'bg-zinc-400'
+                      )}
+                    />
+                  )}
+                  <p className="mt-4 text-[1.35rem] font-black uppercase leading-tight tracking-[-0.03em] text-emerald-950 dark:text-white">
+                    {flashMessage.title}
                   </p>
-              </div>
-            </Card>
+                  {flashMessage.detail && (
+                    <p className="mt-2 text-[13px] font-bold leading-6 text-zinc-600 dark:text-zinc-300">
+                      {flashMessage.detail}
+                    </p>
+                  )}
+                </div>
+              </Card>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1799,9 +1938,45 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       </AnimatePresence>
 
       {(isScannerOpen || selectedPallet) && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60]">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[70]">
           <div className="pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-white/15 bg-[#00A655]/92 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] backdrop-blur-xl shadow-[0_-12px_36px_rgba(0,166,85,0.35)]">
-            {isScannerOpen ? (
+            {isFullscreenModalOpen ? (
+              <div
+                className={cn(
+                  'grid h-full gap-1',
+                  showLocationModalNavActions || showAddAddressModalNavActions ? 'grid-cols-2' : 'grid-cols-1'
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={handleFullscreenModalBack}
+                  className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
+                >
+                  <ChevronLeft size={20} className="shrink-0" />
+                  {text.back}
+                </button>
+                {showLocationModalNavActions && (
+                  <button
+                    type="button"
+                    onClick={openAddAddressModal}
+                    className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
+                  >
+                    <Plus size={20} className="shrink-0" />
+                    {text.addAddress}
+                  </button>
+                )}
+                {showAddAddressModalNavActions && (
+                  <button
+                    type="button"
+                    onClick={handleSelectOnMap}
+                    className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
+                  >
+                    <MapPin size={20} className="shrink-0" />
+                    {text.selectOnMap}
+                  </button>
+                )}
+              </div>
+            ) : isScannerOpen ? (
               <div className="grid h-full grid-cols-1">
                 <button
                   type="button"
@@ -1873,12 +2048,29 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         {openChangeMenu && selectedPallet && (
           <DriverModalShell
             onClose={() => setOpenChangeMenu(null)}
+            header={
+              openChangeMenu === 'client' ? (
+                <div className="relative min-w-0 flex-1">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-200"
+                  />
+                  <input
+                    type="text"
+                    value={clientSearchTerm}
+                    onChange={(event) => setClientSearchTerm(event.target.value)}
+                    placeholder={text.searchClientPlaceholder}
+                    className="h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 pl-11 pr-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
+                  />
+                </div>
+              ) : undefined
+            }
             title={openChangeMenu === 'client' ? undefined : changeModalTitle}
             subtitle={openChangeMenu === 'client' ? undefined : selectedPallet.qr_code}
             width="lg"
             contentClassName="min-h-[24rem] justify-center"
             bodyClassName="p-0"
-            headerClassName={openChangeMenu === 'client' ? 'px-5 pb-1 pt-4' : undefined}
+            headerClassName={openChangeMenu === 'client' ? 'items-center px-5 pb-3 pt-4' : undefined}
             showHeaderDivider={openChangeMenu !== 'client'}
           >
             {openChangeMenu === 'status' && (
@@ -1902,20 +2094,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             )}
 
             {openChangeMenu === 'client' && draftStatusId === 4 && (
-              <div className="p-5">
-                <div className="relative mb-3">
-                  <Search
-                    size={16}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-200"
-                  />
-                  <input
-                    type="text"
-                    value={clientSearchTerm}
-                    onChange={(event) => setClientSearchTerm(event.target.value)}
-                    placeholder={text.searchClientPlaceholder}
-                    className="h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 pl-11 pr-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
-                  />
-                </div>
+              <div className="px-5 pb-5">
                 <div className="max-h-80 space-y-2.5 overflow-y-auto">
                   {filteredClients.map((client) => (
                     <button
@@ -1947,49 +2126,37 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             )}
 
             {openChangeMenu === 'location' && !isLocationChangeDisabled && (
-              <div className="space-y-3.5 p-5">
-                <div className="space-y-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleLocationSelection('warehouse_1')}
-                    className={cn(
-                      'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
-                      draftLocationMode === 'warehouse_1'
-                        ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                        : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
-                    )}
-                  >
-                    <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseDefault}</span>
-                    <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
-                      {getLocationMeta('warehouse_1', activeLocationClientId).address}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleLocationSelection('warehouse_2')}
-                    className={cn(
-                      'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
-                      draftLocationMode === 'warehouse_2'
-                        ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                        : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
-                    )}
-                  >
-                    <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseSecondary}</span>
-                    <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
-                      {getLocationMeta('warehouse_2', activeLocationClientId).address}
-                    </span>
-                  </button>
-                </div>
-
-                {!isRepairStatus && (
-                  <button
-                    type="button"
-                    onClick={openAddAddressModal}
-                    className="flex w-full items-center justify-center rounded-[1rem] bg-white px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight text-zinc-700 transition-all hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
-                  >
-                    {text.addAddress}
-                  </button>
-                )}
+              <div className="space-y-2.5 p-5">
+                <button
+                  type="button"
+                  onClick={() => handleLocationSelection('warehouse_1')}
+                  className={cn(
+                    'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
+                    draftLocationMode === 'warehouse_1'
+                      ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
+                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                  )}
+                >
+                  <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseDefault}</span>
+                  <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                    {getLocationMeta('warehouse_1', activeLocationClientId).address}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLocationSelection('warehouse_2')}
+                  className={cn(
+                    'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
+                    draftLocationMode === 'warehouse_2'
+                      ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
+                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                  )}
+                >
+                  <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseSecondary}</span>
+                  <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                    {getLocationMeta('warehouse_2', activeLocationClientId).address}
+                  </span>
+                </button>
               </div>
             )}
           </DriverModalShell>
@@ -2006,13 +2173,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             overlayClassName="z-[60]"
             bodyClassName="p-0"
           >
-            <div className="mx-auto w-full max-w-[21.75rem] space-y-3.5 px-5 py-5">
+            <div
+              className={cn(
+                'mx-auto w-full max-w-[21.75rem]',
+                isEditingAlternateAddress ? 'space-y-3.5 px-5 py-5' : ''
+              )}
+            >
               {!isEditingAlternateAddress ? (
                 <>
                   <button
                     type="button"
                     onClick={() => handleLocationSelection('driver_current')}
-                    className="flex w-full flex-col rounded-[1.2rem] bg-white px-4 py-4 text-left text-zinc-700 transition-all hover:bg-zinc-50 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                    className="flex w-full flex-col px-5 py-4 text-left text-zinc-700 transition-all hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5"
                   >
                     <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-200">
                       {text.useCurrentLocation}
@@ -2020,17 +2192,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     <span className="mt-2 text-[15px] font-black leading-5 text-emerald-950 dark:text-white">
                       {getLocationMeta('driver_current', activeLocationClientId).address}
                     </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualLocationInput('');
-                      setIsEditingAlternateAddress(true);
-                    }}
-                    className="flex w-full items-center justify-center rounded-[1.1rem] bg-white px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all hover:bg-zinc-50 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
-                  >
-                    {text.addAnotherAddress}
                   </button>
                 </>
               ) : (
@@ -2170,21 +2331,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             title={text.scannedPallets}
             width="sm"
             bodyClassName="p-0"
+            headerClassName="items-center"
           >
-            <div className="space-y-4 p-4 pt-0">
-              <div className="max-h-48 overflow-y-auto">
+            <div className="p-4 pt-2">
+              <div className="max-h-[24rem] overflow-y-auto">
                 <div className="space-y-2">
                   {scannedPallets.map((pallet) => (
                     <button
                       key={pallet.id}
                       type="button"
-                      onClick={() => setActiveScannedPalletId(pallet.id)}
-                      className={cn(
-                        'flex w-full items-start justify-between gap-3 rounded-[1.15rem] border px-3 py-3 text-left transition-all',
-                        activeScannedPallet.id === pallet.id
-                          ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-400/20 dark:bg-white/10'
-                          : 'border-emerald-100 bg-white hover:bg-emerald-50/50 dark:border-white/10 dark:bg-[#1f3a2d] dark:hover:bg-white/5'
-                      )}
+                      onClick={() => handleHistoryPalletOpen(pallet.qr_code)}
+                      className="flex w-full items-center justify-between gap-3 rounded-[1.15rem] border border-emerald-100 bg-white px-3 py-3 text-left transition-all hover:bg-emerald-50/50 dark:border-white/10 dark:bg-[#1f3a2d] dark:hover:bg-white/5"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-black uppercase tracking-tight text-emerald-950 dark:text-white">
@@ -2195,43 +2352,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {getVisibleClientName(pallet.current_status_id, pallet.client_name)}
                           </p>
                         )}
+                        {shouldShowLocationForStatus(pallet.current_status_id) && (
+                          <p className="mt-1 truncate text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
+                            {pallet.current_location}
+                          </p>
+                        )}
                       </div>
-                      <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
+                      <span className="shrink-0 self-center rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
                         {getDriverStatusLabel(pallet.current_status_name)}
                       </span>
                     </button>
                   ))}
-                </div>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/60 p-4 dark:border-white/10 dark:bg-[#203d31]">
-                <p className="text-[1.25rem] font-black uppercase tracking-[-0.04em] text-emerald-950 dark:text-white">
-                  {activeScannedPallet.qr_code}
-                </p>
-                <p className="mt-2 text-[0.85rem] font-black tracking-[0.02em] text-zinc-600 dark:text-[#cce0d3]">
-                  {getDriverPalletTypeLabel(activeScannedPallet.type)}
-                </p>
-
-                <div className="mt-4 space-y-2.5">
-                  <p className="text-[1rem] font-black uppercase tracking-[-0.03em] text-emerald-950 dark:text-white">
-                    {getDriverStatusLabel(activeScannedPallet.current_status_name)}
-                  </p>
-                  {getVisibleClientName(
-                    activeScannedPallet.current_status_id,
-                    activeScannedPallet.client_name
-                  ) && (
-                    <p className="text-[0.98rem] font-black leading-6 text-emerald-950 dark:text-white">
-                      {getVisibleClientName(
-                        activeScannedPallet.current_status_id,
-                        activeScannedPallet.client_name
-                      )}
-                    </p>
-                  )}
-                  {shouldShowLocationForStatus(activeScannedPallet.current_status_id) && (
-                    <p className="text-[0.95rem] font-bold leading-6 text-zinc-600 dark:text-[#cce0d3]">
-                      {activeScannedPallet.current_location}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>

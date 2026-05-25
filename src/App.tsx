@@ -322,7 +322,7 @@ export default function App() {
           'fixed inset-0 flex flex-col overflow-hidden'
         )}
       >
-        <div className="safari-tint-sentinel" aria-hidden="true" />
+        <div className="safari-tint-sentinel safari-tint-sentinel--driver" aria-hidden="true" />
         <header className="shrink-0 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
           <div className="mx-auto flex h-16 w-full max-w-md items-center justify-between px-4">
             <img src={logoImage} alt="Trackpal logo" className="h-6 w-auto" />
@@ -398,7 +398,7 @@ export default function App() {
         usesFixedMobileShell ? 'fixed inset-0 flex flex-col overflow-hidden' : 'min-h-screen'
       )}
     >
-      <div className="safari-tint-sentinel" aria-hidden="true" />
+      <div className="safari-tint-sentinel safari-tint-sentinel--app" aria-hidden="true" />
       <TopNavbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}

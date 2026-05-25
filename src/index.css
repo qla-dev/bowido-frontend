@@ -603,21 +603,41 @@ body:has([data-lock-scroll-modal="true"]) {
   position: fixed;
   inset-inline: 0;
   bottom: 0;
-  height: 4px;
-  background: #fff;
+  height: env(safe-area-inset-bottom, 0px);
   pointer-events: none;
-  z-index: 999999;
+  z-index: 50;
+  backdrop-filter: blur(16px);
 }
 
 .bowido-mobile-shell-active .safari-tint-sentinel {
   display: block;
-  visibility: hidden;
+  visibility: visible;
 }
 
 .bowido-ios-tint-refresh #mobile-bottom-nav {
   transform: translateZ(0);
 }
 
-#app-container.dark .safari-tint-sentinel {
-  background: #13241b;
+.bowido-ios-tint-refresh .safari-tint-sentinel {
+  transform: translateZ(0);
+}
+
+.safari-tint-sentinel--app {
+  background: rgb(255 255 255 / 0.95);
+}
+
+#app-container.dark .safari-tint-sentinel--app {
+  background: rgb(23 41 31 / 0.95);
+}
+
+.safari-tint-sentinel--driver {
+  background: rgb(0 166 85 / 0.92);
+}
+
+@media (max-width: 768px) and (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
