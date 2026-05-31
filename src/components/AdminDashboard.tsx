@@ -1,13 +1,12 @@
 ﻿import React, { useState } from 'react';
 import { 
-  Package, Truck, AlertTriangle, Users, ArrowUpRight, Search, 
+  Package, Truck, AlertTriangle, Users, ArrowUpRight,
   Filter, MoreVertical, MapPin, Clock, Settings as SettingsIcon,
-  Plus, History, ClipboardList, TrendingUp, Info, QrCode, X
+  Plus, History, ClipboardList, TrendingUp, Info, X
 } from 'lucide-react';
 import { StatCard, Card, Button, Input, Select, Badge } from './ui';
 import { PalletScanner } from './PalletScanner';
 import { DamageReportModal } from './DamageReportModal';
-import { PalletGridItem } from './PalletGridItem';
 import { BillingList } from './BillingList';
 import { RoleManager } from './RoleManager';
 import { PalletTableView } from './PalletTableView';
@@ -15,11 +14,18 @@ import { BillingCalendar } from './BillingCalendar';
 import { UserManager } from './UserManager';
 import { OverdueInvoiceModal, OverdueInvoicePreview } from './OverdueInvoiceModal';
 import { AdminAuditLogs } from './AdminAuditLogs';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { useApp } from '../AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, Pallet, PalletStatus, ClientDetail, User } from '../types';
-import { LayoutGrid, List as ListIcon, CreditCard, Shield, Table as TableIcon, Calendar as CalendarIcon, Eye, Send, Ghost } from 'lucide-react';
-import { getCountryLabel, getPalletTypeLabel, getStatusLabel, palletTypeValues } from '../i18n';
+import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost } from 'lucide-react';
+import {
+  getCountryLabel,
+  getPalletTypeLabel,
+  getStatusLabel,
+  normalizePalletTypeCode,
+  palletTypeValues,
+} from '../i18n';
 
 interface AdminDashboardProps {
   initialView?: 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar';
@@ -28,14 +34,18 @@ interface AdminDashboardProps {
   onToggleNightMode?: () => void;
 }
 
+type DeleteConfirmState =
+  | { kind: 'pallet'; pallet: Pallet }
+  | { kind: 'status'; status: PalletStatus }
+  | null;
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'overview', user, isNightMode = false, onToggleNightMode }) => {
   const { 
     pallets, statuses, clients, auditLogs, serviceReports,
-    updateStatusSettings, addStatus, deleteStatus, addPallet, updatePallet, deletePallet,
+    updateStatusSettings, addStatus, deleteStatus, addPallet, addPalletBatch, updatePallet, deletePallet,
     addClient, updateClient, setIsGhostReportOpen, t, language 
   } = useApp();
   const [view, setView] = useState<'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'>(initialView);
-  const [displayMode, setDisplayMode] = useState<'grid' | 'list' | 'table'>('grid');
   const [editingStatus, setEditingStatus] = useState<PalletStatus | null>(null);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [newStatusData, setNewStatusData] = useState<Omit<PalletStatus, 'id'>>({
@@ -48,23 +58,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   
   // Modals
   const [showAddPallet, setShowAddPallet] = useState(false);
+  const [newPalletMode, setNewPalletMode] = useState<'single' | 'bulk'>('single');
+  const [newPalletQr, setNewPalletQr] = useState('');
+  const [newPalletType, setNewPalletType] = useState<string>(palletTypeValues[0]);
+  const [bulkQrPrefix, setBulkQrPrefix] = useState('BOWNL-');
+  const [bulkQrStart, setBulkQrStart] = useState('');
+  const [bulkQrEnd, setBulkQrEnd] = useState('');
   const [showAddClient, setShowAddClient] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showDamageModal, setShowDamageModal] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
-  
-  // Search & Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<number | 'all'>('all');
-  const [overdueOnly, setOverdueOnly] = useState(false);
-
-  const handleExportExcel = () => {
-    alert('Exporting to Excel... (System creates .xlsx automatically)');
-  };
 
   const handleExportPdf = () => {
     alert('Generating PDF Delivery/Stock Report...');
@@ -122,6 +130,83 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     return `${slug || 'client'}@trackpal.demo`;
   };
 
+  const addPalletModeLabel = language === 'bs' ? 'Nacin unosa' : language === 'nl' ? 'Invoermodus' : 'Entry mode';
+  const singlePalletLabel = language === 'bs' ? 'Jedna paleta' : language === 'nl' ? 'Jedna pallet' : 'Single pallet';
+  const bulkPalletLabel = language === 'bs' ? 'Bulk unos' : language === 'nl' ? 'Bulk invoer' : 'Bulk entry';
+  const qrPrefixLabel = language === 'bs' ? 'QR prefiks' : language === 'nl' ? 'QR prefix' : 'QR prefix';
+  const rangeFromLabel = language === 'bs' ? 'Od broja' : language === 'nl' ? 'Vanaf nummer' : 'From number';
+  const rangeToLabel = language === 'bs' ? 'Do broja' : language === 'nl' ? 'Tot nummer' : 'To number';
+  const totalCreateLabel = language === 'bs' ? 'Za kreiranje' : language === 'nl' ? 'Te maken' : 'To create';
+  const invalidRangeLabel = language === 'bs' ? 'Unesi ispravan raspon.' : language === 'nl' ? 'Vul een geldig bereik in.' : 'Enter a valid range.';
+  const bulkHintLabel = language === 'bs' ? 'Status novih paleta' : language === 'nl' ? 'Status van nieuwe pallets' : 'Status for new pallets';
+  const createBulkLabel = language === 'bs' ? 'Kreiraj palete' : language === 'nl' ? 'Pallets aanmaken' : 'Create pallets';
+
+  const parseBulkNumber = (value: string) => {
+    const trimmedValue = value.trim();
+    return /^\d+$/.test(trimmedValue) ? Number(trimmedValue) : null;
+  };
+
+  const bulkStartNumber = parseBulkNumber(bulkQrStart);
+  const bulkEndNumber = parseBulkNumber(bulkQrEnd);
+  const hasValidBulkRange =
+    bulkStartNumber !== null && bulkEndNumber !== null && bulkEndNumber >= bulkStartNumber;
+  const bulkCreateCount = hasValidBulkRange ? bulkEndNumber - bulkStartNumber + 1 : 0;
+
+  const resetAddPalletForm = () => {
+    setNewPalletMode('single');
+    setNewPalletQr('');
+    setNewPalletType(palletTypeValues[0]);
+    setBulkQrPrefix('BOWNL-');
+    setBulkQrStart('');
+    setBulkQrEnd('');
+  };
+
+  const openAddPalletModal = () => {
+    resetAddPalletForm();
+    setShowAddPallet(true);
+  };
+
+  const closeAddPalletModal = () => {
+    resetAddPalletForm();
+    setShowAddPallet(false);
+  };
+
+  const buildBulkQrCodes = () => {
+    if (!hasValidBulkRange || bulkStartNumber === null || bulkEndNumber === null) {
+      return [];
+    }
+
+    const paddingLength = Math.max(bulkQrStart.trim().length, bulkQrEnd.trim().length, 1);
+
+    return Array.from({ length: bulkCreateCount }, (_, index) => {
+      const nextNumber = bulkStartNumber + index;
+      return `${bulkQrPrefix}${String(nextNumber).padStart(paddingLength, '0')}`.toUpperCase();
+    });
+  };
+
+  const handleCreatePallets = () => {
+    const normalizedType = normalizePalletTypeCode(newPalletType) || newPalletType;
+
+    if (newPalletMode === 'single') {
+      if (!newPalletQr.trim()) {
+        return;
+      }
+
+      addPallet(newPalletQr, normalizedType);
+      closeAddPalletModal();
+      return;
+    }
+
+    const qrCodes = buildBulkQrCodes();
+
+    if (qrCodes.length === 0) {
+      return;
+    }
+
+    addPalletBatch(qrCodes.map((qrCode) => ({ qrCode, type: normalizedType })));
+    closeAddPalletModal();
+  };
+
   const buildOverdueInvoicePreview = (pallet: Pallet): OverdueInvoicePreview => {
     const client = clients.find(c => c.user_id === pallet.user_id);
     const status = statuses.find(s => s.id === pallet.current_status_id);
@@ -170,6 +255,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       [pallet.id]: formatDateTime(new Date()),
     }));
   };
+
+  const handleEditPallet = (pallet: Pallet) => {
+    setSelectedPallet(null);
+    setEditingPallet({
+      ...pallet,
+      type: normalizePalletTypeCode(pallet.type) || pallet.type,
+    });
+  };
+
+  const handleDeletePallet = (pallet: Pallet) => {
+    setDeleteConfirm({ kind: 'pallet', pallet });
+  };
+
+  const handleDeleteStatus = (status: PalletStatus) => {
+    setDeleteConfirm({ kind: 'status', status });
+  };
+
+  const confirmDeleteAction = () => {
+    if (!deleteConfirm) {
+      return;
+    }
+
+    if (deleteConfirm.kind === 'pallet') {
+      deletePallet(deleteConfirm.pallet.id);
+      setEditingPallet(current => (current?.id === deleteConfirm.pallet.id ? null : current));
+      setSelectedPallet(current => (current?.id === deleteConfirm.pallet.id ? null : current));
+    }
+
+    if (deleteConfirm.kind === 'status') {
+      deleteStatus(deleteConfirm.status.id);
+      setEditingStatus(current => (current?.id === deleteConfirm.status.id ? null : current));
+    }
+
+    setDeleteConfirm(null);
+  };
+
+  const getPalletTypeOptions = (currentType?: string) =>
+    Array.from(
+      new Set(
+        [normalizePalletTypeCode(currentType || ''), ...palletTypeValues].filter(
+          (value): value is string => Boolean(value && value.trim())
+        )
+      )
+    );
 
   const renderOverview = () => {
     const overduePallets = pallets.filter(p => calculateDebt(p) > 0);
@@ -405,164 +534,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   };
 
   const renderPallets = () => {
-    const filteredPallets = pallets.filter(p => {
-      const query = searchTerm.toLowerCase();
-      const matchesSearch = p.qr_code.toLowerCase().includes(query) ||
-        p.current_status_name.toLowerCase().includes(query) ||
-        getStatusLabel(p.current_status_name, language).toLowerCase().includes(query) ||
-        getPalletTypeLabel(p.type, language).toLowerCase().includes(query) ||
-        (p.client_name || '').toLowerCase().includes(query);
-      
-      const matchesStatus = statusFilter === 'all' || p.current_status_id === statusFilter;
-      const matchesOverdue = !overdueOnly || calculateDebt(p) > 0;
-
-      return matchesSearch && matchesStatus && matchesOverdue;
-    });
-
     return (
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-             <div className="relative w-full md:w-64">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder={t('searchPallets')} 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-gray-100 border-none rounded-2xl focus:ring-1 focus:ring-black outline-none font-bold text-sm"
-                />
-             </div>
-             <select 
-               value={statusFilter} 
-               onChange={e => setStatusFilter(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
-               className="bg-gray-100 border-none rounded-2xl px-4 py-3 outline-none font-bold text-xs uppercase"
-             >
-                <option value="all">{t('allStatuses')}</option>
-                {statuses.map((s) => <option key={s.id} value={s.id}>{getStatusLabel(s.name, language)}</option>)}
-             </select>
-             <button 
-               onClick={() => setOverdueOnly(!overdueOnly)}
-               className={`px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all ${overdueOnly ? 'bg-rose-500 text-white border-rose-600' : 'bg-gray-100 text-gray-400 border-transparent'}`}
-             >
-                {t('overdueOnly')}
-             </button>
-           </div>
-           <div className="flex gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
-              <div className="flex bg-gray-100 p-1 rounded-2xl border border-gray-200">
-                <button
-                  onClick={() => setDisplayMode('grid')}
-                  className={`p-2 rounded-xl transition-all ${displayMode === 'grid' ? 'bg-white shadow-sm text-black' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  <LayoutGrid size={18} />
-                </button>
-                <button
-                  onClick={() => setDisplayMode('list')}
-                  className={`p-2 rounded-xl transition-all ${displayMode === 'list' ? 'bg-white shadow-sm text-black' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  <ListIcon size={18} />
-                </button>
-                <button
-                  onClick={() => setDisplayMode('table')}
-                  className={`p-2 rounded-xl transition-all ${displayMode === 'table' ? 'bg-white shadow-sm text-black' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  <TableIcon size={18} />
-                </button>
-              </div>
-               <button 
-                onClick={() => setShowDamageModal(true)}
-                className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-rose-100"
-              >
-                 <AlertTriangle size={14} />
-                 {t('reportDamage')}
-              </button>
-               <button 
-                onClick={handleExportExcel}
-                className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
-              >
-                 {t('excelLabel')}
-              </button>
-               <button 
-                onClick={() => setShowScanner(true)}
-                className="px-4 py-2 bg-gray-100 text-black border border-gray-200 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-200"
-              >
-                 <QrCode size={14} />
-                 {t('bulkLabel')}
-              </button>
-              <button 
-                onClick={() => setShowAddPallet(true)}
-                className="px-4 py-2 bg-black text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-black/10 hover:scale-105 transition-transform"
-              >
-                 <Plus size={14} />
-                 {t('addNew')}
-              </button>
-           </div>
-        </div>
-
-        {displayMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-             {filteredPallets.map(p => (
-               <PalletGridItem 
-                 key={`pallet-grid-${p.id}`} 
-                 pallet={p} 
-                 statuses={statuses} 
-                 clients={clients} 
-                 debt={calculateDebt(p)}
-                 onClick={() => setSelectedPallet(p)}
-               />
-             ))}
-             {filteredPallets.length === 0 && (
-               <div className="col-span-full p-20 text-center bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-100">
-                  <Package size={48} className="mx-auto text-gray-200 mb-4" />
-                  <p className="text-sm font-black text-gray-300 uppercase tracking-widest">{t('noMatchingUnitsFound')}</p>
-               </div>
-             )}
-          </div>
-        ) : displayMode === 'list' ? (
-          <Card title={t('fullFleetManagement')}>
-             <div className="overflow-auto min-h-[400px]">
-                <table className="w-full text-left">
-                  <thead className="bg-[#F9FAFB] text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-200 sticky top-0 bg-white">
-              <tr className="border-b border-gray-100">
-                <th className="px-6 py-3">{t('qrCode')}</th>
-                <th className="px-6 py-3">{t('status')}</th>
-                <th className="px-6 py-3">{t('location')}</th>
-                <th className="px-6 py-3">{t('client')}</th>
-                <th className="px-6 py-3">{t('days')}</th>
-                <th className="px-6 py-3">{t('owed')}</th>
-              </tr>
-                  </thead>
-                  <tbody className="text-xs divide-y divide-gray-50">
-                    {filteredPallets.length === 0 ? (
-                      <tr><td colSpan={6} className="p-10 text-center text-gray-300 italic uppercase">{t('noPalletsFound')}</td></tr>
-                    ) : (
-                      filteredPallets.map(p => (
-                        <tr key={`list-item-${p.id}`} className="hover:bg-gray-50 transition-colors group">
-                          <td className="px-6 py-3 font-black">{p.qr_code}</td>
-                          <td className="px-6 py-3">
-                            <span className={`status-chip ${p.current_status_id === 7 ? 'status-service' : p.current_status_id === 4 ? 'status-client' : 'status-bih'}`}>
-                              {getStatusLabel(p.current_status_name, language)}
-                            </span>
-                          </td>
-                          <td className="px-6 py-3 font-bold text-gray-400">{p.current_location}</td>
-                          <td className="px-6 py-3 font-bold text-gray-900">{p.client_name || t('notAvailable')}</td>
-                          <td className="px-6 py-3 text-gray-400 font-bold">{calculateDays(p.last_status_changed_at)} {t('days')}</td>
-                          <td className="px-6 py-3 font-mono font-black">
-                             <div className="flex items-center justify-between">
-                                <span>{"\u20AC"}{calculateDebt(p).toFixed(2)}</span>
-                             </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-             </div>
-          </Card>
-        ) : (
-          <PalletTableView />
-        )}
-      </div>
+      <PalletTableView
+        onAddPallet={openAddPalletModal}
+        onEditPallet={handleEditPallet}
+        onDeletePallet={handleDeletePallet}
+      />
     );
   };
 
@@ -670,11 +647,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                 </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => {
-                      if (confirm(t('confirmDeleteStatus'))) {
-                        deleteStatus(status.id);
-                      }
-                    }}
+                    onClick={() => handleDeleteStatus(status)}
                     className="p-2 opacity-0 group-hover:opacity-100 transition-opacity text-rose-500 hover:bg-rose-50 rounded-lg"
                   >
                      <AlertTriangle size={14} />
@@ -883,21 +856,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('palletType')}</label>
-                      <input
-                        list="admin-pallet-type-options"
+                      <select
                         value={editingPallet.type}
                         onChange={e => setEditingPallet({...editingPallet, type: e.target.value})}
                         className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                      />
-                      <datalist id="admin-pallet-type-options">
-                        {palletTypeValues.map((palletType) => (
+                      >
+                        {getPalletTypeOptions(editingPallet.type).map((palletType) => (
                           <option
                             key={palletType}
                             value={palletType}
-                            label={getPalletTypeLabel(palletType, language)}
-                          />
+                          >
+                            {getPalletTypeLabel(palletType, language)}
+                          </option>
                         ))}
-                      </datalist>
+                      </select>
                     </div>
                  </div>
 
@@ -955,11 +927,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
               <div className="flex gap-4 mt-8 pt-4 border-t border-gray-100">
                  <button 
                    onClick={() => {
-                     if (confirm(t('confirmDeleteUnit'))) {
-                        deletePallet(editingPallet.id);
-                        setEditingPallet(null);
-                        setSelectedPallet(null);
-                     }
+                     handleDeletePallet(editingPallet);
                    }}
                    className="p-4 text-rose-500 hover:bg-rose-50 rounded-2xl transition-colors"
                  >
@@ -1039,42 +1007,131 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
 
         {showAddPallet && (
           <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <h3 className="text-xl font-black uppercase mb-6">{t('newPalletEntry')}</h3>
               <div className="space-y-4">
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('qrCodeIdentification')}</label>
-                    <input autoFocus placeholder={t('qrPlaceholder')} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold uppercase" id="new-pallet-qr" />
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{addPalletModeLabel}</label>
+                    <div className="grid grid-cols-2 gap-3 rounded-[1.5rem] bg-zinc-100 p-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setNewPalletMode('single')}
+                        className={`rounded-[1.15rem] px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${
+                          newPalletMode === 'single'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'text-zinc-500 hover:text-black'
+                        }`}
+                      >
+                        {singlePalletLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewPalletMode('bulk')}
+                        className={`rounded-[1.15rem] px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${
+                          newPalletMode === 'bulk'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'text-zinc-500 hover:text-black'
+                        }`}
+                      >
+                        {bulkPalletLabel}
+                      </button>
+                    </div>
                  </div>
+
+                 {newPalletMode === 'single' ? (
+                   <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('qrCodeIdentification')}</label>
+                      <input
+                        autoFocus
+                        placeholder={t('qrPlaceholder')}
+                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold uppercase"
+                        value={newPalletQr}
+                        onChange={(event) => setNewPalletQr(event.target.value.toUpperCase())}
+                      />
+                   </div>
+                 ) : (
+                   <div className="space-y-4 rounded-[1.8rem] border border-zinc-100 bg-zinc-50/80 p-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{qrPrefixLabel}</label>
+                        <input
+                          className="w-full p-4 bg-white border border-zinc-200 rounded-2xl font-bold uppercase"
+                          value={bulkQrPrefix}
+                          onChange={(event) => setBulkQrPrefix(event.target.value.toUpperCase())}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{rangeFromLabel}</label>
+                          <input
+                            autoFocus
+                            inputMode="numeric"
+                            className="w-full p-4 bg-white border border-zinc-200 rounded-2xl font-bold"
+                            value={bulkQrStart}
+                            onChange={(event) => setBulkQrStart(event.target.value.replace(/\D/g, ''))}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{rangeToLabel}</label>
+                          <input
+                            inputMode="numeric"
+                            className="w-full p-4 bg-white border border-zinc-200 rounded-2xl font-bold"
+                            value={bulkQrEnd}
+                            onChange={(event) => setBulkQrEnd(event.target.value.replace(/\D/g, ''))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-center">
+                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{totalCreateLabel}</p>
+                          <p className="mt-2 text-lg font-black tracking-tight text-zinc-900">
+                            {hasValidBulkRange ? bulkCreateCount : '--'}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-center">
+                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{bulkHintLabel}</p>
+                          <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-zinc-900">
+                            {getStatusLabel('Onbekend', language)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {!hasValidBulkRange && (bulkQrStart || bulkQrEnd) && (
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-rose-500">
+                          {invalidRangeLabel}
+                        </p>
+                      )}
+                   </div>
+                 )}
+
                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('palletType')}</label>
-                    <input
+                    <select
                       className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                      id="new-pallet-type"
-                      list="new-pallet-type-options"
-                      defaultValue={palletTypeValues[0]}
-                    />
-                    <datalist id="new-pallet-type-options">
-                      {palletTypeValues.map((palletType) => (
+                      value={newPalletType}
+                      onChange={(event) => setNewPalletType(event.target.value)}
+                    >
+                      {getPalletTypeOptions().map((palletType) => (
                         <option
                           key={palletType}
                           value={palletType}
-                          label={getPalletTypeLabel(palletType, language)}
-                        />
+                        >
+                          {getPalletTypeLabel(palletType, language)}
+                        </option>
                       ))}
-                    </datalist>
-                 </div>
+                    </select>
+                  </div>
               </div>
               <div className="flex gap-4 mt-8">
-                 <button onClick={() => setShowAddPallet(false)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
-                 <button onClick={() => {
-                    const qr = (document.getElementById('new-pallet-qr') as HTMLInputElement).value;
-                    const type = (document.getElementById('new-pallet-type') as HTMLInputElement).value;
-                    if (qr) {
-                       addPallet(qr, type);
-                       setShowAddPallet(false);
-                    }
-                 }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs">{t('createUnit')}</button>
+                 <button onClick={closeAddPalletModal} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
+                 <button
+                   onClick={handleCreatePallets}
+                   disabled={newPalletMode === 'single' ? !newPalletQr.trim() : !hasValidBulkRange}
+                   className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                 >
+                   {newPalletMode === 'bulk' ? createBulkLabel : t('createUnit')}
+                 </button>
               </div>
             </motion.div>
           </div>
@@ -1168,6 +1225,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
             onClose={() => setShowDamageModal(false)}
           />
         )}
+
+        <DeleteConfirmModal
+          open={Boolean(deleteConfirm)}
+          title={`${t('remove')}?`}
+          subject={
+            deleteConfirm
+              ? deleteConfirm.kind === 'pallet'
+                ? deleteConfirm.pallet.qr_code
+                : getStatusLabel(deleteConfirm.status.name, language)
+              : undefined
+          }
+          message={
+            deleteConfirm
+              ? deleteConfirm.kind === 'pallet'
+                ? t('confirmDeleteUnit')
+                : t('confirmDeleteStatus')
+              : ''
+          }
+          confirmLabel={t('remove')}
+          cancelLabel={t('cancel')}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={confirmDeleteAction}
+        />
 
         {showScanner && (
           <PalletScanner 

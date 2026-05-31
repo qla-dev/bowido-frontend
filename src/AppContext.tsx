@@ -47,6 +47,7 @@ interface AppContextType {
   ) => void;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
+  addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
   updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => void;
   deletePallet: (id: number) => void;
   addClient: (client: Omit<ClientDetail, 'id'>) => void;
@@ -299,23 +300,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const buildNewPallet = (id: number, qrCode: string, type: string): Pallet => {
+    const defaultStatus = statuses.find((status) => status.id === 8) || statuses[0];
+    const timestamp = new Date().toISOString();
+
+    return {
+      id,
+      qr_code: qrCode.trim().toUpperCase(),
+      type,
+      current_status_id: defaultStatus?.id || 8,
+      current_status_name: defaultStatus?.name || 'Onbekend',
+      current_location: '',
+      last_status_changed_at: timestamp,
+      created_at: timestamp,
+      is_ghost: false,
+      is_active: true,
+    };
+  };
+
   const addPallet = (qrCode: string, type: string) => {
     setPallets((prev) => {
       const nextId = prev.length > 0 ? Math.max(...prev.map((pallet) => pallet.id)) + 1 : 1;
-      const newPallet: Pallet = {
-        id: nextId,
-        qr_code: qrCode,
-        type,
-        current_status_id: 1,
-        current_status_name: statuses.find((status) => status.id === 1)?.name || 'U Bowido BiH',
-        current_location: 'Central Warehouse BiH',
-        last_status_changed_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        is_ghost: false,
-        is_active: true,
-      };
+      return [...prev, buildNewPallet(nextId, qrCode, type)];
+    });
+  };
 
-      return [...prev, newPallet];
+  const addPalletBatch = (entries: Array<{ qrCode: string; type: string }>) => {
+    if (entries.length === 0) {
+      return;
+    }
+
+    setPallets((prev) => {
+      const nextId = prev.length > 0 ? Math.max(...prev.map((pallet) => pallet.id)) + 1 : 1;
+      const nextPallets = entries.map((entry, index) =>
+        buildNewPallet(nextId + index, entry.qrCode, entry.type)
+      );
+
+      return [...prev, ...nextPallets];
     });
   };
 
@@ -551,6 +572,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePalletStatus,
         markNotificationRead,
         addPallet,
+        addPalletBatch,
         updatePallet,
         deletePallet,
         addClient,

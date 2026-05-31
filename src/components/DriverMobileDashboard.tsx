@@ -6,6 +6,7 @@ import { Pallet, User } from '../types';
 import { Card, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
 import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
+import { normalizePalletTypeCode } from '../i18n';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -388,25 +389,7 @@ const getPalletColorTheme = () => {
 };
 
 const getDriverPalletTypeLabel = (type: string) => {
-  const normalizedType = type.trim().toLowerCase();
-
-  if (normalizedType === 'siva' || normalizedType === 'grijs') {
-    return 'Grijs';
-  }
-
-  if (normalizedType.includes('120x80')) {
-    return 'L120';
-  }
-
-  if (/^l\s*paleta/i.test(type)) {
-    return 'l180';
-  }
-
-  if (/^a\s*paleta/i.test(type)) {
-    return 'A180';
-  }
-
-  return type;
+  return normalizePalletTypeCode(type) || type;
 };
 
 export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {

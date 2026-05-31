@@ -139,24 +139,76 @@ export const rolePermissionCatalog: Record<AppLanguage, Record<RoleType, string[
 };
 
 export const palletTypeValues = [
-  'Siva',
-  'L Paleta',
-  'L Paleta (120x80)',
-  'L Paleta (200x100)',
-  'A Paleta',
-  'Kraksna (Standard)',
-  'G-Stalak za Prozore',
-  'Kraksna (A-Frame)',
-  'A-Stalak (XL)',
-  'Metal Cage / Kraksna',
-  'Euro Pallet (Unlabeled)',
-  'Euro Pallet',
-  'H1 Plastic',
-  'Industrial',
+  'A120',
+  'A80',
+  'T80',
+  'T120',
+  'L80',
+  'L120',
+  'Grijs',
 ] as const;
+
+export const normalizePalletTypeCode = (type: string) => {
+  const compactType = type.trim().replace(/\s+/g, ' ');
+
+  if (!compactType) {
+    return '';
+  }
+
+  const lowerType = compactType.toLowerCase();
+
+  if (lowerType === 'grijs' || lowerType === 'siva') {
+    return 'Grijs';
+  }
+
+  if (lowerType === 'a120') {
+    return 'A120';
+  }
+
+  if (lowerType === 'a80') {
+    return 'A80';
+  }
+
+  if (lowerType === 't80') {
+    return 'T80';
+  }
+
+  if (lowerType === 't120') {
+    return 'T120';
+  }
+
+  if (lowerType === 'l80' || lowerType === 'l180' || lowerType.includes('200x100')) {
+    return 'L80';
+  }
+
+  if (lowerType === 'l120' || lowerType.includes('120x80')) {
+    return 'L120';
+  }
+
+  if (/^a\s*paleta/i.test(compactType)) {
+    return lowerType.includes('80') ? 'A80' : 'A120';
+  }
+
+  if (/^t\s*paleta/i.test(compactType)) {
+    return lowerType.includes('80') ? 'T80' : 'T120';
+  }
+
+  if (/^l\s*paleta/i.test(compactType)) {
+    return lowerType.includes('120x80') ? 'L120' : 'L80';
+  }
+
+  return compactType;
+};
 
 const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
   en: {
+    A120: 'A120',
+    A80: 'A80',
+    T80: 'T80',
+    T120: 'T120',
+    L80: 'L80',
+    L120: 'L120',
+    Grijs: 'Grijs',
     Siva: 'Grey Pallet',
     'L Paleta': 'L-pallet',
     'L Paleta (120x80)': 'L-pallet (120x80)',
@@ -173,6 +225,13 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
     Industrial: 'Industrial',
   },
   nl: {
+    A120: 'A120',
+    A80: 'A80',
+    T80: 'T80',
+    T120: 'T120',
+    L80: 'L80',
+    L120: 'L120',
+    Grijs: 'Grijs',
     Siva: 'Grijs',
     'L Paleta': 'L-pallet',
     'L Paleta (120x80)': 'L-pallet (120x80)',
@@ -189,6 +248,13 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
     Industrial: 'Industrieel',
   },
   bs: {
+    A120: 'A120',
+    A80: 'A80',
+    T80: 'T80',
+    T120: 'T120',
+    L80: 'L80',
+    L120: 'L120',
+    Grijs: 'Grijs',
     Siva: 'Siva',
     'L Paleta': 'L paleta',
     'L Paleta (120x80)': 'L paleta (120x80)',
@@ -207,39 +273,13 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
 };
 
 const getDynamicPalletTypeLabel = (type: string, language: AppLanguage) => {
-  const normalizedType = type.trim();
-  const compactType = normalizedType.replace(/\s+/g, ' ');
-  const lowerType = compactType.toLowerCase();
+  const normalizedType = normalizePalletTypeCode(type);
 
-  if (lowerType === 'siva' || lowerType === 'grijs') {
-    return palletTypeLabels[language].Siva || palletTypeLabels.en.Siva;
+  if (!normalizedType || normalizedType === type) {
+    return null;
   }
 
-  const lPalletMatch = compactType.match(/^l\s*paleta(?:\s*(.*))?$/i);
-  if (lPalletMatch) {
-    const suffix = lPalletMatch[1]?.trim();
-    const baseLabel =
-      language === 'bs'
-        ? 'L paleta'
-        : 'L-pallet';
-
-    return suffix ? `${baseLabel} ${suffix}`.trim() : baseLabel;
-  }
-
-  const aPalletMatch = compactType.match(/^a\s*paleta(?:\s*(.*))?$/i);
-  if (aPalletMatch) {
-    const suffix = aPalletMatch[1]?.trim();
-    const baseLabel =
-      language === 'nl'
-        ? 'A-pallet voor glas'
-        : language === 'en'
-          ? 'A-pallet for Glass'
-          : 'A paleta';
-
-    return suffix ? `${baseLabel} ${suffix}`.trim() : baseLabel;
-  }
-
-  return null;
+  return palletTypeLabels[language][normalizedType] || palletTypeLabels.en[normalizedType] || normalizedType;
 };
 
 const statusLabels: Record<AppLanguage, Record<string, string>> = {
@@ -251,7 +291,7 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     'Voor retour': 'Ready for Return',
     'Transport (NL/BiH)': 'Transport (NL/BiH)',
     Servis: 'Service',
-    Onbekend: 'Unknown',
+    Onbekend: 'Unassigned',
     'Bij klijent': 'At Client',
   },
   nl: {
@@ -262,7 +302,7 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     'Voor retour': 'Voor retour',
     'Transport (NL/BiH)': 'Transport (NL/BiH)',
     Servis: 'Service',
-    Onbekend: 'Onbekend',
+    Onbekend: 'Ongemerkt',
     'Bij klijent': 'Bij de klant',
   },
   bs: {
@@ -273,7 +313,7 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     'Voor retour': 'Za povrat',
     'Transport (NL/BiH)': 'Transport (NL/BiH)',
     Servis: 'Servis',
-    Onbekend: 'Nepoznato',
+    Onbekend: 'Neoznacene',
     'Bij klijent': 'Kod klijenta',
   },
 };
@@ -1648,11 +1688,19 @@ export const getRoleLabel = (role: RoleType, language: AppLanguage) =>
 export const getRolePermissions = (role: RoleType, language: AppLanguage) =>
   rolePermissionCatalog[language][role] || rolePermissionCatalog.en[role] || [];
 
-export const getPalletTypeLabel = (type: string, language: AppLanguage) =>
-  palletTypeLabels[language][type] ||
-  palletTypeLabels.en[type] ||
+export const getPalletTypeLabel = (type: string, language: AppLanguage) => {
+  const normalizedType = normalizePalletTypeCode(type);
+
+  return (
+    palletTypeLabels[language][normalizedType] ||
+    palletTypeLabels.en[normalizedType] ||
+    palletTypeLabels[language][type] ||
+    palletTypeLabels.en[type] ||
   getDynamicPalletTypeLabel(type, language) ||
-  type;
+    normalizedType ||
+    type
+  );
+};
 
 export const getStatusLabel = (status: string, language: AppLanguage) =>
   statusLabels[language][status] || statusLabels.en[status] || status;
