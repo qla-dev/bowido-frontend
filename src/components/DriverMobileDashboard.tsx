@@ -606,7 +606,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     return {
       statusChangedAtLabel: dateFormatter.format(sentDate),
       dueDateLabel: dateFormatter.format(dueDate),
-      deadlineLabel: isOverdue ? returnWindowText.overdue : returnWindowText.deadlineStatus,
+      deadlineLabel: returnWindowText.deadlineStatus,
       deadlineText: isOverdue
         ? language === 'bs'
           ? `${Math.abs(remainingDays)} dana`
@@ -652,7 +652,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           : transportWindowText.laneNlToBih,
       startedAtLabel: dateFormatter.format(startedAt),
       dueDateLabel: dateFormatter.format(dueDate),
-      deadlineLabel: isOverdue ? returnWindowText.overdue : returnWindowText.deadlineStatus,
+      deadlineLabel: returnWindowText.deadlineStatus,
       deadlineText: isOverdue
         ? language === 'bs'
           ? `${Math.abs(remainingDays)} dana`
@@ -1026,7 +1026,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setFlashMessage(null);
   };
 
-  const showFlash = (title: string, detail: string, variant: DriverBadgeVariant) => {
+  const showFlash = (
+    title: string,
+    detail: string,
+    variant: DriverBadgeVariant,
+    durationMs = 2400
+  ) => {
     setFlashMessage({ title, detail, variant });
 
     if (flashTimeoutRef.current) {
@@ -1036,7 +1041,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     flashTimeoutRef.current = window.setTimeout(() => {
       flashTimeoutRef.current = null;
       setFlashMessage(null);
-    }, 2400);
+    }, durationMs);
   };
 
   const simulateScan = () => {
@@ -1175,7 +1180,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           : transportStatusIds.includes(nextStatusId)
             ? text.statusSavedDetailTransport
           : text.statusSavedDetailWarehouse,
-      'success'
+      'success',
+      1500
     );
   };
 
@@ -1696,15 +1702,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           {clientStatusInfo.dueDateLabel}
                         </p>
                       </div>
-                      <div className="flex min-w-0 w-full flex-col items-end text-right">
-                        <p
-                          className={cn(
-                            'text-[10px] font-black uppercase tracking-[0.14em]',
-                            clientStatusInfo.isOverdue
-                              ? 'text-rose-700 dark:text-rose-100'
-                              : selectedPalletTheme.label
-                          )}
-                        >
+                        <div className="flex min-w-0 w-full flex-col items-end text-right">
+                        <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                           {clientStatusInfo.deadlineLabel}
                         </p>
                         <p
@@ -1762,14 +1761,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           </p>
                         </div>
                         <div className="flex min-w-0 w-full flex-col items-end text-right">
-                          <p
-                            className={cn(
-                              'text-[10px] font-black uppercase tracking-[0.14em]',
-                              transportWindowInfo.isOverdue
-                                ? 'text-rose-700 dark:text-rose-100'
-                                : selectedPalletTheme.label
-                            )}
-                          >
+                          <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
                             {transportWindowInfo.deadlineLabel}
                           </p>
                           <p

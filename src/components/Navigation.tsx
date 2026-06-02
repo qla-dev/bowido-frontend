@@ -75,8 +75,9 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const [showProfile, setShowProfile] = useState(false);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
-  const hasGhostAccess = [RoleType.ADMIN, RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role);
+  const hasGhostAccess = [RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role);
   const highlightGhostAction = role === RoleType.VOZAC || role === RoleType.KLIJENT;
+  const showTopbarQrAction = role !== RoleType.ADMIN;
   const currentLanguageOption = languageOptions.find((option) => option.code === language) || languageOptions[0];
 
   const openSettings = () => {
@@ -190,14 +191,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </AnimatePresence>
           </div>
 
-          <button
-            type="button"
-            title={t('qrScan')}
-            onClick={() => setIsScannerOpen(true)}
-            className="hidden h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
-          >
-            <QrCode size={19} className="text-[#00A655]" />
-          </button>
+          {showTopbarQrAction && (
+            <button
+              type="button"
+              title={t('qrScan')}
+              onClick={() => setIsScannerOpen(true)}
+              className="hidden h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+            >
+              <QrCode size={19} className="text-[#00A655]" />
+            </button>
+          )}
 
           <div className="relative shrink-0">
             <button
