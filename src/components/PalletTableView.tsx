@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Input, Badge, Card, Button, cn } from './ui';
+import { Input, Badge, Button, Select, cn } from './ui';
 import {
   Search,
   Hash,
@@ -14,13 +14,20 @@ import {
   Tag,
   Clock3,
   ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
+  FileSpreadsheet,
+  X,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
 import { Pallet } from '../types';
 import { getStatusLabel, normalizePalletTypeCode, palletTypeValues } from '../i18n';
+import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import {
+  buildCustomerPalletReportWorkbook,
+  type CustomerPalletReportGroup,
+  type CustomerPalletReportRow,
+  type CustomerPalletReportText,
+} from '../lib/customerPalletReportExport';
 
 interface PalletTableViewProps {
   onAddPallet?: () => void;
@@ -28,7 +35,15 @@ interface PalletTableViewProps {
   onDeletePallet?: (pallet: Pallet) => void;
 }
 
-type SortKey = 'qr' | 'type' | 'client' | 'status' | 'location' | 'lastUpdate';
+type SortKey =
+  | 'qr'
+  | 'type'
+  | 'client'
+  | 'status'
+  | 'lastUpdate'
+  | 'dueDate'
+  | 'deadline'
+  | 'location';
 type SortDirection = 'asc' | 'desc';
 type ColumnKey = SortKey | 'actions';
 
@@ -40,29 +55,58 @@ type FilterOption = {
 type FilterSelections = Record<SortKey, string[]>;
 type FilterSearch = Record<SortKey, string>;
 type ColumnWidths = Record<ColumnKey, number>;
+type DeadlineTone = 'muted' | 'success' | 'warning' | 'danger';
+type PalletTimelineInfo = {
+  dateLabel: string;
+  dateFilterValue: string;
+  dateSortValue: number | null;
+  termLabel: string;
+  termFilterValue: string;
+  termSortValue: number | null;
+  deadlineLabel: string;
+  deadlineFilterValue: string;
+  deadlineSortValue: number | null;
+  tone: DeadlineTone;
+};
 
 const INITIAL_COLUMN_WIDTHS: ColumnWidths = {
   qr: 176,
   type: 176,
   client: 176,
   status: 176,
+  dueDate: 176,
+  deadline: 176,
   location: 176,
   lastUpdate: 176,
   actions: 176,
 };
+
+const PALLET_TABLE_COLUMN_ORDER = [
+  'qr',
+  'type',
+  'client',
+  'status',
+  'lastUpdate',
+  'dueDate',
+  'deadline',
+  'location',
+  'actions',
+] as const satisfies readonly ColumnKey[];
 
 const MIN_COLUMN_WIDTHS: ColumnWidths = {
   qr: 144,
   type: 124,
   client: 152,
   status: 140,
+  dueDate: 140,
+  deadline: 168,
   location: 180,
   lastUpdate: 136,
   actions: 88,
 };
 
-const formatDateFilterValue = (value: string) => {
-  const date = new Date(value);
+const formatDateFilterValue = (value: string | Date) => {
+  const date = value instanceof Date ? value : new Date(value);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -74,6 +118,11 @@ const getCompactPalletTypeLabel = (type: string) => {
   return normalizePalletTypeCode(type) || type;
 };
 
+const FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID: Partial<Record<number, string>> = {
+  1: 'Nikole Tesle 71',
+  3: 'Maxwellstraat 2-4, 3316 GP Dordrecht',
+};
+
 export const PalletTableView: React.FC<PalletTableViewProps> = ({
   onAddPallet,
   onEditPallet,
@@ -82,31 +131,34 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const { pallets, statuses, clients, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
-  const resizeStateRef = useRef<{ key: ColumnKey; startX: number; startWidth: number } | null>(null);
-  const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
-  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(INITIAL_COLUMN_WIDTHS);
+  const headerCellRefs = useRef<Partial<Record<ColumnKey, HTMLTableCellElement | null>>>({});
   const [selectedFilters, setSelectedFilters] = useState<FilterSelections>({
     qr: [],
     type: [],
     client: [],
     status: [],
-    location: [],
     lastUpdate: [],
+    dueDate: [],
+    deadline: [],
+    location: [],
   });
   const [filterSearch, setFilterSearch] = useState<FilterSearch>({
     qr: '',
     type: '',
     client: '',
     status: '',
-    location: '',
     lastUpdate: '',
+    dueDate: '',
+    deadline: '',
+    location: '',
   });
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'lastUpdate',
     direction: 'desc',
   });
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
-  const [activeResizeKey, setActiveResizeKey] = useState<ColumnKey | null>(null);
+  const [showReportExportModal, setShowReportExportModal] = useState(false);
+  const [selectedReportClientId, setSelectedReportClientId] = useState<string>('all');
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
     top: number;
     left: number;
@@ -129,53 +181,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
-      const resizeState = resizeStateRef.current;
-
-      if (!resizeState) {
-        return;
-      }
-
-      event.preventDefault();
-
-      const nextWidth = Math.max(
-        MIN_COLUMN_WIDTHS[resizeState.key],
-        resizeState.startWidth + (event.clientX - resizeState.startX)
-      );
-
-      setColumnWidths((current) =>
-        current[resizeState.key] === nextWidth
-          ? current
-          : {
-              ...current,
-              [resizeState.key]: nextWidth,
-            }
-      );
-    };
-
-    const stopResize = () => {
-      if (!resizeStateRef.current) {
-        return;
-      }
-
-      resizeStateRef.current = null;
-      setActiveResizeKey(null);
-      document.body.style.removeProperty('cursor');
-      document.body.style.removeProperty('user-select');
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', stopResize);
-    window.addEventListener('pointercancel', stopResize);
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', stopResize);
-      window.removeEventListener('pointercancel', stopResize);
     };
   }, []);
 
@@ -203,10 +208,14 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             return 288;
           case 'status':
             return 256;
-          case 'location':
-            return 288;
           case 'lastUpdate':
             return 224;
+          case 'dueDate':
+            return 224;
+          case 'deadline':
+            return 256;
+          case 'location':
+            return 288;
           default:
             return 256;
         }
@@ -247,11 +256,160 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const addPalletLabel =
     language === 'bs' ? 'Dodaj paletu' : language === 'nl' ? 'Pallet toevoegen' : 'Add pallet';
-  const totalTableWidth = (Object.values(columnWidths) as number[]).reduce(
-    (sum, value) => sum + value,
-    0
+  const reportCopy: CustomerPalletReportText & {
+    fabLabel: string;
+    modalTitle: string;
+    modalSubtitle: string;
+    selectedClientLabel: string;
+    allClientsOptionLabel: string;
+    clientsCountLabel: string;
+    palletsCountLabel: string;
+    totalDebtLabel: string;
+    exportSelectedLabel: string;
+    exportAllLabel: string;
+    emptyStateLabel: string;
+    reportFilePrefix: string;
+  } =
+    language === 'bs'
+      ? {
+          workbookTitle: 'Palete po kupcu',
+          summarySheetName: 'Pregled',
+          summaryTitle: 'Pregled paleta po kupcu',
+          summaryClientLabel: 'Kupac',
+          summaryPalletsLabel: 'Broj paleta',
+          summaryOverdueLabel: 'Palete s dugom',
+          summaryDebtLabel: 'Ukupan dug (EUR)',
+          clientSheetPrefix: 'Kupac',
+          palletLabel: 'Paleta',
+          typeLabel: 'Tip',
+          statusLabel: 'Status',
+          sentDateLabel: 'Poslana',
+          daysAtClientLabel: 'Dana kod kupca',
+          graceDaysLabel: 'Grace',
+          overdueDaysLabel: 'Dana preko',
+          debtLabel: 'Dug (EUR)',
+          locationLabel: 'Lokacija',
+          totalLabel: 'Ukupno',
+          fabLabel: 'Excel report',
+          modalTitle: 'Excel report po kupcu',
+          modalSubtitle: 'Izvoz paleta kod kupca sa brojem dana i dugom po kupcu.',
+          selectedClientLabel: 'Kupac',
+          allClientsOptionLabel: 'Svi kupci',
+          clientsCountLabel: 'Kupci',
+          palletsCountLabel: 'Palete',
+          totalDebtLabel: 'Ukupan dug',
+          exportSelectedLabel: 'Izvezi kupca',
+          exportAllLabel: 'Izvezi sve kupce',
+          emptyStateLabel: 'Nema paleta u naplativom statusu za ovaj report.',
+          reportFilePrefix: 'palete-po-kupcu',
+        }
+      : language === 'nl'
+        ? {
+            workbookTitle: 'Pallets per klant',
+            summarySheetName: 'Overzicht',
+            summaryTitle: 'Overzicht pallets per klant',
+            summaryClientLabel: 'Klant',
+            summaryPalletsLabel: 'Aantal pallets',
+            summaryOverdueLabel: 'Pallets met schuld',
+            summaryDebtLabel: 'Totale schuld (EUR)',
+            clientSheetPrefix: 'Klant',
+            palletLabel: 'Pallet',
+            typeLabel: 'Type',
+            statusLabel: 'Status',
+            sentDateLabel: 'Verzonden',
+            daysAtClientLabel: 'Dagen bij klant',
+            graceDaysLabel: 'Grace',
+            overdueDaysLabel: 'Dagen te laat',
+            debtLabel: 'Schuld (EUR)',
+            locationLabel: 'Locatie',
+            totalLabel: 'Totaal',
+            fabLabel: 'Excel report',
+            modalTitle: 'Excel report per klant',
+            modalSubtitle: 'Exporteer pallets bij de klant met aantallen dagen en openstaande schuld.',
+            selectedClientLabel: 'Klant',
+            allClientsOptionLabel: 'Alle klanten',
+            clientsCountLabel: 'Klanten',
+            palletsCountLabel: 'Pallets',
+            totalDebtLabel: 'Totale schuld',
+            exportSelectedLabel: 'Exporteer klant',
+            exportAllLabel: 'Exporteer alle klanten',
+            emptyStateLabel: 'Geen pallets in factureerbare status voor dit rapport.',
+            reportFilePrefix: 'pallets-per-klant',
+          }
+        : {
+            workbookTitle: 'Pallets by customer',
+            summarySheetName: 'Summary',
+            summaryTitle: 'Pallet overview by customer',
+            summaryClientLabel: 'Customer',
+            summaryPalletsLabel: 'Pallet count',
+            summaryOverdueLabel: 'Pallets with debt',
+            summaryDebtLabel: 'Total debt (EUR)',
+            clientSheetPrefix: 'Customer',
+            palletLabel: 'Pallet',
+            typeLabel: 'Type',
+            statusLabel: 'Status',
+            sentDateLabel: 'Sent',
+            daysAtClientLabel: 'Days at client',
+            graceDaysLabel: 'Grace',
+            overdueDaysLabel: 'Days overdue',
+            debtLabel: 'Debt (EUR)',
+            locationLabel: 'Location',
+            totalLabel: 'Total',
+            fabLabel: 'Excel report',
+            modalTitle: 'Excel report by customer',
+            modalSubtitle: 'Export pallets at customer with day count and debt totals.',
+            selectedClientLabel: 'Customer',
+            allClientsOptionLabel: 'All customers',
+            clientsCountLabel: 'Customers',
+            palletsCountLabel: 'Pallets',
+            totalDebtLabel: 'Total debt',
+            exportSelectedLabel: 'Export customer',
+            exportAllLabel: 'Export all customers',
+            emptyStateLabel: 'No pallets in billable status for this report.',
+            reportFilePrefix: 'pallets-by-customer',
+          };
+  const transportStatusIds = [2, 6];
+  const resizeAriaLabel =
+    language === 'bs'
+      ? 'Promijeni sirinu kolone'
+      : language === 'nl'
+        ? 'Kolombreedte aanpassen'
+        : 'Resize column';
+  const timelineCopy =
+    language === 'bs'
+      ? {
+          date: 'Datum',
+          term: 'Termin',
+          deadline: 'Rok',
+          emptyValue: '-',
+          daysLeft: 'dana u roku',
+          daysLate: 'dana preko',
+        }
+      : language === 'nl'
+        ? {
+            date: 'Datum',
+            term: 'Termijn',
+            deadline: 'Status',
+            emptyValue: '-',
+            daysLeft: 'dagen resterend',
+            daysLate: 'dagen over',
+          }
+        : {
+            date: 'Date',
+            term: 'Term',
+            deadline: 'Status',
+            emptyValue: '-',
+            daysLeft: 'days left',
+            daysLate: 'days overdue',
+          };
+  const dateFormatter = new Intl.DateTimeFormat(
+    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
+    {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }
   );
-
   const getClientLabel = (pallet: Pallet) =>
     clients.find((client) => client.user_id === pallet.user_id)?.name || t('inStock');
 
@@ -260,12 +418,231 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const getStatusLabelText = (pallet: Pallet) =>
     getStatusLabel(pallet.current_status_name, language);
 
-  const getLocationLabel = (pallet: Pallet) => pallet.current_location || t('notAvailable');
+  const getLocationLabel = (pallet: Pallet) =>
+    FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID[pallet.current_status_id] ||
+    pallet.current_location ||
+    t('notAvailable');
 
-  const getLastUpdateLabel = (pallet: Pallet) =>
-    new Date(pallet.last_status_changed_at).toLocaleDateString();
+  const palletTimelineMap = useMemo<Record<number, PalletTimelineInfo>>(
+    () =>
+      Object.fromEntries(
+        pallets.map((pallet) => {
+          const changedAt = new Date(pallet.last_status_changed_at);
+          const status = statuses.find((item) => item.id === pallet.current_status_id);
+          const client = pallet.user_id
+            ? clients.find((item) => item.user_id === pallet.user_id)
+            : undefined;
+          const changedAtMidnight = new Date(
+            changedAt.getFullYear(),
+            changedAt.getMonth(),
+            changedAt.getDate()
+          );
+          const today = new Date();
+          const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          const msPerDay = 24 * 60 * 60 * 1000;
+          const daysSinceChange = Math.max(
+            0,
+            Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / msPerDay)
+          );
+          const isWarehouseStatus =
+            pallet.current_status_id === 1 || pallet.current_status_id === 3;
+
+          if (isWarehouseStatus) {
+            return [
+              pallet.id,
+              {
+                dateLabel: timelineCopy.emptyValue,
+                dateFilterValue: timelineCopy.emptyValue,
+                dateSortValue: null,
+                termLabel: timelineCopy.emptyValue,
+                termFilterValue: timelineCopy.emptyValue,
+                termSortValue: null,
+                deadlineLabel: timelineCopy.emptyValue,
+                deadlineFilterValue: timelineCopy.emptyValue,
+                deadlineSortValue: null,
+                tone: 'muted' as const,
+              },
+            ];
+          }
+
+          let graceDays = 0;
+
+          if (transportStatusIds.includes(pallet.current_status_id)) {
+            graceDays = status?.grace_period_days ?? 3;
+          } else if (status?.is_billable) {
+            graceDays = client?.grace_period_days ?? status?.grace_period_days ?? 0;
+          }
+
+          if (graceDays <= 0) {
+            return [
+              pallet.id,
+              {
+                dateLabel: dateFormatter.format(changedAt),
+                dateFilterValue: formatDateFilterValue(changedAt),
+                dateSortValue: changedAt.getTime(),
+                termLabel: timelineCopy.emptyValue,
+                termFilterValue: timelineCopy.emptyValue,
+                termSortValue: null,
+                deadlineLabel: timelineCopy.emptyValue,
+                deadlineFilterValue: timelineCopy.emptyValue,
+                deadlineSortValue: null,
+                tone: 'muted' as const,
+              },
+            ];
+          }
+
+          const dueDate = new Date(changedAtMidnight);
+          dueDate.setDate(dueDate.getDate() + graceDays);
+          const remainingDays = graceDays - daysSinceChange;
+          const isOverdue = remainingDays < 0;
+
+          return [
+            pallet.id,
+            {
+              dateLabel: dateFormatter.format(changedAt),
+              dateFilterValue: formatDateFilterValue(changedAt),
+              dateSortValue: changedAt.getTime(),
+              termLabel: dateFormatter.format(dueDate),
+              termFilterValue: formatDateFilterValue(dueDate),
+              termSortValue: dueDate.getTime(),
+              deadlineLabel: isOverdue
+                ? `${Math.abs(remainingDays)} ${timelineCopy.daysLate}`
+                : `${remainingDays} ${timelineCopy.daysLeft}`,
+              deadlineFilterValue: isOverdue
+                ? `${Math.abs(remainingDays)} ${timelineCopy.daysLate}`
+                : `${remainingDays} ${timelineCopy.daysLeft}`,
+              deadlineSortValue: remainingDays,
+              tone: isOverdue ? 'danger' : remainingDays <= 2 ? 'warning' : 'success',
+            },
+          ];
+        })
+      ),
+    [clients, dateFormatter, pallets, statuses, timelineCopy, transportStatusIds]
+  );
+
+  const getTimelineInfo = (pallet: Pallet) => palletTimelineMap[pallet.id];
+  const getDaysSinceStatusChange = (dateString: string) => {
+    const changedAt = new Date(dateString);
+    const changedAtMidnight = new Date(
+      changedAt.getFullYear(),
+      changedAt.getMonth(),
+      changedAt.getDate()
+    );
+    const today = new Date();
+    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    return Math.max(
+      0,
+      Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / (24 * 60 * 60 * 1000))
+    );
+  };
+
+  const customerReportGroups = useMemo<CustomerPalletReportGroup[]>(() => {
+    const groupedReports = new Map<number, CustomerPalletReportGroup>();
+
+    pallets.forEach((pallet) => {
+      const status = statuses.find((item) => item.id === pallet.current_status_id);
+
+      if (!status?.is_billable || !pallet.user_id) {
+        return;
+      }
+
+      const client = clients.find((item) => item.user_id === pallet.user_id);
+      const clientName = client?.name || pallet.client_name?.trim();
+
+      if (!clientName) {
+        return;
+      }
+
+      const daysAtClient = getDaysSinceStatusChange(pallet.last_status_changed_at);
+      const graceDays = client?.grace_period_days ?? status.grace_period_days ?? 0;
+      const ratePerDay = client?.price_per_day ?? status.price_per_day ?? 0;
+      const overdueDays = Math.max(daysAtClient - graceDays, 0);
+      const debt = Number((overdueDays * ratePerDay).toFixed(2));
+      const row: CustomerPalletReportRow = {
+        palletName: pallet.qr_code,
+        palletType: getTypeLabel(pallet),
+        statusLabel: getStatusLabelText(pallet),
+        sentDate: dateFormatter.format(new Date(pallet.last_status_changed_at)),
+        daysAtClient,
+        graceDays,
+        overdueDays,
+        debt,
+        location: getLocationLabel(pallet),
+      };
+      const existingGroup = groupedReports.get(pallet.user_id);
+
+      if (existingGroup) {
+        existingGroup.rows.push(row);
+        existingGroup.totalPallets += 1;
+        existingGroup.overduePallets += overdueDays > 0 ? 1 : 0;
+        existingGroup.totalDebt = Number((existingGroup.totalDebt + debt).toFixed(2));
+        return;
+      }
+
+      groupedReports.set(pallet.user_id, {
+        clientId: pallet.user_id,
+        clientName,
+        rows: [row],
+        totalDebt: debt,
+        totalPallets: 1,
+        overduePallets: overdueDays > 0 ? 1 : 0,
+      });
+    });
+
+    return Array.from(groupedReports.values())
+      .map((group) => ({
+        ...group,
+        rows: [...group.rows].sort((left, right) => {
+          if (right.debt !== left.debt) {
+            return right.debt - left.debt;
+          }
+
+          if (right.daysAtClient !== left.daysAtClient) {
+            return right.daysAtClient - left.daysAtClient;
+          }
+
+          return left.palletName.localeCompare(right.palletName, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          });
+        }),
+      }))
+      .sort((left, right) =>
+        left.clientName.localeCompare(right.clientName, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      );
+  }, [clients, dateFormatter, pallets, statuses]);
+
+  useEffect(() => {
+    if (selectedReportClientId === 'all') {
+      return;
+    }
+
+    if (!customerReportGroups.some((group) => String(group.clientId) === selectedReportClientId)) {
+      setSelectedReportClientId('all');
+    }
+  }, [customerReportGroups, selectedReportClientId]);
+
+  const selectedCustomerReportGroup =
+    selectedReportClientId === 'all'
+      ? null
+      : customerReportGroups.find((group) => String(group.clientId) === selectedReportClientId) || null;
+  const reportCustomersCount = customerReportGroups.length;
+  const reportPalletsCount = customerReportGroups.reduce(
+    (sum, group) => sum + group.totalPallets,
+    0
+  );
+  const reportTotalDebt = customerReportGroups.reduce(
+    (sum, group) => Number((sum + group.totalDebt).toFixed(2)),
+    0
+  );
 
   const getFilterValue = (pallet: Pallet, key: SortKey) => {
+    const timelineInfo = getTimelineInfo(pallet);
+
     switch (key) {
       case 'qr':
         return pallet.qr_code;
@@ -275,10 +652,14 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         return getClientLabel(pallet);
       case 'status':
         return getStatusLabelText(pallet);
+      case 'lastUpdate':
+        return timelineInfo.dateFilterValue;
+      case 'dueDate':
+        return timelineInfo.termFilterValue;
+      case 'deadline':
+        return timelineInfo.deadlineFilterValue;
       case 'location':
         return getLocationLabel(pallet);
-      case 'lastUpdate':
-        return formatDateFilterValue(pallet.last_status_changed_at);
       default:
         return '';
     }
@@ -308,21 +689,56 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
+      lastUpdate: Array.from<string>(
+        new Set(pallets.map((pallet) => getTimelineInfo(pallet).dateFilterValue))
+      )
+        .sort((left, right) => {
+          if (left === timelineCopy.emptyValue) {
+            return 1;
+          }
+
+          if (right === timelineCopy.emptyValue) {
+            return -1;
+          }
+
+          return right.localeCompare(left);
+        })
+        .map((value) => ({
+          value,
+          label: value === timelineCopy.emptyValue ? value : dateFormatter.format(new Date(value)),
+        })),
+      dueDate: Array.from<string>(
+        new Set(pallets.map((pallet) => getTimelineInfo(pallet).termFilterValue))
+      )
+        .sort((left, right) => {
+          if (left === timelineCopy.emptyValue) {
+            return 1;
+          }
+
+          if (right === timelineCopy.emptyValue) {
+            return -1;
+          }
+
+          return right.localeCompare(left);
+        })
+        .map((value) => ({
+          value,
+          label: value === timelineCopy.emptyValue ? value : dateFormatter.format(new Date(value)),
+        })),
+      deadline: Array.from<string>(
+        new Set(pallets.map((pallet) => getTimelineInfo(pallet).deadlineFilterValue))
+      )
+        .sort((left, right) =>
+          left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+        )
+        .map((value) => ({ value, label: value })),
       location: Array.from<string>(new Set(pallets.map((pallet) => getLocationLabel(pallet))))
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
-      lastUpdate: Array.from<string>(
-        new Set(pallets.map((pallet) => formatDateFilterValue(pallet.last_status_changed_at)))
-      )
-        .sort((left, right) => right.localeCompare(left))
-        .map((value) => ({
-          value,
-          label: new Date(value).toLocaleDateString(),
-        })),
     }),
-    [clients, language, pallets, t]
+    [clients, dateFormatter, language, pallets, t, timelineCopy.emptyValue]
   );
 
   const filteredPallets = useMemo(() => {
@@ -338,15 +754,36 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       })
     );
 
+    const getSortValue = (pallet: Pallet, key: SortKey) => {
+      const timelineInfo = getTimelineInfo(pallet);
+
+      switch (key) {
+        case 'lastUpdate':
+          return timelineInfo.dateSortValue;
+        case 'dueDate':
+          return timelineInfo.termSortValue;
+        case 'deadline':
+          return timelineInfo.deadlineSortValue;
+        default:
+          return getFilterValue(pallet, key);
+      }
+    };
+
     nextPallets.sort((left, right) => {
-      const leftValue =
-        sortConfig.key === 'lastUpdate'
-          ? new Date(left.last_status_changed_at).getTime()
-          : getFilterValue(left, sortConfig.key);
-      const rightValue =
-        sortConfig.key === 'lastUpdate'
-          ? new Date(right.last_status_changed_at).getTime()
-          : getFilterValue(right, sortConfig.key);
+      const leftValue = getSortValue(left, sortConfig.key);
+      const rightValue = getSortValue(right, sortConfig.key);
+
+      if (leftValue == null && rightValue == null) {
+        return 0;
+      }
+
+      if (leftValue == null) {
+        return 1;
+      }
+
+      if (rightValue == null) {
+        return -1;
+      }
 
       const comparison =
         typeof leftValue === 'number' && typeof rightValue === 'number'
@@ -360,7 +797,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     });
 
     return nextPallets;
-  }, [pallets, selectedFilters, sortConfig]);
+  }, [clients, language, pallets, selectedFilters, sortConfig, palletTimelineMap]);
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -409,16 +846,20 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       type: [],
       client: [],
       status: [],
-      location: [],
       lastUpdate: [],
+      dueDate: [],
+      deadline: [],
+      location: [],
     });
     setFilterSearch({
       qr: '',
       type: '',
       client: '',
       status: '',
-      location: '',
       lastUpdate: '',
+      dueDate: '',
+      deadline: '',
+      location: '',
     });
     setSortConfig({
       key: 'lastUpdate',
@@ -426,68 +867,95 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     });
     setOpenFilterKey(null);
   };
+  const reportCurrencyFormatter = new Intl.NumberFormat(
+    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }
+  );
+
+  const downloadReportWorkbook = (
+    groups: CustomerPalletReportGroup[],
+    fileNameBase: string
+  ) => {
+    const workbookXml = buildCustomerPalletReportWorkbook(groups, reportCopy);
+    const blob = new Blob([workbookXml], {
+      type: 'application/vnd.ms-excel;charset=utf-8;',
+    });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateSuffix = formatDateFilterValue(new Date());
+
+    link.href = downloadUrl;
+    link.download = `${fileNameBase}-${dateSuffix}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handleExportCustomerReport = (mode: 'selected' | 'all') => {
+    const groupsToExport =
+      mode === 'all'
+        ? customerReportGroups
+        : selectedCustomerReportGroup
+          ? [selectedCustomerReportGroup]
+          : [];
+
+    if (groupsToExport.length === 0) {
+      return;
+    }
+
+    const fileNameBase =
+      mode === 'all'
+        ? `${reportCopy.reportFilePrefix}-all`
+        : `${reportCopy.reportFilePrefix}-${groupsToExport[0].clientName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '') || 'client'}`;
+
+    downloadReportWorkbook(groupsToExport, fileNameBase);
+    setShowReportExportModal(false);
+  };
 
   const renderSortButton = (key: SortKey, label: string) => {
-    const isActive = sortConfig.key === key;
-    const SortIcon = !isActive ? ArrowUpDown : sortConfig.direction === 'asc' ? ArrowUp : ArrowDown;
-
     return (
       <button
         type="button"
         onClick={() => toggleSort(key)}
-        className={cn(
-          'flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.2em] transition-colors',
-          isActive ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
-        )}
+        className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700"
       >
-        <span>{label}</span>
-        <SortIcon size={13} />
+        <span className="block min-w-0 truncate">{label}</span>
+        <ArrowUpDown size={13} className="shrink-0" />
       </button>
     );
   };
 
   const hasActiveFilter = (key: SortKey) => selectedFilters[key].length > 0;
-  const headerCellClass =
-    'relative border-r border-zinc-200 px-3 py-2.5 pr-4 align-middle text-center last:border-r-0';
-  const headerIconClass =
-    'flex h-6 w-6 items-center justify-center rounded-md bg-zinc-100 text-zinc-500';
-  const headerIconButtonClass =
-    'inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-700';
-  const bodyCellClass =
-    'border-r border-zinc-100 px-3 py-3 align-middle text-center last:border-r-0';
+  const {
+    headerCellClass,
+    headerIconClass,
+    headerIconButtonClass,
+    headerContentClass,
+    bodyCellClass,
+    bodyCellInnerClass,
+    bodyTextClass,
+  } = adminTableStyles;
   const textFilterInputClass =
-    'h-9 bg-white px-3 text-left text-[11px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal';
-
-  const startColumnResize = (event: React.PointerEvent<HTMLButtonElement>, key: ColumnKey) => {
-    event.preventDefault();
-    event.stopPropagation();
-    resizeStateRef.current = {
-      key,
-      startX: event.clientX,
-      startWidth: columnWidths[key],
-    };
-    setOpenFilterKey(null);
-    setActiveResizeKey(key);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+    'h-10 bg-white px-3 text-left text-[12px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal';
+  const getDeadlineToneClass = (tone: DeadlineTone) => {
+    switch (tone) {
+      case 'danger':
+        return 'bg-rose-500 text-rose-600';
+      case 'warning':
+        return 'bg-amber-500 text-amber-600';
+      case 'success':
+        return 'bg-emerald-500 text-emerald-600';
+      default:
+        return 'bg-zinc-300 text-zinc-300';
+    }
   };
-
-  const renderResizeHandle = (key: ColumnKey) => (
-    <button
-      type="button"
-      aria-label={`Resize ${key} column`}
-      onPointerDown={(event) => startColumnResize(event, key)}
-      className="absolute inset-y-0 -right-1 z-10 flex w-3 cursor-col-resize touch-none items-center justify-center"
-    >
-      <span
-        className={cn(
-          'h-7 w-px rounded-full bg-zinc-200 transition-colors',
-          activeResizeKey === key && 'bg-[#00A655]',
-          activeResizeKey !== key && 'group-hover:bg-zinc-300'
-        )}
-      />
-    </button>
-  );
 
   const renderFilterMenu = (key: SortKey) => {
     if (openFilterKey !== key || !filterMenuStyle) {
@@ -575,8 +1043,25 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <Card noPadding>
-        <div ref={tableRef} className="overflow-x-auto">
+      <AdminDataTable<ColumnKey>
+        columnOrder={PALLET_TABLE_COLUMN_ORDER}
+        initialColumnWidths={INITIAL_COLUMN_WIDTHS}
+        minColumnWidths={MIN_COLUMN_WIDTHS}
+        resizeAriaLabel={resizeAriaLabel}
+        tableRef={tableRef}
+        headerCellRefs={headerCellRefs}
+        isEmpty={filteredPallets.length === 0}
+        emptyState={
+          <div className="p-20 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
+              <Search size={20} className="text-zinc-200" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
+              {t('noMatchingResults')}
+            </p>
+          </div>
+        }
+        renderTable={({ columnWidths, totalTableWidth, registerHeaderCell, renderResizeHandle }) => (
           <table
             className="border-collapse text-left [table-layout:fixed]"
             style={{ width: `max(100%, ${totalTableWidth}px)` }}
@@ -586,19 +1071,16 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
               <col style={{ width: columnWidths.type }} />
               <col style={{ width: columnWidths.client }} />
               <col style={{ width: columnWidths.status }} />
-              <col style={{ width: columnWidths.location }} />
               <col style={{ width: columnWidths.lastUpdate }} />
+              <col style={{ width: columnWidths.dueDate }} />
+              <col style={{ width: columnWidths.deadline }} />
+              <col style={{ width: columnWidths.location }} />
               <col style={{ width: columnWidths.actions }} />
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80">
               <tr>
-                <th
-                  ref={(element) => {
-                    headerCellRefs.current.qr = element;
-                  }}
-                  className={cn(headerCellClass, 'group')}
-                >
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <th ref={registerHeaderCell('qr')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <Hash size={16} />
                     </div>
@@ -616,13 +1098,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   </div>
                   {renderResizeHandle('qr')}
                 </th>
-                <th
-                  ref={(element) => {
-                    headerCellRefs.current.type = element;
-                  }}
-                  className={cn(headerCellClass, 'group')}
-                >
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <th ref={registerHeaderCell('type')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <Package size={16} />
                     </div>
@@ -640,13 +1117,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   </div>
                   {renderResizeHandle('type')}
                 </th>
-                <th
-                  ref={(element) => {
-                    headerCellRefs.current.client = element;
-                  }}
-                  className={cn(headerCellClass, 'group')}
-                >
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <th ref={registerHeaderCell('client')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <UserIcon size={16} />
                     </div>
@@ -664,13 +1136,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   </div>
                   {renderResizeHandle('client')}
                 </th>
-                <th
-                  ref={(element) => {
-                    headerCellRefs.current.status = element;
-                  }}
-                  className={cn(headerCellClass, 'group')}
-                >
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <th ref={registerHeaderCell('status')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <Tag size={16} />
                     </div>
@@ -688,13 +1155,67 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   </div>
                   {renderResizeHandle('status')}
                 </th>
-                <th
-                  ref={(element) => {
-                    headerCellRefs.current.location = element;
-                  }}
-                  className={cn(headerCellClass, 'group')}
-                >
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                <th ref={registerHeaderCell('lastUpdate')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
+                    <div className={headerIconClass}>
+                      <Clock3 size={16} />
+                    </div>
+                    {renderSortButton('lastUpdate', timelineCopy.date)}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenFilterKey((current) => (current === 'lastUpdate' ? null : 'lastUpdate'))
+                      }
+                      className={cn(
+                        headerIconButtonClass,
+                        hasActiveFilter('lastUpdate') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      )}
+                    >
+                      <Funnel size={12} />
+                    </button>
+                  </div>
+                  {renderResizeHandle('lastUpdate')}
+                </th>
+                <th ref={registerHeaderCell('dueDate')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
+                    <div className={headerIconClass}>
+                      <Clock3 size={16} />
+                    </div>
+                    {renderSortButton('dueDate', timelineCopy.term)}
+                    <button
+                      type="button"
+                      onClick={() => setOpenFilterKey((current) => (current === 'dueDate' ? null : 'dueDate'))}
+                      className={cn(
+                        headerIconButtonClass,
+                        hasActiveFilter('dueDate') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      )}
+                    >
+                      <Funnel size={12} />
+                    </button>
+                  </div>
+                  {renderResizeHandle('dueDate')}
+                </th>
+                <th ref={registerHeaderCell('deadline')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
+                    <div className={headerIconClass}>
+                      <Clock3 size={16} />
+                    </div>
+                    {renderSortButton('deadline', timelineCopy.deadline)}
+                    <button
+                      type="button"
+                      onClick={() => setOpenFilterKey((current) => (current === 'deadline' ? null : 'deadline'))}
+                      className={cn(
+                        headerIconButtonClass,
+                        hasActiveFilter('deadline') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      )}
+                    >
+                      <Funnel size={12} />
+                    </button>
+                  </div>
+                  {renderResizeHandle('deadline')}
+                </th>
+                <th ref={registerHeaderCell('location')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <MapPin size={16} />
                     </div>
@@ -712,36 +1233,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   </div>
                   {renderResizeHandle('location')}
                 </th>
-                <th
-                  ref={(element) => {
-                    headerCellRefs.current.lastUpdate = element;
-                  }}
-                  className={cn(headerCellClass, 'group')}
-                >
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                    <div className={headerIconClass}>
-                      <Clock3 size={16} />
-                    </div>
-                    {renderSortButton('lastUpdate', t('lastUpdate'))}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'lastUpdate' ? null : 'lastUpdate'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('lastUpdate') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
-                  </div>
-                  {renderResizeHandle('lastUpdate')}
-                </th>
                 <th className={cn(headerCellClass, 'group')}>
-                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                  <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <Edit size={16} />
                     </div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
                       {t('actions')}
                     </p>
                     <button
@@ -760,6 +1257,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             <tbody className="divide-y divide-zinc-100">
               {filteredPallets.map((pallet, index) => {
                 const clientLabel = getClientLabel(pallet);
+                const timelineInfo = getTimelineInfo(pallet);
 
                 return (
                   <motion.tr
@@ -767,31 +1265,45 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     initial={{ opacity: 0, x: -5 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.01 }}
-                    className="transition-colors hover:bg-zinc-50/60"
+                    onClick={() => onEditPallet?.(pallet)}
+                    onKeyDown={(event) => {
+                      if (!onEditPallet) {
+                        return;
+                      }
+
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onEditPallet(pallet);
+                      }
+                    }}
+                    tabIndex={onEditPallet ? 0 : -1}
+                    role={onEditPallet ? 'button' : undefined}
+                    className={cn(
+                      'transition-colors hover:bg-zinc-50/60',
+                      onEditPallet && 'cursor-pointer focus-visible:bg-zinc-50/80 focus-visible:outline-none'
+                    )}
                   >
                     <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] min-w-0 items-center justify-center">
-                        <span className="truncate font-mono text-[11px] font-black tracking-tight">
-                          {pallet.qr_code}
-                        </span>
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'text-zinc-900')}>{pallet.qr_code}</span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] min-w-0 items-center justify-center">
-                        <span className="truncate text-[10px] font-black uppercase text-zinc-600">
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'uppercase text-zinc-600')}>
                           {getTypeLabel(pallet)}
                         </span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] min-w-0 items-center justify-center">
-                        <span className="truncate text-[10px] font-black uppercase tracking-tight text-black">
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'uppercase text-zinc-900')}>
                           {clientLabel}
                         </span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] items-center justify-center">
+                      <div className="flex min-h-[2.75rem] items-center justify-center">
                         <Badge
                           variant={
                             pallet.current_status_id === 7
@@ -800,47 +1312,83 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                                 ? 'success'
                                 : 'info'
                           }
+                          className="min-h-[1.875rem] rounded-lg px-2.5 py-1 text-[11px] font-bold tracking-tight normal-case"
                         >
                           {getStatusLabelText(pallet)}
                         </Badge>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] min-w-0 items-center justify-center">
-                        <span className="truncate text-[10px] font-bold uppercase text-zinc-500">
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'text-zinc-400')}>
+                          {timelineInfo.dateLabel}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'text-zinc-500')}>
+                          {timelineInfo.termLabel}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <span
+                          className={cn(
+                            'inline-flex min-w-0 items-center gap-2.5 whitespace-nowrap text-[11px] font-bold tracking-tight',
+                            timelineInfo.tone === 'muted'
+                              ? 'text-zinc-300'
+                              : getDeadlineToneClass(timelineInfo.tone).split(' ')[1]
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'h-3 w-3 shrink-0 rounded-full',
+                              getDeadlineToneClass(timelineInfo.tone).split(' ')[0]
+                            )}
+                          />
+                          <span className="truncate">{timelineInfo.deadlineLabel}</span>
+                        </span>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'text-zinc-500')}>
                           {getLocationLabel(pallet)}
                         </span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] items-center justify-center text-[9px] font-black uppercase tracking-tight text-zinc-300">
-                        {getLastUpdateLabel(pallet)}
-                      </div>
-                    </td>
-                    <td className={bodyCellClass}>
-                      <div className="flex min-h-[2.25rem] items-center justify-center">
+                      <div className="flex min-h-[2.75rem] items-center justify-center">
                         <div className="flex items-center justify-center gap-2">
                           <Button
                             type="button"
                             variant="outline"
                             size="xs"
-                            className="h-9 w-9 p-0"
-                            onClick={() => onEditPallet?.(pallet)}
+                            className="h-10 w-10 p-0"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onEditPallet?.(pallet);
+                            }}
                             title={t('editData')}
                             aria-label={t('editData')}
                           >
-                            <Edit size={14} />
+                            <Edit size={15} />
                           </Button>
                           <Button
                             type="button"
                             variant="danger"
                             size="xs"
-                            className="h-9 w-9 p-0"
-                            onClick={() => onDeletePallet?.(pallet)}
+                            className="h-10 w-10 p-0"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onDeletePallet?.(pallet);
+                            }}
                             title={t('remove')}
                             aria-label={t('remove')}
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={15} />
                           </Button>
                         </div>
                       </div>
@@ -850,30 +1398,139 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
               })}
             </tbody>
           </table>
-
-          {filteredPallets.length === 0 && (
-            <div className="p-20 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
-                <Search size={20} className="text-zinc-200" />
-              </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                {t('noMatchingResults')}
-              </p>
-            </div>
-          )}
-        </div>
-      </Card>
+        )}
+      />
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
-      {onAddPallet && (
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-24 md:right-8">
         <button
           type="button"
-          onClick={onAddPallet}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 inline-flex h-14 items-center gap-2 rounded-full bg-[#00A655] px-5 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform hover:scale-[1.02] md:bottom-24 md:right-8"
+          onClick={() => setShowReportExportModal(true)}
+          disabled={customerReportGroups.length === 0}
+          className={cn(
+            'inline-flex h-14 items-center gap-2 rounded-full px-5 text-[11px] font-black uppercase tracking-[0.14em] shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform',
+            customerReportGroups.length === 0
+              ? 'cursor-not-allowed bg-emerald-200 text-white/80'
+              : 'bg-[#00A655] text-white hover:scale-[1.02]'
+          )}
         >
-          <Plus size={16} />
-          {addPalletLabel}
+          <FileSpreadsheet size={16} />
+          {reportCopy.fabLabel}
         </button>
+
+        {onAddPallet && (
+          <button
+            type="button"
+            onClick={onAddPallet}
+            className="inline-flex h-14 items-center gap-2 rounded-full bg-[#00A655] px-5 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform hover:scale-[1.02]"
+          >
+            <Plus size={16} />
+            {addPalletLabel}
+          </button>
+        )}
+      </div>
+
+      {showReportExportModal && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-2xl rounded-[1.75rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                  {reportCopy.fabLabel}
+                </p>
+                <h3 className="mt-2 text-2xl font-black tracking-tight text-zinc-950">
+                  {reportCopy.modalTitle}
+                </h3>
+                <p className="mt-2 max-w-xl text-sm font-medium leading-6 text-zinc-500">
+                  {reportCopy.modalSubtitle}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowReportExportModal(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+                aria-label={t('close')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                  {reportCopy.clientsCountLabel}
+                </p>
+                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">
+                  {reportCustomersCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                  {reportCopy.palletsCountLabel}
+                </p>
+                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">
+                  {reportPalletsCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                  {reportCopy.totalDebtLabel}
+                </p>
+                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">
+                  {reportCurrencyFormatter.format(reportTotalDebt)} EUR
+                </p>
+              </div>
+            </div>
+
+            {customerReportGroups.length > 0 ? (
+              <>
+                <div className="mt-6">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                    {reportCopy.selectedClientLabel}
+                  </label>
+                  <Select
+                    value={selectedReportClientId}
+                    onChange={(event) => setSelectedReportClientId(event.target.value)}
+                    className="text-left normal-case tracking-normal"
+                  >
+                    <option value="all">{reportCopy.allClientsOptionLabel}</option>
+                    {customerReportGroups.map((group) => (
+                      <option key={`report-client-${group.clientId}`} value={String(group.clientId)}>
+                        {group.clientName}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="px-5 py-3"
+                    onClick={() => handleExportCustomerReport('selected')}
+                    disabled={!selectedCustomerReportGroup}
+                  >
+                    {reportCopy.exportSelectedLabel}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="px-5 py-3"
+                    onClick={() => handleExportCustomerReport('all')}
+                  >
+                    {reportCopy.exportAllLabel}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                  {reportCopy.emptyStateLabel}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

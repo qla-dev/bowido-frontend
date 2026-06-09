@@ -444,6 +444,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
     if (role === RoleType.ADMIN) {
       items.push(
         { id: 'pallets', label: t('pallets'), icon: <Package /> },
+        { id: 'no-qr-pallets', label: t('noQrPallets'), icon: <Ghost /> },
         { id: 'calendar', label: t('calendar'), icon: <CalendarIcon /> },
         { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
         { id: 'users', label: t('clients'), icon: <Users /> },

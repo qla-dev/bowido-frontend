@@ -15,6 +15,7 @@ import { UserManager } from './UserManager';
 import { OverdueInvoiceModal, OverdueInvoicePreview } from './OverdueInvoiceModal';
 import { AdminAuditLogs } from './AdminAuditLogs';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { NoQrPalletTableView } from './NoQrPalletTableView';
 import { useApp } from '../AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, Pallet, PalletStatus, ClientDetail, User } from '../types';
@@ -28,7 +29,17 @@ import {
 } from '../i18n';
 
 interface AdminDashboardProps {
-  initialView?: 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar';
+  initialView?:
+    | 'overview'
+    | 'pallets'
+    | 'clients'
+    | 'users'
+    | 'settings'
+    | 'logs'
+    | 'billing'
+    | 'roles'
+    | 'calendar'
+    | 'noQrPallets';
   user: User;
   isNightMode?: boolean;
   onToggleNightMode?: () => void;
@@ -45,7 +56,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     updateStatusSettings, addStatus, deleteStatus, addPallet, addPalletBatch, updatePallet, deletePallet,
     addClient, updateClient, setIsGhostReportOpen, t, language 
   } = useApp();
-  const [view, setView] = useState<'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'>(initialView);
+  const [view, setView] = useState<
+    'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets'
+  >(initialView);
   const [editingStatus, setEditingStatus] = useState<PalletStatus | null>(null);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [newStatusData, setNewStatusData] = useState<Omit<PalletStatus, 'id'>>({
@@ -70,6 +83,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const [showEditingPalletDetails, setShowEditingPalletDetails] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
@@ -258,6 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
 
   const handleEditPallet = (pallet: Pallet) => {
     setSelectedPallet(null);
+    setShowEditingPalletDetails(false);
     setEditingPallet({
       ...pallet,
       type: normalizePalletTypeCode(pallet.type) || pallet.type,
@@ -299,6 +314,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
         )
       )
     );
+
+  const detailToggleLabel =
+    language === 'bs' ? 'Prikaz detalja' : language === 'nl' ? 'Details tonen' : 'Show details';
+  const hideDetailLabel =
+    language === 'bs' ? 'Sakrij detalje' : language === 'nl' ? 'Details verbergen' : 'Hide details';
+  const daysOutsideLabel =
+    language === 'bs' ? 'Dana vani' : language === 'nl' ? 'Dagen buiten' : 'Days out';
+  const noMovementHistoryLabel =
+    language === 'bs'
+      ? 'Nema zabiljezene historije kretanja.'
+      : language === 'nl'
+        ? 'Geen bewegingshistoriek beschikbaar.'
+        : 'No movement history available.';
+  const notAvailableLabel = language === 'bs' ? 'Nije dostupno' : language === 'nl' ? 'Niet beschikbaar' : 'Not available';
+  const formatDaysOutsideValue = (days: number) => {
+    if (language === 'bs') {
+      return `${days} ${days === 1 ? 'dan' : 'dana'}`;
+    }
+
+    if (language === 'nl') {
+      return `${days} ${days === 1 ? 'dag' : 'dagen'}`;
+    }
+
+    return `${days} ${days === 1 ? 'day' : 'days'}`;
+  };
+  const detailDateFormatter = new Intl.DateTimeFormat(
+    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
+    {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+  );
 
   const renderOverview = () => {
     const overduePallets = pallets.filter(p => calculateDebt(p) > 0);
@@ -543,6 +593,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     );
   };
 
+  const renderNoQrPallets = () => <NoQrPalletTableView />;
+
   const renderClients = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -757,6 +809,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     <div className="pb-24 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {view === 'overview' && renderOverview()}
       {view === 'pallets' && renderPallets()}
+      {view === 'noQrPallets' && renderNoQrPallets()}
       {view === 'clients' && renderClients()}
       {view === 'users' && <UserManager currentUser={user} />}
       {view === 'settings' && renderSettings()}
@@ -839,10 +892,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
 
         {editingPallet && (
           <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-lg shadow-2xl overflow-y-auto max-h-[95vh] no-scrollbar">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-black uppercase">{t('editUnit')}: {editingPallet.qr_code}</h3>
-                <button onClick={() => setEditingPallet(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-3xl overflow-y-auto rounded-[3rem] border-t-[6px] border-emerald-600 bg-white p-8 shadow-2xl max-h-[95vh] no-scrollbar"
+            >
+              <div className="mb-8 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-4xl font-black uppercase tracking-tight text-emerald-900">
+                    {editingPallet.qr_code}
+                  </h3>
+                  <p className="mt-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-400">
+                    {normalizePalletTypeCode(editingPallet.type) || editingPallet.type}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditingPalletDetails((current) => !current)}
+                    className="rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800 transition-colors hover:border-zinc-300 hover:bg-white"
+                  >
+                    {showEditingPalletDetails ? hideDetailLabel : detailToggleLabel}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingPallet(null);
+                      setShowEditingPalletDetails(false);
+                    }}
+                    className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               <div className="space-y-4">
                  <div className="grid grid-cols-2 gap-4">
@@ -914,15 +996,103 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     />
                  </div>
 
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('customOperationalNotes')}</label>
-                    <textarea 
+                  <div className="space-y-1">
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('customOperationalNotes')}</label>
+                     <textarea 
                       placeholder={t('addOperationalNotes')} 
                       className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold text-sm h-24"
                       value={editingPallet.note || ''}
                       onChange={e => setEditingPallet({...editingPallet, note: e.target.value})}
-                    />
-                 </div>
+                     />
+                  </div>
+
+                  <AnimatePresence initial={false}>
+                    {showEditingPalletDetails && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden border-t border-gray-100 pt-6"
+                      >
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                              {t('location')}
+                            </p>
+                            <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                              {editingPallet.current_location || notAvailableLabel}
+                            </p>
+                          </div>
+                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                              {t('status')}
+                            </p>
+                            <p className="mt-3 text-lg font-black uppercase leading-tight text-blue-600">
+                              {getStatusLabel(editingPallet.current_status_name, language)}
+                            </p>
+                          </div>
+                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                              {daysOutsideLabel}
+                            </p>
+                            <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                              {formatDaysOutsideValue(calculateDays(editingPallet.last_status_changed_at))}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 space-y-4">
+                          <div className="flex items-center gap-2">
+                            <History size={16} className="text-gray-400" />
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                              {t('movementHistory')}
+                            </h4>
+                          </div>
+
+                          <div className="space-y-2 max-h-[260px] overflow-y-auto no-scrollbar">
+                            {auditLogs
+                              .filter((log) => log.pallet_id === editingPallet.id && (log.type || 'status') === 'status')
+                              .sort(
+                                (left, right) =>
+                                  new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+                              )
+                              .map((log) => (
+                                <div
+                                  key={`editing-log-${log.id}`}
+                                  className="flex items-start gap-4 rounded-[1.5rem] border border-gray-100 bg-white p-4"
+                                >
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
+                                    <MapPin size={16} className="text-gray-400" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
+                                      {getStatusLabel(log.new_status_name, language)}
+                                    </p>
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                                      {log.new_location || notAvailableLabel}
+                                    </p>
+                                    <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
+                                      <Clock size={12} />
+                                      <span>{detailDateFormatter.format(new Date(log.created_at))}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+
+                            {auditLogs.filter(
+                              (log) => log.pallet_id === editingPallet.id && (log.type || 'status') === 'status'
+                            ).length === 0 && (
+                              <div className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                  {noMovementHistoryLabel}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
               </div>
               <div className="flex gap-4 mt-8 pt-4 border-t border-gray-100">
                  <button 
@@ -931,15 +1101,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                    }}
                    className="p-4 text-rose-500 hover:bg-rose-50 rounded-2xl transition-colors"
                  >
-                    <AlertTriangle size={20} />
-                 </button>
-                 <button onClick={() => setEditingPallet(null)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
-                 <button onClick={() => {
-                   updatePallet(editingPallet, { id: user.id, name: user.name });
-                   setEditingPallet(null);
-                   setSelectedPallet(null);
-                 }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/20 hover:scale-[1.02] transition-transform">{t('saveChanges')}</button>
-              </div>
+                     <AlertTriangle size={20} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingPallet(null);
+                      setShowEditingPalletDetails(false);
+                    }}
+                    className="flex-1 py-4 font-black uppercase text-xs text-gray-400"
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button onClick={() => {
+                    updatePallet(editingPallet, { id: user.id, name: user.name });
+                    setEditingPallet(null);
+                    setShowEditingPalletDetails(false);
+                    setSelectedPallet(null);
+                  }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/20 hover:scale-[1.02] transition-transform">{t('saveChanges')}</button>
+               </div>
             </motion.div>
           </div>
         )}

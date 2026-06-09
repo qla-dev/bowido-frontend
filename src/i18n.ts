@@ -397,6 +397,7 @@ export const translations = {
   en: {
     dashboard: 'Dashboard',
     pallets: 'Pallet Tracking',
+    noQrPallets: 'Pallets without QR code',
     clients: 'Client Manager',
     settings: 'Settings',
     activity: 'Activity',
@@ -824,6 +825,7 @@ export const translations = {
   nl: {
     dashboard: 'Dashboard',
     pallets: 'Pallet Tracking',
+    noQrPallets: 'Bokken zonder QR code',
     clients: 'Klantbeheer',
     settings: 'Instellingen',
     activity: 'Activiteit',
@@ -1250,6 +1252,7 @@ export const translations = {
   },
   bs: {
     dashboard: 'Kontrolna tabla',
+    noQrPallets: 'Palete bez QR koda',
     pallets: 'Praćenje paleta',
     clients: 'Upravljanje klijentima',
     settings: 'Postavke',

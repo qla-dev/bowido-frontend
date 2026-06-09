@@ -1,0 +1,96 @@
+import type { FC, ReactNode } from 'react';
+import { LogOut, Settings } from 'lucide-react';
+import { cn } from './ui';
+
+interface RoleMobileShellProps {
+  containerId: 'app-container' | 'driver-app-container';
+  sentinelVariant: 'app' | 'driver';
+  isNightMode?: boolean;
+  languageCode: string;
+  settingsTitle: string;
+  languageTitle: string;
+  logoutTitle: string;
+  settingsActive?: boolean;
+  onToggleSettings: () => void;
+  onCycleLanguage: () => void;
+  onLogout: () => void;
+  logoSrc: string;
+  bodyClassName?: string;
+  children: ReactNode;
+  bottomSlot?: ReactNode;
+}
+
+export const RoleMobileShell: FC<RoleMobileShellProps> = ({
+  containerId,
+  sentinelVariant,
+  isNightMode = false,
+  languageCode,
+  settingsTitle,
+  languageTitle,
+  logoutTitle,
+  settingsActive = false,
+  onToggleSettings,
+  onCycleLanguage,
+  onLogout,
+  logoSrc,
+  bodyClassName,
+  children,
+  bottomSlot,
+}) => (
+  <div
+    id={containerId}
+    className={cn(
+      'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#13241b] dark:text-white',
+      isNightMode && 'dark',
+      'fixed inset-0 flex flex-col overflow-hidden'
+    )}
+  >
+    <div className={cn('safari-tint-sentinel', `safari-tint-sentinel--${sentinelVariant}`)} aria-hidden="true" />
+    <header className="shrink-0 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
+      <div className="mx-auto flex h-16 w-full max-w-md items-center justify-between px-4">
+        <img src={logoSrc} alt="Trackpal logo" className="h-6 w-auto" />
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            title={settingsTitle}
+            onClick={onToggleSettings}
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100',
+              settingsActive
+                ? 'border-[#00A655] bg-[#00A655] text-white'
+                : 'border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700'
+            )}
+          >
+            <Settings size={18} />
+          </button>
+          <button
+            type="button"
+            title={languageTitle}
+            onClick={onCycleLanguage}
+            className="h-10 min-w-10 rounded-xl border border-emerald-100 bg-white px-3 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100"
+          >
+            {languageCode.toUpperCase()}
+          </button>
+          <button
+            type="button"
+            title={logoutTitle}
+            onClick={onLogout}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main
+      className="mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-y-auto overscroll-y-contain py-4 no-scrollbar dark:bg-transparent"
+      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+    >
+      <div className={cn('flex-1', bodyClassName)}>{children}</div>
+    </main>
+
+    {bottomSlot}
+  </div>
+);

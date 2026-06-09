@@ -12,9 +12,10 @@ import { ServiceDashboard } from './components/ServiceDashboard';
 import { PalletScanner } from './components/PalletScanner';
 import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
+import { RoleMobileShell } from './components/RoleMobileShell';
 import { ManagedUser, RoleType, User } from './types';
 import { mockUsers } from './lib/mockData';
-import { LogIn, LogOut, Settings, Smartphone } from 'lucide-react';
+import { LogIn, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card, Select, cn } from './components/ui';
@@ -99,9 +100,14 @@ export default function App() {
   }, []);
 
   const isDriverShell = currentUser?.role_name === RoleType.VOZAC;
-  const usesFixedMobileShell = Boolean(currentUser) && isMobileViewport && !isDriverShell;
-  const usesInternalScrollShell = Boolean(currentUser) && (isDriverShell || usesFixedMobileShell);
-  const chromeTintColor = isDriverShell ? '#00A655' : isNightMode ? '#17291f' : '#ffffff';
+  const usesRoleMobileShell =
+    Boolean(currentUser) &&
+    currentUser.role_name !== RoleType.ADMIN &&
+    (isDriverShell || isMobileViewport);
+  const usesFixedMobileShell =
+    Boolean(currentUser) && currentUser.role_name === RoleType.ADMIN && isMobileViewport;
+  const usesInternalScrollShell = Boolean(currentUser) && (usesRoleMobileShell || usesFixedMobileShell);
+  const chromeTintColor = usesRoleMobileShell ? '#00A655' : isNightMode ? '#17291f' : '#ffffff';
 
   useEffect(() => {
     if (!usesInternalScrollShell) {
@@ -312,11 +318,16 @@ export default function App() {
       );
     }
 
+    if (usesRoleMobileShell && currentUser.role_name !== RoleType.ADMIN) {
+      return <DriverMobileDashboard user={currentUser} />;
+    }
+
     switch (currentUser.role_name) {
       case RoleType.ADMIN: {
-        const adminTabsMap: Record<string, 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar'> = {
+        const adminTabsMap: Record<string, 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets'> = {
           dashboard: 'overview',
           pallets: 'pallets',
+          'no-qr-pallets': 'noQrPallets',
           calendar: 'calendar',
           'audit-logs': 'logs',
           users: 'clients',
@@ -354,69 +365,31 @@ export default function App() {
     }
   };
 
-  if (isDriverShell) {
+  if (usesRoleMobileShell && currentUser) {
     return (
-      <div
-        id="driver-app-container"
-        className={cn(
-          'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#13241b] dark:text-white',
-          isNightMode && 'dark',
-          'fixed inset-0 flex flex-col overflow-hidden'
-        )}
-      >
-        <div className="safari-tint-sentinel safari-tint-sentinel--driver" aria-hidden="true" />
-        <header className="shrink-0 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
-          <div className="mx-auto flex h-16 w-full max-w-md items-center justify-between px-4">
-            <img src={logoImage} alt="Trackpal logo" className="h-6 w-auto" />
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                title={t('settings')}
-                onClick={() => setActiveTab(activeTab === 'settings' ? 'dashboard' : 'settings')}
-                className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100",
-                  activeTab === 'settings'
-                    ? "border-[#00A655] bg-[#00A655] text-white"
-                    : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700"
-                )}
-              >
-                <Settings size={18} />
-              </button>
-              <button
-                type="button"
-                title={t('language')}
-                onClick={() => {
-                  const currentIndex = languageOptions.findIndex((option) => option.code === language);
-                  const nextOption = languageOptions[(currentIndex + 1) % languageOptions.length] || languageOptions[0];
-                  setLanguage(nextOption.code);
-                }}
-                className="h-10 min-w-10 rounded-xl border border-emerald-100 bg-white px-3 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100"
-              >
-                {language.toUpperCase()}
-              </button>
-              <button
-                type="button"
-                title={t('logout')}
-                onClick={handleLogout}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200"
-              >
-                <LogOut size={18} />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <main
-          className={cn(
-            'mx-auto flex min-h-0 w-full max-w-md flex-1 flex-col overflow-y-auto overscroll-y-contain py-4 no-scrollbar dark:bg-transparent',
-            activeTab === 'settings' ? 'px-4' : 'px-0'
-          )}
-          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+      <>
+        <RoleMobileShell
+          containerId="driver-app-container"
+          sentinelVariant="driver"
+          isNightMode={isNightMode}
+          languageCode={language}
+          settingsTitle={t('settings')}
+          languageTitle={t('language')}
+          logoutTitle={t('logout')}
+          settingsActive={activeTab === 'settings'}
+          onToggleSettings={() => setActiveTab(activeTab === 'settings' ? 'dashboard' : 'settings')}
+          onCycleLanguage={() => {
+            const currentIndex = languageOptions.findIndex((option) => option.code === language);
+            const nextOption = languageOptions[(currentIndex + 1) % languageOptions.length] || languageOptions[0];
+            setLanguage(nextOption.code);
+          }}
+          onLogout={handleLogout}
+          logoSrc={logoImage}
+          bodyClassName={activeTab === 'settings' ? 'px-4' : 'px-0'}
         >
           <AnimatePresence mode="wait">
             <motion.div
-              key={`${currentUser.id}-driver-mobile-${activeTab}`}
+              key={`${currentUser.id}-mobile-role-${activeTab}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -426,8 +399,21 @@ export default function App() {
               {renderDashboard()}
             </motion.div>
           </AnimatePresence>
-        </main>
-      </div>
+        </RoleMobileShell>
+
+        <AnimatePresence>
+          {isScannerOpen && (
+            <PalletScanner currentUser={currentUser} onClose={() => setIsScannerOpen(false)} />
+          )}
+
+          {isGhostReportOpen && currentUser.role_name !== RoleType.SERVISER && (
+            <GhostPalletCenter
+              currentUser={currentUser}
+              onClose={() => setIsGhostReportOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+      </>
     );
   }
 
