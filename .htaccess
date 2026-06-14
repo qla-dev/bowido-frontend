@@ -1,0 +1,18 @@
+RewriteEngine On
+
+# Prevent rewrite loops once request is already inside /dist.
+RewriteRule ^dist/ - [L]
+
+# Always serve built entry file instead of Vite source index.html.
+RewriteRule ^index\.html$ dist/index.html [L]
+
+# Root domain opens the built app.
+RewriteRule ^$ dist/index.html [L]
+
+# If requested path exists inside /dist, serve that file or directory.
+RewriteCond %{DOCUMENT_ROOT}/dist/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/dist/$1 -d
+RewriteRule ^(.+)$ dist/$1 [L]
+
+# SPA fallback.
+RewriteRule ^ dist/index.html [L]
