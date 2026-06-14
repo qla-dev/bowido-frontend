@@ -944,6 +944,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   } = adminTableStyles;
   const textFilterInputClass =
     'h-10 bg-white px-3 text-left text-[12px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal';
+  const stickyActionsHeaderClass =
+    'sticky right-0 z-20 border-l border-zinc-200 bg-zinc-50/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur';
+  const stickyActionsCellClass =
+    'sticky right-0 z-10 border-l border-zinc-100 bg-white/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.35)] backdrop-blur group-hover:bg-zinc-50/95';
   const getDeadlineToneClass = (tone: DeadlineTone) => {
     switch (tone) {
       case 'danger':
@@ -1233,7 +1237,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   </div>
                   {renderResizeHandle('location')}
                 </th>
-                <th className={cn(headerCellClass, 'group')}>
+                <th className={cn(headerCellClass, stickyActionsHeaderClass, 'group')}>
                   <div className={headerContentClass}>
                     <div className={headerIconClass}>
                       <Edit size={16} />
@@ -1279,11 +1283,11 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     tabIndex={onEditPallet ? 0 : -1}
                     role={onEditPallet ? 'button' : undefined}
                     className={cn(
-                      'transition-colors hover:bg-zinc-50/60',
+                      'group transition-colors hover:bg-zinc-50/60',
                       onEditPallet && 'cursor-pointer focus-visible:bg-zinc-50/80 focus-visible:outline-none'
                     )}
                   >
-                    <td className={bodyCellClass}>
+                    <td className={cn(bodyCellClass, stickyActionsCellClass)}>
                       <div className={bodyCellInnerClass}>
                         <span className={cn(bodyTextClass, 'text-zinc-900')}>{pallet.qr_code}</span>
                       </div>

@@ -96,6 +96,8 @@ export interface ClientDetail {
   id: number;
   user_id: number;
   name: string;
+  kvk_number?: string;
+  warehouse_addresses?: string[];
   country: string;
   grace_period_days: number;
   price_per_day: number;

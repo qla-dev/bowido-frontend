@@ -16,7 +16,9 @@ import { OverdueInvoiceModal, OverdueInvoicePreview } from './OverdueInvoiceModa
 import { AdminAuditLogs } from './AdminAuditLogs';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { NoQrPalletTableView } from './NoQrPalletTableView';
+import { ClientTableView } from './ClientTableView';
 import { useApp } from '../AppContext';
+import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, Pallet, PalletStatus, ClientDetail, User } from '../types';
 import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost } from 'lucide-react';
@@ -81,6 +83,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   const [showScanner, setShowScanner] = useState(false);
   const [showDamageModal, setShowDamageModal] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null);
+  const [clientPasswordDraft, setClientPasswordDraft] = useState('');
+  const [clientPasswordMessage, setClientPasswordMessage] = useState<string | null>(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
   const [showEditingPalletDetails, setShowEditingPalletDetails] = useState(false);
@@ -281,6 +285,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
 
   const handleDeletePallet = (pallet: Pallet) => {
     setDeleteConfirm({ kind: 'pallet', pallet });
+  };
+
+  const handleEditClient = (client: ClientDetail) => {
+    setEditingClient(client);
+    setClientPasswordDraft('');
+    setClientPasswordMessage(null);
+  };
+
+  const handleCloseClientModal = () => {
+    setEditingClient(null);
+    setClientPasswordDraft('');
+    setClientPasswordMessage(null);
+  };
+
+  const handleClientPasswordReset = async () => {
+    if (!editingClient || !clientPasswordDraft.trim()) {
+      return;
+    }
+
+    try {
+      await apiService.users.update(editingClient.user_id, {
+        password: clientPasswordDraft.trim(),
+      });
+      setClientPasswordDraft('');
+      setClientPasswordMessage(
+        language === 'bs'
+          ? 'Lozinka je promijenjena.'
+          : language === 'nl'
+            ? 'Wachtwoord is gewijzigd.'
+            : 'Password has been updated.'
+      );
+    } catch {
+      setClientPasswordMessage(
+        language === 'bs'
+          ? 'Nije pronadjen povezani korisnicki nalog.'
+          : language === 'nl'
+            ? 'Geen gekoppeld gebruikersaccount gevonden.'
+            : 'No linked user account was found.'
+      );
+    }
   };
 
   const handleDeleteStatus = (status: PalletStatus) => {
@@ -596,54 +640,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   const renderNoQrPallets = () => <NoQrPalletTableView />;
 
   const renderClients = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-         <h2 className="text-xl font-black uppercase tracking-tighter">{t('clients')}</h2>
-         <button 
-           onClick={() => setShowAddClient(true)}
-           className="px-6 py-3 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-black/10 hover:scale-105 transition-transform"
-         >
-            <Plus size={16} />
-            {t('addNew')}
-         </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clients.map(client => (
-          <div 
-            key={`client-card-${client.id}`} 
-            onClick={() => setEditingClient(client)}
-            className="cursor-pointer group"
-          >
-            <Card title={client.name} action={
-              <SettingsIcon size={14} className="text-gray-300 group-hover:text-black transition-colors" />
-            }>
-               <div className="p-6 space-y-4">
-                  <div className="flex flex-col gap-1">
-                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('inventory')}</span>
-                   <p className="font-black text-lg">{pallets.filter(p => p.user_id === client.user_id).length} {t('unitsLabel')}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-50">
-                   <div>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase">{t('gracePeriodLabel')}</span>
-                      <p className="font-black text-xs">{client.grace_period_days} {t('days')}</p>
-                   </div>
-                   <div>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase">{t('ratePerDayLabel')}</span>
-                      <p className="font-black text-xs">{"\u20AC"}{client.price_per_day}</p>
-                   </div>
-                </div>
-                <div className="pt-2">
-                   <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded ${isNetherlandsCountry(client.country) ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
-                      {getCountryLabel(client.country, language)}
-                   </span>
-                </div>
-             </div>
-          </Card>
-        </div>
-      ))}
-      </div>
-    </div>
+    <ClientTableView
+      onAddClient={() => setShowAddClient(true)}
+      onEditClient={handleEditClient}
+    />
   );
 
   const renderSettings = () => (
