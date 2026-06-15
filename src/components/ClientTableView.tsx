@@ -16,7 +16,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
-import { Button, cn, Input } from './ui';
+import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail } from '../types';
 
@@ -40,6 +40,7 @@ type ClientTableRow = {
   client: ClientDetail;
   clientName: string;
   kvkLabel: string;
+  warehouseAddresses: string[];
   warehousesLabel: string;
   rateLabel: string;
   rateValue: number;
@@ -182,6 +183,14 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     language === 'bs' ? 'Kod kupca' : language === 'nl' ? 'Bij klant' : 'At client';
   const returnReportsHeaderLabel =
     language === 'bs' ? 'Prijave povrata' : language === 'nl' ? 'Retourmeldingen' : 'Return reports';
+  const mobileProfileLabel =
+    language === 'bs' ? 'Profil klijenta' : language === 'nl' ? 'Klantprofiel' : 'Client profile';
+  const mobileHealthyLabel =
+    language === 'bs' ? 'Bez duga' : language === 'nl' ? 'Geen achterstand' : 'No overdue';
+  const mobileOverdueLabel =
+    language === 'bs' ? 'Aktivan dug' : language === 'nl' ? 'Open achterstand' : 'Overdue active';
+  const mobileReturnLabel =
+    language === 'bs' ? 'Povrat prijavljen' : language === 'nl' ? 'Retour gemeld' : 'Return reported';
   const resizeAriaLabel =
     language === 'bs'
       ? 'Promijeni sirinu kolone'
@@ -280,6 +289,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           client,
           clientName: client.name,
           kvkLabel: client.kvk_number || '-',
+          warehouseAddresses: warehouses,
           warehousesLabel: warehouses.length > 0 ? warehouses.join(' | ') : '-',
           rateLabel: `EUR ${currencyFormatter.format(client.price_per_day)}`,
           rateValue: client.price_per_day,
@@ -291,7 +301,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           returnReportsCount: returnReports.length,
         };
       }),
-    [clients, currencyFormatter, pallets, statuses]
+    [currencyFormatter, filteredClients, pallets, statuses]
   );
 
   const getFilterValue = (row: ClientTableRow, key: SortKey) => {
@@ -523,6 +533,147 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
       </div>
     );
   };
+
+  if (isMobile && clientIdFilter !== undefined) {
+    return (
+      <div className="space-y-4">
+        {filteredRows.length === 0 ? (
+          <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#203d31]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+              <Search size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+              {t('noMatchingResults')}
+            </p>
+          </div>
+        ) : (
+          filteredRows.map((row) => {
+            const badgeVariant =
+              row.overdueTotalValue > 0 ? 'danger' : row.returnReportsCount > 0 ? 'warning' : 'success';
+            const badgeLabel =
+              row.overdueTotalValue > 0
+                ? mobileOverdueLabel
+                : row.returnReportsCount > 0
+                  ? mobileReturnLabel
+                  : mobileHealthyLabel;
+
+            return (
+              <div
+                key={`client-mobile-row-${row.client.id}`}
+                className="overflow-hidden rounded-[1.75rem] border border-zinc-200 bg-white p-4 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-[#1a3327] dark:shadow-[0_18px_44px_-28px_rgba(0,0,0,0.5)]"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {mobileProfileLabel}
+                    </p>
+                    <h4 className="mt-2 truncate text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                      {row.clientName}
+                    </h4>
+                  </div>
+                  <Badge variant={badgeVariant}>{badgeLabel}</Badge>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {t('ratePerDayLabel')}
+                    </p>
+                    <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                      {row.rateLabel}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {overdueTotalHeaderLabel}
+                    </p>
+                    <p
+                      className={cn(
+                        'mt-2 text-sm font-black uppercase tracking-tight dark:text-white',
+                        row.overdueTotalValue > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
+                      )}
+                    >
+                      {row.overdueTotalLabel}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {atClientHeaderLabel}
+                    </p>
+                    <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                      {row.atClientLabel}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {returnReportsHeaderLabel}
+                    </p>
+                    <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                      {row.returnReportsLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-[1.5rem] border border-zinc-100 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-[#203d31]">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                      <Hash size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                        KVK
+                      </p>
+                      <p className="mt-1 text-[12px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {row.kvkLabel}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                      <MapPin size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {warehousesHeaderLabel}
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {row.warehouseAddresses.length > 0 ? (
+                          row.warehouseAddresses.map((address, index) => (
+                            <p
+                              key={`${row.client.id}-warehouse-${index}`}
+                              className="text-[11px] font-bold leading-5 text-zinc-700 dark:text-[#d8e8de]"
+                            >
+                              {address}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-[11px] font-bold leading-5 text-zinc-500 dark:text-[#c0d6ca]">
+                            -
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {onEditClient && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-4 w-full"
+                    onClick={() => onEditClient(row.client)}
+                  >
+                    {t('editData')}
+                  </Button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, History, MapPin, Plus, RefreshCcw, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Pallet, User } from '../types';
+import { Pallet, RoleType, User } from '../types';
 import { Card, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
 import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
+import { NoQrReturnFormModal, getNoQrReturnButtonCopy } from './NoQrReturnFormModal';
 import { normalizePalletTypeCode } from '../i18n';
 
 interface DriverMobileDashboardProps {
@@ -121,7 +122,7 @@ type DriverCopy = {
 
 const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
   en: {
-    title: 'Scan QR code on pallet',
+    title: 'Scan QR code',
     resultLabel: 'Scanned pallet',
     palletNameLabel: 'Pallet',
     palletTypeLabel: 'Type',
@@ -177,7 +178,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     comingSoon: 'Soon',
   },
   nl: {
-    title: 'Scan QR-code op pallet',
+    title: 'Scan QR code',
     resultLabel: 'Gescande bok',
     palletNameLabel: 'Boknummer',
     palletTypeLabel: 'Type',
@@ -233,7 +234,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     comingSoon: 'Binnenkort',
   },
   bs: {
-    title: 'Skeniraj QR code na paleti',
+    title: 'Scan QR code',
     resultLabel: 'Skenirana paleta',
     palletNameLabel: 'Paleta',
     palletTypeLabel: 'Tip',
@@ -403,6 +404,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [scannedPalletIds, setScannedPalletIds] = useState<number[]>([]);
   const [isScannedPalletsModalOpen, setIsScannedPalletsModalOpen] = useState(false);
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
+  const [isNoQrReturnFormOpen, setIsNoQrReturnFormOpen] = useState(false);
   const [activeScannedPalletId, setActiveScannedPalletId] = useState<number | null>(null);
   const [openChangeMenu, setOpenChangeMenu] = useState<OpenChangeMenu>(null);
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
@@ -438,8 +440,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const nextDemoPalletIdRef = useRef(-1);
 
   const text = driverCopy[language] || driverCopy.en;
+  const noQrReturnCopy = getNoQrReturnButtonCopy(language);
   const allDriverPallets = [...demoPallets, ...pallets];
   const isScannerOpen = selectedPalletId === null;
+  const showNoQrReturnAction = [RoleType.KLIJENT, RoleType.VOZAC].includes(user.role_name);
   const selectedPallet = selectedPalletId
     ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
     : null;
@@ -914,7 +918,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   useEffect(() => {
     let cancelled = false;
 
-    if (!isScannerOpen) {
+    if (!isScannerOpen || isNoQrReturnFormOpen) {
       stopCamera();
       return;
     }
@@ -1015,7 +1019,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         flashTimeoutRef.current = null;
       }
     };
-  }, [isScannerOpen]);
+  }, [isNoQrReturnFormOpen, isScannerOpen]);
 
   const dismissFlash = () => {
     if (flashTimeoutRef.current) {
@@ -1475,6 +1479,26 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               {text.title}
             </p>
           </div>
+
+          {showNoQrReturnAction && (
+            <button
+              type="button"
+              onClick={() => setIsNoQrReturnFormOpen(true)}
+              className="mb-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-rose-200 bg-rose-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-rose-500/20 dark:bg-rose-500/10"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-white text-rose-600 dark:border-rose-500/25 dark:bg-[#1f3a2d] dark:text-rose-200">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700 dark:text-rose-100">
+                  {noQrReturnCopy.reportButtonLabel}
+                </p>
+                <p className="mt-1 text-[12px] font-bold leading-5 text-rose-700/80 dark:text-rose-100/85">
+                  {noQrReturnCopy.reportButtonText}
+                </p>
+              </div>
+            </button>
+          )}
 
           <div className="flex flex-1">
             <AnimatePresence mode="wait" initial={false}>
@@ -2061,6 +2085,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       )}
 
       <AnimatePresence>
+        {isNoQrReturnFormOpen && (
+          <NoQrReturnFormModal
+            currentUser={user}
+            onClose={() => setIsNoQrReturnFormOpen(false)}
+            onSubmitted={(clientName, count) =>
+              showFlash(
+                noQrReturnCopy.reportButtonLabel,
+                `${clientName} | ${count}`,
+                'success'
+              )
+            }
+          />
+        )}
+
         {openChangeMenu && selectedPallet && (
           <DriverModalShell
             onClose={() => setOpenChangeMenu(null)}

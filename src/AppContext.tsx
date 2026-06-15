@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   AuditLog,
   ClientDetail,
+  GhostPalletReportInput,
   Invoice,
   Pallet,
   PalletStatus,
@@ -59,7 +60,12 @@ interface AppContextType {
     report: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
   ) => void;
   resolveService: (reportId: number, userId: number, note: string) => void;
-  reportGhostPallets: (count: number, clientId: number, clientName: string, note: string) => void;
+  reportGhostPallets: (
+    count: number,
+    clientId: number,
+    clientName: string,
+    details: string | GhostPalletReportInput
+  ) => void;
   pairGhostPallet: (ghostId: number, newQrCode: string) => void;
   fetchInvoices: () => Promise<void>;
   fetchRoles: () => Promise<void>;
@@ -434,31 +440,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updatePalletStatus(report.pallet_id, 1, userId, 'Technician', 'Service Doboj', `Repaired: ${note}`);
   };
 
-  const reportGhostPallets = (count: number, clientId: number, clientName: string, note: string) => {
+  const reportGhostPallets = (
+    count: number,
+    clientId: number,
+    clientName: string,
+    details: string | GhostPalletReportInput
+  ) => {
+    const normalizedDetails =
+      typeof details === 'string'
+        ? { note: details }
+        : details;
+    const baseLocation = normalizedDetails.location?.trim() || 'Client Location';
+    const baseNote = normalizedDetails.note?.trim() || '';
+    const entryDetails = normalizedDetails.entries || [];
+
     setPallets((prev) => {
       const maxId = prev.length > 0 ? Math.max(...prev.map((pallet) => pallet.id)) : 0;
-      const newPallets: Pallet[] = Array.from({ length: count }).map((_, index) => ({
-        id: maxId + index + 1,
-        qr_code: `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-        type: 'Euro Pallet (Unlabeled)',
-        current_status_id: 5,
-        current_status_name: statuses.find((status) => status.id === 5)?.name || 'Voor retour',
-        user_id: clientId,
-        client_name: clientName,
-        current_location: 'Client Location',
-        is_ghost: true,
-        is_active: true,
-        last_status_changed_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        note,
-      }));
+      const newPallets: Pallet[] = Array.from({ length: count }).map((_, index) => {
+        const entry = entryDetails[index];
+        const currentLocation = entry?.location?.trim() || baseLocation;
+        const entryNote = entry?.note?.trim() || '';
+        const note = [baseNote, entryNote].filter(Boolean).join(' | ');
+
+        return {
+          id: maxId + index + 1,
+          qr_code: `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+          type: 'Euro Pallet (Unlabeled)',
+          current_status_id: 5,
+          current_status_name: statuses.find((status) => status.id === 5)?.name || 'Voor retour',
+          user_id: clientId,
+          client_name: clientName,
+          current_location: currentLocation,
+          is_ghost: true,
+          is_active: true,
+          last_status_changed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          note: note || undefined,
+        };
+      });
 
       return [...prev, ...newPallets];
     });
 
+    const notificationDetails = [baseLocation !== 'Client Location' ? `Location: ${baseLocation}` : '', baseNote]
+      .filter(Boolean)
+      .join(' | ');
+
     pushNotification(
       'Ghost Pallet Report',
-      `${count} unlabeled unit${count > 1 ? 's' : ''} reported for ${clientName}.${note ? ` Note: ${note}` : ''}`,
+      `${count} unlabeled unit${count > 1 ? 's' : ''} reported for ${clientName}.${notificationDetails ? ` ${notificationDetails}` : ''}`,
       'alert'
     );
   };

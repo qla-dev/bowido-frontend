@@ -104,6 +104,17 @@ export interface ClientDetail {
   is_active: boolean;
 }
 
+export interface GhostPalletReportEntry {
+  location: string;
+  note?: string;
+}
+
+export interface GhostPalletReportInput {
+  note?: string;
+  location?: string;
+  entries?: GhostPalletReportEntry[];
+}
+
 export interface Invoice {
   id: number;
   invoice_number: string;
