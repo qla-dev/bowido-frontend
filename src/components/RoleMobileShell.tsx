@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, Settings, Boxes } from 'lucide-react';
 import { cn } from './ui';
 
 interface RoleMobileShellProps {
@@ -11,6 +11,7 @@ interface RoleMobileShellProps {
   languageTitle: string;
   logoutTitle: string;
   settingsActive?: boolean;
+  palletActive?: boolean;
   onToggleSettings: () => void;
   onCycleLanguage: () => void;
   onLogout: () => void;
@@ -18,6 +19,8 @@ interface RoleMobileShellProps {
   bodyClassName?: string;
   children: ReactNode;
   bottomSlot?: ReactNode;
+  showPalletIcon?: boolean;
+  onPalletIconClick?: () => void;
 }
 
 export const RoleMobileShell: FC<RoleMobileShellProps> = ({
@@ -29,6 +32,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   languageTitle,
   logoutTitle,
   settingsActive = false,
+  palletActive = false,
   onToggleSettings,
   onCycleLanguage,
   onLogout,
@@ -36,6 +40,8 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   bodyClassName,
   children,
   bottomSlot,
+  showPalletIcon = false,
+  onPalletIconClick,
 }) => (
   <div
     id={containerId}
@@ -51,6 +57,20 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
         <img src={logoSrc} alt="Trackpal logo" className="h-6 w-auto" />
 
         <div className="flex items-center gap-2">
+          {showPalletIcon && (
+            <button
+              type="button"
+              onClick={onPalletIconClick}
+              className={cn(
+                'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100',
+                palletActive
+                  ? 'border-[#00A655] bg-[#00A655] text-white'
+                  : 'border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700'
+              )}
+            >
+              <Boxes size={18} />
+            </button>
+          )}
           <button
             type="button"
             title={settingsTitle}

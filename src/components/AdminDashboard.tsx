@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Package, Truck, AlertTriangle, Users, ArrowUpRight,
   Filter, MoreVertical, MapPin, Clock, Settings as SettingsIcon,
@@ -1341,6 +1341,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                        <option value="DE">{getCountryLabel('DE', language)}</option>
                     </select>
                  </div>
+                 <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                       {language === 'bs' ? 'Adresa magacina 1' : language === 'nl' ? 'Magazijnadres 1' : 'Warehouse Address 1'}
+                    </label>
+                    <input id="new-client-address1" placeholder={language === 'bs' ? 'npr. Veldhovenweg 18, Eindhoven' : 'e.g. Veldhovenweg 18, Eindhoven'} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
+                 </div>
+                 <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                       {language === 'bs' ? 'Adresa magacina 2' : language === 'nl' ? 'Magazijnadres 2' : 'Warehouse Address 2'}
+                    </label>
+                    <input id="new-client-address2" placeholder={language === 'bs' ? 'npr. Waalhaven Zuidzijde 19, Rotterdam' : 'e.g. Waalhaven Zuidzijde 19, Rotterdam'} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
+                 </div>
               </div>
               <div className="flex gap-4 mt-8">
                  <button onClick={() => setShowAddClient(false)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
@@ -1349,8 +1361,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     const grace = parseInt((document.getElementById('new-client-grace') as HTMLInputElement).value);
                     const rate = parseFloat((document.getElementById('new-client-rate') as HTMLInputElement).value);
                     const country = (document.getElementById('new-client-country') as HTMLSelectElement).value;
+                    const address1 = (document.getElementById('new-client-address1') as HTMLInputElement).value.trim();
+                    const address2 = (document.getElementById('new-client-address2') as HTMLInputElement).value.trim();
                     if (name) {
-                       addClient({ name, grace_period_days: grace, price_per_day: rate, country });
+                       addClient({ 
+                         name, 
+                         grace_period_days: grace, 
+                         price_per_day: rate, 
+                         country, 
+                         warehouse_addresses: [address1, address2].filter(Boolean) 
+                       });
                        setShowAddClient(false);
                     }
                  }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs">{t('registerClient')}</button>
@@ -1386,13 +1406,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                       className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" 
                     />
                  </div>
+                 <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                       {language === 'bs' ? 'Adresa magacina 1' : language === 'nl' ? 'Magazijnadres 1' : 'Warehouse Address 1'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={editingClient.warehouse_addresses?.[0] || ''} 
+                      onChange={e => {
+                        const addresses = [...(editingClient.warehouse_addresses || [])];
+                        // Make sure we have enough space in array
+                        if (addresses.length < 1) {
+                          addresses[0] = '';
+                        }
+                        addresses[0] = e.target.value;
+                        setEditingClient({...editingClient, warehouse_addresses: addresses});
+                      }}
+                      className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" 
+                    />
+                 </div>
+                 <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                       {language === 'bs' ? 'Adresa magacina 2' : language === 'nl' ? 'Magazijnadres 2' : 'Warehouse Address 2'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={editingClient.warehouse_addresses?.[1] || ''} 
+                      onChange={e => {
+                        const addresses = [...(editingClient.warehouse_addresses || [])];
+                        // Make sure we have enough space in array
+                        while (addresses.length < 2) {
+                          addresses.push('');
+                        }
+                        addresses[1] = e.target.value;
+                        setEditingClient({...editingClient, warehouse_addresses: addresses});
+                      }}
+                      className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" 
+                    />
+                 </div>
               </div>
               <div className="flex gap-4 mt-8">
                  <button onClick={() => setEditingClient(null)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('discard')}</button>
                  <button onClick={() => {
-                    updateClient(editingClient);
+                    const cleanedAddresses = (editingClient.warehouse_addresses || [])
+                      .map(a => a.trim())
+                      .filter(Boolean);
+                    updateClient({...editingClient, warehouse_addresses: cleanedAddresses});
                     setEditingClient(null);
-                 }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs">{t('updateSettings')}</button>
+                  }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs">{t('updateSettings')}</button>
               </div>
             </motion.div>
           </div>

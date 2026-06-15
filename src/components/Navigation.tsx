@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Users, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, UserCircle, Ghost, History
+  Bell, UserCircle, Ghost, History, Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -106,6 +106,21 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         <div className="flex w-full items-center justify-center gap-2 md:w-auto md:justify-start">
+          {role === RoleType.KLIJENT && (
+            <button
+              type="button"
+              title={language === 'bs' ? 'Profil' : 'Profile'}
+              onClick={() => setActiveTab(activeTab === 'client-table' ? 'dashboard' : 'client-table')}
+              className={cn(
+                "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
+                activeTab === 'client-table'
+                  ? "bg-[#00A655] text-white border-[#00A655]"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+              )}
+            >
+              <Boxes size={19} />
+            </button>
+          )}
           {hasGhostAccess && (
             <button
               type="button"

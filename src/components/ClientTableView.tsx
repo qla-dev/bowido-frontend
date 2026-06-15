@@ -90,10 +90,42 @@ const MIN_COLUMN_WIDTHS: Record<ColumnKey, number> = {
 interface ClientTableViewProps {
   onAddClient?: () => void;
   onEditClient?: (client: ClientDetail) => void;
+  clientIdFilter?: number;
 }
 
-export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, onEditClient }) => {
+export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, onEditClient, clientIdFilter }) => {
   const { clients, pallets, statuses, t, language } = useApp();
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const handleResize = () => setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleResize);
+    return () => mediaQuery.removeEventListener('change', handleResize);
+  }, []);
+
+  const filteredClients = useMemo(() => {
+    if (clientIdFilter !== undefined) {
+      return clients.filter(c => c.user_id === clientIdFilter);
+    }
+    return clients;
+  }, [clients, clientIdFilter]);
+
+  const columnOrder = useMemo<readonly ColumnKey[]>(() => {
+    if (clientIdFilter !== undefined) {
+      return CLIENT_TABLE_COLUMN_ORDER.filter(col => col !== 'actions');
+    }
+    return CLIENT_TABLE_COLUMN_ORDER;
+  }, [clientIdFilter]);
+
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<ColumnKey, HTMLTableCellElement | null>>>({});
@@ -226,7 +258,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
   const rows = useMemo<ClientTableRow[]>(
     () =>
-      clients.map((client) => {
+      filteredClients.map((client) => {
         const clientPallets = pallets.filter((pallet) => pallet.user_id === client.user_id);
         const palletsAtClient = clientPallets.filter((pallet) => pallet.current_status_id === 4);
         const returnReports = clientPallets.filter((pallet) => pallet.current_status_id === 5);
@@ -495,7 +527,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   return (
     <div className="space-y-6">
       <AdminDataTable<ColumnKey>
-        columnOrder={CLIENT_TABLE_COLUMN_ORDER}
+        columnOrder={columnOrder}
         initialColumnWidths={INITIAL_COLUMN_WIDTHS}
         minColumnWidths={MIN_COLUMN_WIDTHS}
         resizeAriaLabel={resizeAriaLabel}
@@ -525,7 +557,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
               <col style={{ width: columnWidths.overdueTotal }} />
               <col style={{ width: columnWidths.atClient }} />
               <col style={{ width: columnWidths.returnReports }} />
-              <col style={{ width: columnWidths.actions }} />
+              {clientIdFilter === undefined && <col style={{ width: columnWidths.actions }} />}
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80">
               <tr>
@@ -599,17 +631,19 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   </div>
                   {renderResizeHandle('returnReports')}
                 </th>
-                <th className={cn(headerCellClass, stickyActionsHeaderClass, 'group')}>
-                  <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Edit size={16} />
+                {clientIdFilter === undefined && (
+                  <th className={cn(headerCellClass, stickyActionsHeaderClass, 'group')}>
+                    <div className={headerContentClass}>
+                      <div className={headerIconClass}>
+                        <Edit size={16} />
+                      </div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
+                        {t('actions')}
+                      </p>
                     </div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {t('actions')}
-                    </p>
-                  </div>
-                  {renderResizeHandle('actions')}
-                </th>
+                    {renderResizeHandle('actions')}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -683,24 +717,26 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                       </span>
                     </div>
                   </td>
-                  <td className={cn(bodyCellClass, stickyActionsCellClass)}>
-                    <div className="flex min-h-[2.75rem] items-center justify-center">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="h-10 w-10 p-0"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onEditClient?.(row.client);
-                        }}
-                        title={t('editData')}
-                        aria-label={t('editData')}
-                      >
-                        <Edit size={15} />
-                      </Button>
-                    </div>
-                  </td>
+                  {clientIdFilter === undefined && (
+                    <td className={cn(bodyCellClass, stickyActionsCellClass)}>
+                      <div className="flex min-h-[2.75rem] items-center justify-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          className="h-10 w-10 p-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onEditClient?.(row.client);
+                          }}
+                          title={t('editData')}
+                          aria-label={t('editData')}
+                        >
+                          <Edit size={15} />
+                        </Button>
+                      </div>
+                    </td>
+                  )}
                 </motion.tr>
               ))}
             </tbody>

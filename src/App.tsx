@@ -8,6 +8,7 @@ import { Sidebar, BottomNav, TopNavbar } from './components/Navigation';
 import { AdminDashboard } from './components/AdminDashboard';
 import { WorkerDashboard } from './components/WorkerDashboard';
 import { ClientDashboard } from './components/ClientDashboard';
+import { ClientTableView } from './components/ClientTableView';
 import { ServiceDashboard } from './components/ServiceDashboard';
 import { PalletScanner } from './components/PalletScanner';
 import { GhostPalletCenter } from './components/GhostPalletCenter';
@@ -15,7 +16,7 @@ import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
 import { ManagedUser, RoleType, User } from './types';
 import { mockUsers } from './lib/mockData';
-import { LogIn, Smartphone } from 'lucide-react';
+import { LogIn, Smartphone, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card, Select, cn } from './components/ui';
@@ -53,7 +54,7 @@ const AppFooter = ({ className }: { className?: string }) => {
 };
 
 export default function App() {
-  const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen } = useApp();
+  const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen, clients } = useApp();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loginUsers, setLoginUsers] = useState<User[]>(mockUsers);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -318,6 +319,14 @@ export default function App() {
       );
     }
 
+    if (activeTab === 'client-table' && currentUser.role_name === RoleType.KLIJENT) {
+      return (
+        <Card title={language === 'bs' ? 'Pregled podataka o klijentu' : language === 'nl' ? 'Klantgegevens overzicht' : 'Client Data Overview'} className="w-full">
+          <ClientTableView clientIdFilter={currentUser.id} />
+        </Card>
+      );
+    }
+
     if (usesRoleMobileShell && currentUser.role_name !== RoleType.ADMIN) {
       return <DriverMobileDashboard user={currentUser} />;
     }
@@ -377,6 +386,7 @@ export default function App() {
           languageTitle={t('language')}
           logoutTitle={t('logout')}
           settingsActive={activeTab === 'settings'}
+          palletActive={activeTab === 'client-table'}
           onToggleSettings={() => setActiveTab(activeTab === 'settings' ? 'dashboard' : 'settings')}
           onCycleLanguage={() => {
             const currentIndex = languageOptions.findIndex((option) => option.code === language);
@@ -385,7 +395,9 @@ export default function App() {
           }}
           onLogout={handleLogout}
           logoSrc={logoImage}
-          bodyClassName={activeTab === 'settings' ? 'px-4' : 'px-0'}
+          bodyClassName={(activeTab === 'settings' || activeTab === 'client-table') ? 'px-4' : 'px-0'}
+          showPalletIcon={currentUser.role_name === RoleType.KLIJENT}
+          onPalletIconClick={() => setActiveTab(activeTab === 'client-table' ? 'dashboard' : 'client-table')}
         >
           <AnimatePresence mode="wait">
             <motion.div
