@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Camera, Check, ChevronDown, ChevronLeft, History, MapPin, Plus, RefreshCcw, Search } from 'lucide-react';
+import { AlertTriangle, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, History, MapPin, PackageSearch, Plus, RefreshCcw, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Pallet, RoleType, User } from '../types';
 import { Card, cn } from './ui';
@@ -394,7 +394,7 @@ const getDriverPalletTypeLabel = (type: string) => {
 };
 
 export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {
-  const { pallets, clients, updatePalletStatus, statuses, language } = useApp();
+  const { pallets, clients, deletePallet, updatePalletStatus, statuses, language } = useApp();
   const [demoPallets, setDemoPallets] = useState<Pallet[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedPalletId, setSelectedPalletId] = useState<number | null>(null);
@@ -405,6 +405,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [isScannedPalletsModalOpen, setIsScannedPalletsModalOpen] = useState(false);
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [isNoQrReturnFormOpen, setIsNoQrReturnFormOpen] = useState(false);
+  const [isNoQrPickupListOpen, setIsNoQrPickupListOpen] = useState(false);
+  const [noQrClientSearch, setNoQrClientSearch] = useState('');
   const [activeScannedPalletId, setActiveScannedPalletId] = useState<number | null>(null);
   const [openChangeMenu, setOpenChangeMenu] = useState<OpenChangeMenu>(null);
   const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
@@ -443,7 +445,108 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const noQrReturnCopy = getNoQrReturnButtonCopy(language);
   const allDriverPallets = [...demoPallets, ...pallets];
   const isScannerOpen = selectedPalletId === null;
-  const showNoQrReturnAction = [RoleType.KLIJENT, RoleType.VOZAC].includes(user.role_name);
+  const showNoQrReturnAction = user.role_name === RoleType.KLIJENT;
+  const showNoQrPickupAction = user.role_name === RoleType.VOZAC;
+  const noQrPickupCopy =
+    language === 'bs'
+      ? {
+          buttonTitle: 'Palete bez QR koda',
+          buttonText: 'Pregled prijavljenih paleta spremnih za preuzimanje.',
+          title: 'Prijavljene palete bez QR koda',
+          subtitle: 'Preuzimanje kod kupaca',
+          search: 'Pretrazi po imenu klijenta',
+          pallet: 'Paleta',
+          location: 'Lokacija',
+          pickup: 'Datum preuzimanja',
+          comment: 'Komentar',
+          returned: 'Paleta vracena',
+          direct: 'Odmah preuzeti',
+          empty: 'Nema prijavljenih paleta bez QR koda.',
+          confirm: 'Oznaciti paletu kao vracenu? Zapis ce biti uklonjen.',
+        }
+      : language === 'nl'
+        ? {
+            buttonTitle: 'Pallets zonder QR-code',
+            buttonText: 'Bekijk gemelde pallets die klaarstaan om opgehaald te worden.',
+            title: 'Gemelde pallets zonder QR-code',
+            subtitle: 'Ophalen bij klanten',
+            search: 'Zoek op klantnaam',
+            pallet: 'Pallet',
+            location: 'Locatie',
+            pickup: 'Ophaaldatum',
+            comment: 'Commentaar',
+            returned: 'Bok opgehaald',
+            direct: 'Direct ophalen',
+            empty: 'Geen gemelde pallets zonder QR-code.',
+            confirm: 'Pallet als opgehaald markeren? De melding wordt verwijderd.',
+          }
+        : {
+            buttonTitle: 'Pallets without QR code',
+            buttonText: 'View reported pallets that are ready for pickup.',
+            title: 'Reported pallets without QR code',
+            subtitle: 'Client pickups',
+            search: 'Search by client name',
+            pallet: 'Pallet',
+            location: 'Location',
+            pickup: 'Pickup date',
+            comment: 'Comment',
+            returned: 'Pallet returned',
+            direct: 'Direct pickup',
+            empty: 'No pallets without a QR code have been reported.',
+            confirm: 'Mark this pallet as returned? The report will be removed.',
+          };
+  const noQrPickupPallets = pallets.filter(
+    (pallet) =>
+      pallet.is_ghost &&
+      pallet.is_active &&
+      (pallet.client_name || '').toLowerCase().includes(noQrClientSearch.trim().toLowerCase())
+  );
+  const getNoQrNoteValue = (note: string | undefined, labels: string[]) => {
+    if (!note) {
+      return '';
+    }
+
+    const segment = note
+      .split('|')
+      .map((item) => item.trim())
+      .find((item) => labels.some((label) => item.toLowerCase().startsWith(label.toLowerCase())));
+
+    return segment?.split(':').slice(1).join(':').trim() || '';
+  };
+  const getNoQrPickupLabel = (pallet: Pallet) =>
+    getNoQrNoteValue(pallet.note, [
+      'Available for pickup',
+      'Beschikbaar voor het ophalen',
+      'Dostupno za preuzimanje',
+    ]) || noQrPickupCopy.direct;
+  const getNoQrCommentLabel = (pallet: Pallet) => {
+    const structuredComment = getNoQrNoteValue(pallet.note, ['Comment', 'Commentaar', 'Komentar']);
+    if (structuredComment) {
+      return structuredComment;
+    }
+
+    const legacyComment = (pallet.note || '')
+      .split('|')
+      .map((item) => item.trim())
+      .filter(
+        (item) =>
+          item &&
+          ![
+            'Submitted from mobile no-QR form',
+            'Verstuurd via mobiel formulier zonder QR',
+            'Poslano preko mobilne no-QR forme',
+          ].includes(item) &&
+          !['Available for pickup', 'Beschikbaar voor het ophalen', 'Dostupno za preuzimanje'].some(
+            (label) => item.toLowerCase().startsWith(label.toLowerCase())
+          ) &&
+          !['Location', 'Locatie', 'Lokacija'].some((label) =>
+            item.toLowerCase().startsWith(label.toLowerCase())
+          )
+      )
+      .join(' | ');
+
+    return legacyComment || '-';
+  };
   const selectedPallet = selectedPalletId
     ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
     : null;
@@ -918,7 +1021,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   useEffect(() => {
     let cancelled = false;
 
-    if (!isScannerOpen || isNoQrReturnFormOpen) {
+    if (!isScannerOpen || isNoQrReturnFormOpen || isNoQrPickupListOpen) {
       stopCamera();
       return;
     }
@@ -1019,7 +1122,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         flashTimeoutRef.current = null;
       }
     };
-  }, [isNoQrReturnFormOpen, isScannerOpen]);
+  }, [isNoQrPickupListOpen, isNoQrReturnFormOpen, isScannerOpen]);
 
   const dismissFlash = () => {
     if (flashTimeoutRef.current) {
@@ -1480,26 +1583,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             </p>
           </div>
 
-          {showNoQrReturnAction && (
-            <button
-              type="button"
-              onClick={() => setIsNoQrReturnFormOpen(true)}
-              className="mb-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-rose-200 bg-rose-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-rose-500/20 dark:bg-rose-500/10"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-white text-rose-600 dark:border-rose-500/25 dark:bg-[#1f3a2d] dark:text-rose-200">
-                <AlertTriangle size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700 dark:text-rose-100">
-                  {noQrReturnCopy.reportButtonLabel}
-                </p>
-                <p className="mt-1 text-[12px] font-bold leading-5 text-rose-700/80 dark:text-rose-100/85">
-                  {noQrReturnCopy.reportButtonText}
-                </p>
-              </div>
-            </button>
-          )}
-
           <div className="flex flex-1">
             <AnimatePresence mode="wait" initial={false}>
               <motion.button
@@ -1580,6 +1663,46 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </motion.button>
             </AnimatePresence>
           </div>
+
+          {showNoQrReturnAction && (
+            <button
+              type="button"
+              onClick={() => setIsNoQrReturnFormOpen(true)}
+              className="mt-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-rose-200 bg-rose-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-rose-500/20 dark:bg-rose-500/10"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-white text-rose-600 dark:border-rose-500/25 dark:bg-[#1f3a2d] dark:text-rose-200">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700 dark:text-rose-100">
+                  {noQrReturnCopy.reportButtonLabel}
+                </p>
+                <p className="mt-1 text-[12px] font-bold leading-5 text-rose-700/80 dark:text-rose-100/85">
+                  {noQrReturnCopy.reportButtonText}
+                </p>
+              </div>
+            </button>
+          )}
+
+          {showNoQrPickupAction && (
+            <button
+              type="button"
+              onClick={() => setIsNoQrPickupListOpen(true)}
+              className="mt-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-emerald-500/20 dark:bg-emerald-500/10"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-emerald-600 dark:border-emerald-500/25 dark:bg-[#1f3a2d] dark:text-emerald-200">
+                <PackageSearch size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-100">
+                  {noQrPickupCopy.buttonTitle}
+                </p>
+                <p className="mt-1 text-[12px] font-bold leading-5 text-emerald-700/80 dark:text-emerald-100/85">
+                  {noQrPickupCopy.buttonText}
+                </p>
+              </div>
+            </button>
+          )}
 
         </div>
       )}
@@ -2097,6 +2220,111 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               )
             }
           />
+        )}
+
+        {isNoQrPickupListOpen && (
+          <DriverModalShell
+            onClose={() => {
+              setIsNoQrPickupListOpen(false);
+              setNoQrClientSearch('');
+            }}
+            title={noQrPickupCopy.title}
+            subtitle={noQrPickupCopy.subtitle}
+            width="md"
+            overlayClassName="z-[110] items-center p-3"
+            contentClassName="h-auto max-h-[88dvh] rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
+            bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#13241b]"
+          >
+            <div className="space-y-4">
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+                />
+                <input
+                  type="search"
+                  value={noQrClientSearch}
+                  onChange={(event) => setNoQrClientSearch(event.target.value)}
+                  placeholder={noQrPickupCopy.search}
+                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-white pl-11 pr-4 text-[12px] font-bold text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white"
+                />
+              </div>
+
+              {noQrPickupPallets.length > 0 ? (
+                <div className="max-h-[64dvh] space-y-3 overflow-y-auto pr-1 no-scrollbar">
+                  {noQrPickupPallets.map((pallet, index) => (
+                    <div
+                      key={`driver-no-qr-pickup-${pallet.id}`}
+                      className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#1f3a2d]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                            {noQrPickupCopy.pallet} {index + 1}
+                          </p>
+                          <p className="mt-1 truncate text-[13px] font-black uppercase tracking-tight text-emerald-900 dark:text-white">
+                            {pallet.client_name || '-'}
+                          </p>
+                        </div>
+                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-emerald-50 px-2 text-[11px] font-black text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-100">
+                          {index + 1}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                            {noQrPickupCopy.location}
+                          </p>
+                          <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                            {pallet.current_location || '-'}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                            <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                              {noQrPickupCopy.pickup}
+                            </p>
+                            <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                              {getNoQrPickupLabel(pallet)}
+                            </p>
+                          </div>
+                          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                            <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                              {noQrPickupCopy.comment}
+                            </p>
+                            <p className="mt-1 line-clamp-3 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                              {getNoQrCommentLabel(pallet)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(noQrPickupCopy.confirm)) {
+                            deletePallet(pallet.id);
+                          }
+                        }}
+                        className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00A655] px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.99]"
+                      >
+                        <CheckCircle2 size={16} />
+                        {noQrPickupCopy.returned}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#1f3a2d]">
+                  <PackageSearch size={24} className="mx-auto mb-3 text-zinc-300" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                    {noQrPickupCopy.empty}
+                  </p>
+                </div>
+              )}
+            </div>
+          </DriverModalShell>
         )}
 
         {openChangeMenu && selectedPallet && (

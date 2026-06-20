@@ -65,7 +65,7 @@ const copyByLanguage = {
     commentLabel: 'Commentaar',
     commentPlaceholder: 'Optioneel: extra informatie of opmerkingen',
     sendLabel: 'Verzenden',
-    reportButtonLabel: 'Pallet zonder QR melden',
+    reportButtonLabel: 'Bokken zonder QR-code retour melden',
     reportButtonText: 'Klaar voor retour, maar zonder QR-plaat.',
     warehouseFallback: 'Klantmagazijn',
     otherLocationFallback: 'Andere locatie',

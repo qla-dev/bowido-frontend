@@ -51,7 +51,7 @@ interface AppContextType {
   addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
   updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => void;
   deletePallet: (id: number) => void;
-  addClient: (client: Omit<ClientDetail, 'id'>) => void;
+  addClient: (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => void;
   updateClient: (client: ClientDetail) => void;
   updateStatusSettings: (status: PalletStatus) => void;
   addStatus: (status: Omit<PalletStatus, 'id'>) => void;
@@ -348,40 +348,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updatePallet = (pallet: Pallet, actor?: { id: number; name: string }) => {
     const previousPallet = pallets.find((item) => item.id === pallet.id);
-    setPallets((prev) => prev.map((item) => (item.id === pallet.id ? pallet : item)));
+    const hasOperationalChange = Boolean(
+      previousPallet &&
+      (
+        previousPallet.current_status_id !== pallet.current_status_id ||
+        previousPallet.current_status_name !== pallet.current_status_name ||
+        previousPallet.current_location !== pallet.current_location ||
+        previousPallet.user_id !== pallet.user_id ||
+        previousPallet.client_name !== pallet.client_name
+      )
+    );
+    const hasQrCodeChange = Boolean(previousPallet && previousPallet.qr_code !== pallet.qr_code);
+    const timestamp = new Date().toISOString();
+    const nextPallet =
+      previousPallet && hasOperationalChange
+        ? {
+            ...pallet,
+            last_status_changed_at: timestamp,
+          }
+        : pallet;
 
-    if (previousPallet && previousPallet.qr_code !== pallet.qr_code) {
-      const nextId = auditLogs.length > 0 ? Math.max(...auditLogs.map((log) => log.id)) + 1 : 1;
+    setPallets((prev) => prev.map((item) => (item.id === pallet.id ? nextPallet : item)));
+
+    if (!previousPallet) {
+      return;
+    }
+
+    if (hasOperationalChange || hasQrCodeChange) {
+      const qrVersion = hasQrCodeChange ? getNextQrVersion(pallet.id) : null;
+
+      setAuditLogs((prev) => {
+        let nextId = prev.length > 0 ? Math.max(...prev.map((log) => log.id)) + 1 : 1;
+        const nextLogs: AuditLog[] = [];
+
+        if (hasOperationalChange) {
+          nextLogs.push({
+            id: nextId++,
+            pallet_id: nextPallet.id,
+            pallet_qr: nextPallet.qr_code,
+            made_by_user_id: actor?.id ?? 1,
+            made_by_user_name: actor?.name ?? 'Admin User',
+            type: 'status',
+            old_status_id: previousPallet.current_status_id,
+            new_status_id: nextPallet.current_status_id,
+            old_status_name: previousPallet.current_status_name,
+            new_status_name: nextPallet.current_status_name,
+            old_client_id: previousPallet.user_id,
+            new_client_id: nextPallet.user_id,
+            old_location: previousPallet.current_location,
+            new_location: nextPallet.current_location,
+            note: nextPallet.note || 'Status updated from admin panel.',
+            created_at: timestamp,
+          });
+        }
+
+        if (hasQrCodeChange && qrVersion) {
+          nextLogs.push({
+            id: nextId,
+            pallet_id: nextPallet.id,
+            pallet_qr: nextPallet.qr_code,
+            made_by_user_id: actor?.id ?? 1,
+            made_by_user_name: actor?.name ?? 'Admin User',
+            type: 'qr_version',
+            old_status_id: previousPallet.current_status_id,
+            new_status_id: nextPallet.current_status_id,
+            old_status_name: previousPallet.current_status_name,
+            new_status_name: nextPallet.current_status_name,
+            old_client_id: previousPallet.user_id,
+            new_client_id: nextPallet.user_id,
+            old_location: previousPallet.current_location,
+            new_location: nextPallet.current_location,
+            qr_version: qrVersion,
+            old_qr_code: previousPallet.qr_code,
+            new_qr_code: nextPallet.qr_code,
+            note: nextPallet.note || 'QR code version updated from admin panel.',
+            created_at: timestamp,
+          });
+        }
+
+        return [...nextLogs, ...prev];
+      });
+    }
+
+    if (hasOperationalChange) {
+      pushNotification(
+        'Status Update',
+        `${nextPallet.qr_code} moved to ${nextPallet.current_status_name} by ${actor?.name ?? 'Admin User'}.`,
+        'status'
+      );
+    }
+
+    if (hasQrCodeChange) {
       const qrVersion = getNextQrVersion(pallet.id);
-
-      setAuditLogs((prev) => [
-        {
-          id: nextId,
-          pallet_id: pallet.id,
-          pallet_qr: pallet.qr_code,
-          made_by_user_id: actor?.id ?? 1,
-          made_by_user_name: actor?.name ?? 'Admin User',
-          type: 'qr_version',
-          old_status_id: previousPallet.current_status_id,
-          new_status_id: pallet.current_status_id,
-          old_status_name: previousPallet.current_status_name,
-          new_status_name: pallet.current_status_name,
-          old_client_id: previousPallet.user_id,
-          new_client_id: pallet.user_id,
-          old_location: previousPallet.current_location,
-          new_location: pallet.current_location,
-          qr_version: qrVersion,
-          old_qr_code: previousPallet.qr_code,
-          new_qr_code: pallet.qr_code,
-          note: pallet.note || 'QR code version updated from admin panel.',
-          created_at: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
-
       pushNotification(
         'QR Version Update',
-        `${previousPallet.qr_code} updated to ${pallet.qr_code} (${qrVersion}).`,
+        `${previousPallet.qr_code} updated to ${nextPallet.qr_code} (${qrVersion}).`,
         'status'
       );
     }
@@ -548,13 +609,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addClient = (client: Omit<ClientDetail, 'id'>) => {
+  const addClient = (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => {
     setClients((prev) => {
       const nextId = prev.length > 0 ? Math.max(...prev.map((item) => item.id)) + 1 : 1;
       const newClient: ClientDetail = {
         ...client,
         id: nextId,
-        user_id: 100 + nextId,
+        user_id: client.user_id ?? 100 + nextId,
+        is_active: client.is_active ?? true,
       };
 
       return [...prev, newClient];

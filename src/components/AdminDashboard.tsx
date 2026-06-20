@@ -20,7 +20,7 @@ import { ClientTableView } from './ClientTableView';
 import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
-import { RoleType, Pallet, PalletStatus, ClientDetail, User } from '../types';
+import { RoleType, Pallet, PalletStatus, ClientDetail, User, AuditLog } from '../types';
 import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost } from 'lucide-react';
 import {
   getCountryLabel,
@@ -393,6 +393,101 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       minute: '2-digit',
     }
   );
+  const getFallbackAuditActor = (pallet: Pallet) => {
+    if ([2, 6].includes(pallet.current_status_id)) {
+      return { id: 2, name: 'Dragan Driver' };
+    }
+
+    if ([1, 3].includes(pallet.current_status_id)) {
+      return { id: 3, name: 'Marko Magaciner' };
+    }
+
+    if (pallet.current_status_id === 7) {
+      return { id: 5, name: 'Sava Serviser' };
+    }
+
+    return { id: 1, name: 'Admin User' };
+  };
+  const buildFallbackStatusLog = (pallet: Pallet): AuditLog => {
+    const fallbackActor = getFallbackAuditActor(pallet);
+
+    return {
+      id: -pallet.id,
+      pallet_id: pallet.id,
+      pallet_qr: pallet.qr_code,
+      made_by_user_id: fallbackActor.id,
+      made_by_user_name: fallbackActor.name,
+      type: 'status',
+      old_status_id: pallet.current_status_id,
+      new_status_id: pallet.current_status_id,
+      old_status_name: pallet.current_status_name,
+      new_status_name: pallet.current_status_name,
+      old_client_id: pallet.user_id,
+      new_client_id: pallet.user_id,
+      old_location: pallet.current_location,
+      new_location: pallet.current_location,
+      note: 'Dummy audit entry for pallet detail preview.',
+      created_at: pallet.last_status_changed_at || pallet.created_at,
+    };
+  };
+  const matchesPalletCurrentState = (log: AuditLog, pallet: Pallet) =>
+    (log.type || 'status') === 'status' &&
+    log.new_status_id === pallet.current_status_id &&
+    log.new_status_name === pallet.current_status_name &&
+    (log.new_location || '').trim() === (pallet.current_location || '').trim();
+  const normalizeAuditLogActor = (log: AuditLog, pallet: Pallet): AuditLog => {
+    if (log.made_by_user_name?.trim() || log.made_by_user_id) {
+      return log;
+    }
+
+    const fallbackActor = getFallbackAuditActor(pallet);
+    return {
+      ...log,
+      made_by_user_id: fallbackActor.id,
+      made_by_user_name: fallbackActor.name,
+    };
+  };
+  const ensureCurrentStatusLog = (logs: AuditLog[], pallet: Pallet) => {
+    const normalizedLogs = logs.map((log) => normalizeAuditLogActor(log, pallet));
+    const currentStateLogIndex = normalizedLogs.findIndex((log) =>
+      matchesPalletCurrentState(log, pallet)
+    );
+
+    if (currentStateLogIndex === 0) {
+      return normalizedLogs;
+    }
+
+    if (currentStateLogIndex > 0) {
+      const currentStateLog = normalizedLogs[currentStateLogIndex];
+      return [
+        currentStateLog,
+        ...normalizedLogs.filter((_, index) => index !== currentStateLogIndex),
+      ];
+    }
+
+    return [buildFallbackStatusLog(pallet), ...normalizedLogs];
+  };
+  const getPalletStatusHistory = (pallet: Pallet) => {
+    const logs = auditLogs
+      .filter((log) => log.pallet_id === pallet.id && (log.type || 'status') === 'status')
+      .sort(
+        (left, right) =>
+          new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+      );
+
+    if (logs.length === 0) {
+      return [buildFallbackStatusLog(pallet)];
+    }
+
+    return ensureCurrentStatusLog(logs, pallet);
+  };
+  const getAuditActorLabel = (log: AuditLog) =>
+    log.made_by_user_name?.trim() ||
+    (log.made_by_user_id ? `#${log.made_by_user_id}` : notAvailableLabel);
+  const selectedPalletStatusHistory = selectedPallet ? getPalletStatusHistory(selectedPallet) : [];
+  const latestSelectedPalletStatusLog = selectedPalletStatusHistory[0] || null;
+  const editingPalletStatusHistory = editingPallet ? getPalletStatusHistory(editingPallet) : [];
+  const latestEditingPalletStatusLog = editingPalletStatusHistory[0] || null;
 
   const renderOverview = () => {
     const overduePallets = pallets.filter(p => calculateDebt(p) > 0);
@@ -841,7 +936,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                   </div>
                </div>
 
-               <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+               <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-4">
                   <div className="p-4 bg-gray-50 rounded-2xl">
                     <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">{t('location')}</span>
                     <p className="text-xs font-black uppercase">{selectedPallet.current_location}</p>
@@ -856,30 +951,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                   </div>
                </div>
 
-               <div className="space-y-4">
+               <div className="grid grid-cols-1 gap-6 mb-8">
+                  <div className="p-4 bg-gray-50 rounded-2xl">
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">{t('timestamp')}</span>
+                    <p className="text-xs font-black uppercase">
+                      {latestSelectedPalletStatusLog
+                        ? detailDateFormatter.format(new Date(latestSelectedPalletStatusLog.created_at))
+                        : notAvailableLabel}
+                    </p>
+                  </div>
+               </div>
+
+               <div className="space-y-4 mb-8">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">{t('movementHistory')}</h4>
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto no-scrollbar">
-                    {auditLogs.filter(l => l.pallet_id === selectedPallet.id).map((log, i) => (
-                      <div key={`log-detail-${log.id}`} className="flex items-center gap-4 p-3 border border-gray-100 rounded-2xl bg-white">
-                        <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
-                          <History size={14} className="text-gray-400" />
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto no-scrollbar">
+                    {selectedPalletStatusHistory.map((log) => (
+                      <div
+                        key={`selected-log-${log.id}`}
+                        className="flex items-start gap-4 rounded-2xl border border-gray-100 bg-white p-4"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
+                          <MapPin size={16} className="text-gray-400" />
                         </div>
-                        <div className="flex-1">
-                          <p className="text-[10px] font-black text-gray-900 uppercase tracking-tight">
-                            {(log.type || 'status') === 'qr_version'
-                              ? `${t('qrVersionChange')} ${log.qr_version ? `(${log.qr_version})` : ''}`
-                              : getStatusLabel(log.new_status_name, language)}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
+                            {getStatusLabel(log.new_status_name, language)}
                           </p>
-                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-tight">
-                            {(log.type || 'status') === 'qr_version'
-                              ? `${log.old_qr_code || '-'} -> ${log.new_qr_code || '-'}`
-                              : `${getStatusLabel(log.old_status_name || '-', language)} -> ${getStatusLabel(log.new_status_name, language)}`}
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                            {log.new_location || notAvailableLabel}
                           </p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase">{new Date(log.created_at).toLocaleDateString()}</p>
+                          <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                            {t('changedBy')}: {getAuditActorLabel(log)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
+                            <Clock size={12} />
+                            <span>{detailDateFormatter.format(new Date(log.created_at))}</span>
+                          </div>
                         </div>
-                        <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">#{auditLogs.length - i}</span>
                       </div>
                     ))}
+
+                    {selectedPalletStatusHistory.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          {noMovementHistoryLabel}
+                        </p>
+                      </div>
+                    )}
                   </div>
                </div>
 
@@ -1041,6 +1159,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                           </div>
                         </div>
 
+                        <div className="mt-4 grid gap-4">
+                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                              {t('timestamp')}
+                            </p>
+                            <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                              {latestEditingPalletStatusLog
+                                ? detailDateFormatter.format(new Date(latestEditingPalletStatusLog.created_at))
+                                : notAvailableLabel}
+                            </p>
+                          </div>
+                        </div>
+
                         <div className="mt-6 space-y-4">
                           <div className="flex items-center gap-2">
                             <History size={16} className="text-gray-400" />
@@ -1050,38 +1181,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                           </div>
 
                           <div className="space-y-2 max-h-[260px] overflow-y-auto no-scrollbar">
-                            {auditLogs
-                              .filter((log) => log.pallet_id === editingPallet.id && (log.type || 'status') === 'status')
-                              .sort(
-                                (left, right) =>
-                                  new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
-                              )
-                              .map((log) => (
-                                <div
-                                  key={`editing-log-${log.id}`}
-                                  className="flex items-start gap-4 rounded-[1.5rem] border border-gray-100 bg-white p-4"
-                                >
-                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
-                                    <MapPin size={16} className="text-gray-400" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
-                                      {getStatusLabel(log.new_status_name, language)}
-                                    </p>
-                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                                      {log.new_location || notAvailableLabel}
-                                    </p>
-                                    <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
-                                      <Clock size={12} />
-                                      <span>{detailDateFormatter.format(new Date(log.created_at))}</span>
-                                    </div>
+                            {editingPalletStatusHistory.map((log) => (
+                              <div
+                                key={`editing-log-${log.id}`}
+                                className="flex items-start gap-4 rounded-[1.5rem] border border-gray-100 bg-white p-4"
+                              >
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
+                                  <MapPin size={16} className="text-gray-400" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
+                                    {getStatusLabel(log.new_status_name, language)}
+                                  </p>
+                                  <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                                    {log.new_location || notAvailableLabel}
+                                  </p>
+                                  <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                                    {t('changedBy')}: {getAuditActorLabel(log)}
+                                  </p>
+                                  <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
+                                    <Clock size={12} />
+                                    <span>{detailDateFormatter.format(new Date(log.created_at))}</span>
                                   </div>
                                 </div>
-                              ))}
+                              </div>
+                            ))}
 
-                            {auditLogs.filter(
-                              (log) => log.pallet_id === editingPallet.id && (log.type || 'status') === 'status'
-                            ).length === 0 && (
+                            {editingPalletStatusHistory.length === 0 && (
                               <div className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                                   {noMovementHistoryLabel}
@@ -1090,6 +1216,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                             )}
                           </div>
                         </div>
+
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1320,15 +1447,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
           <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <h3 className="text-xl font-black uppercase mb-6">{t('onboardNewClient')}</h3>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('companyName')}</label>
-                    <input id="new-client-name" placeholder={t('companyNamePlaceholder')} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
-                 </div>
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('gracePeriodDaysLabel')}</label>
-                    <input id="new-client-grace" type="number" defaultValue={14} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
-                 </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 space-y-1">
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('companyName')}</label>
+                     <input id="new-client-name" placeholder={t('companyNamePlaceholder')} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">KVK</label>
+                     <input
+                       id="new-client-kvk"
+                       placeholder="e.g. 74291836"
+                       className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                     />
+                  </div>
+                  <div className="space-y-1">
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('gracePeriodDaysLabel')}</label>
+                     <input id="new-client-grace" type="number" defaultValue={14} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
+                  </div>
                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('ratePerDayLabel')} ({'\u20AC'})</label>
                     <input id="new-client-rate" type="number" step="0.1" defaultValue={2.5} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
@@ -1356,23 +1491,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
               </div>
               <div className="flex gap-4 mt-8">
                  <button onClick={() => setShowAddClient(false)} className="flex-1 py-4 font-black uppercase text-xs text-gray-400">{t('cancel')}</button>
-                 <button onClick={() => {
-                    const name = (document.getElementById('new-client-name') as HTMLInputElement).value;
-                    const grace = parseInt((document.getElementById('new-client-grace') as HTMLInputElement).value);
-                    const rate = parseFloat((document.getElementById('new-client-rate') as HTMLInputElement).value);
-                    const country = (document.getElementById('new-client-country') as HTMLSelectElement).value;
-                    const address1 = (document.getElementById('new-client-address1') as HTMLInputElement).value.trim();
-                    const address2 = (document.getElementById('new-client-address2') as HTMLInputElement).value.trim();
+                  <button onClick={() => {
+                     const name = (document.getElementById('new-client-name') as HTMLInputElement).value;
+                     const kvk = (document.getElementById('new-client-kvk') as HTMLInputElement).value.trim();
+                     const grace = parseInt((document.getElementById('new-client-grace') as HTMLInputElement).value);
+                     const rate = parseFloat((document.getElementById('new-client-rate') as HTMLInputElement).value);
+                     const country = (document.getElementById('new-client-country') as HTMLSelectElement).value;
+                     const address1 = (document.getElementById('new-client-address1') as HTMLInputElement).value.trim();
+                     const address2 = (document.getElementById('new-client-address2') as HTMLInputElement).value.trim();
                     if (name) {
-                       addClient({ 
-                         name, 
-                         grace_period_days: grace, 
-                         price_per_day: rate, 
-                         country, 
-                         warehouse_addresses: [address1, address2].filter(Boolean) 
-                       });
-                       setShowAddClient(false);
-                    }
+                        addClient({ 
+                          name, 
+                          kvk_number: kvk || undefined,
+                          grace_period_days: grace, 
+                          price_per_day: rate, 
+                          country, 
+                          is_active: true,
+                          warehouse_addresses: [address1, address2].filter(Boolean) 
+                        });
+                        setShowAddClient(false);
+                     }
                  }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs">{t('registerClient')}</button>
               </div>
             </motion.div>
@@ -1387,6 +1525,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                 <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">{t('clientIdLabel')}: {editingClient.user_id}</span>
               </div>
               <div className="grid grid-cols-2 gap-4">
+                 <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">KVK</label>
+                    <input
+                      type="text"
+                      value={editingClient.kvk_number || ''}
+                      onChange={e => setEditingClient({...editingClient, kvk_number: e.target.value})}
+                      className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                    />
+                 </div>
                  <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('gracePeriodDaysLabel')}</label>
                     <input 

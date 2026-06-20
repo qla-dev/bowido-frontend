@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import {
   AlertTriangle,
   ArrowUpDown,
-  Building2,
   CreditCard,
   Edit,
   Funnel,
@@ -16,9 +15,13 @@ import {
   Undo2,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
-import { Badge, Button, cn, Input } from './ui';
+import { ClientPalletDesktopTable } from './ClientPalletDesktopTable';
+import { DriverModalShell } from './DriverModalShell';
+import { NoQrReturnFormModal } from './NoQrReturnFormModal';
+import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { ClientDetail } from '../types';
+import { ClientDetail, Pallet, RoleType } from '../types';
+import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 
 type SortKey =
   | 'client'
@@ -54,9 +57,16 @@ type ClientTableRow = {
 
 type FilterSelections = Record<SortKey, string[]>;
 type FilterSearch = Record<SortKey, string>;
+type MobilePalletListView = 'withQr' | 'withoutQr';
+
+type MobileClientPalletItem = {
+  pallet: Pallet;
+  daysOutside: number;
+  overdueDays: number;
+  overdueCost: number;
+};
 
 const CLIENT_TABLE_COLUMN_ORDER = [
-  'client',
   'kvk',
   'warehouses',
   'rate',
@@ -162,6 +172,13 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     direction: 'asc',
   });
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
+  const [isDesktopReturnFormOpen, setIsDesktopReturnFormOpen] = useState(false);
+  const [activeMobilePalletList, setActiveMobilePalletList] = useState<MobilePalletListView | null>(null);
+  const [selectedMobilePallet, setSelectedMobilePallet] = useState<{
+    item: MobileClientPalletItem;
+    index: number;
+    view: MobilePalletListView;
+  } | null>(null);
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
     top: number;
     left: number;
@@ -185,12 +202,42 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     language === 'bs' ? 'Prijave povrata' : language === 'nl' ? 'Retourmeldingen' : 'Return reports';
   const mobileProfileLabel =
     language === 'bs' ? 'Profil klijenta' : language === 'nl' ? 'Klantprofiel' : 'Client profile';
-  const mobileHealthyLabel =
-    language === 'bs' ? 'Bez duga' : language === 'nl' ? 'Geen achterstand' : 'No overdue';
-  const mobileOverdueLabel =
-    language === 'bs' ? 'Aktivan dug' : language === 'nl' ? 'Open achterstand' : 'Overdue active';
-  const mobileReturnLabel =
-    language === 'bs' ? 'Povrat prijavljen' : language === 'nl' ? 'Retour gemeld' : 'Return reported';
+  const mobileOverviewLabel =
+    language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Palletoverzicht' : 'Pallet overview';
+  const mobileReportedPalletsLabel =
+    language === 'bs' ? 'Prijavljene palete' : language === 'nl' ? 'Gemelde pallets' : 'Reported pallets';
+  const mobileWithQrLabel =
+    language === 'bs' ? 'Sa QR kodom' : language === 'nl' ? 'Met QR code' : 'With QR code';
+  const mobileWithoutQrLabel =
+    language === 'bs' ? 'Bez QR koda' : language === 'nl' ? 'Zonder QR code' : 'Without QR code';
+  const mobilePalletsAtClientLabel =
+    language === 'bs' ? 'Palete kod klijenta' : language === 'nl' ? 'Pallets bij klant' : 'Pallets at client';
+  const mobileOverdueDaysLabel =
+    language === 'bs' ? 'Ukupno dana kasnjenja' : language === 'nl' ? 'Totale overduedagen' : 'Total overdue days';
+  const mobileTotalDebtLabel =
+    language === 'bs' ? 'Ukupan dug' : language === 'nl' ? 'Totale schuld' : 'Total debt';
+  const reportReturnLabel =
+    language === 'bs'
+      ? 'Prijavi povrat'
+      : language === 'nl'
+        ? 'Retour melden'
+        : 'Report return';
+  const mobileNoClientPalletsLabel =
+    language === 'bs' ? 'Klijent nema prijavljenih paleta.' : language === 'nl' ? 'De klant heeft geen gemelde pallets.' : 'This client has no reported pallets.';
+  const mobileNoQrListEmptyLabel =
+    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen pallets zonder QR-code.' : 'No pallets without a QR code.';
+  const mobileWithQrListEmptyLabel =
+    language === 'bs' ? 'Nema paleta sa QR kodom.' : language === 'nl' ? 'Geen pallets met QR-code.' : 'No pallets with a QR code.';
+  const mobileNoQrEmptyLabel =
+    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen gemelde pallets zonder QR-code.' : 'No pallets reported without a QR code.';
+  const mobilePalletNumberLabel =
+    language === 'bs' ? 'Redni broj palete' : language === 'nl' ? 'Volgnummer pallet' : 'Pallet number';
+  const mobileReturnDateLabel =
+    language === 'bs' ? 'Datum retour' : language === 'nl' ? 'Datum retour' : 'Return date';
+  const mobileCommentLabel =
+    language === 'bs' ? 'Komentar' : language === 'nl' ? 'Commentaar' : 'Comment';
+  const mobileStatusVoorRetourLabel =
+    language === 'bs' ? 'Voor retour' : language === 'nl' ? 'Voor retour' : 'For return';
   const resizeAriaLabel =
     language === 'bs'
       ? 'Promijeni sirinu kolone'
@@ -207,6 +254,14 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+  const mobileDateFormatter = new Intl.DateTimeFormat(
+    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
+    {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }
+  );
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -265,24 +320,32 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const getDaysSince = (date: string) =>
     Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
 
+  const getBillingStatus = (pallet: Pallet) =>
+    statuses.find((item) => item.id === pallet.current_status_id);
+
+  const getPalletOverdueDays = (pallet: Pallet, client: ClientDetail) => {
+    const status = getBillingStatus(pallet);
+
+    if (!status?.is_billable) {
+      return 0;
+    }
+
+    return Math.max(getDaysSince(pallet.last_status_changed_at) - client.grace_period_days, 0);
+  };
+
+  const getPalletOverdueCost = (pallet: Pallet, client: ClientDetail) =>
+    getPalletOverdueDays(pallet, client) * client.price_per_day;
+
   const rows = useMemo<ClientTableRow[]>(
     () =>
       filteredClients.map((client) => {
         const clientPallets = pallets.filter((pallet) => pallet.user_id === client.user_id);
         const palletsAtClient = clientPallets.filter((pallet) => pallet.current_status_id === 4);
         const returnReports = clientPallets.filter((pallet) => pallet.current_status_id === 5);
-        const overdueTotalValue = clientPallets.reduce((total, pallet) => {
-          const status = statuses.find((item) => item.id === pallet.current_status_id);
-
-          if (!status?.is_billable) {
-            return total;
-          }
-
-          const daysOutside = getDaysSince(pallet.last_status_changed_at);
-          const overdueDays = Math.max(daysOutside - client.grace_period_days, 0);
-
-          return total + overdueDays * client.price_per_day;
-        }, 0);
+        const overdueTotalValue = clientPallets.reduce(
+          (total, pallet) => total + getPalletOverdueCost(pallet, client),
+          0
+        );
         const warehouses = client.warehouse_addresses?.filter(Boolean) || [];
 
         return {
@@ -396,6 +459,63 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
     return nextRows;
   }, [rows, selectedFilters, sortConfig]);
+
+  const mobileClientRow = filteredRows[0] || null;
+
+  const mobileClientPallets = useMemo<MobileClientPalletItem[]>(() => {
+    if (!mobileClientRow) {
+      return [];
+    }
+
+    return pallets
+      .filter((pallet) => pallet.user_id === mobileClientRow.client.user_id)
+      .map((pallet) => ({
+        pallet,
+        daysOutside: getDaysSince(pallet.last_status_changed_at),
+        overdueDays: getPalletOverdueDays(pallet, mobileClientRow.client),
+        overdueCost: getPalletOverdueCost(pallet, mobileClientRow.client),
+      }))
+      .sort((left, right) => {
+        if (right.overdueCost !== left.overdueCost) {
+          return right.overdueCost - left.overdueCost;
+        }
+
+        return (
+          new Date(right.pallet.last_status_changed_at).getTime() -
+          new Date(left.pallet.last_status_changed_at).getTime()
+        );
+      });
+  }, [mobileClientRow, pallets, statuses]);
+
+  const mobileQrPallets = useMemo(
+    () => mobileClientPallets.filter(({ pallet }) => !pallet.is_ghost),
+    [mobileClientPallets]
+  );
+
+  const mobileNoQrPallets = useMemo(
+    () => mobileClientPallets.filter(({ pallet }) => pallet.is_ghost),
+    [mobileClientPallets]
+  );
+
+  const mobileTotalOverdueDays = mobileClientPallets.reduce(
+    (total, item) => total + item.overdueDays,
+    0
+  );
+
+  const activeMobilePalletItems =
+    activeMobilePalletList === 'withoutQr' ? mobileNoQrPallets : mobileQrPallets;
+  const activeMobilePalletTitle =
+    activeMobilePalletList === 'withoutQr' ? mobileWithoutQrLabel : mobileWithQrLabel;
+  const activeMobilePalletEmptyLabel =
+    activeMobilePalletList === 'withoutQr' ? mobileNoQrListEmptyLabel : mobileWithQrListEmptyLabel;
+  const getMobilePalletDate = (item: MobileClientPalletItem) =>
+    mobileDateFormatter.format(
+      new Date(item.pallet.is_ghost ? item.pallet.created_at : item.pallet.last_status_changed_at)
+    );
+  const closeMobilePalletListModal = () => {
+    setActiveMobilePalletList(null);
+    setSelectedMobilePallet(null);
+  };
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) =>
@@ -537,7 +657,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   if (isMobile && clientIdFilter !== undefined) {
     return (
       <div className="space-y-4">
-        {filteredRows.length === 0 ? (
+        {!mobileClientRow ? (
           <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#203d31]">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
               <Search size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
@@ -547,129 +667,422 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             </p>
           </div>
         ) : (
-          filteredRows.map((row) => {
-            const badgeVariant =
-              row.overdueTotalValue > 0 ? 'danger' : row.returnReportsCount > 0 ? 'warning' : 'success';
-            const badgeLabel =
-              row.overdueTotalValue > 0
-                ? mobileOverdueLabel
-                : row.returnReportsCount > 0
-                  ? mobileReturnLabel
-                  : mobileHealthyLabel;
+          <>
+            <div className="space-y-4 px-1">
+              <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                {mobileOverviewLabel}
+              </p>
+              <h4 className="mt-2 truncate text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                {mobileClientRow.clientName}
+              </h4>
+            </div>
 
-            return (
-              <div
-                key={`client-mobile-row-${row.client.id}`}
-                className="overflow-hidden rounded-[1.75rem] border border-zinc-200 bg-white p-4 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-[#1a3327] dark:shadow-[0_18px_44px_-28px_rgba(0,0,0,0.5)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
-                      {mobileProfileLabel}
-                    </p>
-                    <h4 className="mt-2 truncate text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                      {row.clientName}
-                    </h4>
-                  </div>
-                  <Badge variant={badgeVariant}>{badgeLabel}</Badge>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                      {t('ratePerDayLabel')}
-                    </p>
-                    <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                      {row.rateLabel}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                      {overdueTotalHeaderLabel}
-                    </p>
-                    <p
-                      className={cn(
-                        'mt-2 text-sm font-black uppercase tracking-tight dark:text-white',
-                        row.overdueTotalValue > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
-                      )}
-                    >
-                      {row.overdueTotalLabel}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                      {atClientHeaderLabel}
-                    </p>
-                    <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                      {row.atClientLabel}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                      {returnReportsHeaderLabel}
-                    </p>
-                    <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                      {row.returnReportsLabel}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-[1.5rem] border border-zinc-100 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-[#203d31]">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-[#d5f1de]">
-                      <Hash size={16} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
-                        KVK
-                      </p>
-                      <p className="mt-1 text-[12px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {row.kvkLabel}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-[#d5f1de]">
-                      <MapPin size={16} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
-                        {warehousesHeaderLabel}
-                      </p>
-                      <div className="mt-2 space-y-2">
-                        {row.warehouseAddresses.length > 0 ? (
-                          row.warehouseAddresses.map((address, index) => (
-                            <p
-                              key={`${row.client.id}-warehouse-${index}`}
-                              className="text-[11px] font-bold leading-5 text-zinc-700 dark:text-[#d8e8de]"
-                            >
-                              {address}
-                            </p>
-                          ))
-                        ) : (
-                          <p className="text-[11px] font-bold leading-5 text-zinc-500 dark:text-[#c0d6ca]">
-                            -
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {onEditClient && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-4 w-full"
-                    onClick={() => onEditClient(row.client)}
-                  >
-                    {t('editData')}
-                  </Button>
-                )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {mobileProfileLabel}
+                </p>
+                <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileClientRow.clientName}
+                </p>
               </div>
-            );
-          })
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {t('pricePerDayLabel')}
+                </p>
+                <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileClientRow.rateLabel}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {mobilePalletsAtClientLabel}
+                </p>
+                <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileClientRow.atClientLabel}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {mobileOverdueDaysLabel}
+                </p>
+                <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileTotalOverdueDays}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-zinc-100 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-[#203d31]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                    {mobileTotalDebtLabel}
+                  </p>
+                  <p
+                    className={cn(
+                      'mt-1 text-[13px] font-black uppercase tracking-tight dark:text-white',
+                      mobileClientRow.overdueTotalValue > 0
+                        ? 'text-rose-600 dark:text-rose-200'
+                        : 'text-zinc-950'
+                    )}
+                  >
+                    {mobileClientRow.overdueTotalLabel}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-200 pt-4 dark:border-white/10">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveMobilePalletList('withQr')}
+                  className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white"
+                >
+                  <span>{mobileWithQrLabel}</span>
+                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                    {mobileQrPallets.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMobilePalletList('withoutQr')}
+                  className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white"
+                >
+                  <span>{mobileWithoutQrLabel}</span>
+                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                    {mobileNoQrPallets.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+              <div className="hidden">
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {mobileReportedPalletsLabel}
+                </p>
+                {mobileClientPallets.length > 0 ? (
+                  <div className="max-h-[360px] overflow-auto">
+                <div className="min-w-[540px]">
+                  <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.7fr)_minmax(0,1.15fr)_58px_58px_76px] items-center gap-4 border-b border-zinc-100 bg-white pb-2 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:border-white/10 dark:bg-[#172d22] dark:text-[#9fcbb3]">
+                    <span>{t('qrCode')}</span>
+                    <span>{t('status')}</span>
+                    <span>{t('daysOut')}</span>
+                    <span>{language === 'bs' ? 'Kasni' : language === 'nl' ? 'Te laat' : 'Late'}</span>
+                    <span>EUR</span>
+                  </div>
+                  <ul className="divide-y divide-zinc-100 dark:divide-white/10">
+                  {mobileClientPallets.map(({ pallet, daysOutside, overdueDays, overdueCost }) => (
+                    <li
+                      key={`client-mobile-pallet-${pallet.id}`}
+                      className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1.15fr)_58px_58px_76px] items-center gap-4 py-2.5"
+                      title={`${getPalletTypeLabel(pallet.type, language)} • ${pallet.current_location || '-'}`}
+                    >
+                      <span className="truncate text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {pallet.qr_code}
+                      </span>
+                      <span className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 dark:text-[#d8e8de]">
+                        {getStatusLabel(pallet.current_status_name, language)}
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {daysOutside}
+                      </span>
+                      <span className="text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {overdueDays}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[11px] font-black uppercase tracking-tight dark:text-white',
+                          overdueCost > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
+                        )}
+                      >
+                        {currencyFormatter.format(overdueCost)}
+                      </span>
+                    </li>
+                  ))}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#203d31]">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+                  <Package size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {mobileNoClientPalletsLabel}
+                </p>
+              </div>
+              )}
+            </div>
+            </div>
+
+            {activeMobilePalletList && (
+              <DriverModalShell
+                onClose={closeMobilePalletListModal}
+                title={mobileClientRow.clientName}
+                subtitle={activeMobilePalletTitle}
+                width="sm"
+                overlayClassName="z-[110] items-center p-4"
+                contentClassName="h-auto max-h-[82dvh] max-w-sm rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
+                bodyClassName="bg-zinc-50/80 px-4 py-3 dark:bg-[#13241b]"
+              >
+                {activeMobilePalletItems.length > 0 ? (
+                  <div className="overflow-hidden rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#203d31]">
+                    {activeMobilePalletList === 'withoutQr' ? (
+                      <>
+                        <div className="grid grid-cols-[42px_minmax(0,1fr)_82px] items-center gap-2 border-b border-zinc-100 px-3 py-2.5 text-[8px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:border-white/10 dark:text-[#9fcbb3]">
+                          <span className="text-center leading-none">{mobilePalletNumberLabel}</span>
+                          <span className="text-center leading-none">{t('status')}</span>
+                          <span className="text-right leading-none">{mobileReturnDateLabel}</span>
+                        </div>
+
+                        <ul className="max-h-[56vh] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/10">
+                          {activeMobilePalletItems.map((item, index) => (
+                            <li key={`client-mobile-noqr-${item.pallet.id}`}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedMobilePallet({
+                                    item,
+                                    index,
+                                    view: 'withoutQr',
+                                  })
+                                }
+                                className="grid min-h-[3.1rem] w-full grid-cols-[42px_minmax(0,1fr)_82px] items-center gap-2 px-3 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
+                              >
+                                <span className="inline-flex items-center justify-center text-center text-[10px] font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white">
+                                  {index + 1}
+                                </span>
+                                <span className="inline-flex min-h-[1.25rem] items-center justify-center text-center text-[9px] font-bold uppercase leading-none tracking-[0.08em] text-zinc-500 dark:text-[#d8e8de]">
+                                  {mobileStatusVoorRetourLabel}
+                                </span>
+                                <span className="inline-flex items-center justify-end text-right text-[10px] font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white">
+                                  {getMobilePalletDate(item)}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_34px_34px_52px] items-center gap-2.5 border-b border-zinc-100 px-3 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:border-white/10 dark:text-[#9fcbb3]">
+                          <span>{t('qrCode')}</span>
+                          <span>{t('status')}</span>
+                          <span className="text-right">{t('daysOut')}</span>
+                          <span className="text-right">{language === 'bs' ? 'Kasni' : language === 'nl' ? 'Te laat' : 'Late'}</span>
+                          <span className="text-right">EUR</span>
+                        </div>
+
+                        <ul className="max-h-[56vh] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/10">
+                          {activeMobilePalletItems.map((item, index) => (
+                            <li key={`client-mobile-qr-${item.pallet.id}`}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedMobilePallet({
+                                    item,
+                                    index,
+                                    view: 'withQr',
+                                  })
+                                }
+                                className="grid w-full grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_34px_34px_52px] items-center gap-2.5 px-3 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
+                                title={`${getPalletTypeLabel(item.pallet.type, language)} - ${item.pallet.current_location || '-'}`}
+                              >
+                                <span className="truncate text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                                  {item.pallet.qr_code}
+                                </span>
+                                <span className="truncate text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-500 dark:text-[#d8e8de]">
+                                  {getStatusLabel(item.pallet.current_status_name, language)}
+                                </span>
+                                <span className="text-right text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                                  {item.daysOutside}
+                                </span>
+                                <span className="text-right text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                                  {item.overdueDays}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'text-right text-[10px] font-black uppercase tracking-tight dark:text-white',
+                                    item.overdueCost > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
+                                  )}
+                                >
+                                  {currencyFormatter.format(item.overdueCost)}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+                      <Package size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {activeMobilePalletEmptyLabel}
+                    </p>
+                  </div>
+                )}
+              </DriverModalShell>
+            )}
+            {selectedMobilePallet && (
+              <DriverModalShell
+                onClose={() => setSelectedMobilePallet(null)}
+                title={mobileClientRow.clientName}
+                subtitle={
+                  selectedMobilePallet.view === 'withoutQr'
+                    ? `${mobilePalletNumberLabel} ${selectedMobilePallet.index + 1}`
+                    : selectedMobilePallet.item.pallet.qr_code
+                }
+                width="sm"
+                overlayClassName="z-[120] items-center p-4"
+                contentClassName="h-auto max-h-[72dvh] max-w-sm rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
+                bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#13241b]"
+              >
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {selectedMobilePallet.view === 'withoutQr' ? mobilePalletNumberLabel : t('qrCode')}
+                      </p>
+                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {selectedMobilePallet.view === 'withoutQr'
+                          ? selectedMobilePallet.index + 1
+                          : selectedMobilePallet.item.pallet.qr_code}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {t('status')}
+                      </p>
+                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {selectedMobilePallet.view === 'withoutQr'
+                          ? mobileStatusVoorRetourLabel
+                          : getStatusLabel(selectedMobilePallet.item.pallet.current_status_name, language)}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {mobileReturnDateLabel}
+                      </p>
+                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {getMobilePalletDate(selectedMobilePallet.item)}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {t('location')}
+                      </p>
+                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {mobileCommentLabel}
+                    </p>
+                    <p className="mt-2 text-[11px] font-bold leading-5 text-zinc-700 dark:text-zinc-200">
+                      {selectedMobilePallet.item.pallet.note || t('notAvailable')}
+                    </p>
+                  </div>
+                </div>
+              </DriverModalShell>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (clientIdFilter !== undefined || !isMobile) {
+    return (
+      <div className="space-y-6">
+        {!mobileClientRow ? (
+          <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#203d31]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+              <Search size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+              {t('noMatchingResults')}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 lg:grid-cols-4">
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {t('companyName')}
+                </p>
+                <p className="mt-3 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileClientRow.clientName}
+                </p>
+              </div>
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                  KVK
+                </p>
+                <p className="mt-3 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileClientRow.kvkLabel}
+                </p>
+              </div>
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {t('ratePerDayLabel')}
+                </p>
+                <p className="mt-3 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                  {mobileClientRow.rateLabel}
+                </p>
+              </div>
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
+                  {mobileTotalDebtLabel}
+                </p>
+                <p
+                  className={cn(
+                    'mt-3 text-lg font-black uppercase tracking-tight dark:text-white',
+                    mobileClientRow.overdueTotalValue > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
+                  )}
+                >
+                  {mobileClientRow.overdueTotalLabel}
+                </p>
+              </div>
+            </div>
+
+            <ClientPalletDesktopTable client={mobileClientRow.client} />
+
+            <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-24 md:right-8">
+              <button
+                type="button"
+                onClick={() => setIsDesktopReturnFormOpen(true)}
+                className="inline-flex h-14 items-center gap-2 rounded-full bg-[#00A655] px-5 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform hover:scale-[1.02]"
+              >
+                <Undo2 size={16} />
+                {reportReturnLabel}
+              </button>
+            </div>
+
+            {isDesktopReturnFormOpen && (
+              <NoQrReturnFormModal
+                currentUser={{
+                  id: mobileClientRow.client.user_id,
+                  name: mobileClientRow.client.name,
+                  email: '',
+                  role_id: 4,
+                  role_name: RoleType.KLIJENT,
+                }}
+                onClose={() => setIsDesktopReturnFormOpen(false)}
+              />
+            )}
+          </>
         )}
       </div>
     );
@@ -701,7 +1114,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             style={{ width: `max(100%, ${totalTableWidth}px)` }}
           >
             <colgroup>
-              <col style={{ width: columnWidths.client }} />
               <col style={{ width: columnWidths.kvk }} />
               <col style={{ width: columnWidths.warehouses }} />
               <col style={{ width: columnWidths.rate }} />
@@ -712,16 +1124,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80">
               <tr>
-                <th ref={registerHeaderCell('client')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Building2 size={16} />
-                    </div>
-                    {renderSortButton('client', t('client'))}
-                    {renderFilterButton('client')}
-                  </div>
-                  {renderResizeHandle('client')}
-                </th>
                 <th ref={registerHeaderCell('kvk')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
                     <div className={headerIconClass}>
@@ -822,13 +1224,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     onEditClient && 'cursor-pointer focus-visible:bg-zinc-50/80 focus-visible:outline-none'
                   )}
                 >
-                  <td className={bodyCellClass}>
-                    <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, 'uppercase text-zinc-900')}>
-                        {row.clientName}
-                      </span>
-                    </div>
-                  </td>
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-600')}>{row.kvkLabel}</span>
