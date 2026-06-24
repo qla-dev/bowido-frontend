@@ -20,7 +20,7 @@ import {
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
 import { Pallet } from '../types';
-import { getStatusLabel, normalizePalletTypeCode, palletTypeValues } from '../i18n';
+import { getPalletTypeLabel, getStatusLabel, palletTypeValues } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import {
   buildCustomerPalletReportWorkbook,
@@ -112,10 +112,6 @@ const formatDateFilterValue = (value: string | Date) => {
   const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
-};
-
-const getCompactPalletTypeLabel = (type: string) => {
-  return normalizePalletTypeCode(type) || type;
 };
 
 const FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID: Partial<Record<number, string>> = {
@@ -255,7 +251,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const noResultsLabel =
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const addPalletLabel =
-    language === 'bs' ? 'Dodaj paletu' : language === 'nl' ? 'Pallet toevoegen' : 'Add pallet';
+    language === 'bs' ? 'Dodaj paletu' : language === 'nl' ? 'Bok toevoegen' : 'Add pallet';
   const reportCopy: CustomerPalletReportText & {
     fabLabel: string;
     modalTitle: string;
@@ -305,15 +301,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         }
       : language === 'nl'
         ? {
-            workbookTitle: 'Pallets per klant',
+            workbookTitle: 'Bokken per klant',
             summarySheetName: 'Overzicht',
-            summaryTitle: 'Overzicht pallets per klant',
+            summaryTitle: 'Overzicht bokken per klant',
             summaryClientLabel: 'Klant',
-            summaryPalletsLabel: 'Aantal pallets',
-            summaryOverdueLabel: 'Pallets met schuld',
+            summaryPalletsLabel: 'Aantal bokken',
+            summaryOverdueLabel: 'Bokken met schuld',
             summaryDebtLabel: 'Totale schuld (EUR)',
             clientSheetPrefix: 'Klant',
-            palletLabel: 'Pallet',
+            palletLabel: 'Bok',
             typeLabel: 'Type',
             statusLabel: 'Status',
             sentDateLabel: 'Verzonden',
@@ -325,16 +321,16 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             totalLabel: 'Totaal',
             fabLabel: 'Excel report',
             modalTitle: 'Excel report per klant',
-            modalSubtitle: 'Exporteer pallets bij de klant met aantallen dagen en openstaande schuld.',
+            modalSubtitle: 'Exporteer bokken bij de klant met aantallen dagen en openstaande schuld.',
             selectedClientLabel: 'Klant',
             allClientsOptionLabel: 'Alle klanten',
             clientsCountLabel: 'Klanten',
-            palletsCountLabel: 'Pallets',
+            palletsCountLabel: 'Bokken',
             totalDebtLabel: 'Totale schuld',
             exportSelectedLabel: 'Exporteer klant',
             exportAllLabel: 'Exporteer alle klanten',
-            emptyStateLabel: 'Geen pallets in factureerbare status voor dit rapport.',
-            reportFilePrefix: 'pallets-per-klant',
+            emptyStateLabel: 'Geen bokken in factureerbare status voor dit rapport.',
+            reportFilePrefix: 'bokken-per-klant',
           }
         : {
             workbookTitle: 'Pallets by customer',
@@ -413,7 +409,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const getClientLabel = (pallet: Pallet) =>
     clients.find((client) => client.user_id === pallet.user_id)?.name || t('inStock');
 
-  const getTypeLabel = (pallet: Pallet) => getCompactPalletTypeLabel(pallet.type);
+  const getTypeLabel = (pallet: Pallet) => getPalletTypeLabel(pallet.type, language);
 
   const getStatusLabelText = (pallet: Pallet) =>
     getStatusLabel(pallet.current_status_name, language);

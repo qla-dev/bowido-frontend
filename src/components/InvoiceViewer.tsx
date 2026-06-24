@@ -100,7 +100,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-zinc-50 text-[9px] font-black uppercase tracking-widest text-zinc-400 border-b border-zinc-100">
-                         <th className="px-6 py-5">Pallet QR</th>
+                         <th className="px-6 py-5">{t('palletLabel')} QR</th>
                          <th className="px-6 py-5">Description</th>
                          <th className="px-6 py-5 text-center">Qty</th>
                          <th className="px-6 py-5 text-right">Unit Price</th>

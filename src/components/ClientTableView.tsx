@@ -203,15 +203,15 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const mobileProfileLabel =
     language === 'bs' ? 'Profil klijenta' : language === 'nl' ? 'Klantprofiel' : 'Client profile';
   const mobileOverviewLabel =
-    language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Palletoverzicht' : 'Pallet overview';
+    language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Bokkenoverzicht' : 'Pallet overview';
   const mobileReportedPalletsLabel =
-    language === 'bs' ? 'Prijavljene palete' : language === 'nl' ? 'Gemelde pallets' : 'Reported pallets';
+    language === 'bs' ? 'Prijavljene palete' : language === 'nl' ? 'Gemelde bokken' : 'Reported pallets';
   const mobileWithQrLabel =
     language === 'bs' ? 'Sa QR kodom' : language === 'nl' ? 'Met QR code' : 'With QR code';
   const mobileWithoutQrLabel =
     language === 'bs' ? 'Bez QR koda' : language === 'nl' ? 'Zonder QR code' : 'Without QR code';
   const mobilePalletsAtClientLabel =
-    language === 'bs' ? 'Palete kod klijenta' : language === 'nl' ? 'Pallets bij klant' : 'Pallets at client';
+    language === 'bs' ? 'Palete kod klijenta' : language === 'nl' ? 'Bokken bij klant' : 'Pallets at client';
   const mobileOverdueDaysLabel =
     language === 'bs' ? 'Ukupno dana kasnjenja' : language === 'nl' ? 'Totale overduedagen' : 'Total overdue days';
   const mobileTotalDebtLabel =
@@ -223,15 +223,15 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         ? 'Retour melden'
         : 'Report return';
   const mobileNoClientPalletsLabel =
-    language === 'bs' ? 'Klijent nema prijavljenih paleta.' : language === 'nl' ? 'De klant heeft geen gemelde pallets.' : 'This client has no reported pallets.';
+    language === 'bs' ? 'Klijent nema prijavljenih paleta.' : language === 'nl' ? 'De klant heeft geen gemelde bokken.' : 'This client has no reported pallets.';
   const mobileNoQrListEmptyLabel =
-    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen pallets zonder QR-code.' : 'No pallets without a QR code.';
+    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen bokken zonder QR-code.' : 'No pallets without a QR code.';
   const mobileWithQrListEmptyLabel =
-    language === 'bs' ? 'Nema paleta sa QR kodom.' : language === 'nl' ? 'Geen pallets met QR-code.' : 'No pallets with a QR code.';
+    language === 'bs' ? 'Nema paleta sa QR kodom.' : language === 'nl' ? 'Geen bokken met QR-code.' : 'No pallets with a QR code.';
   const mobileNoQrEmptyLabel =
-    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen gemelde pallets zonder QR-code.' : 'No pallets reported without a QR code.';
+    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen gemelde bokken zonder QR-code.' : 'No pallets reported without a QR code.';
   const mobilePalletNumberLabel =
-    language === 'bs' ? 'Redni broj palete' : language === 'nl' ? 'Volgnummer pallet' : 'Pallet number';
+    language === 'bs' ? 'Redni broj palete' : language === 'nl' ? 'Volgnummer bok' : 'Pallet number';
   const mobileReturnDateLabel =
     language === 'bs' ? 'Datum retour' : language === 'nl' ? 'Datum retour' : 'Return date';
   const mobileCommentLabel =

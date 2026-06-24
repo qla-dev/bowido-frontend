@@ -233,17 +233,17 @@ const palletTypeLabels: Record<AppLanguage, Record<string, string>> = {
     L120: 'L120',
     Grijs: 'Grijs',
     Siva: 'Grijs',
-    'L Paleta': 'L-pallet',
-    'L Paleta (120x80)': 'L-pallet (120x80)',
-    'L Paleta (200x100)': 'L-pallet (200x100)',
-    'A Paleta': 'A-pallet voor glas',
+    'L Paleta': 'L-bok',
+    'L Paleta (120x80)': 'L-bok (120x80)',
+    'L Paleta (200x100)': 'L-bok (200x100)',
+    'A Paleta': 'A-bok voor glas',
     'Kraksna (Standard)': 'Bok (Standaard)',
     'G-Stalak za Prozore': 'G-rek voor ramen',
     'Kraksna (A-Frame)': 'Bok (A-frame)',
     'A-Stalak (XL)': 'A-frame rek (XL)',
     'Metal Cage / Kraksna': 'Metalen kooi / bok',
-    'Euro Pallet (Unlabeled)': 'Europallet (zonder label)',
-    'Euro Pallet': 'Europallet',
+    'Euro Pallet (Unlabeled)': 'Eurobok (zonder label)',
+    'Euro Pallet': 'Eurobok',
     'H1 Plastic': 'H1 kunststof',
     Industrial: 'Industrieel',
   },
@@ -337,8 +337,8 @@ const permissionLabelCatalog: Record<AppLanguage, Record<string, string>> = {
     'users:manage': 'Manage Users',
   },
   nl: {
-    'pallets:read': 'Pallets lezen',
-    'pallets:write': 'Pallets bewerken',
+    'pallets:read': 'Bokken lezen',
+    'pallets:write': 'Bokken bewerken',
     'users:manage': 'Gebruikers beheren',
   },
   bs: {
@@ -355,8 +355,8 @@ const permissionDescriptionCatalog: Record<AppLanguage, Record<string, string>> 
     'users:manage': 'Full user control',
   },
   nl: {
-    'pallets:read': 'Kan de palletlijst bekijken',
-    'pallets:write': 'Kan pallets aanmaken en bewerken',
+    'pallets:read': 'Kan de bokkenlijst bekijken',
+    'pallets:write': 'Kan bokken aanmaken en bewerken',
     'users:manage': 'Volledige gebruikerscontrole',
   },
   bs: {
@@ -824,7 +824,7 @@ export const translations = {
   },
   nl: {
     dashboard: 'Dashboard',
-    pallets: 'Pallet Tracking',
+    pallets: 'Bokken volgen',
     noQrPallets: 'Bokken zonder QR code',
     clients: 'Klantbeheer',
     settings: 'Instellingen',
@@ -846,14 +846,14 @@ export const translations = {
     noAuditLogs: 'Geen auditlogs voor de gekozen filter.',
     bulkScan: 'Bulk Scan',
     startBulkScan: 'Bulk Scan Starten',
-    damagedPallet: 'Beschadigde pallet?',
+    damagedPallet: 'Beschadigde bok?',
     report: 'Melden',
     logout: 'Uitloggen',
     needHelp: 'Hulp nodig?',
     home: 'Start',
     overview: 'Overzicht',
     inventory: 'Voorraad',
-    totalPallets: 'Totaal pallets',
+    totalPallets: 'Totaal bokken',
     inTransit: 'Onderweg',
     atClients: 'Bij klanten',
     needService: 'Service nodig',
@@ -891,7 +891,7 @@ export const translations = {
     serviceQueue: 'Servicewachtrij',
     exceptionQueue: 'Uitzonderingen',
     onBoard: 'Aan boord',
-    palletsLoaded: 'Pallets geladen',
+    palletsLoaded: 'Bokken geladen',
     recentScanHistory: 'Recente scanhistoriek',
     viewHistory: 'Historiek bekijken',
     manageAll: 'Alles beheren',
@@ -912,7 +912,7 @@ export const translations = {
     account: 'Account',
     activeSession: 'Actieve sessie',
     company: 'Bedrijf',
-    activePallets: 'Actieve pallets',
+    activePallets: 'Actieve bokken',
     forPickup: 'Voor ophalen',
     chargeAlert: 'Kostenmelding',
     liveInventory: 'Live voorraad',
@@ -940,10 +940,10 @@ export const translations = {
     clear: 'Wissen',
     readyToScan: 'Klaar om te scannen',
     roleRestricted: 'Rol beperkt',
-    scanCenterTitle: 'Pallet scannen',
-    scanCenterSubtitle: 'Gebruik de centrale scanner om de huidige palletstatus en toegestane updates te tonen.',
-    scanSingleHint: 'Scan één pallet om de huidige status en beschikbare acties te bekijken.',
-    scanBulkHint: 'Scan meerdere pallets om huidige statussen te bekijken en één gezamenlijke update toe te passen.',
+    scanCenterTitle: 'Bok scannen',
+    scanCenterSubtitle: 'Gebruik de centrale scanner om de huidige bokstatus en toegestane updates te tonen.',
+    scanSingleHint: 'Scan één bok om de huidige status en beschikbare acties te bekijken.',
+    scanBulkHint: 'Scan meerdere bokken om huidige statussen te bekijken en één gezamenlijke update toe te passen.',
     currentStatusLabel: 'Huidige status',
     detectedUnit: 'Gedetecteerde eenheid',
     scannedUnits: 'Gescande eenheden',
@@ -952,7 +952,7 @@ export const translations = {
     selectNextStatus: 'Selecteer volgende status',
     noAllowedStatusChanges: 'Voor deze rol zijn geen statuswijzigingen beschikbaar.',
     serviceDamageAction: 'Service / schade',
-    serviceDamageHint: 'Meld schade of stuur de pallet naar de servicewachtrij.',
+    serviceDamageHint: 'Meld schade of stuur de bok naar de servicewachtrij.',
     serviceNotePlaceholder: 'Beschrijf het serviceprobleem of de zichtbare schade...',
     currentClientLabel: 'Huidige klant',
     applyStatusUpdate: 'Statusupdate toepassen',
@@ -1096,7 +1096,7 @@ export const translations = {
     loginSubtitle: 'Logistiek ecosysteem',
     selectRolePreview: 'Selecteer een rol om te bekijken',
     mobileResponsiveReady: 'Mobiel responsief klaar',
-    footerTagline: 'Digitaal palletoperatieplatform',
+    footerTagline: 'Digitaal bokkenoperatieplatform',
     footerRights: 'Alle rechten voorbehouden',
     footerRegion: 'Sarajevo · Eindhoven',
     cleanInbox: 'Lege inbox',
@@ -1144,8 +1144,8 @@ export const translations = {
     activeLabel: 'Actief',
     dummyRoleActions: 'Dummyvoorbeeld van toegestane acties voor deze rol.',
     dummyHoverPermissions: 'Dummy-permissies die op hover voor de gekozen rol worden getoond.',
-    ghostReportTitle: 'Ghost Pallet Report',
-    ghostReportSubtitle: 'Melden, controleren en koppelen van pallets zonder QR-code',
+    ghostReportTitle: 'Ghost-bokmelding',
+    ghostReportSubtitle: 'Melden, controleren en koppelen van bokken zonder QR-code',
     openReports: 'Open meldingen',
     affectedClients: 'Betrokken klanten',
     readyForPairing: 'Klaar om te koppelen',
@@ -1153,13 +1153,13 @@ export const translations = {
     importantNotice: 'Belangrijk',
     specialImportant: 'Extra zichtbaar voor chauffeurs en klanten',
     quickReport: 'Snelle melding',
-    ghostReportHelp: 'Wanneer je een pallet zonder QR-code opmerkt, meld die meteen zodat admin en operations deze kunnen opvolgen en koppelen.',
+    ghostReportHelp: 'Wanneer je een bok zonder QR-code opmerkt, meld die meteen zodat admin en operations deze kunnen opvolgen en koppelen.',
     quantity: 'Aantal',
     note: 'Notitie',
     sendReport: 'Melding verzenden',
     openGhostEntries: 'Open ghost-meldingen',
     reviewAndPair: 'Controleren en koppelen',
-    reviewAndPairDescription: 'Elke gemelde ghost pallet blijft hier totdat een nieuwe QR-code wordt toegewezen.',
+    reviewAndPairDescription: 'Elke gemelde ghost-bok blijft hier totdat een nieuwe QR-code wordt toegewezen.',
     searchReports: 'Meldingen zoeken',
     unknownClient: 'Onbekende klant',
     noAdditionalNote: 'Geen extra notitie voor deze melding.',
@@ -1197,7 +1197,7 @@ export const translations = {
     currentFleetDetail: 'Huidig vlootoverzicht',
     noActiveUnits: 'Geen actieve eenheden op jouw locatie',
     requestReturn: 'Retour aanvragen',
-    ghostReportCardTitle: 'Pallet zonder code',
+    ghostReportCardTitle: 'Bok zonder code',
     ghostReportCardText: 'Meld eenheden zonder QR-label op voorraad',
     activityLog: 'Activiteitenlog',
     noActivityYet: 'Nog geen activiteit',
@@ -1228,9 +1228,9 @@ export const translations = {
     notAvailable: 'N/B',
     noMatchingResults: 'Geen overeenkomende resultaten',
     noMatchingUnitsFound: 'Geen overeenkomende eenheden gevonden',
-    noPalletsFound: 'Geen pallets gevonden',
-    ghostNotePlaceholder: 'Locatie, pallettype, toestand of extra opmerking...',
-    noPalletsMatching: 'Geen pallets gevonden voor',
+    noPalletsFound: 'Geen bokken gevonden',
+    ghostNotePlaceholder: 'Locatie, boktype, toestand of extra opmerking...',
+    noPalletsMatching: 'Geen bokken gevonden voor',
     damageIssuePlaceholder: 'Beschrijf kort het probleem...',
     daysOut: 'Dagen buiten',
     movementHistory: 'Bewegingshistoriek',
@@ -1243,7 +1243,7 @@ export const translations = {
     customOperationalNotes: 'Aangepaste operationele notities',
     addOperationalNotes: 'Voeg operationele notities toe...',
     confirmDeleteUnit: 'Weet je zeker dat je deze eenheid wilt verwijderen? Alle historiek gaat verloren.',
-    newPalletEntry: 'Nieuwe palletinvoer',
+    newPalletEntry: 'Nieuwe bokinvoer',
     qrCodeIdentification: 'QR-code identificatie',
     qrPlaceholder: 'bijv. EPAL-10234',
     createUnit: 'Eenheid aanmaken',
@@ -1693,16 +1693,18 @@ export const getRolePermissions = (role: RoleType, language: AppLanguage) =>
 
 export const getPalletTypeLabel = (type: string, language: AppLanguage) => {
   const normalizedType = normalizePalletTypeCode(type);
-
-  return (
+  const label =
     palletTypeLabels[language][normalizedType] ||
     palletTypeLabels.en[normalizedType] ||
     palletTypeLabels[language][type] ||
     palletTypeLabels.en[type] ||
-  getDynamicPalletTypeLabel(type, language) ||
+    getDynamicPalletTypeLabel(type, language) ||
     normalizedType ||
-    type
-  );
+    type;
+
+  return language === 'nl'
+    ? label.replace(/pallets/gi, 'bokken').replace(/pallet/gi, 'bok')
+    : label;
 };
 
 export const getStatusLabel = (status: string, language: AppLanguage) =>

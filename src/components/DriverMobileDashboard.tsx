@@ -7,7 +7,7 @@ import { Card, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
 import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
 import { NoQrReturnFormModal, getNoQrReturnButtonCopy } from './NoQrReturnFormModal';
-import { normalizePalletTypeCode } from '../i18n';
+import { getPalletTypeLabel } from '../i18n';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -389,8 +389,8 @@ const getPalletColorTheme = () => {
   };
 };
 
-const getDriverPalletTypeLabel = (type: string) => {
-  return normalizePalletTypeCode(type) || type;
+const getDriverPalletTypeLabel = (type: string, language: 'en' | 'nl' | 'bs') => {
+  return getPalletTypeLabel(type, language);
 };
 
 export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {
@@ -466,19 +466,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         }
       : language === 'nl'
         ? {
-            buttonTitle: 'Pallets zonder QR-code',
-            buttonText: 'Bekijk gemelde pallets die klaarstaan om opgehaald te worden.',
-            title: 'Gemelde pallets zonder QR-code',
+            buttonTitle: 'Bokken zonder QR-code',
+            buttonText: 'Bekijk gemelde bokken die klaarstaan om opgehaald te worden.',
+            title: 'Gemelde bokken zonder QR-code',
             subtitle: 'Ophalen bij klanten',
             search: 'Zoek op klantnaam',
-            pallet: 'Pallet',
+            pallet: 'Bok',
             location: 'Locatie',
             pickup: 'Ophaaldatum',
             comment: 'Commentaar',
             returned: 'Bok opgehaald',
             direct: 'Direct ophalen',
-            empty: 'Geen gemelde pallets zonder QR-code.',
-            confirm: 'Pallet als opgehaald markeren? De melding wordt verwijderd.',
+            empty: 'Geen gemelde bokken zonder QR-code.',
+            confirm: 'Bok als opgehaald markeren? De melding wordt verwijderd.',
           }
         : {
             buttonTitle: 'Pallets without QR code',
@@ -779,7 +779,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const isLocationChangeDisabled = isTransportStatus || Boolean(fixedWarehouseLocationMeta);
   const isWarehouseStatus = [1, 3].includes(selectedPallet?.current_status_id ?? -1);
   const isCheckInStatus = [1, 3, 7].includes(selectedPallet?.current_status_id ?? -1);
-  const shouldShowPalletPhotoAction = !isTransportStatus && !isWarehouseStatus && !isRepairStatus;
+  const shouldShowPalletPhotoAction =
+    user.role_name !== RoleType.KLIJENT &&
+    !isTransportStatus &&
+    !isWarehouseStatus &&
+    !isRepairStatus;
   const shouldTopAlignSummaryCard = [1, 3, 5, 7].includes(draftStatusId);
   const transportLocationLabel =
     language === 'nl' ? 'Onderweg' : language === 'bs' ? 'Na putu' : 'On the way';
@@ -1805,7 +1809,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   nameLabel={text.palletNameLabel}
                   code={selectedPallet.qr_code}
                   typeLabel={text.palletTypeLabel}
-                  typeValue={getDriverPalletTypeLabel(selectedPallet.type)}
+                  typeValue={getDriverPalletTypeLabel(selectedPallet.type, language)}
                   theme={selectedPalletTheme}
                   alignTop={shouldTopAlignSummaryCard}
                 >

@@ -172,7 +172,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const lastUpdateLabel =
     language === 'bs' ? 'Zadnja izmjena' : language === 'nl' ? 'Laatste wijziging' : 'Last update';
   const palletLabel =
-    language === 'bs' ? 'Paleta' : language === 'nl' ? 'Pallet' : 'Pallet';
+    language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet';
   const movementHistoryLabel =
     language === 'bs' ? 'Historija kretanja' : language === 'nl' ? 'Bewegingsgeschiedenis' : 'Movement history';
   const changedByLabel =

@@ -149,15 +149,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   };
 
   const addPalletModeLabel = language === 'bs' ? 'Nacin unosa' : language === 'nl' ? 'Invoermodus' : 'Entry mode';
-  const singlePalletLabel = language === 'bs' ? 'Jedna paleta' : language === 'nl' ? 'Jedna pallet' : 'Single pallet';
+  const singlePalletLabel = language === 'bs' ? 'Jedna paleta' : language === 'nl' ? 'Eén bok' : 'Single pallet';
   const bulkPalletLabel = language === 'bs' ? 'Bulk unos' : language === 'nl' ? 'Bulk invoer' : 'Bulk entry';
   const qrPrefixLabel = language === 'bs' ? 'QR prefiks' : language === 'nl' ? 'QR prefix' : 'QR prefix';
   const rangeFromLabel = language === 'bs' ? 'Od broja' : language === 'nl' ? 'Vanaf nummer' : 'From number';
   const rangeToLabel = language === 'bs' ? 'Do broja' : language === 'nl' ? 'Tot nummer' : 'To number';
   const totalCreateLabel = language === 'bs' ? 'Za kreiranje' : language === 'nl' ? 'Te maken' : 'To create';
   const invalidRangeLabel = language === 'bs' ? 'Unesi ispravan raspon.' : language === 'nl' ? 'Vul een geldig bereik in.' : 'Enter a valid range.';
-  const bulkHintLabel = language === 'bs' ? 'Status novih paleta' : language === 'nl' ? 'Status van nieuwe pallets' : 'Status for new pallets';
-  const createBulkLabel = language === 'bs' ? 'Kreiraj palete' : language === 'nl' ? 'Pallets aanmaken' : 'Create pallets';
+  const bulkHintLabel = language === 'bs' ? 'Status novih paleta' : language === 'nl' ? 'Status van nieuwe bokken' : 'Status for new pallets';
+  const createBulkLabel = language === 'bs' ? 'Kreiraj palete' : language === 'nl' ? 'Bokken aanmaken' : 'Create pallets';
 
   const parseBulkNumber = (value: string) => {
     const trimmedValue = value.trim();
@@ -1021,7 +1021,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     {editingPallet.qr_code}
                   </h3>
                   <p className="mt-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-400">
-                    {normalizePalletTypeCode(editingPallet.type) || editingPallet.type}
+                    {getPalletTypeLabel(editingPallet.type, language)}
                   </p>
                 </div>
 

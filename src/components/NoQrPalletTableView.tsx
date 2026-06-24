@@ -7,8 +7,10 @@ import {
   MapPin,
   MessageSquareText,
   RotateCcw,
+  Save,
   Search,
   Tag,
+  Trash2,
   Truck,
   User as UserIcon,
   X,
@@ -17,6 +19,7 @@ import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { Pallet } from '../types';
 
 type NoQrColumnKey =
   | 'serial'
@@ -33,6 +36,7 @@ type FilterOption = {
 };
 
 type NoQrTableRow = {
+  pallet: Pallet;
   id: number;
   serial: number;
   clientName: string;
@@ -77,7 +81,7 @@ const NO_QR_MIN_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
 };
 
 export const NoQrPalletTableView: React.FC = () => {
-  const { pallets, clients, t, language } = useApp();
+  const { pallets, clients, statuses, updatePallet, deletePallet, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<NoQrColumnKey, HTMLTableCellElement | null>>>({});
@@ -111,6 +115,20 @@ export const NoQrPalletTableView: React.FC = () => {
       : language === 'nl'
         ? 'Toon volledig commentaar'
         : 'Show full comment';
+  const detailTitle =
+    language === 'bs' ? 'Detalji palete bez QR koda' : language === 'nl' ? 'Details bok zonder QR-code' : 'No-QR pallet details';
+  const assignedClientLabel =
+    language === 'bs' ? 'Dodijeljeni klijent' : language === 'nl' ? 'Toegewezen klant' : 'Assigned client';
+  const saveLabel =
+    language === 'bs' ? 'Sacuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes';
+  const deleteLabel =
+    language === 'bs' ? 'Obrisi paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
+  const deleteConfirmLabel =
+    language === 'bs'
+      ? 'Obrisati ovu paletu bez QR koda?'
+      : language === 'nl'
+        ? 'Deze bok zonder QR-code verwijderen?'
+        : 'Delete this pallet without a QR code?';
   const resizeAriaLabel =
     language === 'bs'
       ? 'Promijeni sirinu kolone'
@@ -147,6 +165,7 @@ export const NoQrPalletTableView: React.FC = () => {
   });
   const [openFilterKey, setOpenFilterKey] = useState<NoQrColumnKey | null>(null);
   const [activeCommentRow, setActiveCommentRow] = useState<NoQrTableRow | null>(null);
+  const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
     top: number;
     left: number;
@@ -235,6 +254,7 @@ export const NoQrPalletTableView: React.FC = () => {
         .filter((pallet) => pallet.is_ghost)
         .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
         .map((pallet, index) => ({
+          pallet,
           id: pallet.id,
           serial: index + 1,
           clientName:
@@ -617,7 +637,20 @@ export const NoQrPalletTableView: React.FC = () => {
                   initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.01 }}
-                  className="transition-colors hover:bg-zinc-50/60"
+                  onClick={() => {
+                    setOpenFilterKey(null);
+                    setEditingPallet(row.pallet);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setOpenFilterKey(null);
+                      setEditingPallet(row.pallet);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  className="cursor-pointer transition-colors hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none"
                 >
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
@@ -662,7 +695,8 @@ export const NoQrPalletTableView: React.FC = () => {
                         <button
                           type="button"
                           title={fullCommentLabel}
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setOpenFilterKey(null);
                             setActiveCommentRow(row);
                           }}
@@ -722,6 +756,149 @@ export const NoQrPalletTableView: React.FC = () => {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {editingPallet && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]"
+          onClick={() => setEditingPallet(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] no-scrollbar"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-[#00A655]" />
+
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                  {detailTitle}
+                </p>
+                <h3 className="mt-2 text-2xl font-black uppercase tracking-tight text-zinc-950">
+                  #{rows.find((row) => row.id === editingPallet.id)?.serial || editingPallet.id}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPallet(null)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+                aria-label={t('close')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                  {assignedClientLabel}
+                </label>
+                <select
+                  value={editingPallet.user_id || ''}
+                  onChange={(event) => {
+                    const userId = event.target.value ? Number(event.target.value) : undefined;
+                    const clientName = clients.find((client) => client.user_id === userId)?.name;
+                    setEditingPallet({
+                      ...editingPallet,
+                      user_id: userId,
+                      client_name: clientName,
+                    });
+                  }}
+                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"
+                >
+                  <option value="">{t('noClient')}</option>
+                  {clients.map((client) => (
+                    <option key={`no-qr-edit-client-${client.id}`} value={client.user_id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                  {t('status')}
+                </label>
+                <select
+                  value={editingPallet.current_status_id}
+                  onChange={(event) => {
+                    const statusId = Number(event.target.value);
+                    const statusName =
+                      statuses.find((status) => status.id === statusId)?.name ||
+                      editingPallet.current_status_name;
+                    setEditingPallet({
+                      ...editingPallet,
+                      current_status_id: statusId,
+                      current_status_name: statusName,
+                    });
+                  }}
+                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"
+                >
+                  {statuses.map((status) => (
+                    <option key={`no-qr-edit-status-${status.id}`} value={status.id}>
+                      {getStatusLabel(status.name, language)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                {t('location')}
+              </label>
+              <Input
+                value={editingPallet.current_location}
+                onChange={(event) =>
+                  setEditingPallet({ ...editingPallet, current_location: event.target.value })
+                }
+                className="bg-zinc-50"
+              />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                {commentLabel}
+              </label>
+              <textarea
+                value={editingPallet.note || ''}
+                onChange={(event) =>
+                  setEditingPallet({ ...editingPallet, note: event.target.value })
+                }
+                className="min-h-32 w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[12px] font-bold text-zinc-800 outline-none transition-colors focus:border-emerald-400"
+              />
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(deleteConfirmLabel)) {
+                    deletePallet(editingPallet.id);
+                    setEditingPallet(null);
+                  }
+                }}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-rose-600 transition-colors hover:bg-rose-50 sm:w-auto"
+              >
+                <Trash2 size={15} />
+                {deleteLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updatePallet(editingPallet);
+                  setEditingPallet(null);
+                }}
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#00A655] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform hover:scale-[1.01]"
+              >
+                <Save size={15} />
+                {saveLabel}
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>
