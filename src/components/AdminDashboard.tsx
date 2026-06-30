@@ -17,6 +17,8 @@ import { AdminAuditLogs } from './AdminAuditLogs';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { NoQrPalletTableView } from './NoQrPalletTableView';
 import { ClientTableView } from './ClientTableView';
+import { AdminClientManagerView } from './AdminClientManagerView';
+import { AdminRoleOperationsView } from './AdminRoleOperationsView';
 import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
@@ -41,7 +43,11 @@ interface AdminDashboardProps {
     | 'billing'
     | 'roles'
     | 'calendar'
-    | 'noQrPallets';
+    | 'noQrPallets'
+    | 'clientManager'
+    | 'adminService'
+    | 'adminWarehouse'
+    | 'adminFinance';
   user: User;
   isNightMode?: boolean;
   onToggleNightMode?: () => void;
@@ -59,7 +65,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     addClient, updateClient, setIsGhostReportOpen, t, language 
   } = useApp();
   const [view, setView] = useState<
-    'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets'
+    'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets' | 'clientManager' | 'adminService' | 'adminWarehouse' | 'adminFinance'
   >(initialView);
   const [editingStatus, setEditingStatus] = useState<PalletStatus | null>(null);
   const [showAddStatus, setShowAddStatus] = useState(false);
@@ -741,6 +747,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     />
   );
 
+  const renderClientManager = () => <AdminClientManagerView />;
+  const renderAdminService = () => <AdminRoleOperationsView mode="service" />;
+  const renderAdminWarehouse = () => <AdminRoleOperationsView mode="warehouse" />;
+  const renderAdminFinance = () => <AdminRoleOperationsView mode="finance" />;
+
   const renderSettings = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -906,6 +917,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       {view === 'pallets' && renderPallets()}
       {view === 'noQrPallets' && renderNoQrPallets()}
       {view === 'clients' && renderClients()}
+      {view === 'clientManager' && renderClientManager()}
+      {view === 'adminService' && renderAdminService()}
+      {view === 'adminWarehouse' && renderAdminWarehouse()}
+      {view === 'adminFinance' && renderAdminFinance()}
       {view === 'users' && <UserManager currentUser={user} />}
       {view === 'settings' && renderSettings()}
       {view === 'billing' && <BillingList />}
@@ -1221,21 +1236,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     )}
                   </AnimatePresence>
               </div>
-              <div className="flex gap-4 mt-8 pt-4 border-t border-gray-100">
+              <div className="mt-8 grid grid-cols-3 items-center gap-4 border-t border-gray-100 pt-4">
                  <button 
                    onClick={() => {
                      handleDeletePallet(editingPallet);
                    }}
-                   className="p-4 text-rose-500 hover:bg-rose-50 rounded-2xl transition-colors"
+                   className="h-14 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-[0.12em] text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100"
                  >
-                     <AlertTriangle size={20} />
+                    {t('remove')}
                   </button>
                   <button
                     onClick={() => {
                       setEditingPallet(null);
                       setShowEditingPalletDetails(false);
                     }}
-                    className="flex-1 py-4 font-black uppercase text-xs text-gray-400"
+                    className="h-14 rounded-2xl px-4 text-xs font-black uppercase tracking-[0.12em] text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700"
                   >
                     {t('cancel')}
                   </button>
@@ -1244,7 +1259,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     setEditingPallet(null);
                     setShowEditingPalletDetails(false);
                     setSelectedPallet(null);
-                  }} className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-black/20 hover:scale-[1.02] transition-transform">{t('saveChanges')}</button>
+                  }} className="h-14 rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/20 transition-transform hover:scale-[1.02]">{t('saveChanges')}</button>
                </div>
             </motion.div>
           </div>

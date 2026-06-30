@@ -103,10 +103,8 @@ export default function App() {
   const isDriverShell = currentUser?.role_name === RoleType.VOZAC;
   const usesRoleMobileShell =
     Boolean(currentUser) &&
-    currentUser.role_name !== RoleType.ADMIN &&
     (isDriverShell || isMobileViewport);
-  const usesFixedMobileShell =
-    Boolean(currentUser) && currentUser.role_name === RoleType.ADMIN && isMobileViewport;
+  const usesFixedMobileShell = false;
   const usesInternalScrollShell = Boolean(currentUser) && (usesRoleMobileShell || usesFixedMobileShell);
   const chromeTintColor = usesRoleMobileShell ? '#00A655' : isNightMode ? '#17291f' : '#ffffff';
 
@@ -278,7 +276,7 @@ export default function App() {
 }
 
   const renderDashboard = () => {
-    if (activeTab === 'settings' && currentUser.role_name !== RoleType.ADMIN) {
+    if (activeTab === 'settings' && (currentUser.role_name !== RoleType.ADMIN || usesRoleMobileShell)) {
       return (
         <Card title={t('settings')} className="w-full">
           <div className="space-y-5">
@@ -327,19 +325,23 @@ export default function App() {
       );
     }
 
-    if (usesRoleMobileShell && currentUser.role_name !== RoleType.ADMIN) {
+    if (usesRoleMobileShell) {
       return <DriverMobileDashboard user={currentUser} />;
     }
 
     switch (currentUser.role_name) {
       case RoleType.ADMIN: {
-        const adminTabsMap: Record<string, 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets'> = {
+        const adminTabsMap: Record<string, 'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets' | 'clientManager' | 'adminService' | 'adminWarehouse' | 'adminFinance'> = {
           dashboard: 'overview',
           pallets: 'pallets',
           'no-qr-pallets': 'noQrPallets',
           calendar: 'calendar',
           'audit-logs': 'logs',
           users: 'clients',
+          'client-manager': 'clientManager',
+          'admin-service': 'adminService',
+          'admin-warehouse': 'adminWarehouse',
+          'admin-finance': 'adminFinance',
           korisnici: 'users',
           roles: 'roles',
           invoices: 'billing',
@@ -381,18 +383,11 @@ export default function App() {
           containerId="driver-app-container"
           sentinelVariant="driver"
           isNightMode={isNightMode}
-          languageCode={language}
           settingsTitle={t('settings')}
-          languageTitle={t('language')}
           logoutTitle={t('logout')}
           settingsActive={activeTab === 'settings'}
           palletActive={activeTab === 'client-table'}
           onToggleSettings={() => setActiveTab(activeTab === 'settings' ? 'dashboard' : 'settings')}
-          onCycleLanguage={() => {
-            const currentIndex = languageOptions.findIndex((option) => option.code === language);
-            const nextOption = languageOptions[(currentIndex + 1) % languageOptions.length] || languageOptions[0];
-            setLanguage(nextOption.code);
-          }}
           onLogout={handleLogout}
           logoSrc={logoImage}
           bodyClassName={(activeTab === 'settings' || activeTab === 'client-table') ? 'px-4' : 'px-0'}

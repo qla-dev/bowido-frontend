@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Users, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, UserCircle, Ghost, History, Boxes
+  Bell, UserCircle, Ghost, History, Boxes, Building2, Wrench, Warehouse, Banknote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -463,6 +463,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
         { id: 'calendar', label: t('calendar'), icon: <CalendarIcon /> },
         { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
         { id: 'users', label: t('clients'), icon: <Users /> },
+        { id: 'client-manager', label: t('clientManager'), icon: <Building2 /> },
+        { id: 'admin-service', label: t('adminService'), icon: <Wrench /> },
+        { id: 'admin-warehouse', label: t('adminWarehouse'), icon: <Warehouse /> },
+        { id: 'admin-finance', label: t('adminFinance'), icon: <Banknote /> },
         { id: 'korisnici', label: t('systemUsers'), icon: <UserCircle /> },
         { id: 'roles', label: t('roles'), icon: <Shield /> },
         { id: 'invoices', label: t('billing'), icon: <ClipboardList /> }

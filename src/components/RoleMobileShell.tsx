@@ -6,14 +6,11 @@ interface RoleMobileShellProps {
   containerId: 'app-container' | 'driver-app-container';
   sentinelVariant: 'app' | 'driver';
   isNightMode?: boolean;
-  languageCode: string;
   settingsTitle: string;
-  languageTitle: string;
   logoutTitle: string;
   settingsActive?: boolean;
   palletActive?: boolean;
   onToggleSettings: () => void;
-  onCycleLanguage: () => void;
   onLogout: () => void;
   logoSrc: string;
   bodyClassName?: string;
@@ -27,14 +24,11 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   containerId,
   sentinelVariant,
   isNightMode = false,
-  languageCode,
   settingsTitle,
-  languageTitle,
   logoutTitle,
   settingsActive = false,
   palletActive = false,
   onToggleSettings,
-  onCycleLanguage,
   onLogout,
   logoSrc,
   bodyClassName,
@@ -83,14 +77,6 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
             )}
           >
             <Settings size={18} />
-          </button>
-          <button
-            type="button"
-            title={languageTitle}
-            onClick={onCycleLanguage}
-            className="h-10 min-w-10 rounded-xl border border-emerald-100 bg-white px-3 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-700 transition-colors hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100"
-          >
-            {languageCode.toUpperCase()}
           </button>
           <button
             type="button"

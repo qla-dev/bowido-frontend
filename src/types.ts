@@ -97,6 +97,7 @@ export interface ClientDetail {
   user_id: number;
   name: string;
   kvk_number?: string;
+  phone_number?: string;
   warehouse_addresses?: string[];
   country: string;
   grace_period_days: number;

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, CalendarDays, Ghost, MapPin, Minus, Plus, Send } from 'lucide-react';
+import { Building2, CalendarDays, MapPin, Minus, Plus, Send } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { ClientDetail, RoleType, User } from '../types';
-import { Button, Card, Input, Select, cn } from './ui';
+import { Button, Input, Select, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
 
 interface NoQrReturnFormModalProps {
@@ -11,11 +11,12 @@ interface NoQrReturnFormModalProps {
   onSubmitted?: (clientName: string, count: number) => void;
 }
 
-type LocationMode = 'warehouse' | 'other';
+type LocationMode = 'warehouse' | 'other' | null;
 
 type LocationEntryState = {
   mode: LocationMode;
   details: string;
+  warehouseIndex: number | null;
 };
 
 const copyByLanguage = {
@@ -29,12 +30,15 @@ const copyByLanguage = {
     entryLabel: 'Location',
     ownWarehouse: 'Own warehouse',
     otherLocation: 'Other location',
+    chooseLocationType: 'Choose location type',
+    chooseWarehouse: 'Choose warehouse',
     locationLabel: 'Location details',
     locationOptionalLabel: 'Location details (optional)',
     locationPlaceholder: 'e.g. loading dock, side yard, rear gate...',
     pickupLabel: 'Available for pickup',
     directPickup: 'Direct pickup',
     pickupDateLabel: 'Or choose a date',
+    pickupDatePlaceholder: 'Choose pickup date',
     commentLabel: 'Comment',
     commentPlaceholder: 'Optional extra information or instructions',
     sendLabel: 'Send report',
@@ -56,12 +60,15 @@ const copyByLanguage = {
     entryLabel: 'Locatie',
     ownWarehouse: 'Eigen magazijn',
     otherLocation: 'Andere locatie',
+    chooseLocationType: 'Kies locatietype',
+    chooseWarehouse: 'Kies magazijn',
     locationLabel: 'Locatie details',
     locationOptionalLabel: 'Locatie details (optioneel)',
     locationPlaceholder: 'bijv. laadkade, buitenruimte, achterpoort...',
     pickupLabel: 'Beschikbaar voor het ophalen',
     directPickup: 'Direct ophalen',
-    pickupDateLabel: 'Of kies een datum',
+    pickupDateLabel: 'Ophaal',
+    pickupDatePlaceholder: 'Ophaal kiezen',
     commentLabel: 'Commentaar',
     commentPlaceholder: 'Optioneel: extra informatie of opmerkingen',
     sendLabel: 'Verzenden',
@@ -83,12 +90,15 @@ const copyByLanguage = {
     entryLabel: 'Lokacija',
     ownWarehouse: 'Vlastiti magacin',
     otherLocation: 'Druga lokacija',
+    chooseLocationType: 'Odaberite tip lokacije',
+    chooseWarehouse: 'Odaberite magacin',
     locationLabel: 'Detalji lokacije',
     locationOptionalLabel: 'Detalji lokacije (opcionalno)',
     locationPlaceholder: 'npr. rampa, vanjsko skladiste, zadnji ulaz...',
     pickupLabel: 'Dostupno za preuzimanje',
     directPickup: 'Odmah preuzeti',
     pickupDateLabel: 'Ili odaberi datum',
+    pickupDatePlaceholder: 'Odaberi datum preuzimanja',
     commentLabel: 'Komentar',
     commentPlaceholder: 'Opcionalno: dodatne informacije ili napomena',
     sendLabel: 'Posalji prijavu',
@@ -127,7 +137,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
   const [selectedClientId, setSelectedClientId] = useState<number | ''>('');
   const [palletCount, setPalletCount] = useState(1);
   const [locationEntries, setLocationEntries] = useState<LocationEntryState[]>([
-    { mode: 'warehouse', details: '' },
+    { mode: null, details: '', warehouseIndex: null },
   ]);
   const [directPickup, setDirectPickup] = useState(true);
   const [pickupDate, setPickupDate] = useState('');
@@ -150,16 +160,28 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
 
   useEffect(() => {
     setLocationEntries((current) =>
-      Array.from({ length: palletCount }, (_, index) => current[index] || { mode: 'warehouse', details: '' })
+      Array.from(
+        { length: palletCount },
+        (_, index) => current[index] || { mode: null, details: '', warehouseIndex: null }
+      )
     );
   }, [palletCount]);
 
   const selectedClient =
     roleClients.find((client) => client.user_id === selectedClientId) || null;
-  const primaryWarehouseAddress =
-    selectedClient?.warehouse_addresses?.find((address) => Boolean(address?.trim())) ||
-    selectedClient?.name ||
-    copy.warehouseFallback;
+  const warehouseAddresses = useMemo(() => {
+    const addresses = selectedClient?.warehouse_addresses?.filter((address) => Boolean(address?.trim())) || [];
+
+    return addresses.length > 0 ? addresses : [copy.warehouseFallback];
+  }, [copy.warehouseFallback, selectedClient?.warehouse_addresses]);
+
+  useEffect(() => {
+    setLocationEntries((current) =>
+      current.map((entry) =>
+        entry.mode === 'warehouse' ? { ...entry, warehouseIndex: null } : entry
+      )
+    );
+  }, [selectedClientId]);
 
   const formatPickupDate = (value: string) => {
     if (!value) {
@@ -176,11 +198,15 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
   const resolveEntryLocation = (entry: LocationEntryState) => {
     const details = entry.details.trim();
 
-    if (details) {
+    if (entry.mode === 'other' && details) {
       return details;
     }
 
-    return entry.mode === 'warehouse' ? primaryWarehouseAddress : copy.otherLocationFallback;
+    if (entry.mode === 'warehouse') {
+      return warehouseAddresses[entry.warehouseIndex ?? 0] || copy.warehouseFallback;
+    }
+
+    return copy.otherLocationFallback;
   };
 
   const updateLocationEntry = (
@@ -194,13 +220,16 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
     );
   };
 
-  const hasInvalidOtherLocation = locationEntries.some(
-    (entry) => entry.mode === 'other' && !entry.details.trim()
+  const hasInvalidLocation = locationEntries.some(
+    (entry) =>
+      !entry.mode ||
+      (entry.mode === 'warehouse' && entry.warehouseIndex === null) ||
+      (entry.mode === 'other' && !entry.details.trim())
   );
   const isSubmitDisabled =
     !selectedClient ||
     (!directPickup && !pickupDate) ||
-    hasInvalidOtherLocation;
+    hasInvalidLocation;
 
   const handleSubmit = () => {
     if (!selectedClient || isSubmitDisabled) {
@@ -256,22 +285,6 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
       }
     >
       <div className="space-y-5 px-5 py-5">
-        <Card className="border-rose-100 bg-rose-50/60 dark:border-rose-500/20 dark:bg-rose-500/10">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-white text-rose-600 dark:border-rose-500/30 dark:bg-[#1f3a2d] dark:text-rose-200">
-              <Ghost size={18} />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700 dark:text-rose-200">
-                {copy.reportButtonLabel}
-              </p>
-              <p className="mt-2 text-[12px] font-bold leading-6 text-zinc-700 dark:text-zinc-200">
-                {copy.subtitle}
-              </p>
-            </div>
-          </div>
-        </Card>
-
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[#9fcbb3]">
             {copy.companyLabel}
@@ -336,18 +349,20 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-950 dark:text-white">
                       {copy.entryLabel} {index + 1}
                     </p>
-                    {entry.mode === 'warehouse' && selectedClient?.warehouse_addresses?.length ? (
-                      <p className="mt-1 text-[11px] font-bold leading-5 text-zinc-500 dark:text-[#cce0d3]">
-                        {primaryWarehouseAddress}
-                      </p>
-                    ) : null}
+                    <p className="mt-1 text-[11px] font-bold leading-5 text-zinc-500 dark:text-[#cce0d3]">
+                      {entry.mode
+                        ? entry.mode === 'warehouse'
+                          ? copy.chooseWarehouse
+                          : copy.locationLabel
+                        : copy.chooseLocationType}
+                    </p>
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-2">
                   <button
                     type="button"
-                    onClick={() => updateLocationEntry(index, { mode: 'warehouse' })}
+                    onClick={() => updateLocationEntry(index, { mode: 'warehouse', details: '', warehouseIndex: null })}
                     className={cn(
                       'flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                       entry.mode === 'warehouse'
@@ -373,7 +388,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
 
                   <button
                     type="button"
-                    onClick={() => updateLocationEntry(index, { mode: 'other' })}
+                    onClick={() => updateLocationEntry(index, { mode: 'other', warehouseIndex: null })}
                     className={cn(
                       'flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                       entry.mode === 'other'
@@ -398,17 +413,61 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                   </button>
                 </div>
 
-                <div className="mt-3 space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
-                    {entry.mode === 'other' ? copy.locationLabel : copy.locationOptionalLabel}
-                  </label>
-                  <Input
-                    value={entry.details}
-                    onChange={(event) => updateLocationEntry(index, { details: event.target.value })}
-                    placeholder={copy.locationPlaceholder}
-                    className="bg-zinc-50 dark:bg-[#172d22]"
-                  />
-                </div>
+                {entry.mode === 'warehouse' && (
+                  <div className="mt-3 space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {copy.chooseWarehouse}
+                    </label>
+                    <div className="space-y-2">
+                      {warehouseAddresses.map((address, warehouseIndex) => (
+                        <button
+                          key={`no-qr-warehouse-${index}-${warehouseIndex}`}
+                          type="button"
+                          onClick={() => updateLocationEntry(index, { warehouseIndex })}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
+                            entry.warehouseIndex === warehouseIndex
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100'
+                              : 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-[#172d22] dark:text-zinc-300'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+                              entry.warehouseIndex === warehouseIndex
+                                ? 'border-emerald-500 bg-emerald-500'
+                                : 'border-zinc-300 bg-transparent dark:border-zinc-500'
+                            )}
+                          >
+                            {entry.warehouseIndex === warehouseIndex && <span className="h-2 w-2 rounded-full bg-white" />}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[10px] font-black uppercase tracking-[0.12em]">
+                              {copy.ownWarehouse} {warehouseIndex + 1}
+                            </span>
+                            <span className="mt-1 block truncate text-[11px] font-bold normal-case tracking-normal">
+                              {address}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {entry.mode === 'other' && (
+                  <div className="mt-3 space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                      {copy.locationLabel}
+                    </label>
+                    <Input
+                      value={entry.details}
+                      onChange={(event) => updateLocationEntry(index, { details: event.target.value })}
+                      placeholder={copy.locationPlaceholder}
+                      className="bg-zinc-50 normal-case tracking-normal dark:bg-[#172d22]"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -421,7 +480,15 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
 
           <button
             type="button"
-            onClick={() => setDirectPickup((current) => !current)}
+            onClick={() =>
+              setDirectPickup((current) => {
+                const nextValue = !current;
+                if (nextValue) {
+                  setPickupDate('');
+                }
+                return nextValue;
+              })
+            }
             className={cn(
               'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
               directPickup
@@ -444,25 +511,24 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
             </span>
           </button>
 
-          <div className="space-y-2">
-            <label className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
-              {copy.pickupDateLabel}
-            </label>
-            <div className="relative">
-              <CalendarDays size={16} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300 dark:text-zinc-500" />
-              <Input
-                type="date"
-                value={pickupDate}
-                onChange={(event) => {
-                  setPickupDate(event.target.value);
-                  if (event.target.value) {
-                    setDirectPickup(false);
-                  }
-                }}
-                className="bg-white pr-11 dark:bg-[#1f3a2d]"
-              />
+          {!directPickup && (
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+                {copy.pickupDateLabel}
+              </label>
+              <div className="relative">
+                <CalendarDays size={16} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300 dark:text-zinc-500" />
+                <Input
+                  type="date"
+                  value={pickupDate}
+                  onChange={(event) => setPickupDate(event.target.value)}
+                  placeholder={copy.pickupDatePlaceholder}
+                  aria-label={copy.pickupDatePlaceholder}
+                  className="bg-white pr-11 dark:bg-[#1f3a2d]"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="space-y-2">

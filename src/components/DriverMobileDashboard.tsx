@@ -406,6 +406,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [isNoQrReturnFormOpen, setIsNoQrReturnFormOpen] = useState(false);
   const [isNoQrPickupListOpen, setIsNoQrPickupListOpen] = useState(false);
+  const [isRepairListOpen, setIsRepairListOpen] = useState(false);
   const [noQrClientSearch, setNoQrClientSearch] = useState('');
   const [activeScannedPalletId, setActiveScannedPalletId] = useState<number | null>(null);
   const [openChangeMenu, setOpenChangeMenu] = useState<OpenChangeMenu>(null);
@@ -446,7 +447,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const allDriverPallets = [...demoPallets, ...pallets];
   const isScannerOpen = selectedPalletId === null;
   const showNoQrReturnAction = user.role_name === RoleType.KLIJENT;
-  const showNoQrPickupAction = user.role_name === RoleType.VOZAC;
+  const showNoQrPickupAction = user.role_name === RoleType.VOZAC || user.role_name === RoleType.ADMIN;
+  const showRepairListAction = user.role_name === RoleType.SERVISER;
   const noQrPickupCopy =
     language === 'bs'
       ? {
@@ -495,6 +497,52 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             empty: 'No pallets without a QR code have been reported.',
             confirm: 'Mark this pallet as returned? The report will be removed.',
           };
+  const repairListCopy =
+    language === 'bs'
+      ? {
+          buttonTitle: 'Palete za popravak',
+          buttonText: 'Pregled paleta prijavljenih za servis prije skeniranja.',
+          title: 'Palete prijavljene za popravak',
+          pallet: 'Paleta',
+          location: 'Lokacija',
+          type: 'Tip',
+          note: 'Napomena',
+          repaired: 'Oznaci kao popravljeno',
+          empty: 'Nema paleta prijavljenih za popravak.',
+          confirm: 'Oznaciti paletu kao popravljenu?',
+          successTitle: 'Paleta popravljena',
+          successDetail: 'Paleta je vracena iz servisa.',
+        }
+      : language === 'nl'
+        ? {
+            buttonTitle: 'Bokken voor reparatie',
+            buttonText: 'Bekijk bokken die voor service zijn gemeld voor het scannen.',
+            title: 'Bokken gemeld voor reparatie',
+            pallet: 'Bok',
+            location: 'Locatie',
+            type: 'Type',
+            note: 'Opmerking',
+            repaired: 'Als gerepareerd markeren',
+            empty: 'Geen bokken gemeld voor reparatie.',
+            confirm: 'Bok als gerepareerd markeren?',
+            successTitle: 'Bok gerepareerd',
+            successDetail: 'De bok is teruggezet uit service.',
+          }
+        : {
+            buttonTitle: 'Pallets for repair',
+            buttonText: 'View pallets reported for service before scanning.',
+            title: 'Pallets reported for repair',
+            pallet: 'Pallet',
+            location: 'Location',
+            type: 'Type',
+            note: 'Note',
+            repaired: 'Mark as repaired',
+            empty: 'No pallets have been reported for repair.',
+            confirm: 'Mark this pallet as repaired?',
+            successTitle: 'Pallet repaired',
+            successDetail: 'The pallet has been returned from service.',
+          };
+  const repairPallets = pallets.filter((pallet) => pallet.is_active && pallet.current_status_id === 7);
   const noQrPickupPallets = pallets.filter(
     (pallet) =>
       pallet.is_ghost &&
@@ -556,8 +604,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const scannedPallets = scannedPalletIds
     .map((palletId) => allDriverPallets.find((item) => item.id === palletId))
     .filter((item): item is Pallet => Boolean(item));
+  const historyPallets =
+    user.role_name === RoleType.ADMIN && scannedPallets.length === 0
+      ? allDriverPallets.filter((item) => item.is_active)
+      : scannedPallets;
   const activeScannedPallet =
-    scannedPallets.find((item) => item.id === activeScannedPalletId) || scannedPallets[0] || null;
+    historyPallets.find((item) => item.id === activeScannedPalletId) || historyPallets[0] || null;
   const damageTargetPallet = selectedPallet || activeScannedPallet;
   const actionButtonClass =
     'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-white transition-colors active:scale-[0.99]';
@@ -855,18 +907,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   }, [selectedPallet]);
 
   useEffect(() => {
-    if (scannedPallets.length === 0) {
+    if (historyPallets.length === 0) {
       setIsScannedPalletsModalOpen(false);
       setActiveScannedPalletId(null);
       return;
     }
 
-    if (activeScannedPalletId && scannedPallets.some((item) => item.id === activeScannedPalletId)) {
+    if (activeScannedPalletId && historyPallets.some((item) => item.id === activeScannedPalletId)) {
       return;
     }
 
-    setActiveScannedPalletId(scannedPallets[0].id);
-  }, [activeScannedPalletId, scannedPallets]);
+    setActiveScannedPalletId(historyPallets[0].id);
+  }, [activeScannedPalletId, historyPallets]);
 
   useEffect(() => {
     if (openChangeMenu === 'client') {
@@ -1025,7 +1077,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   useEffect(() => {
     let cancelled = false;
 
-    if (!isScannerOpen || isNoQrReturnFormOpen || isNoQrPickupListOpen) {
+    if (!isScannerOpen || isNoQrReturnFormOpen || isNoQrPickupListOpen || isRepairListOpen) {
       stopCamera();
       return;
     }
@@ -1126,7 +1178,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         flashTimeoutRef.current = null;
       }
     };
-  }, [isNoQrPickupListOpen, isNoQrReturnFormOpen, isScannerOpen]);
+  }, [isNoQrPickupListOpen, isNoQrReturnFormOpen, isRepairListOpen, isScannerOpen]);
 
   const dismissFlash = () => {
     if (flashTimeoutRef.current) {
@@ -1525,11 +1577,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const openScannedPalletsModal = () => {
-    if (scannedPallets.length === 0) {
+    if (historyPallets.length === 0) {
       return;
     }
 
-    setActiveScannedPalletId(scannedPallets[0].id);
+    setActiveScannedPalletId(historyPallets[0].id);
     setIsScannedPalletsModalOpen(true);
   };
 
@@ -1703,6 +1755,26 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </p>
                 <p className="mt-1 text-[12px] font-bold leading-5 text-emerald-700/80 dark:text-emerald-100/85">
                   {noQrPickupCopy.buttonText}
+                </p>
+              </div>
+            </button>
+          )}
+
+          {showRepairListAction && (
+            <button
+              type="button"
+              onClick={() => setIsRepairListOpen(true)}
+              className="mt-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-amber-200 bg-amber-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-amber-500/20 dark:bg-amber-500/10"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-white text-amber-600 dark:border-amber-500/25 dark:bg-[#1f3a2d] dark:text-amber-200">
+                <PackageSearch size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-100">
+                  {repairListCopy.buttonTitle}
+                </p>
+                <p className="mt-1 text-[12px] font-bold leading-5 text-amber-700/80 dark:text-amber-100/85">
+                  {repairListCopy.buttonText}
                 </p>
               </div>
             </button>
@@ -2148,10 +2220,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   <button
                     type="button"
                     onClick={openScannedPalletsModal}
-                    disabled={scannedPallets.length === 0}
+                    disabled={historyPallets.length === 0}
                     className={cn(
                       actionButtonClass,
-                      scannedPallets.length === 0
+                      historyPallets.length === 0
                         ? 'cursor-not-allowed text-white/45 active:scale-100'
                         : 'hover:bg-white/10 hover:text-white'
                     )}
@@ -2233,7 +2305,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               setNoQrClientSearch('');
             }}
             title={noQrPickupCopy.title}
-            subtitle={noQrPickupCopy.subtitle}
             width="md"
             overlayClassName="z-[110] items-center p-3"
             contentClassName="h-auto max-h-[88dvh] rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
@@ -2328,6 +2399,100 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </div>
               )}
             </div>
+          </DriverModalShell>
+        )}
+
+        {isRepairListOpen && (
+          <DriverModalShell
+            onClose={() => setIsRepairListOpen(false)}
+            title={repairListCopy.title}
+            width="md"
+            overlayClassName="z-[110] items-center p-3"
+            contentClassName="h-auto max-h-[88dvh] rounded-[1.75rem] border border-amber-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
+            bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#13241b]"
+          >
+            {repairPallets.length > 0 ? (
+              <div className="max-h-[68dvh] space-y-3 overflow-y-auto pr-1 no-scrollbar">
+                {repairPallets.map((pallet, index) => (
+                  <div
+                    key={`service-repair-pallet-${pallet.id}`}
+                    className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#1f3a2d]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                          {repairListCopy.pallet} {index + 1}
+                        </p>
+                        <p className="mt-1 truncate text-[13px] font-black uppercase tracking-tight text-emerald-900 dark:text-white">
+                          {pallet.qr_code}
+                        </p>
+                      </div>
+                      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-amber-50 px-2 text-[11px] font-black text-amber-700 dark:bg-amber-500/10 dark:text-amber-100">
+                        {index + 1}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                            {repairListCopy.type}
+                          </p>
+                          <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                            {getDriverPalletTypeLabel(pallet.type, language)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                            {repairListCopy.location}
+                          </p>
+                          <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                            {pallet.current_location || '-'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                          {repairListCopy.note}
+                        </p>
+                        <p className="mt-1 line-clamp-3 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
+                          {pallet.note || '-'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(repairListCopy.confirm)) {
+                          updatePalletStatus(
+                            pallet.id,
+                            1,
+                            user.id,
+                            user.name,
+                            pallet.current_location,
+                            'Service marked pallet as repaired from mobile screen.'
+                          );
+                          showFlash(repairListCopy.successTitle, repairListCopy.successDetail, 'success');
+                        }
+                      }}
+                      className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00A655] px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.99]"
+                    >
+                      <CheckCircle2 size={16} />
+                      {repairListCopy.repaired}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#1f3a2d]">
+                <PackageSearch size={24} className="mx-auto mb-3 text-zinc-300" />
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                  {repairListCopy.empty}
+                </p>
+              </div>
+            )}
           </DriverModalShell>
         )}
 
@@ -2602,7 +2767,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             <div className="p-4 pt-3.5">
               <div className="max-h-[24rem] overflow-y-auto">
                 <div className="space-y-2">
-                  {scannedPallets.map((pallet) => (
+                  {historyPallets.map((pallet) => (
                     <button
                       key={pallet.id}
                       type="button"
