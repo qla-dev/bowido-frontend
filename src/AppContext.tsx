@@ -10,7 +10,6 @@ import {
   Role,
   ServiceReport,
 } from './types';
-import { mockAuditLogs, mockClients, mockPallets, mockStatuses } from './lib/mockData';
 import { apiService } from './services/api';
 import {
   AppLanguage,
@@ -71,6 +70,8 @@ interface AppContextType {
   fetchRoles: () => Promise<void>;
   addRole: (role: Omit<Role, 'id'>) => Promise<void>;
   updateRole: (role: Role) => Promise<void>;
+  refreshData: () => Promise<void>;
+  resetData: () => void;
 }
 
 export interface AppNotification {
@@ -84,14 +85,56 @@ export interface AppNotification {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const APP_DATA_CACHE_KEY = 'trackpal_app_data_cache';
+
+interface AppDataCache {
+  pallets: Pallet[];
+  statuses: PalletStatus[];
+  auditLogs: AuditLog[];
+  clients: ClientDetail[];
+  invoices: Invoice[];
+  roles: Role[];
+  permissions: Permission[];
+  serviceReports: ServiceReport[];
+}
+
+const readAppDataCache = (): Partial<AppDataCache> => {
+  if (typeof window === 'undefined' || !apiService.hasToken()) {
+    return {};
+  }
+
+  try {
+    const cachedData = window.localStorage.getItem(APP_DATA_CACHE_KEY);
+    return cachedData ? JSON.parse(cachedData) as Partial<AppDataCache> : {};
+  } catch {
+    window.localStorage.removeItem(APP_DATA_CACHE_KEY);
+    return {};
+  }
+};
+
+const writeAppDataCache = (data: Partial<AppDataCache>) => {
+  if (typeof window === 'undefined' || !apiService.hasToken()) {
+    return;
+  }
+
+  const currentData = readAppDataCache();
+  window.localStorage.setItem(APP_DATA_CACHE_KEY, JSON.stringify({ ...currentData, ...data }));
+};
+
+const clearAppDataCache = () => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(APP_DATA_CACHE_KEY);
+  }
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [pallets, setPallets] = useState<Pallet[]>(mockPallets);
-  const [statuses, setStatuses] = useState<PalletStatus[]>(mockStatuses);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(mockAuditLogs);
-  const [clients, setClients] = useState<ClientDetail[]>(mockClients);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [pallets, setPallets] = useState<Pallet[]>(() => readAppDataCache().pallets || []);
+  const [statuses, setStatuses] = useState<PalletStatus[]>(() => readAppDataCache().statuses || []);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => readAppDataCache().auditLogs || []);
+  const [clients, setClients] = useState<ClientDetail[]>(() => readAppDataCache().clients || []);
+  const [invoices, setInvoices] = useState<Invoice[]>(() => readAppDataCache().invoices || []);
+  const [roles, setRoles] = useState<Role[]>(() => readAppDataCache().roles || []);
+  const [permissions, setPermissions] = useState<Permission[]>(() => readAppDataCache().permissions || []);
   const [language, setLanguageState] = useState<AppLanguage>(() => {
     if (typeof window === 'undefined') {
       return defaultLanguage;
@@ -100,43 +143,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     return isAppLanguage(storedLanguage) ? storedLanguage : defaultLanguage;
   });
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    {
-      id: 1,
-      title: 'Payment Due',
-      message: 'Invoice #INV-2026-001 is overdue for AutoNL.',
-      type: 'payment',
-      read: false,
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      title: 'Pallet Movement',
-      message: 'BOWNL-0005 was delivered to Waalhaven Zuidzijde 19, Rotterdam.',
-      type: 'status',
-      read: false,
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 3,
-      title: 'Service Required',
-      message: 'BOWNL-0003 reported with damaged frame.',
-      type: 'alert',
-      read: true,
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-    },
-  ]);
-  const [serviceReports, setServiceReports] = useState<ServiceReport[]>([
-    {
-      id: 1,
-      pallet_id: 3,
-      reported_by_user_id: 2,
-      problem_description: 'Damaged left corner board. Needs replacement.',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      image_path:
-        'https://images.unsplash.com/photo-1589939705384-5185138a04b9?auto=format&fit=crop&q=80&w=400',
-    },
-  ]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [serviceReports, setServiceReports] = useState<ServiceReport[]>(() => readAppDataCache().serviceReports || []);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
 
@@ -148,6 +156,118 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setLanguage = (lang: AppLanguage) => {
     setLanguageState(lang);
+  };
+
+  const buildNotifications = (
+    nextAuditLogs: AuditLog[],
+    nextServiceReports: ServiceReport[],
+    nextInvoices: Invoice[]
+  ): AppNotification[] => {
+    const invoiceNotifications = nextInvoices
+      .filter((invoice) => invoice.status === 'overdue')
+      .slice(0, 3)
+      .map((invoice, index) => ({
+        id: 1000 + index,
+        title: 'Payment Due',
+        message: `${invoice.invoice_number} is overdue for ${invoice.customer_name}.`,
+        type: 'payment' as const,
+        read: false,
+        created_at: invoice.due_date || new Date().toISOString(),
+      }));
+
+    const auditNotifications = nextAuditLogs.slice(0, 4).map((log, index) => ({
+      id: 2000 + index,
+      title: log.type === 'qr_version' ? 'QR Version Update' : 'Pallet Movement',
+      message: `${log.pallet_qr || 'Pallet'} moved to ${log.new_status_name || 'new status'}.`,
+      type: 'status' as const,
+      read: index > 1,
+      created_at: log.created_at,
+    }));
+
+    const serviceNotifications = nextServiceReports
+      .filter((report) => !report.resolved_at)
+      .slice(0, 3)
+      .map((report, index) => ({
+        id: 3000 + index,
+        title: 'Service Required',
+        message: report.problem_description,
+        type: 'alert' as const,
+        read: false,
+        created_at: report.created_at,
+      }));
+
+    return [...invoiceNotifications, ...serviceNotifications, ...auditNotifications]
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .slice(0, 10);
+  };
+
+  const resetData = () => {
+    clearAppDataCache();
+    setPallets([]);
+    setStatuses([]);
+    setAuditLogs([]);
+    setClients([]);
+    setInvoices([]);
+    setRoles([]);
+    setPermissions([]);
+    setServiceReports([]);
+    setNotifications([]);
+  };
+
+  const refreshData = async () => {
+    if (!apiService.hasToken()) {
+      resetData();
+      return;
+    }
+
+    const safeLoad = async <T,>(loader: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await loader();
+      } catch (error) {
+        console.error('Failed to load API data', error);
+        return fallback;
+      }
+    };
+
+    const [
+      statusesData,
+      palletsData,
+      clientsData,
+      auditLogsData,
+      invoicesData,
+      rolesData,
+      permissionsData,
+      serviceReportsData,
+    ] = await Promise.all([
+      safeLoad(() => apiService.statuses.list(), []),
+      safeLoad(() => apiService.pallets.list(), []),
+      safeLoad(() => apiService.clients.list(), []),
+      safeLoad(() => apiService.auditLogs.list(), []),
+      safeLoad(() => apiService.invoices.list(), []),
+      safeLoad(() => apiService.roles.list(), []),
+      safeLoad(() => apiService.permissions.list(), []),
+      safeLoad(() => apiService.serviceReports.list(), []),
+    ]);
+
+    setStatuses(statusesData);
+    setPallets(palletsData);
+    setClients(clientsData);
+    setAuditLogs(auditLogsData);
+    setInvoices(invoicesData);
+    setRoles(rolesData);
+    setPermissions(permissionsData);
+    setServiceReports(serviceReportsData);
+    setNotifications(buildNotifications(auditLogsData, serviceReportsData, invoicesData));
+    writeAppDataCache({
+      statuses: statusesData,
+      pallets: palletsData,
+      clients: clientsData,
+      auditLogs: auditLogsData,
+      invoices: invoicesData,
+      roles: rolesData,
+      permissions: permissionsData,
+      serviceReports: serviceReportsData,
+    });
   };
 
   const fetchInvoices = async () => {
@@ -167,24 +287,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ]);
       setRoles(rolesData);
       setPermissions(permsData);
+      writeAppDataCache({ roles: rolesData, permissions: permsData });
     } catch (error) {
       console.error('Failed to fetch roles', error);
     }
   };
 
-  useEffect(() => {
-    void fetchInvoices();
-    void fetchRoles();
-  }, []);
-
   const addRole = async (role: Omit<Role, 'id'>) => {
     const newRole = await apiService.roles.create(role);
-    setRoles((prev) => [...prev, newRole]);
+    setRoles((prev) => {
+      const nextRoles = [...prev, newRole];
+      writeAppDataCache({ roles: nextRoles });
+      return nextRoles;
+    });
   };
 
   const updateRole = async (role: Role) => {
-    await apiService.roles.update(role.id, role);
-    setRoles((prev) => prev.map((existingRole) => (existingRole.id === role.id ? role : existingRole)));
+    const updatedRole = await apiService.roles.update(role.id, role);
+    setRoles((prev) => {
+      const nextRoles = prev.map((existingRole) => (existingRole.id === updatedRole.id ? updatedRole : existingRole));
+      writeAppDataCache({ roles: nextRoles });
+      return nextRoles;
+    });
   };
 
   const t = (key: string) => translate(language, key);
@@ -219,6 +343,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return [newNotification, ...prev];
     });
+
   };
 
   const updatePalletStatus = (
@@ -304,6 +429,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return [newNotification, ...prev];
     });
+
+    void apiService.pallets
+      .update(palletId, {
+        ...pallet,
+        current_status_id: statusId,
+        current_status_name: status.name,
+        current_location: location || pallet.current_location,
+        user_id: nextClientId ?? pallet.user_id,
+        client_name: nextClientName ?? pallet.client_name,
+        note: note || pallet.note,
+      })
+      .then((updatedPallet) => {
+        setPallets((prev) => prev.map((item) => (item.id === updatedPallet.id ? updatedPallet : item)));
+        return apiService.auditLogs.list();
+      })
+      .then(setAuditLogs)
+      .catch((error) => console.error('Failed to update pallet status', error));
   };
 
   const buildNewPallet = (id: number, qrCode: string, type: string): Pallet => {
@@ -325,10 +467,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addPallet = (qrCode: string, type: string) => {
-    setPallets((prev) => {
-      const nextId = prev.length > 0 ? Math.max(...prev.map((pallet) => pallet.id)) + 1 : 1;
-      return [...prev, buildNewPallet(nextId, qrCode, type)];
-    });
+    const nextId = pallets.length > 0 ? Math.max(...pallets.map((pallet) => pallet.id)) + 1 : 1;
+    const optimisticPallet = buildNewPallet(nextId, qrCode, type);
+    const fallbackClient = clients[0];
+
+    setPallets((prev) => [...prev, optimisticPallet]);
+
+    if (!fallbackClient) {
+      return;
+    }
+
+    void apiService.pallets
+      .create({
+        ...optimisticPallet,
+        user_id: fallbackClient.user_id,
+        client_name: fallbackClient.name,
+      })
+      .then((createdPallet) => {
+        setPallets((prev) => prev.map((pallet) => (pallet.id === optimisticPallet.id ? createdPallet : pallet)));
+        return apiService.auditLogs.list();
+      })
+      .then(setAuditLogs)
+      .catch((error) => console.error('Failed to create pallet', error));
   };
 
   const addPalletBatch = (entries: Array<{ qrCode: string; type: string }>) => {
@@ -336,14 +496,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    setPallets((prev) => {
-      const nextId = prev.length > 0 ? Math.max(...prev.map((pallet) => pallet.id)) + 1 : 1;
-      const nextPallets = entries.map((entry, index) =>
-        buildNewPallet(nextId + index, entry.qrCode, entry.type)
-      );
+    const nextId = pallets.length > 0 ? Math.max(...pallets.map((pallet) => pallet.id)) + 1 : 1;
+    const nextPallets = entries.map((entry, index) =>
+      buildNewPallet(nextId + index, entry.qrCode, entry.type)
+    );
+    const fallbackClient = clients[0];
 
-      return [...prev, ...nextPallets];
-    });
+    setPallets((prev) => [...prev, ...nextPallets]);
+
+    if (!fallbackClient) {
+      return;
+    }
+
+    void Promise.all(
+      nextPallets.map((pallet) =>
+        apiService.pallets.create({
+          ...pallet,
+          user_id: fallbackClient.user_id,
+          client_name: fallbackClient.name,
+        })
+      )
+    )
+      .then((createdPallets) => {
+        const createdByQr = new Map(createdPallets.map((pallet) => [pallet.qr_code, pallet]));
+        setPallets((prev) => prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet));
+        return apiService.auditLogs.list();
+      })
+      .then(setAuditLogs)
+      .catch((error) => console.error('Failed to create pallet batch', error));
   };
 
   const updatePallet = (pallet: Pallet, actor?: { id: number; name: string }) => {
@@ -446,15 +626,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'status'
       );
     }
+
+    void apiService.pallets
+      .update(nextPallet.id, nextPallet)
+      .then((updatedPallet) => {
+        setPallets((prev) => prev.map((item) => (item.id === updatedPallet.id ? updatedPallet : item)));
+        return apiService.auditLogs.list();
+      })
+      .then(setAuditLogs)
+      .catch((error) => console.error('Failed to update pallet', error));
   };
 
   const deletePallet = (id: number) => {
     setPallets((prev) => prev.filter((pallet) => pallet.id !== id));
+    void apiService.pallets.delete(id).catch((error) => {
+      console.error('Failed to delete pallet', error);
+      void refreshData();
+    });
   };
 
   const reportDamage = (
     report: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
   ) => {
+    void apiService.serviceReports
+      .create(report)
+      .then((createdReport) => {
+        setServiceReports((prev) => [createdReport, ...prev.filter((item) => item.id !== createdReport.id)]);
+        return apiService.serviceReports.list();
+      })
+      .then(setServiceReports)
+      .catch((error) => console.error('Failed to create service report', error));
+
     setServiceReports((prev) => {
       const nextId = prev.length > 0 ? Math.max(...prev.map((item) => item.id)) + 1 : 1;
       const newReport: ServiceReport = {
@@ -499,6 +701,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     updatePalletStatus(report.pallet_id, 1, userId, 'Technician', 'Service Doboj', `Repaired: ${note}`);
+
+    void apiService.serviceReports
+      .resolve(reportId, note)
+      .then((updatedReport) => {
+        setServiceReports((prev) => prev.map((item) => (item.id === updatedReport.id ? updatedReport : item)));
+      })
+      .catch((error) => console.error('Failed to resolve service report', error));
   };
 
   const reportGhostPallets = (
@@ -515,33 +724,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const baseNote = normalizedDetails.note?.trim() || '';
     const entryDetails = normalizedDetails.entries || [];
 
-    setPallets((prev) => {
-      const maxId = prev.length > 0 ? Math.max(...prev.map((pallet) => pallet.id)) : 0;
-      const newPallets: Pallet[] = Array.from({ length: count }).map((_, index) => {
-        const entry = entryDetails[index];
-        const currentLocation = entry?.location?.trim() || baseLocation;
-        const entryNote = entry?.note?.trim() || '';
-        const note = [baseNote, entryNote].filter(Boolean).join(' | ');
+    const maxId = pallets.length > 0 ? Math.max(...pallets.map((pallet) => pallet.id)) : 0;
+    const newPallets: Pallet[] = Array.from({ length: count }).map((_, index) => {
+      const entry = entryDetails[index];
+      const currentLocation = entry?.location?.trim() || baseLocation;
+      const entryNote = entry?.note?.trim() || '';
+      const note = [baseNote, entryNote].filter(Boolean).join(' | ');
 
-        return {
-          id: maxId + index + 1,
-          qr_code: `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-          type: 'Euro Pallet (Unlabeled)',
-          current_status_id: 5,
-          current_status_name: statuses.find((status) => status.id === 5)?.name || 'Voor retour',
-          user_id: clientId,
-          client_name: clientName,
-          current_location: currentLocation,
-          is_ghost: true,
-          is_active: true,
-          last_status_changed_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          note: note || undefined,
-        };
-      });
-
-      return [...prev, ...newPallets];
+      return {
+        id: maxId + index + 1,
+        qr_code: `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+        type: 'Euro Pallet (Unlabeled)',
+        current_status_id: 5,
+        current_status_name: statuses.find((status) => status.id === 5)?.name || 'Voor retour',
+        user_id: clientId,
+        client_name: clientName,
+        current_location: currentLocation,
+        is_ghost: true,
+        is_active: true,
+        last_status_changed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        note: note || undefined,
+      };
     });
+
+    setPallets((prev) => [...prev, ...newPallets]);
+
+    void apiService.ghostReports
+      .create({
+        user_id: clientId,
+        quantity: count,
+        location: baseLocation,
+        description: 'No-QR pallet return reported from frontend.',
+        notes: baseNote || undefined,
+        metadata: {
+          entries: entryDetails,
+          ghost_qr_codes: newPallets.map((pallet) => pallet.qr_code),
+        },
+      })
+      .catch((error) => console.error('Failed to create ghost pallet report', error));
+
+    void Promise.all(newPallets.map((pallet) => apiService.pallets.create(pallet)))
+      .then((createdPallets) => {
+        const createdByQr = new Map(createdPallets.map((pallet) => [pallet.qr_code, pallet]));
+        setPallets((prev) => prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet));
+        return apiService.auditLogs.list();
+      })
+      .then(setAuditLogs)
+      .catch((error) => console.error('Failed to create ghost pallets', error));
 
     const notificationDetails = [baseLocation !== 'Client Location' ? `Location: ${baseLocation}` : '', baseNote]
       .filter(Boolean)
@@ -606,40 +836,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `${ghost.client_name || 'Client'} ghost pallet is now paired with QR ${newQrCode}.`,
         'status'
       );
+
+      void apiService.pallets
+        .update(ghost.id, {
+          ...ghost,
+          qr_code: newQrCode,
+          is_ghost: false,
+          note: `${ghost.note || ''} (Paired from ghost on ${new Date().toLocaleDateString()})`,
+        })
+        .then((updatedPallet) => {
+          setPallets((prev) => prev.map((item) => (item.id === updatedPallet.id ? updatedPallet : item)));
+          return apiService.auditLogs.list();
+        })
+        .then(setAuditLogs)
+        .catch((error) => console.error('Failed to pair ghost pallet', error));
     }
   };
 
   const addClient = (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => {
-    setClients((prev) => {
-      const nextId = prev.length > 0 ? Math.max(...prev.map((item) => item.id)) + 1 : 1;
-      const newClient: ClientDetail = {
-        ...client,
-        id: nextId,
-        user_id: client.user_id ?? 100 + nextId,
-        is_active: client.is_active ?? true,
-      };
+    const nextId = clients.length > 0 ? Math.max(...clients.map((item) => item.id)) + 1 : 1;
+    const newClient: ClientDetail = {
+      ...client,
+      id: nextId,
+      user_id: client.user_id ?? 100 + nextId,
+      is_active: client.is_active ?? true,
+    };
 
-      return [...prev, newClient];
-    });
+    setClients((prev) => [...prev, newClient]);
+
+    void apiService.clients
+      .create(client)
+      .then((createdClient) => {
+        setClients((prev) => prev.map((item) => (item.id === newClient.id ? createdClient : item)));
+      })
+      .catch((error) => console.error('Failed to create client', error));
   };
 
   const updateClient = (client: ClientDetail) => {
     setClients((prev) => prev.map((item) => (item.id === client.id ? client : item)));
+    void apiService.clients
+      .update(client)
+      .then((updatedClient) => {
+        setClients((prev) => prev.map((item) => (item.id === updatedClient.id ? updatedClient : item)));
+      })
+      .catch((error) => console.error('Failed to update client', error));
   };
 
   const updateStatusSettings = (status: PalletStatus) => {
     setStatuses((prev) => prev.map((item) => (item.id === status.id ? status : item)));
+    void apiService.statuses
+      .update(status)
+      .then((updatedStatus) => {
+        setStatuses((prev) => prev.map((item) => (item.id === updatedStatus.id ? updatedStatus : item)));
+      })
+      .catch((error) => console.error('Failed to update status', error));
   };
 
   const addStatus = (status: Omit<PalletStatus, 'id'>) => {
-    setStatuses((prev) => {
-      const nextId = prev.length > 0 ? Math.max(...prev.map((item) => item.id)) + 1 : 1;
-      return [...prev, { ...status, id: nextId }];
-    });
+    const nextId = statuses.length > 0 ? Math.max(...statuses.map((item) => item.id)) + 1 : 1;
+    const optimisticStatus = { ...status, id: nextId };
+
+    setStatuses((prev) => [...prev, optimisticStatus]);
+
+    void apiService.statuses
+      .create(status)
+      .then((createdStatus) => {
+        setStatuses((prev) => prev.map((item) => (item.id === optimisticStatus.id ? createdStatus : item)));
+      })
+      .catch((error) => console.error('Failed to create status', error));
   };
 
   const deleteStatus = (id: number) => {
     setStatuses((prev) => prev.filter((status) => status.id !== id));
+    void apiService.statuses.delete(id).catch((error) => {
+      console.error('Failed to delete status', error);
+      void refreshData();
+    });
   };
 
   return (
@@ -680,6 +952,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchRoles,
         addRole,
         updateRole,
+        refreshData,
+        resetData,
       }}
     >
       {children}

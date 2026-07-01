@@ -15,7 +15,6 @@ import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
 import { ManagedUser, RoleType, User } from './types';
-import { mockUsers } from './lib/mockData';
 import { LogIn, Smartphone, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
@@ -23,6 +22,35 @@ import { Card, Select, cn } from './components/ui';
 import { apiService } from './services/api';
 import logoImage from './assets/logo.png';
 import { getRoleLabel, languageOptions } from './i18n';
+
+const CURRENT_USER_STORAGE_KEY = 'trackpal_current_user';
+
+const readStoredCurrentUser = (): User | null => {
+  if (typeof window === 'undefined' || !apiService.hasToken()) {
+    return null;
+  }
+
+  try {
+    const storedUser = window.localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+    return storedUser ? JSON.parse(storedUser) as User : null;
+  } catch {
+    window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+    return null;
+  }
+};
+
+const storeCurrentUser = (user: User | null) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (user) {
+    window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
+    return;
+  }
+
+  window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+};
 
 const AppFooter = ({ className }: { className?: string }) => {
   const { t } = useApp();
@@ -54,9 +82,12 @@ const AppFooter = ({ className }: { className?: string }) => {
 };
 
 export default function App() {
-  const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen, clients } = useApp();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loginUsers, setLoginUsers] = useState<User[]>(mockUsers);
+  const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen, refreshData, resetData } = useApp();
+  const [currentUser, setCurrentUser] = useState<User | null>(() => readStoredCurrentUser());
+  const [isRestoringSession, setIsRestoringSession] = useState(() => apiService.hasToken() && !readStoredCurrentUser());
+  const [loginUsers, setLoginUsers] = useState<User[]>([]);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggingInUserId, setLoggingInUserId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNightMode, setIsNightMode] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
@@ -69,16 +100,71 @@ export default function App() {
 
   const loadLoginUsers = async () => {
     try {
-      const storedUsers = await apiService.users.list();
+      const storedUsers = await apiService.users.loginOptions();
       setLoginUsers(storedUsers.map(({ password, ...user }: ManagedUser) => user));
     } catch (error) {
-      console.error('Failed to load demo users', error);
-      setLoginUsers(mockUsers);
+      console.error('Failed to load login users', error);
+      setLoginUsers([]);
     }
   };
 
   useEffect(() => {
-    void loadLoginUsers();
+    if (!currentUser) {
+      void loadLoginUsers();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!apiService.hasToken()) {
+      storeCurrentUser(null);
+      setIsRestoringSession(false);
+      return;
+    }
+
+    let isMounted = true;
+    const hadStoredUser = Boolean(currentUser);
+
+    if (hadStoredUser) {
+      void refreshData();
+    }
+
+    const restoreSession = async () => {
+      try {
+        const restoredUser = await apiService.auth.me();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCurrentUser(restoredUser);
+        storeCurrentUser(restoredUser);
+
+        if (!hadStoredUser) {
+          void refreshData();
+        }
+      } catch (error) {
+        console.error('Failed to restore session', error);
+
+        if (!isMounted) {
+          return;
+        }
+
+        apiService.clearToken();
+        storeCurrentUser(null);
+        setCurrentUser(null);
+        resetData();
+      } finally {
+        if (isMounted) {
+          setIsRestoringSession(false);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -197,12 +283,51 @@ export default function App() {
     };
   }, [chromeTintColor]);
 
+  const handleLogin = async (user: User) => {
+    setLoginError(null);
+    setLoggingInUserId(user.id);
+
+    try {
+      const result = await apiService.auth.loginDemoUser(user);
+      setCurrentUser(result.user);
+      storeCurrentUser(result.user);
+      void refreshData();
+    } catch (error) {
+      console.error('Failed to login', error);
+      setLoginError(
+        language === 'bs'
+          ? 'Prijava nije uspjela. Provjeri backend i seed podatke.'
+          : language === 'nl'
+            ? 'Inloggen is mislukt. Controleer de backend en seeddata.'
+            : 'Login failed. Check the backend and seed data.'
+      );
+    } finally {
+      setLoggingInUserId(null);
+    }
+  };
+
   const handleLogout = () => {
+    void apiService.auth.logout();
     setCurrentUser(null);
+    storeCurrentUser(null);
     setActiveTab('dashboard');
     setIsGhostReportOpen(false);
+    resetData();
     void loadLoginUsers();
   };
+
+ if (isRestoringSession && !currentUser) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white text-emerald-900">
+      <div className="text-center">
+        <img src={logoImage} alt="Trackpal logo" className="mx-auto h-12 w-auto" />
+        <p className="mt-6 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+          {language === 'bs' ? 'Ucitavanje sesije' : language === 'nl' ? 'Sessie laden' : 'Loading session'}
+        </p>
+      </div>
+    </div>
+  );
+}
 
  if (!currentUser) {
   return (
@@ -239,7 +364,8 @@ export default function App() {
                   <button
                     id={`login-${user.role_name.toLowerCase()}`}
                     key={user.id}
-                    onClick={() => setCurrentUser(user)}
+                    onClick={() => void handleLogin(user)}
+                    disabled={loggingInUserId !== null}
                     className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#1a3327] dark:border-white/10 dark:hover:border-[#00A655]"
                   >
                     <div className="flex flex-col items-start">
@@ -252,11 +378,27 @@ export default function App() {
                     </div>
 
                     <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#234437] dark:border-white/10">
-                      <LogIn size={18} />
+                      <LogIn size={18} className={loggingInUserId === user.id ? 'animate-pulse' : ''} />
                     </div>
                   </button>
                 ))}
               </div>
+
+              {loginUsers.length === 0 && (
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
+                  {language === 'bs'
+                    ? 'Nema korisnika za prijavu iz baze.'
+                    : language === 'nl'
+                      ? 'Geen login-gebruikers gevonden in de database.'
+                      : 'No database login users found.'}
+                </p>
+              )}
+
+              {loginError && (
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
+                  {loginError}
+                </p>
+              )}
             </div>
           </Card>
 
