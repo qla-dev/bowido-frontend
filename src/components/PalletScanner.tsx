@@ -5,6 +5,24 @@ import { Button, Card, Badge, Input, cn } from './ui';
 import { useApp } from '../AppContext';
 import { User } from '../types';
 
+const CAMERA_ZOOM_MIN = 1;
+const CAMERA_ZOOM_MAX = 3;
+const CAMERA_ZOOM_STEP = 0.1;
+
+const clampCameraZoom = (value: number) =>
+  Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, Number(value.toFixed(2))));
+
+const getPinchDistance = (touches: TouchList) => {
+  const firstTouch = touches.item(0);
+  const secondTouch = touches.item(1);
+
+  if (!firstTouch || !secondTouch) {
+    return 0;
+  }
+
+  return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
+};
+
 interface ScannerProps {
   onClose: () => void;
   currentUser: User;
@@ -19,6 +37,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
   const [clientSearch, setClientSearch] = useState('');
   const [location, setLocation] = useState('');
   const [scanMode, setScanMode] = useState<'singular' | 'bulk' | null>(null);
+  const [cameraZoom, setCameraZoom] = useState(CAMERA_ZOOM_MIN);
+  const pinchStateRef = React.useRef<{ distance: number; zoom: number } | null>(null);
+  const suppressNextClickRef = React.useRef(false);
 
   const getAllowedStatusIds = () => {
     switch (currentUser.role_id) {
@@ -58,6 +79,72 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
 
       setIsScanning(false);
     }, 1000);
+  };
+
+  const updateCameraZoom = (value: number) => {
+    setCameraZoom(clampCameraZoom(value));
+  };
+
+  const handleCameraClick = () => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
+
+    simulateScan();
+  };
+
+  const handleCameraTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2) {
+      return;
+    }
+
+    event.preventDefault();
+    const distance = getPinchDistance(event.touches);
+
+    if (distance > 0) {
+      pinchStateRef.current = { distance, zoom: cameraZoom };
+      suppressNextClickRef.current = true;
+    }
+  };
+
+  const handleCameraTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2 || !pinchStateRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    const distance = getPinchDistance(event.touches);
+
+    if (distance > 0) {
+      updateCameraZoom(pinchStateRef.current.zoom * (distance / pinchStateRef.current.distance));
+      suppressNextClickRef.current = true;
+    }
+  };
+
+  const handleCameraTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length >= 2 || !pinchStateRef.current) {
+      return;
+    }
+
+    pinchStateRef.current = null;
+    window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+    }, 400);
+  };
+
+  const handleCameraWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey) {
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextClickRef.current = true;
+    updateCameraZoom(cameraZoom - event.deltaY * 0.01);
+
+    window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+    }, 300);
   };
 
   const handleComplete = () => {
@@ -217,22 +304,41 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
                 </div>
 
                 <div className="bg-zinc-50 rounded-2xl p-6 flex flex-col items-center border border-zinc-200">
-                  <div className="relative aspect-square w-full max-w-[160px] mb-8 group cursor-pointer" onClick={simulateScan}>
-                    <div className="absolute inset-0 bg-zinc-950 rounded-xl shadow-2xl overflow-hidden flex items-center justify-center border border-white/10">
-                      {isScanning ? (
-                        <div className="w-full h-full relative">
-                          <motion.div
-                            animate={{ y: [0, 160, 0] }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                            className="absolute inset-x-0 h-0.5 bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] z-10"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Camera size={32} className="text-white animate-pulse opacity-40" />
-                          </div>
-                        </div>
-                      ) : (
-                        <ScanLine size={48} className="text-white opacity-20 group-hover:opacity-40 transition-all duration-500" />
-                      )}
+                  <div
+                    className="relative mb-6 aspect-square w-full max-w-[240px] touch-none select-none group cursor-pointer"
+                    onClick={handleCameraClick}
+                    onTouchStart={handleCameraTouchStart}
+                    onTouchMove={handleCameraTouchMove}
+                    onTouchEnd={handleCameraTouchEnd}
+                    onTouchCancel={handleCameraTouchEnd}
+                    onWheel={handleCameraWheel}
+                    style={{ touchAction: 'none' }}
+                  >
+                    <div className="absolute inset-0 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-2xl">
+                      <div
+                        className="absolute inset-0 origin-center transition-transform duration-300 ease-out"
+                        style={{ transform: `scale(${cameraZoom})` }}
+                      >
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,166,85,0.2),transparent_48%),linear-gradient(135deg,rgba(255,255,255,0.12),transparent_36%),#07110d]" />
+                        <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.16)_1px,transparent_1px)] [background-size:28px_28px]" />
+                        <div className="absolute inset-8 rounded-full border border-emerald-400/10 bg-emerald-400/5 blur-sm" />
+                      </div>
+
+                      <div className="absolute inset-4 border border-white/10" />
+                      <div className="absolute left-4 top-4 h-7 w-7 border-l-2 border-t-2 border-emerald-400" />
+                      <div className="absolute right-4 top-4 h-7 w-7 border-r-2 border-t-2 border-emerald-400" />
+                      <div className="absolute bottom-4 left-4 h-7 w-7 border-b-2 border-l-2 border-emerald-400" />
+                      <div className="absolute bottom-4 right-4 h-7 w-7 border-b-2 border-r-2 border-emerald-400" />
+
+                      <div className="trackpal-scan-line" />
+
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        {isScanning ? (
+                          <Camera size={36} className="text-white/45 animate-pulse" />
+                        ) : (
+                          <ScanLine size={54} className="text-white/20 transition-all duration-500 group-hover:text-white/35" />
+                        )}
+                      </div>
                     </div>
                   </div>
 

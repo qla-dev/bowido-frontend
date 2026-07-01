@@ -68,6 +68,41 @@
     backdrop-filter: blur(8px);
   }
 
+  .trackpal-scan-line {
+    position: absolute;
+    top: 12%;
+    left: 50%;
+    z-index: 20;
+    width: calc(100% - 44px);
+    height: 2px;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(90deg, transparent, #22ff88, transparent);
+    box-shadow: 0 0 12px rgb(34 255 136 / 1), 0 0 28px rgb(34 255 136 / 0.72);
+    animation: trackpalScanLine 2s linear infinite;
+    opacity: 0.86;
+  }
+
+  .trackpal-scan-line::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 110%;
+    height: 64px;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(180deg, transparent, rgb(34 255 136 / 0.3), transparent);
+    filter: blur(10px);
+  }
+
+  .trackpal-scan-line::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.82);
+  }
+
   .status-chip {
     @apply text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border transition-colors;
   }
@@ -90,6 +125,23 @@
 
   .status-return {
     @apply bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-500/10 dark:text-orange-100 dark:border-orange-300/25;
+  }
+}
+
+@keyframes trackpalScanLine {
+  0% {
+    top: 12%;
+    opacity: 1;
+  }
+
+  50% {
+    top: 88%;
+    opacity: 0.82;
+  }
+
+  100% {
+    top: 12%;
+    opacity: 1;
   }
 }
 

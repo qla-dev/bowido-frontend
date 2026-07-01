@@ -15,6 +15,23 @@ interface DriverMobileDashboardProps {
 
 type DriverBadgeVariant = 'default' | 'info' | 'warning' | 'success' | 'danger';
 type CameraState = 'loading' | 'ready' | 'preview' | 'unsupported' | 'denied' | 'error';
+type CameraZoomRange = { min: number; max: number; step: number };
+type CameraZoomCapabilities = MediaTrackCapabilities & {
+  zoom?: {
+    min?: number;
+    max?: number;
+    step?: number;
+  };
+};
+type CameraZoomSettings = MediaTrackSettings & { zoom?: number };
+
+type ZoomableMediaTrack = MediaStreamTrack & {
+  applyConstraints: (
+    constraints: MediaTrackConstraints & {
+      advanced?: Array<MediaTrackConstraintSet & { zoom?: number }>;
+    }
+  ) => Promise<void>;
+};
 
 interface DetectedCode {
   rawValue?: string;
@@ -31,6 +48,22 @@ interface BarcodeDetectorConstructorLike {
 
 type OpenChangeMenu = 'client' | 'status' | 'location' | null;
 type DriverLocationMode = 'warehouse_1' | 'warehouse_2' | 'driver_current' | 'manual';
+
+const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = { min: 1, max: 3, step: 0.1 };
+
+const clampDriverCameraZoom = (value: number, range = DEFAULT_CAMERA_ZOOM_RANGE) =>
+  Math.min(range.max, Math.max(range.min, Number(value.toFixed(2))));
+
+const getPinchDistance = (touches: TouchList) => {
+  const firstTouch = touches.item(0);
+  const secondTouch = touches.item(1);
+
+  if (!firstTouch || !secondTouch) {
+    return 0;
+  }
+
+  return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
+};
 
 const defaultWarehouseDirectory = {
   warehouse1: 'Maxwellstraat 2-4, 3316 GP Dordrecht',
@@ -418,6 +451,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [draftLocationMode, setDraftLocationMode] = useState<DriverLocationMode>('warehouse_1');
   const [manualLocationInput, setManualLocationInput] = useState('');
   const [cameraState, setCameraState] = useState<CameraState>('loading');
+  const [cameraZoom, setCameraZoom] = useState(DEFAULT_CAMERA_ZOOM_RANGE.min);
+  const [cameraZoomRange, setCameraZoomRange] = useState<CameraZoomRange>(DEFAULT_CAMERA_ZOOM_RANGE);
+  const [isCameraHardwareZoomSupported, setIsCameraHardwareZoomSupported] = useState(false);
   const [flashMessage, setFlashMessage] = useState<{
     title: string;
     detail: string;
@@ -439,6 +475,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const palletsRef = useRef(pallets);
   const scanBusyRef = useRef(false);
   const lastScanAtRef = useRef(0);
+  const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
   const nextDemoPalletIdRef = useRef(-1);
 
@@ -938,6 +976,56 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     };
   }, []);
 
+  const applyCameraTrackZoom = (zoom: number) => {
+    const track = streamRef.current?.getVideoTracks()[0] as ZoomableMediaTrack | undefined;
+    const zoomCapabilities = (track?.getCapabilities?.() as CameraZoomCapabilities | undefined)?.zoom;
+
+    if (!track || !zoomCapabilities) {
+      return;
+    }
+
+    void track.applyConstraints({ advanced: [{ zoom }] }).catch(() => undefined);
+  };
+
+  const updateCameraZoom = (value: number, range = cameraZoomRange) => {
+    const nextZoom = clampDriverCameraZoom(value, range);
+    setCameraZoom(nextZoom);
+    applyCameraTrackZoom(nextZoom);
+  };
+
+  const syncCameraZoomCapabilities = (stream: MediaStream) => {
+    const track = stream.getVideoTracks()[0] as ZoomableMediaTrack | undefined;
+    const zoomCapabilities = (track?.getCapabilities?.() as CameraZoomCapabilities | undefined)?.zoom;
+
+    if (
+      zoomCapabilities &&
+      typeof zoomCapabilities.min === 'number' &&
+      typeof zoomCapabilities.max === 'number' &&
+      zoomCapabilities.max > zoomCapabilities.min
+    ) {
+      const nextRange = {
+        min: zoomCapabilities.min,
+        max: zoomCapabilities.max,
+        step: zoomCapabilities.step || DEFAULT_CAMERA_ZOOM_RANGE.step,
+      };
+      const currentTrackZoom = (track.getSettings?.() as CameraZoomSettings | undefined)?.zoom;
+      const nextZoom = clampDriverCameraZoom(
+        typeof currentTrackZoom === 'number' ? currentTrackZoom : cameraZoom,
+        nextRange
+      );
+
+      setCameraZoomRange(nextRange);
+      setIsCameraHardwareZoomSupported(true);
+      setCameraZoom(nextZoom);
+      void track.applyConstraints({ advanced: [{ zoom: nextZoom }] }).catch(() => undefined);
+      return;
+    }
+
+    setCameraZoomRange(DEFAULT_CAMERA_ZOOM_RANGE);
+    setIsCameraHardwareZoomSupported(false);
+    setCameraZoom((current) => clampDriverCameraZoom(current));
+  };
+
   const stopCamera = () => {
     if (scanFrameRef.current) {
       window.cancelAnimationFrame(scanFrameRef.current);
@@ -1135,6 +1223,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         }
 
         streamRef.current = stream;
+        syncCameraZoomCapabilities(stream);
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -1534,11 +1623,78 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const handleScannerFrameClick = () => {
+    if (suppressNextScannerClickRef.current) {
+      suppressNextScannerClickRef.current = false;
+      return;
+    }
+
     if (cameraState === 'ready' || isScanning) {
       return;
     }
 
     simulateScan();
+  };
+
+  const handleScannerFrameKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.currentTarget !== event.target || (event.key !== 'Enter' && event.key !== ' ')) {
+      return;
+    }
+
+    event.preventDefault();
+    handleScannerFrameClick();
+  };
+
+  const handleScannerFrameTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2) {
+      return;
+    }
+
+    event.preventDefault();
+    const distance = getPinchDistance(event.touches);
+
+    if (distance > 0) {
+      pinchStateRef.current = { distance, zoom: cameraZoom };
+      suppressNextScannerClickRef.current = true;
+    }
+  };
+
+  const handleScannerFrameTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2 || !pinchStateRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    const distance = getPinchDistance(event.touches);
+
+    if (distance > 0) {
+      updateCameraZoom(pinchStateRef.current.zoom * (distance / pinchStateRef.current.distance));
+      suppressNextScannerClickRef.current = true;
+    }
+  };
+
+  const handleScannerFrameTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length >= 2 || !pinchStateRef.current) {
+      return;
+    }
+
+    pinchStateRef.current = null;
+    window.setTimeout(() => {
+      suppressNextScannerClickRef.current = false;
+    }, 400);
+  };
+
+  const handleScannerFrameWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey) {
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextScannerClickRef.current = true;
+    updateCameraZoom(cameraZoom - event.deltaY * 0.01);
+
+    window.setTimeout(() => {
+      suppressNextScannerClickRef.current = false;
+    }, 300);
   };
 
   const handleScanImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1641,10 +1797,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
           <div className="flex flex-1">
             <AnimatePresence mode="wait" initial={false}>
-              <motion.button
+              <motion.div
                 key="scanner-view"
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={handleScannerFrameClick}
+                onKeyDown={handleScannerFrameKeyDown}
+                onTouchStart={handleScannerFrameTouchStart}
+                onTouchMove={handleScannerFrameTouchMove}
+                onTouchEnd={handleScannerFrameTouchEnd}
+                onTouchCancel={handleScannerFrameTouchEnd}
+                onWheel={handleScannerFrameWheel}
                 initial={{ opacity: 0.82, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
@@ -1652,6 +1815,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   'relative mx-auto flex h-full min-h-[26rem] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white transition-all duration-500 dark:border-white/10 dark:bg-[#172d22]',
                   cameraState === 'ready' ? '' : 'active:scale-[0.98]'
                 )}
+                style={{ touchAction: 'none' }}
               >
               <video
                 ref={videoRef}
@@ -1659,9 +1823,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 muted
                 playsInline
                 className={cn(
-                  'absolute inset-0 h-full w-full object-cover transition-opacity duration-300',
+                  'absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-300',
                   cameraState === 'ready' || cameraState === 'preview' ? 'opacity-100' : 'opacity-0'
                 )}
+                style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
               />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(236,253,245,0.10)_0%,rgba(255,255,255,0.02)_32%,rgba(236,253,245,0.18)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,35,26,0.16)_0%,rgba(20,45,34,0.08)_35%,rgba(15,35,26,0.34)_100%)]" />
               <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(16,185,129,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.8)_1px,transparent_1px)] [background-size:28px_28px] dark:opacity-[0.12]" />
@@ -1696,17 +1861,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 className="absolute bottom-7 right-7 h-14 w-14 rounded-br-[1.2rem] border-b-4 border-r-4 border-emerald-400/95"
               />
 
-                {cameraState === 'ready' ? (
-                  <motion.div
-                    animate={{ y: [-158, 158, -158] }}
-                    transition={{ duration: 1.45, repeat: Infinity, ease: 'linear' }}
-                    className="absolute left-12 right-12 h-[2px] bg-emerald-400"
-                  />
-                ) : isScanning || cameraState === 'loading' ? (
+                <div className="trackpal-scan-line" />
+
+                {isScanning || cameraState === 'loading' ? (
                   <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/60">
                     <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
-                ) : (
+                ) : cameraState !== 'ready' && cameraState !== 'preview' ? (
                   <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#1f3a2d]">
                     <div className="grid grid-cols-2 gap-2">
                       <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
@@ -1715,8 +1876,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
                     </div>
                   </div>
+                ) : (
+                  <Camera size={38} className="relative z-10 text-white/25" />
                 )}
-              </motion.button>
+              </motion.div>
             </AnimatePresence>
           </div>
 
