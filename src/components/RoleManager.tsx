@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, ShieldCheck, Plus, Edit2, X, Check } from 'lucide-react';
 import { useApp } from '../AppContext';
@@ -7,24 +7,87 @@ import { Role } from '../types';
 import { getPermissionDescription, getPermissionLabel, getRoleDescription } from '../i18n';
 
 export const RoleManager: React.FC = () => {
-  const { roles, permissions, addRole, updateRole, t, language } = useApp();
+  const { roles, permissions, addRole, updateRole, fetchRoles, t, language } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [currentRole, setCurrentRole] = useState<Partial<Role> | null>(null);
+  const [isLoading, setIsLoading] = useState(roles.length === 0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (roles.length > 0 && permissions.length > 0) {
+      setIsLoading(false);
+    }
+  }, [roles.length, permissions.length]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRoles = async () => {
+      const hasCachedRoleData = roles.length > 0 && permissions.length > 0;
+
+      if (!hasCachedRoleData) {
+        setIsLoading(true);
+      }
+
+      setError(null);
+
+      try {
+        await fetchRoles();
+      } catch {
+        if (isMounted) {
+          setError(
+            language === 'bs'
+              ? 'Uloge se nisu mogle ucitati.'
+              : language === 'nl'
+                ? 'Rollen konden niet worden geladen.'
+                : 'Roles could not be loaded.'
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadRoles();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSave = async () => {
     if (!currentRole?.name) return;
 
-    if (currentRole.id) {
-      await updateRole(currentRole as Role);
-    } else {
-      await addRole({
-        name: currentRole.name || '',
-        description: currentRole.description || '',
-        permissions: currentRole.permissions || []
-      });
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      if (currentRole.id) {
+        await updateRole(currentRole as Role);
+      } else {
+        await addRole({
+          name: currentRole.name || '',
+          description: currentRole.description || '',
+          permissions: currentRole.permissions || []
+        });
+      }
+
+      setIsEditing(false);
+      setCurrentRole(null);
+    } catch {
+      setError(
+        language === 'bs'
+          ? 'Uloga nije sacuvana u bazi.'
+          : language === 'nl'
+            ? 'Rol is niet opgeslagen in de database.'
+            : 'Role was not saved in the database.'
+      );
+    } finally {
+      setIsSaving(false);
     }
-    setIsEditing(false);
-    setCurrentRole(null);
   };
 
   const togglePermission = (permId: number) => {
@@ -54,6 +117,28 @@ export const RoleManager: React.FC = () => {
           <Plus size={14} className="mr-2" /> {t('addRole')}
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-rose-600">
+          {error}
+        </div>
+      )}
+
+      {isLoading && (
+        <Card>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
+            {language === 'bs' ? 'Ucitavanje uloga...' : language === 'nl' ? 'Rollen laden...' : 'Loading roles...'}
+          </p>
+        </Card>
+      )}
+
+      {!isLoading && roles.length === 0 && (
+        <Card>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
+            {language === 'bs' ? 'Nema uloga u bazi.' : language === 'nl' ? 'Geen rollen gevonden.' : 'No roles found.'}
+          </p>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {roles.map((role) => (
@@ -194,8 +279,11 @@ export const RoleManager: React.FC = () => {
                   <Button 
                     className="flex-1"
                     onClick={handleSave}
+                    disabled={isSaving}
                   >
-                    {t('save')}
+                    {isSaving
+                      ? language === 'bs' ? 'Spremanje...' : language === 'nl' ? 'Opslaan...' : 'Saving...'
+                      : t('save')}
                   </Button>
                 </div>
               </Card>
