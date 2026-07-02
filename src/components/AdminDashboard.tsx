@@ -10,6 +10,7 @@ import { DamageReportModal } from './DamageReportModal';
 import { BillingList } from './BillingList';
 import { RoleManager } from './RoleManager';
 import { PalletTableView } from './PalletTableView';
+import { PalletQrCode } from './PalletQrCode';
 import { BillingCalendar } from './BillingCalendar';
 import { UserManager } from './UserManager';
 import { OverdueInvoiceModal, OverdueInvoicePreview } from './OverdueInvoiceModal';
@@ -23,7 +24,7 @@ import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, Pallet, PalletStatus, ClientDetail, User, AuditLog } from '../types';
-import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost } from 'lucide-react';
+import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost, QrCode } from 'lucide-react';
 import {
   getCountryLabel,
   getPalletTypeLabel,
@@ -51,6 +52,8 @@ interface AdminDashboardProps {
   user: User;
   isNightMode?: boolean;
   onToggleNightMode?: () => void;
+  openPalletId?: number | null;
+  onPalletDetailOpened?: () => void;
 }
 
 type DeleteConfirmState =
@@ -58,11 +61,18 @@ type DeleteConfirmState =
   | { kind: 'status'; status: PalletStatus }
   | null;
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'overview', user, isNightMode = false, onToggleNightMode }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  initialView = 'overview',
+  user,
+  isNightMode = false,
+  onToggleNightMode,
+  openPalletId = null,
+  onPalletDetailOpened,
+}) => {
   const { 
     pallets, statuses, clients, auditLogs, serviceReports,
     updateStatusSettings, addStatus, deleteStatus, addPallet, addPalletBatch, updatePallet, deletePallet,
-    addClient, updateClient, setIsGhostReportOpen, t, language 
+    addClient, updateClient, setIsGhostReportOpen, fetchAuditLogs, t, language
   } = useApp();
   const [view, setView] = useState<
     'overview' | 'pallets' | 'clients' | 'users' | 'settings' | 'logs' | 'billing' | 'roles' | 'calendar' | 'noQrPallets' | 'clientManager' | 'adminService' | 'adminWarehouse' | 'adminFinance'
@@ -94,6 +104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
   const [showEditingPalletDetails, setShowEditingPalletDetails] = useState(false);
+  const [qrPreviewValue, setQrPreviewValue] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
@@ -106,6 +117,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   React.useEffect(() => {
     setView(initialView);
   }, [initialView]);
+
+  React.useEffect(() => {
+    if (view === 'logs') {
+      void fetchAuditLogs();
+    }
+  }, [view]);
+
+  React.useEffect(() => {
+    if (!openPalletId) {
+      return;
+    }
+
+    const pallet = pallets.find((item) => item.id === openPalletId);
+
+    if (pallet) {
+      setSelectedPallet(pallet);
+      onPalletDetailOpened?.();
+    }
+  }, [openPalletId, onPalletDetailOpened, pallets]);
 
   const calculateDays = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -139,19 +169,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
     const seconds = String(date.getSeconds()).padStart(2, '0');
 
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  };
-
-  const buildRecipientEmail = (clientName?: string, userId?: number) => {
-    if (!clientName) {
-      return `warehouse-${userId ?? 1}@trackpal.demo`;
-    }
-
-    const slug = clientName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '.')
-      .replace(/^\.+|\.+$/g, '');
-
-    return `${slug || 'client'}@trackpal.demo`;
   };
 
   const addPalletModeLabel = language === 'bs' ? 'Nacin unosa' : language === 'nl' ? 'Invoermodus' : 'Entry mode';
@@ -251,7 +268,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
       pallet_id: pallet.id,
       pallet_qr: pallet.qr_code,
       customer_name: client?.name || pallet.client_name || 'Warehouse Holding',
-      recipient_email: buildRecipientEmail(client?.name || pallet.client_name, pallet.user_id),
+      recipient_email: client?.billing_email || '',
       user_id: pallet.user_id ?? 1,
       billing_period_start: formatDateOnly(billingStart),
       billing_period_end: formatDateOnly(billingEnd),
@@ -912,7 +929,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
   );
 
   return (
-    <div className="pb-24 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="pb-16 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {view === 'overview' && renderOverview()}
       {view === 'pallets' && renderPallets()}
       {view === 'noQrPallets' && renderNoQrPallets()}
@@ -1041,6 +1058,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    title={t('showQrCode')}
+                    aria-label={t('showQrCode')}
+                    onClick={() => setQrPreviewValue(editingPallet.qr_code)}
+                    disabled={!editingPallet.qr_code.trim()}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-emerald-800 transition-colors hover:border-zinc-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <QrCode size={18} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowEditingPalletDetails((current) => !current)}
@@ -1261,6 +1288,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
                     setSelectedPallet(null);
                   }} className="h-14 rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/20 transition-transform hover:scale-[1.02]">{t('saveChanges')}</button>
                </div>
+            </motion.div>
+          </div>
+        )}
+
+        {qrPreviewValue && (
+          <div className="modal-overlay fixed inset-0 z-[140] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="w-full max-w-sm overflow-hidden rounded-[2.5rem] bg-white p-6 text-center shadow-2xl"
+            >
+              <div className="mb-5 flex items-start justify-between gap-4 text-left">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                    {t('palletQrCode')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQrPreviewValue(null)}
+                  className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="rounded-[2rem] border border-zinc-100 bg-zinc-50 p-4 text-zinc-950">
+                <PalletQrCode value={qrPreviewValue} className="mx-auto aspect-square w-full max-w-[260px]" />
+              </div>
+
+              <p className="mt-4 break-all rounded-2xl bg-zinc-50 px-4 py-3 font-mono text-xs font-black uppercase tracking-tight text-zinc-700">
+                {qrPreviewValue}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setQrPreviewValue(null)}
+                className="mt-5 h-12 w-full rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/10"
+              >
+                {t('close')}
+              </button>
             </motion.div>
           </div>
         )}
@@ -1655,6 +1724,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialView = 'o
           <PalletScanner 
             currentUser={user} 
             onClose={() => setShowScanner(false)} 
+            onPalletDetected={(pallet) => {
+              setShowScanner(false);
+              setSelectedPallet(pallet);
+            }}
           />
         )}
 

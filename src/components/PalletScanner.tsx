@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { QrCode, X, ScanLine, Camera, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Button, Card, Badge, Input, cn } from './ui';
 import { useApp } from '../AppContext';
-import { User } from '../types';
+import { Pallet, User } from '../types';
+import { findPalletByScannedQr } from '../lib/palletQrMatching';
+import { decodeQrFromVideo } from '../lib/videoQrDecoder';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
@@ -23,21 +25,44 @@ const getPinchDistance = (touches: TouchList) => {
   return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
 };
 
+interface DetectedCode {
+  rawValue?: string;
+}
+
+interface BarcodeDetectorLike {
+  detect: (source: ImageBitmapSource) => Promise<DetectedCode[]>;
+}
+
+interface BarcodeDetectorConstructorLike {
+  new (options?: { formats?: string[] }): BarcodeDetectorLike;
+  getSupportedFormats?: () => Promise<string[]>;
+}
+
 interface ScannerProps {
   onClose: () => void;
   currentUser: User;
+  onPalletDetected?: (pallet: Pallet) => void;
 }
 
-export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) => {
+export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, onPalletDetected }) => {
   const { pallets, statuses, clients, updatePalletStatus, t } = useApp();
+  const isDetailScan = Boolean(onPalletDetected);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
   const [selectedStatusId, setSelectedStatusId] = useState<number>(1);
   const [selectedClientId, setSelectedClientId] = useState<number | undefined>(undefined);
   const [clientSearch, setClientSearch] = useState('');
   const [location, setLocation] = useState('');
-  const [scanMode, setScanMode] = useState<'singular' | 'bulk' | null>(null);
+  const [scanMode, setScanMode] = useState<'singular' | 'bulk' | null>(isDetailScan ? 'singular' : null);
   const [cameraZoom, setCameraZoom] = useState(CAMERA_ZOOM_MIN);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const scanCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const detectorRef = React.useRef<BarcodeDetectorLike | null>(null);
+  const scanFrameRef = React.useRef<number | null>(null);
+  const scanBusyRef = React.useRef(false);
+  const lastDetectedAtRef = React.useRef(0);
   const pinchStateRef = React.useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextClickRef = React.useRef(false);
 
@@ -63,6 +88,172 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
     }
   }, [currentUser.role_id]);
 
+  const handleDetectedPallet = React.useCallback((pallet: Pallet) => {
+    if (onPalletDetected) {
+      onPalletDetected(pallet);
+      return;
+    }
+
+    const code = pallet.qr_code;
+    setScannedCodes((prev) => prev.includes(code) ? prev : [...prev, code]);
+  }, [onPalletDetected]);
+
+  const handleDetectedCode = React.useCallback((rawValue: string) => {
+    const matchedPallet = findPalletByScannedQr(rawValue, pallets);
+
+    if (!matchedPallet) {
+      lastDetectedAtRef.current = Date.now();
+      return;
+    }
+
+    handleDetectedPallet(matchedPallet);
+    lastDetectedAtRef.current = Date.now();
+  }, [handleDetectedPallet, pallets]);
+
+  const getBarcodeDetector = React.useCallback(async () => {
+    const detectorApi = (
+      window as Window & {
+        BarcodeDetector?: BarcodeDetectorConstructorLike;
+      }
+    ).BarcodeDetector;
+
+    if (!detectorApi) {
+      return null;
+    }
+
+    try {
+      if (detectorApi.getSupportedFormats) {
+        const supportedFormats = await detectorApi.getSupportedFormats().catch(() => []);
+
+        if (supportedFormats.length > 0 && !supportedFormats.includes('qr_code')) {
+          return null;
+        }
+      }
+
+      return new detectorApi({ formats: ['qr_code'] });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!scanMode) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const stopCamera = () => {
+      if (scanFrameRef.current) {
+        window.cancelAnimationFrame(scanFrameRef.current);
+        scanFrameRef.current = null;
+      }
+
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      detectorRef.current = null;
+      setIsCameraActive(false);
+    };
+
+    const detectFromCamera = async () => {
+      const detector = detectorRef.current;
+      const video = videoRef.current;
+
+      if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || scanBusyRef.current) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastDetectedAtRef.current < 1200) {
+        return;
+      }
+
+      scanBusyRef.current = true;
+
+      try {
+        let rawValue: string | null = null;
+
+        if (detector) {
+          const codes = await detector.detect(video);
+          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+        } else {
+          rawValue = decodeQrFromVideo(video, scanCanvasRef);
+        }
+
+        if (rawValue) {
+          handleDetectedCode(rawValue);
+        }
+      } finally {
+        scanBusyRef.current = false;
+      }
+    };
+
+    const runDetectionLoop = () => {
+      scanFrameRef.current = window.requestAnimationFrame(async () => {
+        await detectFromCamera();
+
+        if (!cancelled) {
+          runDetectionLoop();
+        }
+      });
+    };
+
+    const startCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        return;
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      try {
+        const detector = await getBarcodeDetector();
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 1280 },
+          },
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
+        detectorRef.current = detector;
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => undefined);
+        }
+
+        setIsCameraActive(true);
+        runDetectionLoop();
+      } catch {
+        stopCamera();
+      }
+    };
+
+    void startCamera();
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [getBarcodeDetector, handleDetectedCode, scanMode]);
+
   const simulateScan = () => {
     setIsScanning(true);
     setTimeout(() => {
@@ -72,10 +263,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
         return;
       }
 
-      const code = randomPallet.qr_code;
-      if (!scannedCodes.includes(code)) {
-        setScannedCodes((prev) => [...prev, code]);
-      }
+      handleDetectedPallet(randomPallet);
 
       setIsScanning(false);
     }, 1000);
@@ -91,7 +279,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
       return;
     }
 
-    simulateScan();
+    if (isDetailScan || isCameraActive) {
+      return;
+    }
   };
 
   const handleCameraTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
@@ -149,7 +339,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
 
   const handleComplete = () => {
     scannedCodes.forEach((code) => {
-      const pallet = pallets.find((item) => item.qr_code === code);
+      const pallet = findPalletByScannedQr(code, pallets);
       if (pallet) {
         updatePalletStatus(
           pallet.id,
@@ -221,7 +411,8 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
                 </div>
               </div>
             ) : (
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className={cn("w-full grid grid-cols-1 gap-8", isDetailScan ? "max-w-xl" : "md:grid-cols-2")}>
+                {!isDetailScan && (
                 <div className="space-y-6">
                   <Button
                     variant="ghost"
@@ -302,6 +493,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
                     />
                   </div>
                 </div>
+                )}
 
                 <div className="bg-zinc-50 rounded-2xl p-6 flex flex-col items-center border border-zinc-200">
                   <div
@@ -315,6 +507,16 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
                     style={{ touchAction: 'none' }}
                   >
                     <div className="absolute inset-0 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-2xl">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className={cn(
+                          "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
+                          isCameraActive ? "opacity-70" : "opacity-0"
+                        )}
+                      />
                       <div
                         className="absolute inset-0 origin-center transition-transform duration-300 ease-out"
                         style={{ transform: `scale(${cameraZoom})` }}
@@ -335,6 +537,8 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
                       <div className="absolute inset-0 flex items-center justify-center">
                         {isScanning ? (
                           <Camera size={36} className="text-white/45 animate-pulse" />
+                        ) : isCameraActive ? (
+                          <ScanLine size={54} className="text-white/25 transition-all duration-500" />
                         ) : (
                           <ScanLine size={54} className="text-white/20 transition-all duration-500 group-hover:text-white/35" />
                         )}
@@ -380,7 +584,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser }) 
             )}
           </div>
 
-          {scanMode && (
+          {scanMode && !isDetailScan && (
             <div className="flex shrink-0 flex-col gap-3 border-t border-zinc-100 bg-zinc-50 p-4 sm:flex-row sm:p-6 md:p-8">
               <Button variant="outline" className="flex-1" onClick={onClose}>{t('cancel')}</Button>
               <Button

@@ -102,16 +102,16 @@ export const NoQrPalletTableView: React.FC = () => {
     language === 'bs' ? 'Direktno' : language === 'nl' ? 'Direct' : 'Direct';
   const commentLabel = language === 'bs' ? 'Komentar' : language === 'nl' ? 'Commentaar' : 'Comment';
   const searchPlaceholder =
-    language === 'bs' ? 'Pretrazi' : language === 'nl' ? 'Zoeken' : 'Search';
+    language === 'bs' ? 'Pretraži' : language === 'nl' ? 'Zoeken' : 'Search';
   const showAllLabel =
-    language === 'bs' ? 'Prikazi sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
+    language === 'bs' ? 'Prikaži sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
   const noResultsLabel =
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const commentModalTitle =
     language === 'bs' ? 'Komentar' : language === 'nl' ? 'Commentaar' : 'Comment';
   const fullCommentLabel =
     language === 'bs'
-      ? 'Prikazi cijeli komentar'
+      ? 'Prikaži cijeli komentar'
       : language === 'nl'
         ? 'Toon volledig commentaar'
         : 'Show full comment';
@@ -120,7 +120,7 @@ export const NoQrPalletTableView: React.FC = () => {
   const assignedClientLabel =
     language === 'bs' ? 'Dodijeljeni klijent' : language === 'nl' ? 'Toegewezen klant' : 'Assigned client';
   const saveLabel =
-    language === 'bs' ? 'Sacuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes';
+    language === 'bs' ? 'Sačuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes';
   const deleteLabel =
     language === 'bs' ? 'Obrisi paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
   const deleteConfirmLabel =

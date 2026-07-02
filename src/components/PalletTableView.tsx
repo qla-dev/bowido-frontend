@@ -1402,7 +1402,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       />
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-24 md:right-8">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
         <button
           type="button"
           onClick={() => setShowReportExportModal(true)}

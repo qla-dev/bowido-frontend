@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, ShieldCheck, Plus, Edit2, X, Check } from 'lucide-react';
+import { Shield, ShieldCheck, Plus, Edit2, X, Check, Trash2 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Button, Card, Input, Badge, cn } from './ui';
 import { Role } from '../types';
 import { getPermissionDescription, getPermissionLabel, getRoleDescription } from '../i18n';
 
 export const RoleManager: React.FC = () => {
-  const { roles, permissions, addRole, updateRole, fetchRoles, t, language } = useApp();
+  const { roles, permissions, addRole, updateRole, deleteRole, fetchRoles, t, language } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [currentRole, setCurrentRole] = useState<Partial<Role> | null>(null);
+  const [pendingDeleteRole, setPendingDeleteRole] = useState<Role | null>(null);
   const [isLoading, setIsLoading] = useState(roles.length === 0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export const RoleManager: React.FC = () => {
         if (isMounted) {
           setError(
             language === 'bs'
-              ? 'Uloge se nisu mogle ucitati.'
+              ? 'Uloge se nisu mogle učitati.'
               : language === 'nl'
                 ? 'Rollen konden niet worden geladen.'
                 : 'Roles could not be loaded.'
@@ -80,13 +82,35 @@ export const RoleManager: React.FC = () => {
     } catch {
       setError(
         language === 'bs'
-          ? 'Uloga nije sacuvana u bazi.'
+          ? 'Uloga nije sačuvana u bazi.'
           : language === 'nl'
             ? 'Rol is niet opgeslagen in de database.'
             : 'Role was not saved in the database.'
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDeleteRole) return;
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      await deleteRole(pendingDeleteRole.id);
+      setPendingDeleteRole(null);
+    } catch {
+      setError(
+        language === 'bs'
+          ? 'Uloga nije obrisana. Provjeri da nije dodijeljena korisnicima.'
+          : language === 'nl'
+            ? 'Rol is niet verwijderd. Controleer of deze niet aan gebruikers is toegewezen.'
+            : 'Role was not deleted. Check that it is not assigned to users.'
+      );
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -127,7 +151,7 @@ export const RoleManager: React.FC = () => {
       {isLoading && (
         <Card>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-            {language === 'bs' ? 'Ucitavanje uloga...' : language === 'nl' ? 'Rollen laden...' : 'Loading roles...'}
+            {language === 'bs' ? 'Učitavanje uloga...' : language === 'nl' ? 'Rollen laden...' : 'Loading roles...'}
           </p>
         </Card>
       )}
@@ -154,16 +178,30 @@ export const RoleManager: React.FC = () => {
                   <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center group-hover:bg-black transition-all">
                     <Shield className="text-zinc-300 group-hover:text-white" size={20} />
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="xs"
-                    onClick={() => {
-                      setCurrentRole(role);
-                      setIsEditing(true);
-                    }}
-                  >
-                    <Edit2 size={14} />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => {
+                        setCurrentRole(role);
+                        setIsEditing(true);
+                      }}
+                      title={t('editRole')}
+                      aria-label={t('editRole')}
+                    >
+                      <Edit2 size={14} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setPendingDeleteRole(role)}
+                      className="text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                      title={t('deleteRole')}
+                      aria-label={t('deleteRole')}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
                 </div>
 
                 <h3 className="text-base font-black text-black uppercase tracking-tight mb-1">{role.name}</h3>
@@ -194,6 +232,63 @@ export const RoleManager: React.FC = () => {
       </div>
 
       <AnimatePresence>
+        {pendingDeleteRole && (
+          <div className="modal-overlay fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="w-full max-w-md"
+            >
+              <Card noPadding className="shadow-2xl">
+                <div className="p-6 border-b-2 border-zinc-50 flex justify-between items-center bg-zinc-50/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-rose-600 rounded-xl flex items-center justify-center text-white">
+                      <Trash2 size={18} />
+                    </div>
+                    <h2 className="text-xl font-black uppercase tracking-tighter text-black">
+                      {t('deleteRole')}
+                    </h2>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setPendingDeleteRole(null)}>
+                    <X size={20} />
+                  </Button>
+                </div>
+
+                <div className="p-6 space-y-3">
+                  <p className="text-sm font-black uppercase tracking-tight text-zinc-900">
+                    {pendingDeleteRole.name}
+                  </p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                    {t('confirmDeleteRole')}
+                  </p>
+                </div>
+
+                <div className="p-6 bg-zinc-50/30 border-t-2 border-zinc-50 flex gap-4">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setPendingDeleteRole(null)}
+                    disabled={isDeleting}
+                  >
+                    {t('cancel')}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className="flex-1"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting
+                      ? language === 'bs' ? 'Brisanje...' : language === 'nl' ? 'Verwijderen...' : 'Deleting...'
+                      : t('remove')}
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+
         {isEditing && (
           <div className="modal-overlay fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div

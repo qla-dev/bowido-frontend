@@ -108,7 +108,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             : language === 'nl'
               ? 'Servicerij, locaties en bokken gemeld voor reparatie.'
               : 'Repair queue, locations and pallets reported for service.',
-        search: language === 'bs' ? 'Pretrazi servis' : language === 'nl' ? 'Zoek service' : 'Search service',
+        search: language === 'bs' ? 'Pretraži servis' : language === 'nl' ? 'Zoek service' : 'Search service',
         empty: language === 'bs' ? 'Nema servisnih zadataka.' : language === 'nl' ? 'Geen service taken.' : 'No service tasks.',
         primary: language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet',
         secondary: language === 'bs' ? 'Tip' : language === 'nl' ? 'Type' : 'Type',
@@ -129,7 +129,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             : language === 'nl'
               ? 'Operationeel overzicht van bokken in magazijn, transport en retour.'
               : 'Operational overview of pallets in warehouse, transport and return.',
-        search: language === 'bs' ? 'Pretrazi magacin' : language === 'nl' ? 'Zoek magazijn' : 'Search warehouse',
+        search: language === 'bs' ? 'Pretraži magacin' : language === 'nl' ? 'Zoek magazijn' : 'Search warehouse',
         empty: language === 'bs' ? 'Nema magacinskih stavki.' : language === 'nl' ? 'Geen magazijnitems.' : 'No warehouse items.',
         primary: language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet',
         secondary: language === 'bs' ? 'Tip' : language === 'nl' ? 'Type' : 'Type',
@@ -150,18 +150,18 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             : 'Admin Finance and Administration',
       subtitle:
         language === 'bs'
-          ? 'Dugovanja, tarife, fakture i zakasnjenja po klijentima.'
+          ? 'Dugovanja, tarife, fakture i zakašnjenja po klijentima.'
           : language === 'nl'
             ? 'Schulden, tarieven, facturen en vertragingen per klant.'
             : 'Debts, rates, invoices and overdue days by client.',
-      search: language === 'bs' ? 'Pretrazi finansije' : language === 'nl' ? 'Zoek financien' : 'Search finance',
+      search: language === 'bs' ? 'Pretraži finansije' : language === 'nl' ? 'Zoek financien' : 'Search finance',
       empty: language === 'bs' ? 'Nema finansijskih stavki.' : language === 'nl' ? 'Geen financiele items.' : 'No finance items.',
       primary: language === 'bs' ? 'Klijent' : language === 'nl' ? 'Klant' : 'Client',
       secondary: 'KVK',
       status: language === 'bs' ? 'Fakture' : language === 'nl' ? 'Facturen' : 'Invoices',
       location: language === 'bs' ? 'Adresa' : language === 'nl' ? 'Adres' : 'Address',
       client: language === 'bs' ? 'Palete kod kupca' : language === 'nl' ? 'Bokken bij klant' : 'Pallets at client',
-      metric: language === 'bs' ? 'Dana kasnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days',
+      metric: language === 'bs' ? 'Dana kašnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days',
       amount: language === 'bs' ? 'Dug' : language === 'nl' ? 'Schuld' : 'Debt',
     };
   }, [language, mode]);
@@ -407,7 +407,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
 
             {mode === 'service' && selectedRow.pallet && (
               <Button type="button" className="mt-5 w-full py-4" onClick={() => markServiceResolved(selectedRow)}>
-                {language === 'bs' ? 'Oznaci kao popravljeno' : language === 'nl' ? 'Als gerepareerd markeren' : 'Mark repaired'}
+                {language === 'bs' ? 'Označi kao popravljeno' : language === 'nl' ? 'Als gerepareerd markeren' : 'Mark repaired'}
               </Button>
             )}
           </motion.div>

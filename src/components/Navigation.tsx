@@ -12,6 +12,28 @@ import { useApp } from '../AppContext';
 import { getRoleLabel, languageOptions } from '../i18n';
 import logoImage from '../assets/logo.png';
 
+const SIDEBAR_PINNED_STORAGE_KEY = 'trackpal.sidebarPinned';
+
+const readStoredSidebarPinned = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(SIDEBAR_PINNED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const storeSidebarPinned = (isPinned: boolean) => {
+  try {
+    window.localStorage.setItem(SIDEBAR_PINNED_STORAGE_KEY, String(isPinned));
+  } catch {
+    // Ignore storage failures; the sidebar should still toggle normally.
+  }
+};
+
 interface NavItemProps {
   icon: React.ReactNode;
   label: string;
@@ -24,8 +46,10 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, colla
   <button
     id={`nav-item-${label.toLowerCase()}`}
     onClick={onClick}
-  className={cn(
-      "relative flex items-center gap-2 w-full px-3 py-2.5 rounded-xl transition-all duration-200 group overflow-hidden",
+    title={collapsed ? label : undefined}
+    className={cn(
+      "relative flex items-center gap-2 w-full py-2.5 rounded-xl transition-all duration-200 group overflow-hidden",
+      collapsed ? "justify-center px-0" : "justify-start px-3",
       isActive
         ? "text-white"
         : "text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200"
@@ -240,7 +264,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               {showNotifications && (
                 <>
                   <div
-                    className="modal-overlay fixed inset-0 z-[59] md:hidden"
+                    className="fixed inset-0 z-[59] md:hidden"
                     onClick={() => setShowNotifications(false)}
                   />
                   <motion.div
@@ -442,8 +466,16 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role }) => {
   const { t, setIsScannerOpen } = useApp();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSidebarPinned, setIsSidebarPinned] = useState(readStoredSidebarPinned);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const isSidebarExpanded = isSidebarPinned || isSidebarHovered;
+  const isCollapsed = !isSidebarExpanded;
+  const isHoverExpanded = !isSidebarPinned && isSidebarHovered;
+  const sidebarToggleLabel = isSidebarPinned ? t('sidebarPinned') : t('sidebarAutoHide');
+  const sidebarTransition = "transition-[width,box-shadow,transform] duration-[400ms] ease-[cubic-bezier(0.25,0.8,0.25,1)]";
+  const sidebarRailWidth = isSidebarPinned ? "w-64" : "w-[4.625rem]";
+  const sidebarPanelWidth = isSidebarExpanded ? "w-64" : "w-[4.625rem]";
 
   const getNavItems = () => {
     const items: Array<{
@@ -492,74 +524,134 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
     <>
       <aside
         id="desktop-sidebar"
-        className={`sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-[#172d22] md:flex ${
-          isCollapsed ? 'w-20' : 'w-64'
-        }`}
+        onMouseEnter={() => {
+          if (!isSidebarPinned) {
+            setIsSidebarHovered(true);
+          }
+        }}
+        onMouseLeave={() => {
+          if (!isSidebarPinned) {
+            setIsSidebarHovered(false);
+          }
+        }}
+        onFocusCapture={() => {
+          if (!isSidebarPinned) {
+            setIsSidebarHovered(true);
+          }
+        }}
+        onBlurCapture={(event) => {
+          const nextTarget = event.relatedTarget;
+          if (!isSidebarPinned && !(nextTarget instanceof Node && event.currentTarget.contains(nextTarget))) {
+            setIsSidebarHovered(false);
+          }
+        }}
+        className={cn(
+          "sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 overflow-visible md:block",
+          "transition-[width] duration-[400ms] ease-[cubic-bezier(0.25,0.8,0.25,1)]",
+          isHoverExpanded ? "z-[1000]" : "z-30",
+          sidebarRailWidth
+        )}
       >
-        {isCollapsed && (
+        <div
+          className={cn(
+            "flex h-full flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]",
+            "will-change-[width,transform]",
+            sidebarTransition,
+            sidebarPanelWidth,
+            isHoverExpanded
+              ? "absolute left-0 top-0 z-[1000] shadow-[18px_0_46px_-28px_rgba(15,23,42,0.45)] dark:shadow-black/40"
+              : "relative z-10"
+          )}
+          style={{ transform: 'translate3d(0, 0, 0)', backfaceVisibility: 'hidden' }}
+        >
           <div className="px-3 pt-3 pb-1">
             <div className="flex items-center">
               <button
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="w-full px-3 py-2.5 rounded-xl flex items-center justify-start text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-colors dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200"
+                type="button"
+                title={sidebarToggleLabel}
+                aria-label={sidebarToggleLabel}
+                aria-pressed={isSidebarPinned}
+                onClick={() => {
+                  setIsSidebarPinned((current) => {
+                    const next = !current;
+                    storeSidebarPinned(next);
+                    return next;
+                  });
+                  setIsSidebarHovered(false);
+                }}
+                className={cn(
+                  "h-10 w-full rounded-xl flex items-center gap-2 border transition-colors",
+                  isSidebarPinned
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-100"
+                    : "border-transparent text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200",
+                  isCollapsed ? "justify-center px-0" : "justify-start px-3"
+                )}
               >
-                <Menu size={18} />
+                <Menu size={18} className="shrink-0" />
+                {!isCollapsed && (
+                  <>
+                    <span className="text-[11px] font-black uppercase tracking-tight">{t('menu')}</span>
+                    <span
+                      className={cn(
+                        "ml-auto flex h-5 w-9 items-center rounded-full p-0.5 transition-colors",
+                        isSidebarPinned ? "bg-[#00A655]" : "bg-zinc-200 dark:bg-white/15"
+                      )}
+                      aria-hidden="true"
+                    >
+                      <span
+                        className={cn(
+                          "h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                          isSidebarPinned && "translate-x-4"
+                        )}
+                      />
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </div>
-        )}
 
-        <nav className={cn("sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-3", isCollapsed ? "pt-2" : "pt-3")}>
-          {getNavItems().map((item) => (
-            <NavItem
-              key={item.id}
-              icon={item.icon}
-              label={item.label}
-              isActive={item.isActive ?? activeTab === item.id}
-              onClick={item.onClick || (() => setActiveTab(item.id))}
-              collapsed={isCollapsed}
-            />
-          ))}
-        </nav>
+          <nav className="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2">
+            {getNavItems().map((item) => (
+              <NavItem
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                isActive={item.isActive ?? activeTab === item.id}
+                onClick={item.onClick || (() => setActiveTab(item.id))}
+                collapsed={isCollapsed}
+              />
+            ))}
+          </nav>
 
-        <div className="px-3 py-4 mt-auto border-t border-emerald-100 dark:border-white/10 space-y-1">
-          <button
-            type="button"
-            onClick={() => setIsScannerOpen(true)}
-            className={cn(
-              "h-10 w-full rounded-xl bg-[#00A655] text-white shadow-lg shadow-emerald-900/15 hover:bg-[#008f49] active:scale-95 transition-all flex items-center gap-2",
-              isCollapsed ? "justify-center px-0" : "justify-start px-3"
-            )}
-          >
-            <QrCode size={18} className="shrink-0" />
-            {!isCollapsed && (
-              <span className="text-[11px] font-black uppercase tracking-tight">
-                {t('qrScan')}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setShowHelp(true)}
-            className={cn(
-              "h-10 flex items-center gap-2 w-full px-3 rounded-xl text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200",
-              isCollapsed && "justify-center"
-            )}
-          >
-            <HelpCircle size={18} />
-            {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-tight">{t('needHelp')}</span>}
-          </button>
-
-          {!isCollapsed && (
+          <div className="px-3 py-4 mt-auto border-t border-emerald-100 dark:border-white/10 space-y-1">
             <button
               type="button"
-              onClick={() => setIsCollapsed(true)}
-              className="h-10 w-full px-3 rounded-xl flex items-center gap-2 text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200"
+              onClick={() => setIsScannerOpen(true)}
+              className={cn(
+                "h-10 w-full rounded-xl bg-[#00A655] text-white shadow-lg shadow-emerald-900/15 hover:bg-[#008f49] active:scale-95 transition-all flex items-center gap-2",
+                isCollapsed ? "justify-center px-0" : "justify-start px-3"
+              )}
             >
-              <X size={18} />
-              <span className="text-[11px] font-black uppercase tracking-tight">{t('close')}</span>
+              <QrCode size={18} className="shrink-0" />
+              {!isCollapsed && (
+                <span className="text-[11px] font-black uppercase tracking-tight">
+                  {t('qrScan')}
+                </span>
+              )}
             </button>
-          )}
+
+            <button
+              onClick={() => setShowHelp(true)}
+              className={cn(
+                "h-10 flex items-center gap-2 w-full rounded-xl text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200",
+                isCollapsed ? "justify-center px-0" : "justify-start px-3"
+              )}
+            >
+              <HelpCircle size={18} />
+              {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-tight">{t('needHelp')}</span>}
+            </button>
+          </div>
         </div>
       </aside>
 

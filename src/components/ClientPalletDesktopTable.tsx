@@ -158,15 +158,15 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     [locale]
   );
   const searchPlaceholder =
-    language === 'bs' ? 'Pretrazi' : language === 'nl' ? 'Zoeken' : 'Search';
+    language === 'bs' ? 'Pretraži' : language === 'nl' ? 'Zoeken' : 'Search';
   const showAllLabel =
-    language === 'bs' ? 'Prikazi sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
+    language === 'bs' ? 'Prikaži sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
   const noResultsLabel =
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const daysOutLabel =
     language === 'bs' ? 'Dana vani' : language === 'nl' ? 'Dagen buiten' : 'Days out';
   const overdueDaysLabel =
-    language === 'bs' ? 'Dana kasnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days';
+    language === 'bs' ? 'Dana kašnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days';
   const debtLabel =
     language === 'bs' ? 'Iznos duga' : language === 'nl' ? 'Schuldbedrag' : 'Debt amount';
   const lastUpdateLabel =

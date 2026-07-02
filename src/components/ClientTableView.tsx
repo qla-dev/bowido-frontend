@@ -187,9 +187,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   } | null>(null);
 
   const searchPlaceholder =
-    language === 'bs' ? 'Pretrazi' : language === 'nl' ? 'Zoeken' : 'Search';
+    language === 'bs' ? 'Pretraži' : language === 'nl' ? 'Zoeken' : 'Search';
   const showAllLabel =
-    language === 'bs' ? 'Prikazi sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
+    language === 'bs' ? 'Prikaži sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
   const noResultsLabel =
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const warehousesHeaderLabel =
@@ -213,7 +213,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const mobilePalletsAtClientLabel =
     language === 'bs' ? 'Palete kod klijenta' : language === 'nl' ? 'Bokken bij klant' : 'Pallets at client';
   const mobileOverdueDaysLabel =
-    language === 'bs' ? 'Ukupno dana kasnjenja' : language === 'nl' ? 'Totale overduedagen' : 'Total overdue days';
+    language === 'bs' ? 'Ukupno dana kašnjenja' : language === 'nl' ? 'Totale overduedagen' : 'Total overdue days';
   const mobileTotalDebtLabel =
     language === 'bs' ? 'Ukupan dug' : language === 'nl' ? 'Totale schuld' : 'Total debt';
   const reportReturnLabel =
@@ -1059,7 +1059,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
             <ClientPalletDesktopTable client={mobileClientRow.client} />
 
-            <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-24 md:right-8">
+            <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
               <button
                 type="button"
                 onClick={() => setIsDesktopReturnFormOpen(true)}
@@ -1293,7 +1293,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
       {onAddClient && (
-        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-24 md:right-8">
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
           <button
             type="button"
             onClick={onAddClient}
