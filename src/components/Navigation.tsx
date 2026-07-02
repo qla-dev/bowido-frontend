@@ -492,7 +492,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
     <>
       <aside
         id="desktop-sidebar"
-        className={`hidden md:flex flex-col border-r border-zinc-200 bg-white h-[calc(100vh-4rem)] sticky top-16 transition-all duration-300 dark:border-white/10 dark:bg-[#172d22] ${
+        className={`sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white transition-all duration-300 dark:border-white/10 dark:bg-[#172d22] md:flex ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
@@ -509,7 +509,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
           </div>
         )}
 
-        <nav className={cn("flex-1 px-3 pb-3 space-y-1", isCollapsed ? "pt-2" : "pt-3")}>
+        <nav className={cn("sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-3", isCollapsed ? "pt-2" : "pt-3")}>
           {getNavItems().map((item) => (
             <NavItem
               key={item.id}
