@@ -93,18 +93,6 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   overdueTotal: 140,
 };
 
-const phoneFallbacks = [
-  '+31 40 204 1120',
-  '+31 10 318 9914',
-  '+387 53 221 440',
-  '+31 78 204 5571',
-  '+31 50 214 3308',
-  '+387 33 781 226',
-  '+31 10 804 1267',
-  '+387 36 558 934',
-  '+31 13 618 5039',
-];
-
 export const AdminClientManagerView: React.FC = () => {
   const { clients, pallets, statuses, invoices, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
@@ -147,7 +135,7 @@ export const AdminClientManagerView: React.FC = () => {
   const labels = {
     search:
       language === 'bs'
-        ? 'Pretrazi klijente, KVK, adresu ili telefon'
+        ? 'Pretraži klijente, KVK, adresu ili telefon'
         : language === 'nl'
           ? 'Zoek klant, KVK, adres of telefoon'
           : 'Search client, KVK, address or phone',
@@ -166,9 +154,9 @@ export const AdminClientManagerView: React.FC = () => {
     overduePallets:
       language === 'bs' ? 'Paleta kasni' : language === 'nl' ? 'Bokken te laat' : 'Overdue pallets',
     rate:
-      language === 'bs' ? 'Iznos po danu kasnjenja' : language === 'nl' ? 'Tarief per dag te laat' : 'Late fee per day',
+      language === 'bs' ? 'Iznos po danu kašnjenja' : language === 'nl' ? 'Tarief per dag te laat' : 'Late fee per day',
     overdueDays:
-      language === 'bs' ? 'Broj dana kasnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days',
+      language === 'bs' ? 'Broj dana kašnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days',
     gracePeriod:
       language === 'bs' ? 'Grace period' : language === 'nl' ? 'Grace period' : 'Grace period',
     overdueTotal:
@@ -184,7 +172,7 @@ export const AdminClientManagerView: React.FC = () => {
     exportInvoice:
       language === 'bs' ? 'Export invoice' : language === 'nl' ? 'Factuur exporteren' : 'Export invoice',
     save:
-      language === 'bs' ? 'Sacuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes',
+      language === 'bs' ? 'Sačuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes',
     close:
       language === 'bs' ? 'Zatvori' : language === 'nl' ? 'Sluiten' : 'Close',
     noPallets:
@@ -229,7 +217,7 @@ export const AdminClientManagerView: React.FC = () => {
           client,
           clientName: client.name,
           kvkLabel: client.kvk_number || '-',
-          phoneLabel: client.phone_number || phoneFallbacks[index % phoneFallbacks.length],
+          phoneLabel: client.phone_number || '-',
           addressLabel: warehouses[0] || '-',
           warehouses,
           totalPallets: clientPallets.length,

@@ -651,9 +651,6 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                   <ShieldCheck size={18} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
-                    {t('visualDemo')}
-                  </p>
                   <p className="text-[12px] font-bold text-zinc-700 leading-relaxed mt-1">
                     {t('frontendOnlyStorage')}
                   </p>

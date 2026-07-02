@@ -15,7 +15,7 @@ import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
 import { ManagedUser, RoleType, User } from './types';
-import { LogIn, Smartphone, MapPin } from 'lucide-react';
+import { LogIn, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Card, Select, cn } from './components/ui';
@@ -90,6 +90,7 @@ export default function App() {
   const [loggingInUserId, setLoggingInUserId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNightMode, setIsNightMode] = useState(false);
+  const [pendingPalletDetailId, setPendingPalletDetailId] = useState<number | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -322,7 +323,7 @@ export default function App() {
       <div className="text-center">
         <img src={logoImage} alt="Trackpal logo" className="mx-auto h-12 w-auto" />
         <p className="mt-6 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
-          {language === 'bs' ? 'Ucitavanje sesije' : language === 'nl' ? 'Sessie laden' : 'Loading session'}
+          {language === 'bs' ? 'Učitavanje sesije' : language === 'nl' ? 'Sessie laden' : 'Loading session'}
         </p>
       </div>
     </div>
@@ -496,6 +497,8 @@ export default function App() {
             user={currentUser}
             isNightMode={isNightMode}
             onToggleNightMode={() => setIsNightMode(!isNightMode)}
+            openPalletId={pendingPalletDetailId}
+            onPalletDetailOpened={() => setPendingPalletDetailId(null)}
           />
         );
       }
@@ -513,6 +516,8 @@ export default function App() {
             user={currentUser}
             isNightMode={isNightMode}
             onToggleNightMode={() => setIsNightMode(!isNightMode)}
+            openPalletId={pendingPalletDetailId}
+            onPalletDetailOpened={() => setPendingPalletDetailId(null)}
           />
         );
     }
@@ -552,7 +557,19 @@ export default function App() {
 
         <AnimatePresence>
           {isScannerOpen && (
-            <PalletScanner currentUser={currentUser} onClose={() => setIsScannerOpen(false)} />
+            <PalletScanner
+              currentUser={currentUser}
+              onClose={() => setIsScannerOpen(false)}
+              onPalletDetected={
+                currentUser.role_name === RoleType.ADMIN
+                  ? (pallet) => {
+                    setIsScannerOpen(false);
+                  setActiveTab('pallets');
+                  setPendingPalletDetailId(pallet.id);
+                  }
+                  : undefined
+              }
+            />
           )}
 
           {isGhostReportOpen && currentUser.role_name !== RoleType.SERVISER && (
@@ -602,7 +619,7 @@ export default function App() {
             'relative flex flex-1 flex-col bg-white dark:bg-transparent',
             usesFixedMobileShell
               ? 'min-h-0 overflow-y-auto overscroll-y-contain pb-[calc(env(safe-area-inset-bottom)+5.5rem)] scroll-smooth no-scrollbar'
-              : 'h-[calc(100vh-7rem)] overflow-y-auto pb-28 scroll-smooth no-scrollbar md:h-[calc(100vh-4rem)] md:pb-0'
+              : 'h-[calc(100vh-7rem)] overflow-y-auto pb-24 scroll-smooth no-scrollbar md:h-[calc(100vh-4rem)] md:pb-0'
           )}
           style={usesFixedMobileShell ? { WebkitOverflowScrolling: 'touch' } : undefined}
         >
@@ -635,6 +652,15 @@ export default function App() {
           <PalletScanner 
             currentUser={currentUser} 
             onClose={() => setIsScannerOpen(false)} 
+            onPalletDetected={
+              currentUser.role_name === RoleType.ADMIN
+                ? (pallet) => {
+                  setIsScannerOpen(false);
+                setActiveTab('pallets');
+                setPendingPalletDetailId(pallet.id);
+                }
+                : undefined
+            }
           />
         )}
 

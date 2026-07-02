@@ -101,7 +101,7 @@ const copyByLanguage = {
     pickupDatePlaceholder: 'Odaberi datum preuzimanja',
     commentLabel: 'Komentar',
     commentPlaceholder: 'Opcionalno: dodatne informacije ili napomena',
-    sendLabel: 'Posalji prijavu',
+    sendLabel: 'Pošalji prijavu',
     reportButtonLabel: 'Prijavi paletu bez QR koda',
     reportButtonText: 'Spremno za povrat, ali bez QR plocice.',
     warehouseFallback: 'Magacin klijenta',
