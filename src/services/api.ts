@@ -32,7 +32,10 @@ const API_BACKENDS = {
   production: 'https://api.trackpal.app/api',
 } as const;
 
-const apiBackend = String(import.meta.env.VITE_API_BACKEND || 'local').toLowerCase();
+const defaultApiBackend = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'local'
+  : 'production';
+const apiBackend = String(import.meta.env.VITE_API_BACKEND || defaultApiBackend).toLowerCase();
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 const API_BASE_URL = (configuredApiBaseUrl || API_BACKENDS[apiBackend as keyof typeof API_BACKENDS] || API_BACKENDS.local)
   .replace(/\/+$/, '');
