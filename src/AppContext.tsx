@@ -233,8 +233,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const [statusesData, palletsData, clientsData, auditLogsData, serviceReportsData] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
-      safeLoad(() => apiService.pallets.list(), []),
-      safeLoad(() => apiService.clients.list(), []),
+      safeLoad(() => apiService.pallets.list({ limit: 100 }), []),
+      safeLoad(() => apiService.clients.list({ limit: 100 }), []),
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
     ]);
@@ -256,7 +256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchInvoices = async () => {
     try {
-      const data = await apiService.invoices.list();
+      const data = await apiService.invoices.list({ limit: 100 });
       setInvoices(data);
       writeAppDataCache({ invoices: data });
     } catch (error) {
@@ -266,7 +266,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchAuditLogs = async () => {
     try {
-      const data = await apiService.auditLogs.list();
+      const data = await apiService.auditLogs.list({ limit: 50 });
       setAuditLogs(data);
       writeAppDataCache({ auditLogs: data });
     } catch (error) {
@@ -276,10 +276,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const fetchRoles = async () => {
     try {
-      const [rolesData, permsData] = await Promise.all([
-        apiService.roles.list(),
+      const [rolesPage, permsData] = await Promise.all([
+        apiService.roles.page({ limit: 100 }),
         apiService.permissions.list(),
       ]);
+      const rolesData = rolesPage.items;
       setRoles(rolesData);
       setPermissions(permsData);
       writeAppDataCache({ roles: rolesData, permissions: permsData });

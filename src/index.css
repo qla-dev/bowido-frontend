@@ -618,9 +618,8 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 .sidebar-scroll {
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgb(0 166 85 / 0.42) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 .sidebar-scroll::-webkit-scrollbar {
@@ -634,8 +633,13 @@ body:has([data-lock-scroll-modal="true"]) {
 .sidebar-scroll::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background-color: rgb(0 166 85 / 0.3);
+  background-color: transparent;
   background-clip: content-box;
+  transition: background-color 0.18s ease;
+}
+
+.sidebar-scroll:hover {
+  scrollbar-color: rgb(0 166 85 / 0.58) transparent;
 }
 
 .sidebar-scroll:hover::-webkit-scrollbar-thumb {
@@ -643,11 +647,15 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 #app-container.dark .sidebar-scroll {
-  scrollbar-color: rgb(52 211 153 / 0.46) transparent;
+  scrollbar-color: transparent transparent;
 }
 
 #app-container.dark .sidebar-scroll::-webkit-scrollbar-thumb {
-  background-color: rgb(52 211 153 / 0.32);
+  background-color: transparent;
+}
+
+#app-container.dark .sidebar-scroll:hover {
+  scrollbar-color: rgb(52 211 153 / 0.54) transparent;
 }
 
 #app-container.dark .sidebar-scroll:hover::-webkit-scrollbar-thumb {
