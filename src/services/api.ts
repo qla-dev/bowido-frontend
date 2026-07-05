@@ -41,7 +41,15 @@ export type PaginatedResult<T> = {
 
 type ApiRecord = Record<string, any>;
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const API_BACKENDS = {
+  local: 'http://127.0.0.1:8000/api',
+  production: 'https://api.trackpal.app/api',
+} as const;
+
+const apiBackend = String(import.meta.env.VITE_API_BACKEND || 'local').toLowerCase();
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (configuredApiBaseUrl || API_BACKENDS[apiBackend as keyof typeof API_BACKENDS] || API_BACKENDS.local)
+  .replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'trackpal_api_token';
 const TOKEN_ONLY_HEADER = 'X-Trackpal-Token-Only';
 const DEMO_PASSWORD = 'password123';
