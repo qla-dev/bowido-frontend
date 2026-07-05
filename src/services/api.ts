@@ -27,8 +27,17 @@ type ApiEnvelope<T> = {
 
 type ApiRecord = Record<string, any>;
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+const API_BACKENDS = {
+  local: 'http://127.0.0.1:8000/api',
+  production: 'https://api.trackpal.app/api',
+} as const;
+
+const apiBackend = String(import.meta.env.VITE_API_BACKEND || 'local').toLowerCase();
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (configuredApiBaseUrl || API_BACKENDS[apiBackend as keyof typeof API_BACKENDS] || API_BACKENDS.local)
+  .replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'trackpal_api_token';
+const TOKEN_ONLY_HEADER = 'X-Trackpal-Token-Only';
 const DEMO_PASSWORD = 'password123';
 
 class ApiError extends Error {
@@ -68,6 +77,7 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiE
   }
 
   headers.set('Accept', 'application/json');
+  headers.set(TOKEN_ONLY_HEADER, 'true');
 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -117,23 +127,28 @@ const buildQuery = (params: Record<string, string | number | boolean | undefined
 
 const listAll = async <T>(path: string, params: Record<string, string | number | boolean | undefined> = {}) => {
   const items: T[] = [];
-  const limit = 100;
-  let offset = 0;
+  const requestedLimit = params.limit !== undefined ? Math.max(Number(params.limit), 0) : undefined;
+  const pageSize = requestedLimit !== undefined ? Math.min(requestedLimit, 100) : 100;
+  let offset = Number(params.offset ?? 0);
   let total = Number.POSITIVE_INFINITY;
 
-  while (items.length < total) {
+  while (items.length < total && pageSize > 0) {
+    const remaining = requestedLimit !== undefined ? requestedLimit - items.length : pageSize;
+    const limit = Math.min(pageSize, remaining);
     const query = buildQuery({ ...params, limit, offset });
     const envelope = await request<T[]>(`${path}?${query}`);
     const page = envelope.data || [];
 
     items.push(...page);
-    total = envelope.meta?.total ?? items.length;
+    total = requestedLimit !== undefined
+      ? Math.min(envelope.meta?.total ?? items.length, requestedLimit)
+      : envelope.meta?.total ?? items.length;
 
-    if (page.length === 0) {
+    if (page.length === 0 || (requestedLimit !== undefined && items.length >= requestedLimit)) {
       break;
     }
 
-    offset += limit;
+    offset += page.length;
   }
 
   return items;
@@ -278,6 +293,7 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     name: client.name || client.company_name || client.user?.name || 'Client',
     kvk_number: client.kvk_number || client.kvk || client.tax_number || undefined,
     phone_number: client.user?.phone_number || undefined,
+    billing_email: client.billing_email || undefined,
     warehouse_addresses: addresses.filter(Boolean),
     country: client.country || 'NL',
     grace_period_days: Number(client.grace_period_days ?? 0),
@@ -299,6 +315,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
   return {
     id: Number(pallet.id),
     qr_code: pallet.qr_code,
+    pallet_name: pallet.qr_code || pallet.pallet_name || undefined,
     current_status_id: currentStatusId,
     current_status_name: currentStatusName,
     user_id: pallet.user_id ? Number(pallet.user_id) : undefined,
@@ -439,7 +456,7 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
     company_name: client.name || 'New Client',
     country: client.country || 'NL',
     kvk: client.kvk_number || null,
-    billing_email: `billing@${slugify(client.name || 'client')}.test`,
+    billing_email: client.billing_email || null,
     billing_address: addresses[1] || addresses[0] || null,
     delivery_address: addresses[0] || null,
     tax_number: client.kvk_number || null,
@@ -457,6 +474,7 @@ const toPalletPayload = (pallet: Partial<Pallet>) => ({
   type: pallet.type || 'pallet',
   asset_type: 'pallet',
   qr_code: pallet.qr_code,
+  pallet_name: pallet.qr_code,
   reference_code: undefined,
   current_location: pallet.current_location || '',
   notes: pallet.note || undefined,
@@ -524,6 +542,9 @@ export const apiService = {
           }),
         })
       ),
+    delete: async (id: number): Promise<void> => {
+      await apiData<null>(`/roles/${id}`, { method: 'DELETE' });
+    },
   },
 
   permissions: {
@@ -600,7 +621,7 @@ export const apiService = {
         body: jsonBody({
           role_id: roleId,
           name,
-          email: `${slugify(name)}.${Date.now()}@trackpal.test`,
+          email: data.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
           password: DEMO_PASSWORD,
           is_active: true,
           customer_details: toCustomerPayload(data),
@@ -674,11 +695,13 @@ export const apiService = {
   },
 
   auditLogs: {
-    list: async (): Promise<AuditLog[]> => (await listAll<ApiRecord>('/audit_logs')).map(normalizeAuditLog),
+    list: async (params: Record<string, string | number | boolean | undefined> = {}): Promise<AuditLog[]> =>
+      (await listAll<ApiRecord>('/audit_logs', params)).map(normalizeAuditLog),
   },
 
   serviceReports: {
-    list: async (): Promise<ServiceReport[]> => (await listAll<ApiRecord>('/service_reports')).map(normalizeServiceReport),
+    list: async (params: Record<string, string | number | boolean | undefined> = {}): Promise<ServiceReport[]> =>
+      (await listAll<ApiRecord>('/service_reports', params)).map(normalizeServiceReport),
     create: async (
       data: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
     ): Promise<ServiceReport> =>

@@ -8,6 +8,8 @@ import { DriverModalShell } from './DriverModalShell';
 import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
 import { NoQrReturnFormModal, getNoQrReturnButtonCopy } from './NoQrReturnFormModal';
 import { getPalletTypeLabel } from '../i18n';
+import { findPalletByScannedQr } from '../lib/palletQrMatching';
+import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -195,9 +197,9 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     damageModalSubmit: 'Save report',
     damageModalRemove: 'Remove',
     scanImageFallbackTitle: 'Test scan',
-    scanImageFallbackDetail: 'Upload a QR image for demo recognition.',
+    scanImageFallbackDetail: 'Upload a QR image to match database pallets.',
     scanImageNotRecognizedTitle: 'QR not recognized',
-    scanImageNotRecognizedDetail: 'Use a clearer QR image for demo scanning.',
+    scanImageNotRecognizedDetail: 'Use a clearer QR image or a seeded QR code such as BOWNL-0001.',
     warehouseDefault: 'Warehouse 1',
     warehouseSecondary: 'Warehouse 2',
     thirdAddress: 'Third address',
@@ -251,9 +253,9 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     damageModalSubmit: 'Melding opslaan',
     damageModalRemove: 'Verwijderen',
     scanImageFallbackTitle: 'Testscan',
-    scanImageFallbackDetail: 'Upload een QR-afbeelding voor demoherkenning.',
+    scanImageFallbackDetail: 'Upload een QR-afbeelding om databasebokken te vinden.',
     scanImageNotRecognizedTitle: 'QR niet herkend',
-    scanImageNotRecognizedDetail: 'Gebruik een duidelijkere QR-afbeelding voor demo scannen.',
+    scanImageNotRecognizedDetail: 'Gebruik een duidelijkere QR-afbeelding of een QR-code zoals BOWNL-0001.',
     warehouseDefault: 'Magazijn 1',
     warehouseSecondary: 'Magazijn 2',
     thirdAddress: 'Derde adres',
@@ -307,7 +309,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     damageModalSubmit: 'Sačuvaj prijavu',
     damageModalRemove: 'Ukloni',
     scanImageFallbackTitle: 'Test skeniranje',
-    scanImageFallbackDetail: 'Učitaj QR sliku za demo prepoznavanje.',
+    scanImageFallbackDetail: 'Ucitaj QR sliku za pretragu paleta iz baze.',
     scanImageNotRecognizedTitle: 'QR nije prepoznat',
     scanImageNotRecognizedDetail: 'Koristi QR kod sa BOWNL-0001 do BOWNL-0005.',
     warehouseDefault: 'Magacin 1',
@@ -428,7 +430,6 @@ const getDriverPalletTypeLabel = (type: string, language: 'en' | 'nl' | 'bs') =>
 
 export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {
   const { pallets, clients, deletePallet, updatePalletStatus, statuses, language } = useApp();
-  const [demoPallets, setDemoPallets] = useState<Pallet[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [selectedPalletId, setSelectedPalletId] = useState<number | null>(null);
   const [palletPhotoUrl, setPalletPhotoUrl] = useState<string | null>(null);
@@ -465,6 +466,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const scanFrameRef = useRef<number | null>(null);
   const scanAssistTimeoutRef = useRef<number | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scanCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanImageInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoInputRef = useRef<HTMLInputElement | null>(null);
@@ -478,11 +480,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
-  const nextDemoPalletIdRef = useRef(-1);
 
   const text = driverCopy[language] || driverCopy.en;
   const noQrReturnCopy = getNoQrReturnButtonCopy(language);
-  const allDriverPallets = [...demoPallets, ...pallets];
+  const allDriverPallets = pallets;
   const isScannerOpen = selectedPalletId === null;
   const showNoQrReturnAction = user.role_name === RoleType.KLIJENT;
   const showNoQrPickupAction = user.role_name === RoleType.VOZAC || user.role_name === RoleType.ADMIN;
@@ -494,15 +495,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           buttonText: 'Pregled prijavljenih paleta spremnih za preuzimanje.',
           title: 'Prijavljene palete bez QR koda',
           subtitle: 'Preuzimanje kod kupaca',
-          search: 'Pretrazi po imenu klijenta',
+          search: 'Pretraži po imenu klijenta',
           pallet: 'Paleta',
           location: 'Lokacija',
           pickup: 'Datum preuzimanja',
           comment: 'Komentar',
-          returned: 'Paleta vracena',
+          returned: 'Paleta vraćena',
           direct: 'Odmah preuzeti',
           empty: 'Nema prijavljenih paleta bez QR koda.',
-          confirm: 'Oznaciti paletu kao vracenu? Zapis ce biti uklonjen.',
+          confirm: 'Označiti paletu kao vraćenu? Zapis će biti uklonjen.',
         }
       : language === 'nl'
         ? {
@@ -545,11 +546,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           location: 'Lokacija',
           type: 'Tip',
           note: 'Napomena',
-          repaired: 'Oznaci kao popravljeno',
+          repaired: 'Označi kao popravljeno',
           empty: 'Nema paleta prijavljenih za popravak.',
-          confirm: 'Oznaciti paletu kao popravljenu?',
+          confirm: 'Označiti paletu kao popravljenu?',
           successTitle: 'Paleta popravljena',
-          successDetail: 'Paleta je vracena iz servisa.',
+          successDetail: 'Paleta je vraćena iz servisa.',
         }
       : language === 'nl'
         ? {
@@ -1083,35 +1084,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const findMatchingPallet = (rawValue: string) => {
-    const normalized = rawValue.trim().toUpperCase();
-
-    return (
-      palletsRef.current.find((item) => item.qr_code.toUpperCase() === normalized) ||
-      palletsRef.current.find((item) => normalized.includes(item.qr_code.toUpperCase())) ||
-      null
-    );
+    return findPalletByScannedQr(rawValue, palletsRef.current);
   };
-
-  const createDemoPallet = (rawValue: string): Pallet => ({
-    id: nextDemoPalletIdRef.current--,
-    qr_code: rawValue.trim() || `DEMO-${Math.abs(nextDemoPalletIdRef.current)}`,
-    current_status_id: 0,
-    current_status_name: '',
-    type: 'Siva',
-    current_location: defaultWarehouseDirectory.warehouse1,
-    is_ghost: false,
-    is_active: true,
-    last_status_changed_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  });
 
   const handleDetectedCode = (rawValue: string) => {
     const matchedPallet = findMatchingPallet(rawValue);
-    const nextPallet = matchedPallet || createDemoPallet(rawValue);
 
     if (!matchedPallet) {
-      setDemoPallets((current) => [nextPallet, ...current.filter((item) => item.qr_code !== nextPallet.qr_code)]);
+      showFlash(text.scanImageNotRecognizedTitle, text.scanImageNotRecognizedDetail, 'warning');
+      lastScanAtRef.current = Date.now();
+      return;
     }
+
+    const nextPallet = matchedPallet;
 
     setScannedPalletIds((current) => [nextPallet.id, ...current.filter((item) => item !== nextPallet.id)]);
     selectedPalletIdRef.current = nextPallet.id;
@@ -1123,7 +1108,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     const detector = detectorRef.current;
     const video = videoRef.current;
 
-    if (!detector || !video) {
+    if (!video) {
       return;
     }
 
@@ -1143,10 +1128,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     scanBusyRef.current = true;
 
     try {
-      const codes = await detector.detect(video);
-      const firstCode = codes.find((item) => item.rawValue?.trim());
-      if (firstCode?.rawValue) {
-        handleDetectedCode(firstCode.rawValue);
+      let rawValue: string | null = null;
+
+      if (detector) {
+        const codes = await detector.detect(video);
+        rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+      } else {
+        rawValue = decodeQrFromVideo(video, scanCanvasRef);
+      }
+
+      if (rawValue) {
+        handleDetectedCode(rawValue);
       }
     } catch {
       setCameraState((current) => (current === 'ready' ? 'preview' : current));
@@ -1230,18 +1222,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           await videoRef.current.play().catch(() => undefined);
         }
 
-        if (detector) {
-          setCameraState('ready');
-          runDetectionLoop();
-
-          scanAssistTimeoutRef.current = window.setTimeout(() => {
-            if (selectedPalletIdRef.current === null) {
-              setCameraState((current) => (current === 'ready' ? 'preview' : current));
-            }
-          }, 4500);
-        } else {
-          setCameraState('preview');
+        if (!detector) {
+          detectorRef.current = null;
         }
+
+        setCameraState('ready');
+        runDetectionLoop();
       } catch (error) {
         if (cancelled) {
           return;
@@ -1375,51 +1361,26 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return;
     }
 
-    const nextStatusName = statuses.find((item) => item.id === nextStatusId)?.name || '';
     const preserveClientAssignment = clientLinkedStatusIds.includes(nextStatusId);
     const nextClientId = preserveClientAssignment ? clientId ?? selectedPallet.user_id : undefined;
-    const nextClientName = nextClientId
-      ? clients.find((client) => client.user_id === nextClientId)?.name || selectedPallet.client_name
-      : undefined;
-    const isDemoPallet = selectedPallet.id < 0;
 
-    if (isDemoPallet) {
-      setDemoPallets((current) =>
-        current.map((item) => {
-          if (item.id !== selectedPallet.id) {
-            return item;
-          }
-
-          return {
-            ...item,
-            current_status_id: nextStatusId,
-            current_status_name: nextStatusName,
-            current_location: nextLocation,
-            last_status_changed_at: new Date().toISOString(),
-            user_id: nextClientId,
-            client_name: nextClientName,
-          };
-        })
-      );
-    } else {
-      updatePalletStatus(
-        selectedPallet.id,
-        nextStatusId,
-        user.id,
-        user.name,
-        nextLocation,
-        nextStatusId === 4
-          ? 'Driver marked pallet as Bij de klant.'
-          : nextStatusId === 5
-            ? 'Driver marked pallet as Voor retour.'
-            : nextStatusId === 7
-              ? 'Driver marked pallet in repair.'
-            : transportStatusIds.includes(nextStatusId)
-              ? 'Driver marked pallet in transport.'
-            : 'Driver marked pallet in Bowido warehouse.',
-        nextClientId
-      );
-    }
+    updatePalletStatus(
+      selectedPallet.id,
+      nextStatusId,
+      user.id,
+      user.name,
+      nextLocation,
+      nextStatusId === 4
+        ? 'Driver marked pallet as Bij de klant.'
+        : nextStatusId === 5
+          ? 'Driver marked pallet as Voor retour.'
+          : nextStatusId === 7
+            ? 'Driver marked pallet in repair.'
+          : transportStatusIds.includes(nextStatusId)
+            ? 'Driver marked pallet in transport.'
+          : 'Driver marked pallet in Bowido warehouse.',
+      nextClientId
+    );
 
     showFlash(
       text.statusUpdatedTitle,
@@ -1628,11 +1589,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return;
     }
 
-    if (cameraState === 'ready' || isScanning) {
-      return;
-    }
-
-    simulateScan();
+    return;
   };
 
   const handleScannerFrameKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1707,20 +1664,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     const detector = await getBarcodeDetector();
 
-    if (!detector) {
-      simulateScan();
-      return;
-    }
-
     let bitmap: ImageBitmap | null = null;
 
     try {
       bitmap = await createImageBitmap(file);
-      const codes = await detector.detect(bitmap);
-      const firstCode = codes.find((item) => item.rawValue?.trim());
+      const rawValue = detector
+        ? (await detector.detect(bitmap)).find((item) => item.rawValue?.trim())?.rawValue?.trim() || null
+        : decodeQrFromImageBitmap(bitmap, scanCanvasRef);
 
-      if (firstCode?.rawValue) {
-        handleDetectedCode(firstCode.rawValue);
+      if (rawValue) {
+        handleDetectedCode(rawValue);
         return;
       }
 

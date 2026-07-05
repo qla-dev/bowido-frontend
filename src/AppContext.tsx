@@ -67,9 +67,11 @@ interface AppContextType {
   ) => void;
   pairGhostPallet: (ghostId: number, newQrCode: string) => void;
   fetchInvoices: () => Promise<void>;
+  fetchAuditLogs: () => Promise<void>;
   fetchRoles: () => Promise<void>;
   addRole: (role: Omit<Role, 'id'>) => Promise<void>;
   updateRole: (role: Role) => Promise<void>;
+  deleteRole: (id: number) => Promise<void>;
   refreshData: () => Promise<void>;
   resetData: () => void;
 }
@@ -229,43 +231,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    const [
-      statusesData,
-      palletsData,
-      clientsData,
-      auditLogsData,
-      invoicesData,
-      rolesData,
-      permissionsData,
-      serviceReportsData,
-    ] = await Promise.all([
+    const [statusesData, palletsData, clientsData, auditLogsData, serviceReportsData] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
       safeLoad(() => apiService.pallets.list(), []),
       safeLoad(() => apiService.clients.list(), []),
-      safeLoad(() => apiService.auditLogs.list(), []),
-      safeLoad(() => apiService.invoices.list(), []),
-      safeLoad(() => apiService.roles.list(), []),
-      safeLoad(() => apiService.permissions.list(), []),
-      safeLoad(() => apiService.serviceReports.list(), []),
+      safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
+      safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
     ]);
 
     setStatuses(statusesData);
     setPallets(palletsData);
     setClients(clientsData);
     setAuditLogs(auditLogsData);
-    setInvoices(invoicesData);
-    setRoles(rolesData);
-    setPermissions(permissionsData);
     setServiceReports(serviceReportsData);
-    setNotifications(buildNotifications(auditLogsData, serviceReportsData, invoicesData));
+    setNotifications(buildNotifications(auditLogsData, serviceReportsData, invoices));
     writeAppDataCache({
       statuses: statusesData,
       pallets: palletsData,
       clients: clientsData,
       auditLogs: auditLogsData,
-      invoices: invoicesData,
-      roles: rolesData,
-      permissions: permissionsData,
       serviceReports: serviceReportsData,
     });
   };
@@ -274,8 +258,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const data = await apiService.invoices.list();
       setInvoices(data);
+      writeAppDataCache({ invoices: data });
     } catch (error) {
       console.error('Failed to fetch invoices', error);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    try {
+      const data = await apiService.auditLogs.list();
+      setAuditLogs(data);
+      writeAppDataCache({ auditLogs: data });
+    } catch (error) {
+      console.error('Failed to fetch audit logs', error);
     }
   };
 
@@ -306,6 +301,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updatedRole = await apiService.roles.update(role.id, role);
     setRoles((prev) => {
       const nextRoles = prev.map((existingRole) => (existingRole.id === updatedRole.id ? updatedRole : existingRole));
+      writeAppDataCache({ roles: nextRoles });
+      return nextRoles;
+    });
+  };
+
+  const deleteRole = async (id: number) => {
+    await apiService.roles.delete(id);
+    setRoles((prev) => {
+      const nextRoles = prev.filter((role) => role.id !== id);
       writeAppDataCache({ roles: nextRoles });
       return nextRoles;
     });
@@ -442,19 +446,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .then((updatedPallet) => {
         setPallets((prev) => prev.map((item) => (item.id === updatedPallet.id ? updatedPallet : item)));
-        return apiService.auditLogs.list();
       })
-      .then(setAuditLogs)
       .catch((error) => console.error('Failed to update pallet status', error));
   };
 
   const buildNewPallet = (id: number, qrCode: string, type: string): Pallet => {
     const defaultStatus = statuses.find((status) => status.id === 8) || statuses[0];
     const timestamp = new Date().toISOString();
+    const normalizedQrCode = qrCode.trim().toUpperCase();
 
     return {
       id,
-      qr_code: qrCode.trim().toUpperCase(),
+      qr_code: normalizedQrCode,
+      pallet_name: normalizedQrCode,
       type,
       current_status_id: defaultStatus?.id || 8,
       current_status_name: defaultStatus?.name || 'Onbekend',
@@ -485,9 +489,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .then((createdPallet) => {
         setPallets((prev) => prev.map((pallet) => (pallet.id === optimisticPallet.id ? createdPallet : pallet)));
-        return apiService.auditLogs.list();
       })
-      .then(setAuditLogs)
       .catch((error) => console.error('Failed to create pallet', error));
   };
 
@@ -520,33 +522,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .then((createdPallets) => {
         const createdByQr = new Map(createdPallets.map((pallet) => [pallet.qr_code, pallet]));
         setPallets((prev) => prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet));
-        return apiService.auditLogs.list();
       })
-      .then(setAuditLogs)
       .catch((error) => console.error('Failed to create pallet batch', error));
   };
 
   const updatePallet = (pallet: Pallet, actor?: { id: number; name: string }) => {
+    const normalizedQrCode = pallet.qr_code.trim().toUpperCase();
+    const normalizedPallet = {
+      ...pallet,
+      qr_code: normalizedQrCode,
+      pallet_name: normalizedQrCode,
+    };
     const previousPallet = pallets.find((item) => item.id === pallet.id);
     const hasOperationalChange = Boolean(
       previousPallet &&
       (
-        previousPallet.current_status_id !== pallet.current_status_id ||
-        previousPallet.current_status_name !== pallet.current_status_name ||
-        previousPallet.current_location !== pallet.current_location ||
-        previousPallet.user_id !== pallet.user_id ||
-        previousPallet.client_name !== pallet.client_name
+        previousPallet.current_status_id !== normalizedPallet.current_status_id ||
+        previousPallet.current_status_name !== normalizedPallet.current_status_name ||
+        previousPallet.current_location !== normalizedPallet.current_location ||
+        previousPallet.user_id !== normalizedPallet.user_id ||
+        previousPallet.client_name !== normalizedPallet.client_name
       )
     );
-    const hasQrCodeChange = Boolean(previousPallet && previousPallet.qr_code !== pallet.qr_code);
+    const hasQrCodeChange = Boolean(previousPallet && previousPallet.qr_code !== normalizedPallet.qr_code);
     const timestamp = new Date().toISOString();
     const nextPallet =
       previousPallet && hasOperationalChange
         ? {
-            ...pallet,
+            ...normalizedPallet,
             last_status_changed_at: timestamp,
           }
-        : pallet;
+        : normalizedPallet;
 
     setPallets((prev) => prev.map((item) => (item.id === pallet.id ? nextPallet : item)));
 
@@ -631,9 +637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .update(nextPallet.id, nextPallet)
       .then((updatedPallet) => {
         setPallets((prev) => prev.map((item) => (item.id === updatedPallet.id ? updatedPallet : item)));
-        return apiService.auditLogs.list();
       })
-      .then(setAuditLogs)
       .catch((error) => console.error('Failed to update pallet', error));
   };
 
@@ -652,9 +656,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .create(report)
       .then((createdReport) => {
         setServiceReports((prev) => [createdReport, ...prev.filter((item) => item.id !== createdReport.id)]);
-        return apiService.serviceReports.list();
       })
-      .then(setServiceReports)
       .catch((error) => console.error('Failed to create service report', error));
 
     setServiceReports((prev) => {
@@ -730,10 +732,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentLocation = entry?.location?.trim() || baseLocation;
       const entryNote = entry?.note?.trim() || '';
       const note = [baseNote, entryNote].filter(Boolean).join(' | ');
+      const qrCode = `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
       return {
         id: maxId + index + 1,
-        qr_code: `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+        qr_code: qrCode,
+        pallet_name: qrCode,
         type: 'Euro Pallet (Unlabeled)',
         current_status_id: 5,
         current_status_name: statuses.find((status) => status.id === 5)?.name || 'Voor retour',
@@ -768,9 +772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .then((createdPallets) => {
         const createdByQr = new Map(createdPallets.map((pallet) => [pallet.qr_code, pallet]));
         setPallets((prev) => prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet));
-        return apiService.auditLogs.list();
       })
-      .then(setAuditLogs)
       .catch((error) => console.error('Failed to create ghost pallets', error));
 
     const notificationDetails = [baseLocation !== 'Client Location' ? `Location: ${baseLocation}` : '', baseNote]
@@ -785,6 +787,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const pairGhostPallet = (ghostId: number, newQrCode: string) => {
+    const normalizedQrCode = newQrCode.trim().toUpperCase();
     const ghost = pallets.find((pallet) => pallet.id === ghostId);
 
     setPallets((prev) =>
@@ -795,7 +798,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         return {
           ...item,
-          qr_code: newQrCode,
+          qr_code: normalizedQrCode,
+          pallet_name: normalizedQrCode,
           is_ghost: false,
           note: `${item.note || ''} (Paired from ghost on ${new Date().toLocaleDateString()})`,
         };
@@ -810,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         {
           id: nextId,
           pallet_id: ghost.id,
-          pallet_qr: newQrCode,
+          pallet_qr: normalizedQrCode,
           made_by_user_id: 1,
           made_by_user_name: 'Operations',
           type: 'qr_version',
@@ -824,7 +828,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           new_location: ghost.current_location,
           qr_version: qrVersion,
           old_qr_code: ghost.qr_code,
-          new_qr_code: newQrCode,
+          new_qr_code: normalizedQrCode,
           note: `Ghost pallet paired with a new QR code (${qrVersion}).`,
           created_at: new Date().toISOString(),
         },
@@ -833,22 +837,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       pushNotification(
         'Ghost Pallet Paired',
-        `${ghost.client_name || 'Client'} ghost pallet is now paired with QR ${newQrCode}.`,
+        `${ghost.client_name || 'Client'} ghost pallet is now paired with QR ${normalizedQrCode}.`,
         'status'
       );
 
       void apiService.pallets
         .update(ghost.id, {
           ...ghost,
-          qr_code: newQrCode,
+          qr_code: normalizedQrCode,
+          pallet_name: normalizedQrCode,
           is_ghost: false,
           note: `${ghost.note || ''} (Paired from ghost on ${new Date().toLocaleDateString()})`,
         })
         .then((updatedPallet) => {
           setPallets((prev) => prev.map((item) => (item.id === updatedPallet.id ? updatedPallet : item)));
-          return apiService.auditLogs.list();
         })
-        .then(setAuditLogs)
         .catch((error) => console.error('Failed to pair ghost pallet', error));
     }
   };
@@ -949,9 +952,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportGhostPallets,
         pairGhostPallet,
         fetchInvoices,
+        fetchAuditLogs,
         fetchRoles,
         addRole,
         updateRole,
+        deleteRole,
         refreshData,
         resetData,
       }}

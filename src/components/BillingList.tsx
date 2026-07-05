@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Filter, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
 import { Button, Card, Badge } from './ui';
@@ -12,8 +12,12 @@ interface BillingListProps {
 }
 
 export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = false }) => {
-  const { invoices, t } = useApp();
+  const { invoices, fetchInvoices, t } = useApp();
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    void fetchInvoices();
+  }, []);
 
   const getInvoiceStatusLabel = (status: Invoice['status']) => {
     if (status === 'paid') return t('paid');

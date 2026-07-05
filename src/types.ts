@@ -45,6 +45,7 @@ export interface PalletStatus {
 export interface Pallet {
   id: number;
   qr_code: string;
+  pallet_name?: string;
   current_status_id: number;
   current_status_name: string;
   user_id?: number; // Klijent ID
@@ -98,6 +99,7 @@ export interface ClientDetail {
   name: string;
   kvk_number?: string;
   phone_number?: string;
+  billing_email?: string;
   warehouse_addresses?: string[];
   country: string;
   grace_period_days: number;
