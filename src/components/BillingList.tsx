@@ -5,19 +5,64 @@ import { Button, Card, Badge } from './ui';
 import { InvoiceViewer } from './InvoiceViewer';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
 
 interface BillingListProps {
   onBack?: () => void;
   compact?: boolean;
 }
 
+const INVOICE_PAGE_SIZE = 25;
+
 export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = false }) => {
-  const { invoices, fetchInvoices, t } = useApp();
+  const { t, language } = useApp();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(INVOICE_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: INVOICE_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
+  const [isPageLoading, setIsPageLoading] = useState(false);
 
   useEffect(() => {
-    void fetchInvoices();
-  }, []);
+    let isMounted = true;
+
+    const loadPage = async () => {
+      setIsPageLoading(true);
+
+      try {
+        const page = await apiService.invoices.page({
+          limit: pageLimit,
+          offset: pageOffset,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setInvoices(page.items);
+        setPaginationMeta(page.meta);
+      } catch (error) {
+        console.error('Failed to load paginated invoices', error);
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pageLimit, pageOffset]);
 
   const getInvoiceStatusLabel = (status: Invoice['status']) => {
     if (status === 'paid') return t('paid');
@@ -89,6 +134,22 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
           </motion.div>
         ))}
       </div>
+
+      <PageLoadingModal isOpen={isPageLoading} language={language} />
+
+      <ListPagination
+        total={paginationMeta.total}
+        limit={paginationMeta.limit}
+        offset={paginationMeta.offset}
+        count={paginationMeta.count}
+        isLoading={isPageLoading}
+        language={language}
+        onPageChange={setPageOffset}
+        onLimitChange={(limit) => {
+          setPageOffset(0);
+          setPageLimit(limit);
+        }}
+      />
 
       {selectedInvoice && <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
     </div>

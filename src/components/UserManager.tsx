@@ -9,10 +9,12 @@ import {
   StatCard,
   cn,
 } from './ui';
-import { apiService } from '../services/api';
+import { apiService, PaginationMeta } from '../services/api';
 import { useApp } from '../AppContext';
 import { getRoleLabel, getRolePermissions } from '../i18n';
 import { ManagedUser, RoleType, User } from '../types';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
 import {
   CheckCircle2,
   ChevronDown,
@@ -36,6 +38,8 @@ interface UserFormState {
   password: string;
   role_name: RoleType;
 }
+
+const USER_PAGE_SIZE = 25;
 
 const defaultFormState: UserFormState = {
   email: '',
@@ -223,18 +227,34 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(USER_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: USER_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
 
   useEffect(() => {
     void loadUsers();
-  }, []);
+  }, [pageLimit, pageOffset]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [deferredSearchTerm, roleFilter]);
 
   const loadUsers = async () => {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const loadedUsers = await apiService.users.list();
-      setUsers(loadedUsers);
+      const page = await apiService.users.page({
+        limit: pageLimit,
+        offset: pageOffset,
+      });
+      setUsers(page.items);
+      setPaginationMeta(page.meta);
     } catch {
       setErrorMessage(t('usersCannotLoad'));
     } finally {
@@ -281,7 +301,12 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
     }
 
     await apiService.users.delete(user.id);
-    setUsers((previousUsers) => previousUsers.filter((item) => item.id !== user.id));
+
+    if (users.length === 1 && pageOffset > 0) {
+      setPageOffset(Math.max(0, pageOffset - pageLimit));
+    } else {
+      await loadUsers();
+    }
 
     if (editingUserId === user.id) {
       resetForm();
@@ -319,13 +344,16 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           previousUsers.map((user) => (user.id === editingUserId ? updatedUser : user))
         );
       } else {
-        const createdUser = await apiService.users.create({
+        await apiService.users.create({
           email: trimmedEmail,
           password: trimmedPassword,
           role_name: formState.role_name,
         });
 
-        setUsers((previousUsers) => [createdUser, ...previousUsers]);
+        setPageOffset(0);
+        if (pageOffset === 0) {
+          await loadUsers();
+        }
       }
 
       resetForm();
@@ -354,7 +382,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   return (
     <div className="space-y-6 pb-12">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard label={t('totalUsers')} value={users.length} />
+        <StatCard label={t('totalUsers')} value={paginationMeta.total} />
         <StatCard label={t('adminAccess')} value={adminCount} variant="success" />
         <StatCard label={t('activeRolesLabel')} value={activeRoles} variant="info" />
       </div>
@@ -550,13 +578,23 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
             </div>
           )}
 
-          {isLoading && (
-            <div className="p-10 text-center border-t border-zinc-100">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                {t('loadingUsers')}
-              </p>
-            </div>
-          )}
+          <PageLoadingModal isOpen={isLoading} language={language} />
+
+          <div className="border-t border-zinc-100 p-4">
+            <ListPagination
+              total={paginationMeta.total}
+              limit={paginationMeta.limit}
+              offset={paginationMeta.offset}
+              count={paginationMeta.count}
+              isLoading={isLoading}
+              language={language}
+              onPageChange={setPageOffset}
+              onLimitChange={(limit) => {
+                setPageOffset(0);
+                setPageLimit(limit);
+              }}
+            />
+          </div>
         </Card>
 
         <div className="space-y-6 xl:sticky xl:top-24">

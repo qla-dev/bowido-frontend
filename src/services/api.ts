@@ -25,6 +25,20 @@ type ApiEnvelope<T> = {
   errors?: Record<string, string[]>;
 };
 
+export type ListParams = Record<string, string | number | boolean | undefined>;
+
+export type PaginationMeta = {
+  total: number;
+  limit: number;
+  offset: number;
+  count: number;
+};
+
+export type PaginatedResult<T> = {
+  items: T[];
+  meta: PaginationMeta;
+};
+
 type ApiRecord = Record<string, any>;
 
 const API_BACKENDS = {
@@ -113,7 +127,7 @@ const apiData = async <T>(path: string, options: RequestInit = {}) => (await req
 
 const jsonBody = (body: unknown) => JSON.stringify(body);
 
-const buildQuery = (params: Record<string, string | number | boolean | undefined>) => {
+const buildQuery = (params: ListParams) => {
   const query = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
@@ -125,7 +139,27 @@ const buildQuery = (params: Record<string, string | number | boolean | undefined
   return query.toString();
 };
 
-const listAll = async <T>(path: string, params: Record<string, string | number | boolean | undefined> = {}) => {
+const listPage = async <T>(
+  path: string,
+  params: ListParams = {},
+  normalize: (record: ApiRecord) => T
+): Promise<PaginatedResult<T>> => {
+  const query = buildQuery(params);
+  const envelope = await request<ApiRecord[]>(query ? `${path}?${query}` : path);
+  const count = envelope.meta?.count ?? envelope.data.length;
+
+  return {
+    items: (envelope.data || []).map(normalize),
+    meta: {
+      total: Number(envelope.meta?.total ?? envelope.data.length),
+      limit: Number(envelope.meta?.limit ?? params.limit ?? envelope.data.length),
+      offset: Number(envelope.meta?.offset ?? params.offset ?? 0),
+      count: Number(count),
+    },
+  };
+};
+
+const listAll = async <T>(path: string, params: ListParams = {}) => {
   const items: T[] = [];
   const requestedLimit = params.limit !== undefined ? Math.max(Number(params.limit), 0) : undefined;
   const pageSize = requestedLimit !== undefined ? Math.min(requestedLimit, 100) : 100;
@@ -517,6 +551,7 @@ export const apiService = {
   },
 
   roles: {
+    page: (params: ListParams = {}) => listPage<Role>('/roles', params, normalizeRole),
     list: listRoles,
     create: async (data: Partial<Role>): Promise<Role> =>
       normalizeRole(
@@ -560,6 +595,7 @@ export const apiService = {
   },
 
   statuses: {
+    page: (params: ListParams = {}) => listPage<PalletStatus>('/statuses', params, normalizeStatus),
     list: async (): Promise<PalletStatus[]> => (await listAll<ApiRecord>('/statuses')).map(normalizeStatus),
     create: async (data: Omit<PalletStatus, 'id'>): Promise<PalletStatus> =>
       normalizeStatus(
@@ -581,7 +617,8 @@ export const apiService = {
   },
 
   pallets: {
-    list: async (): Promise<Pallet[]> => (await listAll<ApiRecord>('/pallets')).map(normalizePallet),
+    page: (params: ListParams = {}) => listPage<Pallet>('/pallets', params, normalizePallet),
+    list: async (params: ListParams = {}): Promise<Pallet[]> => (await listAll<ApiRecord>('/pallets', params)).map(normalizePallet),
     get: async (id: number): Promise<Pallet> => normalizePallet(await apiData<ApiRecord>(`/pallets/${id}`)),
     create: async (data: Partial<Pallet>): Promise<Pallet> =>
       normalizePallet(
@@ -603,7 +640,9 @@ export const apiService = {
   },
 
   clients: {
-    list: async (): Promise<ClientDetail[]> => (await listAll<ApiRecord>('/customer_details')).map(normalizeClient),
+    page: (params: ListParams = {}) => listPage<ClientDetail>('/customer_details', params, normalizeClient),
+    list: async (params: ListParams = {}): Promise<ClientDetail[]> =>
+      (await listAll<ApiRecord>('/customer_details', params)).map(normalizeClient),
     create: async (data: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }): Promise<ClientDetail> => {
       if (data.user_id) {
         return normalizeClient(
@@ -632,7 +671,7 @@ export const apiService = {
         return normalizeClient(user.customer_detail);
       }
 
-      const clients = await apiService.clients.list();
+      const clients = await apiService.clients.list({ limit: 100 });
       return clients.find((client) => client.user_id === Number(user.id)) || clients[0];
     },
     update: async (data: ClientDetail): Promise<ClientDetail> =>
@@ -647,7 +686,9 @@ export const apiService = {
   users: {
     loginOptions: async (): Promise<ManagedUser[]> =>
       (await apiData<ApiRecord[]>('/auth/login-options')).map(normalizeUser),
-    list: async (): Promise<ManagedUser[]> => (await listAll<ApiRecord>('/users')).map(normalizeUser),
+    page: (params: ListParams = {}) => listPage<ManagedUser>('/users', params, normalizeUser),
+    list: async (params: ListParams = {}): Promise<ManagedUser[]> =>
+      (await listAll<ApiRecord>('/users', params)).map(normalizeUser),
     create: async (data: Pick<ManagedUser, 'email' | 'password' | 'role_name'>): Promise<ManagedUser> => {
       const roleId = await resolveRoleId(data.role_name);
       return normalizeUser(
@@ -695,12 +736,14 @@ export const apiService = {
   },
 
   auditLogs: {
-    list: async (params: Record<string, string | number | boolean | undefined> = {}): Promise<AuditLog[]> =>
+    page: (params: ListParams = {}) => listPage<AuditLog>('/audit_logs', params, normalizeAuditLog),
+    list: async (params: ListParams = {}): Promise<AuditLog[]> =>
       (await listAll<ApiRecord>('/audit_logs', params)).map(normalizeAuditLog),
   },
 
   serviceReports: {
-    list: async (params: Record<string, string | number | boolean | undefined> = {}): Promise<ServiceReport[]> =>
+    page: (params: ListParams = {}) => listPage<ServiceReport>('/service_reports', params, normalizeServiceReport),
+    list: async (params: ListParams = {}): Promise<ServiceReport[]> =>
       (await listAll<ApiRecord>('/service_reports', params)).map(normalizeServiceReport),
     create: async (
       data: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
@@ -745,7 +788,9 @@ export const apiService = {
   },
 
   invoices: {
-    list: async (): Promise<Invoice[]> => (await listAll<ApiRecord>('/invoices')).map(normalizeInvoice),
+    page: (params: ListParams = {}) => listPage<Invoice>('/invoices', params, normalizeInvoice),
+    list: async (params: ListParams = {}): Promise<Invoice[]> =>
+      (await listAll<ApiRecord>('/invoices', params)).map(normalizeInvoice),
     getItems: async (invoiceId: number): Promise<InvoiceItem[]> =>
       (await listAll<ApiRecord>('/invoice_items', { invoice_id: invoiceId })).map(normalizeInvoiceItem),
   },
