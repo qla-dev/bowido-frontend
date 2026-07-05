@@ -1896,9 +1896,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700 dark:text-rose-100">
                   {noQrReturnCopy.reportButtonLabel}
                 </p>
-                <p className="mt-1 text-[12px] font-bold leading-5 text-rose-700/80 dark:text-rose-100/85">
-                  {noQrReturnCopy.reportButtonText}
-                </p>
               </div>
             </button>
           )}
@@ -1915,9 +1912,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-100">
                   {noQrPickupCopy.buttonTitle}
-                </p>
-                <p className="mt-1 text-[12px] font-bold leading-5 text-emerald-700/80 dark:text-emerald-100/85">
-                  {noQrPickupCopy.buttonText}
                 </p>
               </div>
             </button>
