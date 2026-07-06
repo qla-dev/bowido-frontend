@@ -140,8 +140,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       id="app-top-navbar"
       className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur-xl shadow-sm shadow-zinc-200/60 dark:border-white/10 dark:bg-[#172d22]/92 dark:shadow-black/30 md:h-16"
     >
-      <div className="flex flex-col gap-2 px-4 py-2 md:h-full md:flex-row md:items-center md:justify-between md:gap-3 md:px-5 md:py-0">
-        <div className="flex items-center justify-center md:min-w-0 md:flex-1 md:justify-start">
+      <div className="flex flex-col gap-2 px-4 py-2 md:h-full md:flex-row md:items-center md:justify-end md:gap-3 md:px-5 md:py-0">
+        <div className="flex items-center justify-center md:hidden">
           <div className="flex min-w-[118px] shrink-0 items-center sm:min-w-[132px]">
             <img src={logoImage} alt="Logo" className="h-6 w-auto max-w-[118px] shrink-0 object-contain object-left sm:h-7 sm:max-w-[132px]" />
           </div>
@@ -578,9 +578,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
           }
         }}
         className={cn(
-          "sticky top-16 hidden h-[calc(100vh-4rem)] shrink-0 overflow-visible md:block",
+          "sticky top-0 hidden h-screen shrink-0 overflow-visible md:block",
           "transition-[width] duration-[400ms] ease-[cubic-bezier(0.25,0.8,0.25,1)]",
-          isSidebarExpanded ? "z-[1000]" : "z-30",
+          isSidebarExpanded ? "z-[1000]" : "z-[70]",
           sidebarRailWidth
         )}
       >
@@ -597,6 +597,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
           )}
           style={{ transform: 'translate3d(0, 0, 0)', backfaceVisibility: 'hidden' }}
         >
+          <div className="flex h-16 shrink-0 items-center overflow-hidden border-b border-zinc-100 px-3 dark:border-white/10">
+            <div
+              className="relative h-10 w-full min-w-0 overflow-hidden rounded-xl"
+              title={isCollapsed ? 'Trackpal app' : undefined}
+              aria-label="Trackpal app"
+            >
+              <span
+                className={cn(
+                  "absolute left-[0.9375rem] top-1/2 block h-7 -translate-y-1/2 overflow-hidden transition-[width] duration-[400ms] ease-[cubic-bezier(0.25,0.8,0.25,1)]",
+                  isCollapsed ? "w-5" : "w-[12.5rem]"
+                )}
+              >
+                <img
+                  src={logoImage}
+                  alt="Trackpal app"
+                  className="h-7 w-auto max-w-none shrink-0 object-contain object-left"
+                />
+              </span>
+            </div>
+          </div>
+
           <div className="px-3 pt-3 pb-1">
             <div className="flex items-center">
               <button
