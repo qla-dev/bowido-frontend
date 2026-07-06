@@ -3,39 +3,55 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Shield, ShieldCheck, Plus, Edit2, X, Check, Trash2 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Button, Card, Input, Badge, cn } from './ui';
-import { Role } from '../types';
+import { Permission, Role } from '../types';
 import { getPermissionDescription, getPermissionLabel, getRoleDescription } from '../i18n';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
+
+const ROLE_PAGE_SIZE = 10;
 
 export const RoleManager: React.FC = () => {
-  const { roles, permissions, addRole, updateRole, deleteRole, fetchRoles, t, language } = useApp();
+  const { permissions: cachedPermissions, addRole, updateRole, deleteRole, t, language } = useApp();
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>(cachedPermissions);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(ROLE_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: ROLE_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
   const [isEditing, setIsEditing] = useState(false);
   const [currentRole, setCurrentRole] = useState<Partial<Role> | null>(null);
   const [pendingDeleteRole, setPendingDeleteRole] = useState<Role | null>(null);
-  const [isLoading, setIsLoading] = useState(roles.length === 0);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (roles.length > 0 && permissions.length > 0) {
-      setIsLoading(false);
-    }
-  }, [roles.length, permissions.length]);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadRoles = async () => {
-      const hasCachedRoleData = roles.length > 0 && permissions.length > 0;
-
-      if (!hasCachedRoleData) {
-        setIsLoading(true);
-      }
-
+      setIsLoading(true);
       setError(null);
 
       try {
-        await fetchRoles();
+        const [rolePage, nextPermissions] = await Promise.all([
+          apiService.roles.page({ limit: pageLimit, offset: pageOffset }),
+          permissions.length > 0 ? Promise.resolve(permissions) : apiService.permissions.list(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setRoles(rolePage.items);
+        setPaginationMeta(rolePage.meta);
+        setPermissions(nextPermissions);
       } catch {
         if (isMounted) {
           setError(
@@ -58,7 +74,7 @@ export const RoleManager: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [pageLimit, pageOffset, reloadKey]);
 
   const handleSave = async () => {
     if (!currentRole?.name) return;
@@ -77,6 +93,8 @@ export const RoleManager: React.FC = () => {
         });
       }
 
+      setPageOffset(0);
+      setReloadKey((current) => current + 1);
       setIsEditing(false);
       setCurrentRole(null);
     } catch {
@@ -100,6 +118,7 @@ export const RoleManager: React.FC = () => {
 
     try {
       await deleteRole(pendingDeleteRole.id);
+      setReloadKey((current) => current + 1);
       setPendingDeleteRole(null);
     } catch {
       setError(
@@ -148,13 +167,7 @@ export const RoleManager: React.FC = () => {
         </div>
       )}
 
-      {isLoading && (
-        <Card>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-            {language === 'bs' ? 'Učitavanje uloga...' : language === 'nl' ? 'Rollen laden...' : 'Loading roles...'}
-          </p>
-        </Card>
-      )}
+      <PageLoadingModal isOpen={isLoading} language={language} />
 
       {!isLoading && roles.length === 0 && (
         <Card>
@@ -230,6 +243,20 @@ export const RoleManager: React.FC = () => {
           </motion.div>
         ))}
       </div>
+
+      <ListPagination
+        total={paginationMeta.total}
+        limit={paginationMeta.limit}
+        offset={paginationMeta.offset}
+        count={paginationMeta.count}
+        isLoading={isLoading}
+        language={language}
+        onPageChange={setPageOffset}
+        onLimitChange={(limit) => {
+          setPageOffset(0);
+          setPageLimit(limit);
+        }}
+      />
 
       <AnimatePresence>
         {pendingDeleteRole && (

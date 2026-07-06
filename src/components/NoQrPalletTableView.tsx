@@ -20,6 +20,9 @@ import { useApp } from '../AppContext';
 import { getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { Pallet } from '../types';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
 
 type NoQrColumnKey =
   | 'serial'
@@ -80,11 +83,23 @@ const NO_QR_MIN_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
   comment: 200,
 };
 
+const NO_QR_PAGE_SIZE = 25;
+
 export const NoQrPalletTableView: React.FC = () => {
-  const { pallets, clients, statuses, updatePallet, deletePallet, t, language } = useApp();
+  const { pallets: cachedPallets, clients, statuses, updatePallet, deletePallet, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<NoQrColumnKey, HTMLTableCellElement | null>>>({});
+  const [pallets, setPagedPallets] = useState<Pallet[]>([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(NO_QR_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: NO_QR_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const {
     headerCellClass,
     headerIconClass,
@@ -172,6 +187,51 @@ export const NoQrPalletTableView: React.FC = () => {
     width: number;
     maxHeight: number;
   } | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPage = async () => {
+      setIsPageLoading(true);
+
+      try {
+        const page = await apiService.pallets.page({
+          limit: pageLimit,
+          offset: pageOffset,
+          is_ghost: true,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPagedPallets(page.items);
+        setPaginationMeta(page.meta);
+      } catch (error) {
+        console.error('Failed to load paginated no-QR pallets', error);
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pageLimit, pageOffset]);
+
+  useEffect(() => {
+    if (cachedPallets.length === 0) {
+      return;
+    }
+
+    setPagedPallets((current) =>
+      current.map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+    );
+  }, [cachedPallets]);
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -452,7 +512,7 @@ export const NoQrPalletTableView: React.FC = () => {
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={filteredRows.length === 0}
+        isEmpty={!isPageLoading && filteredRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
@@ -719,6 +779,20 @@ export const NoQrPalletTableView: React.FC = () => {
             </tbody>
           </table>
         )}
+      />
+      <PageLoadingModal isOpen={isPageLoading} language={language} />
+      <ListPagination
+        total={paginationMeta.total}
+        limit={paginationMeta.limit}
+        offset={paginationMeta.offset}
+        count={paginationMeta.count}
+        isLoading={isPageLoading}
+        language={language}
+        onPageChange={setPageOffset}
+        onLimitChange={(limit) => {
+          setPageOffset(0);
+          setPageLimit(limit);
+        }}
       />
       {openFilterKey && renderFilterMenu(openFilterKey)}
       {activeCommentRow && (

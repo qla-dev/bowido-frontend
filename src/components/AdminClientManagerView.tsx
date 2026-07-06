@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertTriangle,
@@ -24,6 +24,9 @@ import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
 
 type SortKey =
   | 'client'
@@ -95,10 +98,22 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   overdueTotal: 140,
 };
 
+const CLIENT_MANAGER_PAGE_SIZE = 25;
+
 export const AdminClientManagerView: React.FC = () => {
-  const { clients, pallets, statuses, invoices, updateClient, t, language } = useApp();
+  const { clients: cachedClients, pallets, statuses, invoices, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
+  const [clients, setPagedClients] = useState<ClientDetail[]>([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(CLIENT_MANAGER_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: CLIENT_MANAGER_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'client',
@@ -114,6 +129,50 @@ export const AdminClientManagerView: React.FC = () => {
     bodyCellInnerClass,
     bodyTextClass,
   } = adminTableStyles;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPage = async () => {
+      setIsPageLoading(true);
+
+      try {
+        const page = await apiService.clients.page({
+          limit: pageLimit,
+          offset: pageOffset,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPagedClients(page.items);
+        setPaginationMeta(page.meta);
+      } catch (error) {
+        console.error('Failed to load paginated client manager rows', error);
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pageLimit, pageOffset]);
+
+  useEffect(() => {
+    if (cachedClients.length === 0) {
+      return;
+    }
+
+    setPagedClients((current) =>
+      current.map((client) => cachedClients.find((cachedClient) => cachedClient.id === client.id) || client)
+    );
+  }, [cachedClients]);
 
   const locale = language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB';
   const currencyFormatter = useMemo(
@@ -495,7 +554,7 @@ export const AdminClientManagerView: React.FC = () => {
         resizeAriaLabel={labels.resize}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={visibleRows.length === 0}
+        isEmpty={!isPageLoading && visibleRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <Search size={20} className="mx-auto mb-4 text-zinc-200" />
@@ -615,6 +674,22 @@ export const AdminClientManagerView: React.FC = () => {
             </tbody>
           </table>
         )}
+      />
+
+      <PageLoadingModal isOpen={isPageLoading} language={language} />
+
+      <ListPagination
+        total={paginationMeta.total}
+        limit={paginationMeta.limit}
+        offset={paginationMeta.offset}
+        count={paginationMeta.count}
+        isLoading={isPageLoading}
+        language={language}
+        onPageChange={setPageOffset}
+        onLimitChange={(limit) => {
+          setPageOffset(0);
+          setPageLimit(limit);
+        }}
       />
 
       {selectedRow && clientDraft && (

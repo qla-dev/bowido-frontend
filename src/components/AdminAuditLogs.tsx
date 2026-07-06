@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { Badge, Button, Card, Input, StatCard } from './ui';
 import { AppLanguage, getStatusLabel, localeMap } from '../i18n';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
 
 interface AdminAuditLogsProps {
   auditLogs: AuditLog[];
@@ -15,9 +18,10 @@ interface AdminAuditLogsProps {
 }
 
 type AuditFilter = 'all' | 'status' | 'qr_version';
+const AUDIT_LOG_PAGE_SIZE = 25;
 
 export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
-  auditLogs,
+  auditLogs: cachedAuditLogs,
   pallets,
   clients,
   language,
@@ -27,6 +31,70 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AuditFilter>('all');
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(AUDIT_LOG_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: AUDIT_LOG_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
+  const [isPageLoading, setIsPageLoading] = useState(false);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [filter]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPage = async () => {
+      setIsPageLoading(true);
+
+      try {
+        const page = await apiService.auditLogs.page({
+          limit: pageLimit,
+          offset: pageOffset,
+          event_type:
+            filter === 'qr_version'
+              ? 'qr_code_changed'
+              : filter === 'status'
+                ? 'status_changed'
+                : undefined,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setAuditLogs(page.items);
+        setPaginationMeta(page.meta);
+      } catch (error) {
+        console.error('Failed to load paginated audit logs', error);
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filter, pageLimit, pageOffset]);
+
+  useEffect(() => {
+    if (cachedAuditLogs.length === 0) {
+      return;
+    }
+
+    setAuditLogs((current) =>
+      current.map((log) => cachedAuditLogs.find((cachedLog) => cachedLog.id === log.id) || log)
+    );
+  }, [cachedAuditLogs]);
 
   const sortedLogs = useMemo(
     () =>
@@ -75,7 +143,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   return (
     <div className="space-y-6 pb-12">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatCard label={t('totalLogs')} value={auditLogs.length} />
+        <StatCard label={t('totalLogs')} value={paginationMeta.total} />
         <StatCard label={t('statusChanges')} value={statusLogCount} variant="info" />
         <StatCard label={t('qrVersionChanges')} value={qrVersionLogCount} variant="success" />
       </div>
@@ -230,6 +298,24 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+
+        <PageLoadingModal isOpen={isPageLoading} language={language} />
+
+        <div className="border-t border-zinc-100 p-4">
+          <ListPagination
+            total={paginationMeta.total}
+            limit={paginationMeta.limit}
+            offset={paginationMeta.offset}
+            count={paginationMeta.count}
+            isLoading={isPageLoading}
+            language={language}
+            onPageChange={setPageOffset}
+            onLimitChange={(limit) => {
+              setPageOffset(0);
+              setPageLimit(limit);
+            }}
+          />
         </div>
       </Card>
     </div>

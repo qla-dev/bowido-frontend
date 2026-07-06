@@ -20,6 +20,9 @@ import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
 
 type SortKey =
   | 'pallet'
@@ -82,6 +85,8 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   debt: 115,
 };
 
+const CLIENT_PALLET_PAGE_SIZE = 25;
+
 const createEmptySelections = (): FilterSelections => ({
   pallet: [],
   type: [],
@@ -109,10 +114,20 @@ interface ClientPalletDesktopTableProps {
 }
 
 export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> = ({ client }) => {
-  const { pallets, statuses, auditLogs, t, language } = useApp();
+  const { pallets: cachedPallets, statuses, auditLogs, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
+  const [pallets, setPagedPallets] = useState<Pallet[]>([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(CLIENT_PALLET_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: CLIENT_PALLET_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [selectedPallet, setSelectedPallet] = useState<PalletRow | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'debt',
@@ -185,6 +200,55 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [client.user_id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPage = async () => {
+      setIsPageLoading(true);
+
+      try {
+        const page = await apiService.pallets.page({
+          limit: pageLimit,
+          offset: pageOffset,
+          user_id: client.user_id,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPagedPallets(page.items);
+        setPaginationMeta(page.meta);
+      } catch (error) {
+        console.error('Failed to load paginated client pallets', error);
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [client.user_id, pageLimit, pageOffset]);
+
+  useEffect(() => {
+    if (cachedPallets.length === 0) {
+      return;
+    }
+
+    setPagedPallets((current) =>
+      current.map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+    );
+  }, [cachedPallets]);
 
   const getDaysSince = (date: string) =>
     Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
@@ -496,7 +560,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={filteredRows.length === 0}
+        isEmpty={!isPageLoading && filteredRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <Search size={20} className="mx-auto mb-4 text-zinc-200" />
@@ -614,6 +678,24 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
           </table>
         )}
       />
+
+      <PageLoadingModal isOpen={isPageLoading} language={language} />
+
+      <div className="mt-3">
+        <ListPagination
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          offset={paginationMeta.offset}
+          count={paginationMeta.count}
+          isLoading={isPageLoading}
+          language={language}
+          onPageChange={setPageOffset}
+          onLimitChange={(limit) => {
+            setPageOffset(0);
+            setPageLimit(limit);
+          }}
+        />
+      </div>
 
       {openFilterKey && renderFilterMenu(openFilterKey)}
 

@@ -22,6 +22,9 @@ import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, RoleType } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { ListPagination } from './ListPagination';
+import { PageLoadingModal } from './PageLoadingModal';
+import { apiService, PaginationMeta } from '../services/api';
 
 type SortKey =
   | 'client'
@@ -98,6 +101,8 @@ const MIN_COLUMN_WIDTHS: Record<ColumnKey, number> = {
   actions: 92,
 };
 
+const CLIENT_PAGE_SIZE = 25;
+
 interface ClientTableViewProps {
   onAddClient?: () => void;
   onEditClient?: (client: ClientDetail) => void;
@@ -105,7 +110,17 @@ interface ClientTableViewProps {
 }
 
 export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, onEditClient, clientIdFilter }) => {
-  const { clients, pallets, statuses, t, language } = useApp();
+  const { clients: cachedClients, pallets, statuses, t, language } = useApp();
+  const [clients, setPagedClients] = useState<ClientDetail[]>([]);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(CLIENT_PAGE_SIZE);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
+    total: 0,
+    limit: CLIENT_PAGE_SIZE,
+    offset: 0,
+    count: 0,
+  });
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -122,6 +137,55 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     mediaQuery.addEventListener('change', handleResize);
     return () => mediaQuery.removeEventListener('change', handleResize);
   }, []);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [clientIdFilter]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPage = async () => {
+      setIsPageLoading(true);
+
+      try {
+        const page = await apiService.clients.page({
+          limit: clientIdFilter === undefined ? pageLimit : 1,
+          offset: clientIdFilter === undefined ? pageOffset : 0,
+          user_id: clientIdFilter,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPagedClients(page.items);
+        setPaginationMeta(page.meta);
+      } catch (error) {
+        console.error('Failed to load paginated clients', error);
+      } finally {
+        if (isMounted) {
+          setIsPageLoading(false);
+        }
+      }
+    };
+
+    void loadPage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clientIdFilter, pageLimit, pageOffset]);
+
+  useEffect(() => {
+    if (cachedClients.length === 0) {
+      return;
+    }
+
+    setPagedClients((current) =>
+      current.map((client) => cachedClients.find((cachedClient) => cachedClient.id === client.id) || client)
+    );
+  }, [cachedClients]);
 
   const filteredClients = useMemo(() => {
     if (clientIdFilter !== undefined) {
@@ -1097,7 +1161,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={filteredRows.length === 0}
+        isEmpty={!isPageLoading && filteredRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
@@ -1289,6 +1353,28 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           </table>
         )}
       />
+
+      <PageLoadingModal isOpen={isPageLoading} language={language} />
+
+      {clientIdFilter === undefined && (
+        <ListPagination
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          offset={paginationMeta.offset}
+          count={paginationMeta.count}
+          isLoading={isPageLoading}
+          language={language}
+          onPageChange={setPageOffset}
+          onLimitChange={
+            clientIdFilter === undefined
+              ? (limit) => {
+                  setPageOffset(0);
+                  setPageLimit(limit);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
