@@ -3,16 +3,16 @@ import { Card, cn } from './ui';
 
 export const adminTableStyles = {
   headerCellClass:
-    'relative border-r border-zinc-200 px-3 py-3 pr-4 align-middle text-center last:border-r-0',
+    'relative border-r border-zinc-200 px-3 py-3 pr-4 align-middle text-center last:border-r-0 dark:border-white/15',
   headerIconClass:
-    'flex h-[1.625rem] w-[1.625rem] shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-500',
+    'flex h-[1.625rem] w-[1.625rem] shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 dark:border dark:border-white/10 dark:bg-white/[0.08] dark:text-zinc-300',
   headerIconButtonClass:
-    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-700',
+    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-700 dark:border-white/15 dark:bg-[#18181b] dark:text-zinc-300 dark:hover:border-white/30 dark:hover:bg-white/[0.08] dark:hover:text-zinc-50',
   headerContentClass: 'flex w-full min-w-0 items-center justify-center gap-2 whitespace-nowrap',
   bodyCellClass:
-    'border-r border-zinc-100 px-3.5 py-3.5 align-middle text-center last:border-r-0',
+    'border-r border-zinc-100 px-3.5 py-3.5 align-middle text-center last:border-r-0 dark:border-white/15',
   bodyCellInnerClass: 'flex min-h-[2.75rem] min-w-0 items-center justify-center',
-  bodyTextClass: 'truncate text-[11px] font-bold tracking-tight',
+  bodyTextClass: 'truncate text-[11px] font-bold tracking-tight dark:text-zinc-300',
 } as const;
 
 export type AdminTableHeaderCellRefs<K extends string> = React.MutableRefObject<

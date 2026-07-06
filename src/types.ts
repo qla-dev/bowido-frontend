@@ -14,6 +14,9 @@ export interface Role {
 
 export enum RoleType {
   ADMIN = 'Admin',
+  ADMIN_SERVICE = 'Admin Servis',
+  ADMIN_WAREHOUSE = 'Admin Magacin',
+  FINANCE_ADMINISTRATION = 'Finance & Administration',
   VOZAC = 'Vozač',
   MAGACINER = 'Magaciner',
   KLIJENT = 'Klijent/Kupac',

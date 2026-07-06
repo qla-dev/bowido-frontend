@@ -30,6 +30,9 @@ export const isAppLanguage = (value: string | null | undefined): value is AppLan
 export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   en: {
     [RoleType.ADMIN]: 'Admin',
+    [RoleType.ADMIN_SERVICE]: 'Admin Service',
+    [RoleType.ADMIN_WAREHOUSE]: 'Admin Warehouse',
+    [RoleType.FINANCE_ADMINISTRATION]: 'Finance & Administration',
     [RoleType.VOZAC]: 'Driver',
     [RoleType.MAGACINER]: 'Warehouse',
     [RoleType.KLIJENT]: 'Client / Buyer',
@@ -37,6 +40,9 @@ export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   },
   nl: {
     [RoleType.ADMIN]: 'Admin',
+    [RoleType.ADMIN_SERVICE]: 'Admin Service',
+    [RoleType.ADMIN_WAREHOUSE]: 'Admin Magazijn',
+    [RoleType.FINANCE_ADMINISTRATION]: 'Financien en Administratie',
     [RoleType.VOZAC]: 'Chauffeur',
     [RoleType.MAGACINER]: 'Magazijn',
     [RoleType.KLIJENT]: 'Klant / Koper',
@@ -44,6 +50,9 @@ export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   },
   bs: {
     [RoleType.ADMIN]: 'Admin',
+    [RoleType.ADMIN_SERVICE]: 'Admin Servis',
+    [RoleType.ADMIN_WAREHOUSE]: 'Admin Magacin',
+    [RoleType.FINANCE_ADMINISTRATION]: 'Finansije i Administracija',
     [RoleType.VOZAC]: 'Vozač',
     [RoleType.MAGACINER]: 'Magaciner',
     [RoleType.KLIJENT]: 'Klijent / Kupac',
@@ -51,13 +60,28 @@ export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   },
 };
 
-export const rolePermissionCatalog: Record<AppLanguage, Record<RoleType, string[]>> = {
+export const rolePermissionCatalog: Record<AppLanguage, Partial<Record<RoleType, string[]>>> = {
   en: {
     [RoleType.ADMIN]: [
       'View every module',
       'Create and edit users',
       'Manage roles and access',
       'Control invoices and logistics',
+    ],
+    [RoleType.ADMIN_SERVICE]: [
+      'View service operations',
+      'Track repair queue',
+      'Close service tasks',
+    ],
+    [RoleType.ADMIN_WAREHOUSE]: [
+      'View warehouse operations',
+      'Track stock and movements',
+      'Manage operational statuses',
+    ],
+    [RoleType.FINANCE_ADMINISTRATION]: [
+      'View finance overview',
+      'Review overdue balances',
+      'Export invoices',
     ],
     [RoleType.VOZAC]: [
       'View active routes',
@@ -86,6 +110,21 @@ export const rolePermissionCatalog: Record<AppLanguage, Record<RoleType, string[
       'Gebruikers aanmaken en bewerken',
       'Rollen en toegang beheren',
       'Facturen en logistiek beheren',
+    ],
+    [RoleType.ADMIN_SERVICE]: [
+      'Serviceoverzicht bekijken',
+      'Reparatierij volgen',
+      'Servicetaken afsluiten',
+    ],
+    [RoleType.ADMIN_WAREHOUSE]: [
+      'Magazijnoverzicht bekijken',
+      'Voorraad en bewegingen volgen',
+      'Operationele statussen beheren',
+    ],
+    [RoleType.FINANCE_ADMINISTRATION]: [
+      'Financieel overzicht bekijken',
+      'Openstaande saldi controleren',
+      'Facturen exporteren',
     ],
     [RoleType.VOZAC]: [
       'Actieve ritten bekijken',

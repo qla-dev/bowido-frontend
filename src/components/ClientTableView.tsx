@@ -658,8 +658,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     return (
       <div className="space-y-4">
         {!mobileClientRow ? (
-          <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#203d31]">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+          <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#151d1a]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#101715]">
               <Search size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
@@ -679,7 +679,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                   {mobileProfileLabel}
                 </p>
@@ -687,7 +687,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   {mobileClientRow.clientName}
                 </p>
               </div>
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                   {t('pricePerDayLabel')}
                 </p>
@@ -695,7 +695,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   {mobileClientRow.rateLabel}
                 </p>
               </div>
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                   {mobilePalletsAtClientLabel}
                 </p>
@@ -703,7 +703,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   {mobileClientRow.atClientLabel}
                 </p>
               </div>
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                   {mobileOverdueDaysLabel}
                 </p>
@@ -713,9 +713,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
               </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-zinc-100 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-[#203d31]">
+            <div className="rounded-[1.5rem] border border-zinc-100 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-[#151d1a]">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#101715] dark:text-[#d5f1de]">
                   <AlertTriangle size={18} />
                 </div>
                 <div className="min-w-0">
@@ -741,20 +741,20 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 <button
                   type="button"
                   onClick={() => setActiveMobilePalletList('withQr')}
-                  className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white"
+                  className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#151d1a] dark:text-white"
                 >
                   <span>{mobileWithQrLabel}</span>
-                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#101715] dark:text-[#d5f1de]">
                     {mobileQrPallets.length}
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveMobilePalletList('withoutQr')}
-                  className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white"
+                  className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#151d1a] dark:text-white"
                 >
                   <span>{mobileWithoutQrLabel}</span>
-                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#172d22] dark:text-[#d5f1de]">
+                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#101715] dark:text-[#d5f1de]">
                     {mobileNoQrPallets.length}
                   </span>
                 </button>
@@ -768,7 +768,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 {mobileClientPallets.length > 0 ? (
                   <div className="max-h-[360px] overflow-auto">
                 <div className="min-w-[540px]">
-                  <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.7fr)_minmax(0,1.15fr)_58px_58px_76px] items-center gap-4 border-b border-zinc-100 bg-white pb-2 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:border-white/10 dark:bg-[#172d22] dark:text-[#9fcbb3]">
+                  <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1.7fr)_minmax(0,1.15fr)_58px_58px_76px] items-center gap-4 border-b border-zinc-100 bg-white pb-2 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
                     <span>{t('qrCode')}</span>
                     <span>{t('status')}</span>
                     <span>{t('daysOut')}</span>
@@ -808,8 +808,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 </div>
               </div>
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#203d31]">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+              <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#151d1a]">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#101715]">
                   <Package size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
                 </div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
@@ -828,10 +828,10 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 width="sm"
                 overlayClassName="z-[110] items-center p-4"
                 contentClassName="h-auto max-h-[82dvh] max-w-sm rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
-                bodyClassName="bg-zinc-50/80 px-4 py-3 dark:bg-[#13241b]"
+                bodyClassName="bg-zinc-50/80 px-4 py-3 dark:bg-[#070b0a]"
               >
                 {activeMobilePalletItems.length > 0 ? (
-                  <div className="overflow-hidden rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#203d31]">
+                  <div className="overflow-hidden rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#151d1a]">
                     {activeMobilePalletList === 'withoutQr' ? (
                       <>
                         <div className="grid grid-cols-[42px_minmax(0,1fr)_82px] items-center gap-2 border-b border-zinc-100 px-3 py-2.5 text-[8px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:border-white/10 dark:text-[#9fcbb3]">
@@ -921,8 +921,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     )}
                   </div>
                 ) : (
-                  <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#203d31]">
-                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+                  <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#151d1a]">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#101715]">
                       <Package size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
                     </div>
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
@@ -944,11 +944,11 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 width="sm"
                 overlayClassName="z-[120] items-center p-4"
                 contentClassName="h-auto max-h-[72dvh] max-w-sm rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
-                bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#13241b]"
+                bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#070b0a]"
               >
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                         {selectedMobilePallet.view === 'withoutQr' ? mobilePalletNumberLabel : t('qrCode')}
                       </p>
@@ -958,7 +958,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                           : selectedMobilePallet.item.pallet.qr_code}
                       </p>
                     </div>
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                         {t('status')}
                       </p>
@@ -968,7 +968,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                           : getStatusLabel(selectedMobilePallet.item.pallet.current_status_name, language)}
                       </p>
                     </div>
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                         {mobileReturnDateLabel}
                       </p>
@@ -976,7 +976,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         {getMobilePalletDate(selectedMobilePallet.item)}
                       </p>
                     </div>
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                         {t('location')}
                       </p>
@@ -986,7 +986,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     </div>
                   </div>
 
-                  <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#203d31]">
+                  <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
                     <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
                       {mobileCommentLabel}
                     </p>
@@ -1007,8 +1007,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     return (
       <div className="space-y-6">
         {!mobileClientRow ? (
-          <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#203d31]">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]">
+          <div className="rounded-[1.75rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-12 text-center dark:border-white/10 dark:bg-[#151d1a]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#101715]">
               <Search size={18} className="text-zinc-300 dark:text-[#9fcbb3]" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
@@ -1018,7 +1018,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         ) : (
           <>
             <div className="grid gap-4 lg:grid-cols-4">
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   {t('companyName')}
                 </p>
@@ -1026,7 +1026,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   {mobileClientRow.clientName}
                 </p>
               </div>
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   KVK
                 </p>
@@ -1034,7 +1034,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   {mobileClientRow.kvkLabel}
                 </p>
               </div>
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   {t('ratePerDayLabel')}
                 </p>
@@ -1042,7 +1042,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                   {mobileClientRow.rateLabel}
                 </p>
               </div>
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#1a3327]">
+              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   {mobileTotalDebtLabel}
                 </p>

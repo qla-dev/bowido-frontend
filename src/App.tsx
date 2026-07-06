@@ -6,14 +6,12 @@
 import { useEffect, useState } from 'react';
 import { Sidebar, BottomNav, TopNavbar } from './components/Navigation';
 import { AdminDashboard } from './components/AdminDashboard';
-import { WorkerDashboard } from './components/WorkerDashboard';
-import { ClientDashboard } from './components/ClientDashboard';
 import { ClientTableView } from './components/ClientTableView';
-import { ServiceDashboard } from './components/ServiceDashboard';
 import { PalletScanner } from './components/PalletScanner';
 import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
+import { AdminRoleOperationsView } from './components/AdminRoleOperationsView';
 import { ManagedUser, RoleType, User } from './types';
 import { LogIn, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -59,7 +57,7 @@ const AppFooter = ({ className }: { className?: string }) => {
   return (
     <footer
       className={cn(
-        'w-full shrink-0 bg-white/95 backdrop-blur-xl dark:bg-[#17291f]/94',
+        'w-full shrink-0 bg-white/95 backdrop-blur-xl dark:bg-[#0c1110]/94',
         className
       )}
     >
@@ -193,7 +191,7 @@ export default function App() {
     (isDriverShell || isMobileViewport);
   const usesFixedMobileShell = false;
   const usesInternalScrollShell = Boolean(currentUser) && (usesRoleMobileShell || usesFixedMobileShell);
-  const chromeTintColor = usesRoleMobileShell ? '#00A655' : isNightMode ? '#17291f' : '#ffffff';
+  const chromeTintColor = isNightMode ? '#070b0a' : usesRoleMobileShell ? '#00A655' : '#ffffff';
 
   useEffect(() => {
     if (!usesInternalScrollShell) {
@@ -367,7 +365,7 @@ export default function App() {
                     key={user.id}
                     onClick={() => void handleLogin(user)}
                     disabled={loggingInUserId !== null}
-                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#1a3327] dark:border-white/10 dark:hover:border-[#00A655]"
+                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#101715] dark:border-white/10 dark:hover:border-[#00A655]"
                   >
                     <div className="flex flex-col items-start">
                       <span className="font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
@@ -378,7 +376,7 @@ export default function App() {
                       </span>
                     </div>
 
-                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#234437] dark:border-white/10">
+                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#151d1a] dark:border-white/10">
                       <LogIn size={18} className={loggingInUserId === user.id ? 'animate-pulse' : ''} />
                     </div>
                   </button>
@@ -445,7 +443,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setIsNightMode(!isNightMode)}
-                className="p-4 rounded-2xl border border-emerald-100 bg-white text-left hover:border-emerald-300 transition-colors dark:bg-[#1a3327] dark:border-white/10"
+                className="p-4 rounded-2xl border border-emerald-100 bg-white text-left hover:border-emerald-300 transition-colors dark:bg-[#101715] dark:border-white/10"
               >
                 <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
                   {t('nightMode')}
@@ -460,12 +458,11 @@ export default function App() {
       );
     }
 
-    if (activeTab === 'client-table' && currentUser.role_name === RoleType.KLIJENT) {
-      return (
-        <Card title={language === 'bs' ? 'Pregled podataka o klijentu' : language === 'nl' ? 'Klantgegevens overzicht' : 'Client Data Overview'} className="w-full">
-          <ClientTableView clientIdFilter={currentUser.id} />
-        </Card>
-      );
+    if (
+      currentUser.role_name === RoleType.KLIJENT &&
+      (activeTab === 'client-table' || (!usesRoleMobileShell && activeTab === 'dashboard'))
+    ) {
+      return <ClientTableView clientIdFilter={currentUser.id} />;
     }
 
     if (usesRoleMobileShell) {
@@ -505,11 +502,17 @@ export default function App() {
       case RoleType.VOZAC:
         return <DriverMobileDashboard user={currentUser} />;
       case RoleType.MAGACINER:
-        return <WorkerDashboard role={currentUser.role_name} user={currentUser} />;
+        return <AdminRoleOperationsView mode="warehouse" />;
       case RoleType.KLIJENT:
-        return <ClientDashboard user={currentUser} activeTab={activeTab} onNavigateHome={() => setActiveTab('dashboard')} />;
+        return <ClientTableView clientIdFilter={currentUser.id} />;
       case RoleType.SERVISER:
-        return <ServiceDashboard user={currentUser} />;
+        return <AdminRoleOperationsView mode="service" />;
+      case RoleType.ADMIN_SERVICE:
+        return <AdminRoleOperationsView mode="service" />;
+      case RoleType.ADMIN_WAREHOUSE:
+        return <AdminRoleOperationsView mode="warehouse" />;
+      case RoleType.FINANCE_ADMINISTRATION:
+        return <AdminRoleOperationsView mode="finance" />;
       default:
         return (
           <AdminDashboard
@@ -587,7 +590,7 @@ export default function App() {
     <div
       id="app-container"
       className={cn(
-        'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors',
+        'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#070b0a] dark:text-zinc-50',
         isNightMode && 'dark',
         usesFixedMobileShell ? 'fixed inset-0 flex flex-col overflow-hidden' : 'min-h-screen'
       )}

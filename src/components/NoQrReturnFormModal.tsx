@@ -270,9 +270,9 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
       subtitle={copy.title}
       width="lg"
       overlayClassName="z-[110]"
-      bodyClassName="bg-zinc-50/80 dark:bg-[#13241b]"
+      bodyClassName="bg-zinc-50/80 dark:bg-[#070b0a]"
       footer={
-        <div className="bg-white px-5 py-4 dark:bg-[#172d22]">
+        <div className="bg-white px-5 py-4 dark:bg-[#0f1513]">
           <Button
             className="w-full"
             onClick={handleSubmit}
@@ -290,7 +290,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
             {copy.companyLabel}
           </label>
           {isClient ? (
-            <Input value={selectedClient?.name || currentUser.name} readOnly className="bg-white dark:bg-[#1f3a2d]" />
+            <Input value={selectedClient?.name || currentUser.name} readOnly className="bg-white dark:bg-[#151d1a]" />
           ) : (
             <Select
               value={selectedClientId}
@@ -309,7 +309,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
           <label className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[#9fcbb3]">
             {copy.countLabel}
           </label>
-          <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem] overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#1f3a2d]">
+          <div className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem] overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-white/10 dark:bg-[#101715]">
             <button
               type="button"
               onClick={() => setPalletCount((current) => Math.max(1, current - 1))}
@@ -339,10 +339,10 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
             {locationEntries.map((entry, index) => (
               <div
                 key={`no-qr-location-${index}`}
-                className="rounded-[1.6rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#1f3a2d]"
+                className="rounded-[1.6rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#101715]"
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100">
                     <MapPin size={16} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -367,7 +367,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                       'flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                       entry.mode === 'warehouse'
                         ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100'
-                        : 'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-[#172d22] dark:text-zinc-300'
+                        : 'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-[#151d1a] dark:text-zinc-300'
                     )}
                   >
                     <span
@@ -393,7 +393,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                       'flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                       entry.mode === 'other'
                         ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100'
-                        : 'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-[#172d22] dark:text-zinc-300'
+                        : 'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-[#151d1a] dark:text-zinc-300'
                     )}
                   >
                     <span
@@ -428,7 +428,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                             'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
                             entry.warehouseIndex === warehouseIndex
                               ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100'
-                              : 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-[#172d22] dark:text-zinc-300'
+                              : 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-white/10 dark:bg-[#151d1a] dark:text-zinc-300'
                           )}
                         >
                           <span
@@ -464,7 +464,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                       value={entry.details}
                       onChange={(event) => updateLocationEntry(index, { details: event.target.value })}
                       placeholder={copy.locationPlaceholder}
-                      className="bg-zinc-50 normal-case tracking-normal dark:bg-[#172d22]"
+                      className="bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]"
                     />
                   </div>
                 )}
@@ -493,7 +493,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
               'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors',
               directPickup
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-100'
-                : 'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-300'
+                : 'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-300'
             )}
           >
             <span
@@ -524,7 +524,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                   onChange={(event) => setPickupDate(event.target.value)}
                   placeholder={copy.pickupDatePlaceholder}
                   aria-label={copy.pickupDatePlaceholder}
-                  className="bg-white pr-11 dark:bg-[#1f3a2d]"
+                  className="bg-white pr-11 dark:bg-[#151d1a]"
                 />
               </div>
             </div>
@@ -539,7 +539,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder={copy.commentPlaceholder}
-            className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-[12px] font-bold text-zinc-800 outline-none transition-colors placeholder:text-zinc-300 focus:border-[#00A655] dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white dark:placeholder:text-zinc-500"
+            className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-[12px] font-bold text-zinc-800 outline-none transition-colors placeholder:text-zinc-300 focus:border-[#00A655] dark:border-white/10 dark:bg-[#151d1a] dark:text-white dark:placeholder:text-zinc-500"
           />
         </div>
       </div>

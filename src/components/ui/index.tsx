@@ -17,11 +17,11 @@ export const Badge: React.FC<BadgeProps> = ({
   ...props 
 }) => {
   const styles = {
-    default: 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-[#2a4c3b] dark:text-[#f0fff5] dark:border-white/15',
-    info: 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-[#203d5f] dark:text-[#eef5ff] dark:border-[#5f86b8]',
-    warning: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-[#4a3917] dark:text-[#fff0c4] dark:border-[#aa8230]',
-    success: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-[#173d2a] dark:text-[#e5ffed] dark:border-[#3fa972]',
-    danger: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-[#4a1f2b] dark:text-[#ffe1e7] dark:border-[#b24c67]',
+    default: 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-white/[0.07] dark:text-zinc-100 dark:border-white/10',
+    info: 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-sky-400/10 dark:text-sky-100 dark:border-sky-300/20',
+    warning: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-400/10 dark:text-amber-100 dark:border-amber-300/20',
+    success: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-white/[0.08] dark:text-zinc-100 dark:border-white/10',
+    danger: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-400/10 dark:text-rose-100 dark:border-rose-300/20',
   };
 
   return (
@@ -48,10 +48,10 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const variants = {
-    primary: 'bg-[#00A655] text-white hover:bg-[#008f49] border-[#00A655] shadow-md shadow-emerald-900/10',
-    secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-zinc-200 dark:bg-[#2a4a39] dark:text-[#f6fff8] dark:border-white/15 dark:hover:bg-[#345c48]',
-    outline: 'bg-transparent border-zinc-200 text-zinc-900 hover:border-[#00A655] hover:bg-emerald-50 dark:border-white/15 dark:text-white dark:hover:bg-[#284f3e] dark:hover:border-[#52c98c]',
-    ghost: 'bg-transparent text-zinc-500 hover:bg-zinc-50 border-transparent dark:text-[#cfe4d6] dark:hover:bg-white/10 dark:hover:text-white',
+    primary: 'bg-[#00A655] text-white hover:bg-[#008f49] border-[#00A655] shadow-md shadow-emerald-900/10 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:border-zinc-600 dark:shadow-black/30',
+    secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-zinc-200 dark:bg-white/[0.08] dark:text-zinc-100 dark:border-white/10 dark:hover:bg-white/[0.13]',
+    outline: 'bg-transparent border-zinc-200 text-zinc-900 hover:border-[#00A655] hover:bg-emerald-50 dark:border-white/12 dark:text-zinc-100 dark:hover:bg-white/[0.09] dark:hover:border-white/20',
+    ghost: 'bg-transparent text-zinc-500 hover:bg-zinc-50 border-transparent dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-white',
     danger: 'bg-rose-600 text-white hover:bg-rose-700 border-rose-600 shadow-md shadow-rose-900/10',
   };
 
@@ -93,13 +93,13 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   return (
     <div className={cn(
-      "bg-white border border-zinc-200 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] rounded-2xl flex flex-col dark:bg-[#1a3327] dark:border-white/15 dark:shadow-[0_24px_70px_-24px_rgba(0,0,0,0.45)]",
+      "bg-white border border-zinc-200 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] rounded-2xl flex flex-col dark:bg-[#101715] dark:border-white/10 dark:shadow-[0_24px_70px_-24px_rgba(0,0,0,0.78)]",
       className
     )} {...props}>
       {(title || action) && (
         <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-1.5 h-1.5 bg-[#00A655] rounded-sm" />
+            <div className="w-1.5 h-1.5 bg-[#00A655] rounded-sm dark:bg-zinc-500" />
             <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-zinc-950 dark:text-white font-display">{title}</h3>
           </div>
           {action && <div className="flex items-center">{action}</div>}
@@ -121,7 +121,7 @@ export const Input: React.FC<InputProps> = ({ className, ...props }) => {
   return (
     <input 
       className={cn(
-        "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all placeholder:text-zinc-300 uppercase tracking-tight dark:bg-[#243f32] dark:border-white/15 dark:text-white dark:placeholder:text-[#87a995] dark:focus:bg-[#2c4d3d] dark:focus:border-[#52c98c]",
+        "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all placeholder:text-zinc-300 uppercase tracking-tight dark:bg-[#151d1a] dark:border-white/10 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:bg-[#1b2622] dark:focus:border-white/25",
         className
       )}
       {...props}
@@ -136,7 +136,7 @@ export const Select: React.FC<SelectProps> = ({ children, className, ...props })
     <div className="relative w-full">
       <select 
         className={cn(
-          "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all uppercase tracking-tight appearance-none cursor-pointer pr-10 dark:bg-[#243f32] dark:border-white/15 dark:text-white dark:focus:bg-[#2c4d3d] dark:focus:border-[#52c98c]",
+          "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all uppercase tracking-tight appearance-none cursor-pointer pr-10 dark:bg-[#151d1a] dark:border-white/10 dark:text-zinc-50 dark:focus:bg-[#1b2622] dark:focus:border-white/25",
           className
         )}
         {...props}
@@ -158,11 +158,11 @@ export const StatCard: React.FC<{
   trendUp?: boolean;
 }> = ({ label, value, variant = 'default', trend, trendUp }) => {
   const styles = {
-    default: 'border-zinc-200 bg-white text-zinc-950 dark:border-white/15 dark:bg-[#1a3327] dark:text-white',
-    info: 'border-indigo-100 bg-indigo-50/40 text-indigo-900 dark:border-[#5f86b8] dark:bg-[#203d5f] dark:text-[#eef5ff]',
-    warning: 'border-amber-100 bg-amber-50/40 text-amber-900 dark:border-[#aa8230] dark:bg-[#4a3917] dark:text-[#fff0c4]',
-    success: 'border-emerald-100 bg-emerald-50/40 text-emerald-900 dark:border-[#3fa972] dark:bg-[#173d2a] dark:text-[#e5ffed]',
-    danger: 'border-rose-100 bg-rose-50/40 text-rose-900 dark:border-[#b24c67] dark:bg-[#4a1f2b] dark:text-[#ffe1e7]',
+    default: 'border-zinc-200 bg-white text-zinc-950 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-50',
+    info: 'border-indigo-100 bg-indigo-50/40 text-indigo-900 dark:border-sky-300/20 dark:bg-sky-400/10 dark:text-sky-100',
+    warning: 'border-amber-100 bg-amber-50/40 text-amber-900 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
+    success: 'border-emerald-100 bg-emerald-50/40 text-emerald-900 dark:border-white/10 dark:bg-white/[0.08] dark:text-zinc-100',
+    danger: 'border-rose-100 bg-rose-50/40 text-rose-900 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100',
   };
 
   return (
@@ -176,7 +176,7 @@ export const StatCard: React.FC<{
           <span className={cn(
             "text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded border",
             trendUp
-              ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-400/20 dark:text-emerald-100 dark:border-emerald-300/20"
+              ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-white/[0.1] dark:text-zinc-100 dark:border-white/10"
               : "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-400/20 dark:text-rose-100 dark:border-rose-300/20"
           )}>
             {trend}

@@ -920,7 +920,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       <button
         type="button"
         onClick={() => toggleSort(key)}
-        className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700"
+        className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50"
       >
         <span className="block min-w-0 truncate">{label}</span>
         <ArrowUpDown size={13} className="shrink-0" />
@@ -939,11 +939,11 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     bodyTextClass,
   } = adminTableStyles;
   const textFilterInputClass =
-    'h-10 bg-white px-3 text-left text-[12px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal';
+    'h-10 bg-white px-3 text-left text-[12px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#18181b] dark:text-zinc-100 dark:placeholder:text-zinc-500';
   const stickyActionsHeaderClass =
-    'sticky right-0 z-20 border-l border-zinc-200 bg-zinc-50/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur';
+    'sticky right-0 z-20 border-l border-zinc-200 bg-zinc-50/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur dark:border-white/20 dark:bg-[#18181b]/95 dark:shadow-[-16px_0_30px_-18px_rgba(0,0,0,0.9)]';
   const stickyActionsCellClass =
-    'sticky right-0 z-10 border-l border-zinc-100 bg-white/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.35)] backdrop-blur group-hover:bg-zinc-50/95';
+    'sticky right-0 z-10 border-l border-zinc-100 bg-white/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.35)] backdrop-blur group-hover:bg-zinc-50/95 dark:border-white/20 dark:bg-[#141416]/95 dark:shadow-[-16px_0_30px_-18px_rgba(0,0,0,0.9)] dark:group-hover:bg-[#202024]/95';
   const getDeadlineToneClass = (tone: DeadlineTone) => {
     switch (tone) {
       case 'danger':
@@ -983,7 +983,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           width: filterMenuStyle.width,
           maxHeight: filterMenuStyle.maxHeight,
         }}
-        className="fixed z-30 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white p-3 shadow-[0_18px_40px_-22px_rgba(0,0,0,0.28)]"
+        className="fixed z-30 flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white p-3 shadow-[0_18px_40px_-22px_rgba(0,0,0,0.28)] dark:border-white/15 dark:bg-[#101113] dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
       >
         <Input
           value={filterSearch[key]}
@@ -1001,13 +1001,13 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           <button
             type="button"
             onClick={() => clearColumnFilter(key)}
-            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+            className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-50"
           >
             <span>{showAllLabel}</span>
             <RotateCcw size={12} />
           </button>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-zinc-100 bg-zinc-50/50 p-1">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-zinc-100 bg-zinc-50/50 p-1 dark:border-white/15 dark:bg-[#18181b]">
             {visibleOptions.length > 0 ? (
               visibleOptions.map((option) => (
                 <label
@@ -1015,8 +1015,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   className={cn(
                     'flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-[11px] font-bold normal-case tracking-normal transition-colors',
                     selectedFilters[key].includes(option.value)
-                      ? 'bg-emerald-50 text-emerald-800'
-                      : 'text-zinc-700 hover:bg-white hover:text-zinc-900'
+                      ? 'bg-emerald-50 text-emerald-800 dark:bg-white/[0.1] dark:text-zinc-50'
+                      : 'text-zinc-700 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.07] dark:hover:text-zinc-50'
                   )}
                 >
                   <input
@@ -1077,7 +1077,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
               <col style={{ width: columnWidths.location }} />
               <col style={{ width: columnWidths.actions }} />
             </colgroup>
-            <thead className="border-b border-zinc-200 bg-zinc-50/80">
+            <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/20 dark:bg-[#18181b]">
               <tr>
                 <th ref={registerHeaderCell('qr')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
@@ -1238,7 +1238,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     <div className={headerIconClass}>
                       <Edit size={16} />
                     </div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 dark:text-zinc-300">
                       {t('actions')}
                     </p>
                     <button
@@ -1254,7 +1254,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody className="divide-y divide-zinc-100 dark:divide-white/15">
               {filteredPallets.map((pallet, index) => {
                 const clientLabel = getClientLabel(pallet);
                 const timelineInfo = getTimelineInfo(pallet);
@@ -1279,25 +1279,27 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     tabIndex={onEditPallet ? 0 : -1}
                     role={onEditPallet ? 'button' : undefined}
                     className={cn(
-                      'group transition-colors hover:bg-zinc-50/60',
-                      onEditPallet && 'cursor-pointer focus-visible:bg-zinc-50/80 focus-visible:outline-none'
+                      'group transition-colors hover:bg-zinc-50/60 dark:hover:bg-white/[0.05]',
+                      onEditPallet && 'cursor-pointer focus-visible:bg-zinc-50/80 focus-visible:outline-none dark:focus-visible:bg-white/[0.08]'
                     )}
                   >
-                    <td className={cn(bodyCellClass, stickyActionsCellClass)}>
+                    <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'text-zinc-900')}>{pallet.qr_code}</span>
+                        <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-zinc-300')}>
+                          {pallet.qr_code}
+                        </span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'uppercase text-zinc-600')}>
+                        <span className={cn(bodyTextClass, 'uppercase text-zinc-600 dark:text-zinc-300')}>
                           {getTypeLabel(pallet)}
                         </span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'uppercase text-zinc-900')}>
+                        <span className={cn(bodyTextClass, 'uppercase text-zinc-900 dark:text-zinc-200')}>
                           {clientLabel}
                         </span>
                       </div>
@@ -1320,14 +1322,14 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'text-zinc-400')}>
+                        <span className={cn(bodyTextClass, 'text-zinc-400 dark:text-zinc-300')}>
                           {timelineInfo.dateLabel}
                         </span>
                       </div>
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'text-zinc-500')}>
+                        <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>
                           {timelineInfo.termLabel}
                         </span>
                       </div>
@@ -1354,12 +1356,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'text-zinc-500')}>
+                        <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>
                           {getLocationLabel(pallet)}
                         </span>
                       </div>
                     </td>
-                    <td className={bodyCellClass}>
+                    <td className={cn(bodyCellClass, stickyActionsCellClass)}>
                       <div className="flex min-h-[2.75rem] items-center justify-center">
                         <div className="flex items-center justify-center gap-2">
                           <Button

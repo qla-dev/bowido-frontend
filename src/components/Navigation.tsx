@@ -48,7 +48,7 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick, colla
     onClick={onClick}
     title={collapsed ? label : undefined}
     className={cn(
-      "relative flex items-center gap-2 w-full py-2.5 rounded-xl transition-all duration-200 group overflow-hidden",
+      "relative flex h-10 items-center gap-2 w-full rounded-xl transition-all duration-200 group overflow-hidden",
       collapsed ? "justify-center px-0" : "justify-start px-3",
       isActive
         ? "text-white"
@@ -120,7 +120,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   return (
     <header
       id="app-top-navbar"
-      className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur-xl shadow-sm shadow-zinc-200/60 dark:border-white/10 dark:bg-[#172d22]/92 dark:shadow-black/30 md:h-16"
+      className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur-xl shadow-sm shadow-zinc-200/60 dark:border-white/10 dark:bg-[#0c1110]/94 dark:shadow-black/30 md:h-16"
     >
       <div className="flex flex-col gap-2 px-4 py-2 md:h-full md:flex-row md:items-center md:justify-between md:gap-3 md:px-5 md:py-0">
         <div className="flex items-center justify-center md:min-w-0 md:flex-1 md:justify-start">
@@ -139,7 +139,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
                 activeTab === 'client-table'
                   ? "bg-[#00A655] text-white border-[#00A655]"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
               )}
             >
               <Boxes size={19} />
@@ -154,7 +154,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
                 highlightGhostAction
                   ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300 dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-300"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
               )}
             >
               <Ghost size={19} />
@@ -166,7 +166,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               type="button"
               title={t('language')}
               onClick={cycleLanguage}
-              className="h-10 w-10 border-2 border-emerald-100 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em] bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+              className="h-10 w-10 border-2 border-emerald-100 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em] bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
             >
               {currentLanguageOption.shortLabel}
             </button>
@@ -185,7 +185,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 "h-10 w-10 border-2 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em]",
                 showLanguageMenu
                   ? "bg-[#00A655] text-white border-[#00A655]"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
               )}
             >
               {currentLanguageOption.shortLabel}
@@ -197,7 +197,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className="absolute left-1/2 top-full mt-3 w-36 -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#1f3a2d]"
+                  className="absolute left-1/2 top-full mt-3 w-36 -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#101715]"
                 >
                   <div className="border-b border-emerald-50 bg-emerald-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/5">
                     <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
@@ -235,7 +235,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               type="button"
               title={t('qrScan')}
               onClick={() => setIsScannerOpen(true)}
-              className="hidden h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+              className="hidden h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
             >
               <QrCode size={19} className="text-[#00A655]" />
             </button>
@@ -250,7 +250,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowLanguageMenu(false);
                 setShowProfile(false);
               }}
-              className="relative h-10 w-10 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+              className="relative h-10 w-10 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl flex items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
             >
               <Bell size={19} />
               {unreadCount > 0 && (
@@ -271,7 +271,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     initial={{ opacity: 0, y: 6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                    className="fixed left-4 right-4 top-24 z-[60] overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:hidden dark:border-white/10 dark:bg-[#1f3a2d]"
+                    className="fixed left-4 right-4 top-24 z-[60] overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:hidden dark:border-white/10 dark:bg-[#101715]"
                   >
                     <div className="flex items-center justify-between border-b border-emerald-50 bg-emerald-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/5">
                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">{t('activity')}</span>
@@ -317,7 +317,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                     initial={{ opacity: 0, y: 6, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                    className="absolute left-1/2 top-full mt-3 hidden w-[21rem] -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:block dark:border-white/10 dark:bg-[#1f3a2d]"
+                    className="absolute left-1/2 top-full mt-3 hidden w-[21rem] -translate-x-1/2 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 md:block dark:border-white/10 dark:bg-[#101715]"
                   >
                     <div className="px-4 py-3 border-b border-emerald-50 bg-emerald-50/60 dark:border-white/10 dark:bg-white/5">
                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">{t('activity')}</span>
@@ -364,7 +364,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
               activeTab === 'settings'
                 ? "bg-[#00A655] text-white border-[#00A655]"
-                : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:text-emerald-200"
+                : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
             )}
           >
             <Settings size={19} />
@@ -379,7 +379,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowLanguageMenu(false);
                 setShowNotifications(false);
               }}
-              className="h-10 w-10 border-2 border-emerald-100 bg-white rounded-xl flex items-center justify-center transition-all hover:border-emerald-300 dark:border-white/10 dark:bg-[#1f3a2d]"
+              className="h-10 w-10 border-2 border-emerald-100 bg-white rounded-xl flex items-center justify-center transition-all hover:border-emerald-300 dark:border-white/10 dark:bg-[#101715] dark:hover:border-white/20 dark:hover:bg-white/[0.07]"
             >
               <div className="w-7 h-7 bg-[#00A655] text-white rounded-lg flex items-center justify-center font-black text-[10px]">
                 {user.name[0]?.toUpperCase() || role[0].toUpperCase()}
@@ -392,7 +392,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className="absolute right-0 top-full z-[70] mt-3 w-64 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#1f3a2d]"
+                  className="absolute right-0 top-full z-[70] mt-3 w-64 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#101715]"
                 >
                   <div className="flex items-center gap-3 border-b border-emerald-50 p-4 dark:border-white/10">
                     <UserCircle size={34} className="text-emerald-600" />
@@ -423,7 +423,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 setShowLanguageMenu(false);
                 setShowNotifications(false);
               }}
-              className="h-10 pl-1 pr-2 sm:pr-3 border border-emerald-100 bg-white rounded-xl flex items-center gap-2 hover:border-emerald-300 transition-all dark:border-white/10 dark:bg-[#1f3a2d]"
+              className="h-10 pl-1 pr-2 sm:pr-3 border border-emerald-100 bg-white rounded-xl flex items-center gap-2 hover:border-emerald-300 transition-all dark:border-white/10 dark:bg-[#101715] dark:hover:border-white/20 dark:hover:bg-white/[0.07]"
             >
               <div className="w-8 h-8 bg-[#00A655] text-white rounded-lg flex items-center justify-center font-black text-xs">
                 {user.name[0]?.toUpperCase() || role[0].toUpperCase()}
@@ -437,7 +437,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   initial={{ opacity: 0, y: 6, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                  className="absolute right-0 top-full mt-3 w-64 bg-white border border-emerald-100 rounded-2xl shadow-2xl shadow-emerald-950/10 overflow-hidden dark:border-white/10 dark:bg-[#1f3a2d]"
+                  className="absolute right-0 top-full mt-3 w-64 bg-white border border-emerald-100 rounded-2xl shadow-2xl shadow-emerald-950/10 overflow-hidden dark:border-white/10 dark:bg-[#101715]"
                 >
                   <div className="p-4 flex items-center gap-3 border-b border-emerald-50 dark:border-white/10">
                     <UserCircle size={34} className="text-emerald-600" />
@@ -465,7 +465,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role }) => {
-  const { t, setIsScannerOpen } = useApp();
+  const { t, language, setIsScannerOpen } = useApp();
   const [isSidebarPinned, setIsSidebarPinned] = useState(readStoredSidebarPinned);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -476,6 +476,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
   const sidebarTransition = "transition-[width,box-shadow,transform] duration-[400ms] ease-[cubic-bezier(0.25,0.8,0.25,1)]";
   const sidebarRailWidth = isSidebarPinned ? "w-64" : "w-[4.625rem]";
   const sidebarPanelWidth = isSidebarExpanded ? "w-64" : "w-[4.625rem]";
+  const singleRoleOverviewLabel =
+    language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Bokkenoverzicht' : 'Pallet overview';
+  const usesSingleOverviewTab = [
+    RoleType.MAGACINER,
+    RoleType.SERVISER,
+    RoleType.KLIJENT,
+    RoleType.ADMIN_SERVICE,
+    RoleType.ADMIN_WAREHOUSE,
+    RoleType.FINANCE_ADMINISTRATION,
+  ].includes(role);
 
   const getNavItems = () => {
     const items: Array<{
@@ -485,7 +495,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
       onClick?: () => void;
       isActive?: boolean;
     }> = [
-      { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard /> },
+      { id: 'dashboard', label: usesSingleOverviewTab ? singleRoleOverviewLabel : t('dashboard'), icon: <LayoutDashboard /> },
     ];
 
     if (role === RoleType.ADMIN) {
@@ -506,15 +516,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
     } else if (role === RoleType.VOZAC || role === RoleType.MAGACINER) {
     } else if (role === RoleType.SERVISER) {
     } else if (role === RoleType.KLIJENT) {
-      items.push(
-        {
-          id: 'invoices',
-          label: t('billing'),
-          icon: <ClipboardList />,
-          onClick: () => setActiveTab(activeTab === 'invoices' ? 'dashboard' : 'invoices'),
-          isActive: activeTab === 'invoices',
-        }
-      );
     }
 
     return items;
@@ -554,7 +555,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
       >
         <div
           className={cn(
-            "flex h-full flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-white/10 dark:bg-[#172d22]",
+            "flex h-full flex-col overflow-hidden border-r border-zinc-200 bg-white dark:border-white/10 dark:bg-[#0c1110]",
             "will-change-[width,transform]",
             sidebarTransition,
             sidebarPanelWidth,
@@ -580,14 +581,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
                   setIsSidebarHovered(false);
                 }}
                 className={cn(
-                  "h-10 w-full rounded-xl flex items-center gap-2 border transition-colors",
+                  "relative flex h-10 w-full items-center gap-2 rounded-xl border transition-colors",
                   isSidebarPinned
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-100"
-                    : "border-transparent text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200",
-                  isCollapsed ? "justify-center px-0" : "justify-start px-3"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-300/25 dark:bg-emerald-400/10 dark:text-emerald-100"
+                    : "border-transparent text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-400 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100",
+                  isCollapsed ? "justify-center border-transparent px-0" : "justify-start px-3"
                 )}
               >
-                <Menu size={18} className="shrink-0" />
+                <Menu size={18} className={cn('shrink-0', isCollapsed && '-translate-x-1')} />
                 {!isCollapsed && (
                   <>
                     <span className="text-[11px] font-black uppercase tracking-tight">{t('menu')}</span>
@@ -644,7 +645,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
             <button
               onClick={() => setShowHelp(true)}
               className={cn(
-                "h-10 flex items-center gap-2 w-full rounded-xl text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-emerald-200",
+                "h-10 flex items-center gap-2 w-full rounded-xl text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 transition-all dark:text-zinc-400 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100",
                 isCollapsed ? "justify-center px-0" : "justify-start px-3"
               )}
             >
@@ -708,7 +709,7 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
   return (
     <nav
       id="mobile-bottom-nav"
-      className="fixed inset-x-0 bottom-0 z-[60] flex min-h-16 items-start justify-around gap-1 overflow-hidden border-t border-zinc-200 bg-white/95 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] shadow-[0_-10px_30px_rgba(113,113,122,0.18)] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#172d22]/95 dark:shadow-black/40"
+      className="fixed inset-x-0 bottom-0 z-[60] flex min-h-16 items-start justify-around gap-1 overflow-hidden border-t border-zinc-200 bg-white/95 px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] shadow-[0_-10px_30px_rgba(113,113,122,0.18)] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#0c1110]/95 dark:shadow-black/60"
     >
       {navItems.map((item) => (
         <button

@@ -18,6 +18,13 @@ interface DriverMobileDashboardProps {
 type DriverBadgeVariant = 'default' | 'info' | 'warning' | 'success' | 'danger';
 type CameraState = 'loading' | 'ready' | 'preview' | 'unsupported' | 'denied' | 'error';
 type CameraZoomRange = { min: number; max: number; step: number };
+type ConfirmationPrompt = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone?: 'success' | 'warning';
+  onConfirm: () => void;
+};
 type CameraZoomCapabilities = MediaTrackCapabilities & {
   zoom?: {
     min?: number;
@@ -412,7 +419,7 @@ const transportStatusIds = [2, 6];
 
 const getPalletColorTheme = () => {
   return {
-    surface: 'bg-white/92 dark:bg-[#1a3327]/92',
+    surface: 'bg-white/92 dark:bg-[#101715]/92',
     softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
     strongSurface: 'bg-slate-200/70 dark:bg-slate-700/45',
     border: 'border-slate-300/80 dark:border-slate-400/28',
@@ -441,6 +448,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const [isNoQrReturnFormOpen, setIsNoQrReturnFormOpen] = useState(false);
   const [isNoQrPickupListOpen, setIsNoQrPickupListOpen] = useState(false);
   const [isRepairListOpen, setIsRepairListOpen] = useState(false);
+  const [confirmationPrompt, setConfirmationPrompt] = useState<ConfirmationPrompt | null>(null);
   const [noQrClientSearch, setNoQrClientSearch] = useState('');
   const [activeScannedPalletId, setActiveScannedPalletId] = useState<number | null>(null);
   const [openChangeMenu, setOpenChangeMenu] = useState<OpenChangeMenu>(null);
@@ -1723,6 +1731,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const isBottomNavVisible = isScannerOpen || Boolean(selectedPallet);
+  const scannerBottomActionCount =
+    1 + (showNoQrReturnAction ? 1 : 0) + (showNoQrPickupAction ? 1 : 0);
 
   return (
     <div
@@ -1765,7 +1775,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 className={cn(
-                  'relative mx-auto flex h-full min-h-[26rem] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white transition-all duration-500 dark:border-white/10 dark:bg-[#172d22]',
+                  'relative mx-auto flex h-full min-h-[min(26rem,calc(100dvh-18rem))] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white transition-all duration-500 dark:border-white/10 dark:bg-[#101715]',
                   cameraState === 'ready' ? '' : 'active:scale-[0.98]'
                 )}
                 style={{ touchAction: 'none' }}
@@ -1821,7 +1831,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
                 ) : cameraState !== 'ready' && cameraState !== 'preview' ? (
-                  <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#1f3a2d]">
+                  <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#101715]">
                     <div className="grid grid-cols-2 gap-2">
                       <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
                       <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
@@ -1836,55 +1846,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             </AnimatePresence>
           </div>
 
-          {showNoQrReturnAction && (
-            <button
-              type="button"
-              onClick={() => setIsNoQrReturnFormOpen(true)}
-              className="mt-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-rose-200 bg-rose-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-rose-500/20 dark:bg-rose-500/10"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-white text-rose-600 dark:border-rose-500/25 dark:bg-[#1f3a2d] dark:text-rose-200">
-                <AlertTriangle size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700 dark:text-rose-100">
-                  {noQrReturnCopy.reportButtonLabel}
-                </p>
-              </div>
-            </button>
-          )}
-
-          {showNoQrPickupAction && (
-            <button
-              type="button"
-              onClick={() => setIsNoQrPickupListOpen(true)}
-              className="mt-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-emerald-500/20 dark:bg-emerald-500/10"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-emerald-600 dark:border-emerald-500/25 dark:bg-[#1f3a2d] dark:text-emerald-200">
-                <PackageSearch size={18} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-100">
-                  {noQrPickupCopy.buttonTitle}
-                </p>
-              </div>
-            </button>
-          )}
-
           {showRepairListAction && (
             <button
               type="button"
               onClick={() => setIsRepairListOpen(true)}
-              className="mt-4 flex w-full items-start gap-3 rounded-[1.8rem] border border-amber-200 bg-amber-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-amber-500/20 dark:bg-amber-500/10"
+              className="mt-4 flex min-h-20 w-full items-center gap-3 rounded-[1.8rem] border border-amber-200 bg-amber-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-amber-500/20 dark:bg-amber-500/10"
             >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-white text-amber-600 dark:border-amber-500/25 dark:bg-[#1f3a2d] dark:text-amber-200">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-white text-amber-600 dark:border-amber-500/25 dark:bg-[#101715] dark:text-amber-200">
                 <PackageSearch size={18} />
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-100">
+              <div className="flex min-h-11 min-w-0 flex-1 items-center">
+                <p className="text-[11px] font-black uppercase leading-4 tracking-[0.16em] text-amber-700 dark:text-amber-100">
                   {repairListCopy.buttonTitle}
-                </p>
-                <p className="mt-1 text-[12px] font-bold leading-5 text-amber-700/80 dark:text-amber-100/85">
-                  {repairListCopy.buttonText}
                 </p>
               </div>
             </button>
@@ -1913,7 +1886,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               role="alertdialog"
               aria-modal="true"
             >
-              <Card className="border-emerald-100 bg-white/98 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.32)] dark:border-white/10 dark:bg-[#1a3327]/98">
+              <Card className="border-emerald-100 bg-white/98 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.32)] dark:border-white/10 dark:bg-[#101715]/98">
                 <div className="text-center">
                   {flashMessage.variant === 'success' ? (
                     <motion.div
@@ -1983,7 +1956,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="mx-auto flex w-full max-w-md flex-col bg-white pt-1 dark:bg-[#13241b]"
+            className="mx-auto flex w-full max-w-md flex-col bg-white pt-1 dark:bg-[#070b0a]"
           >
             <Card noPadding className="mx-auto flex w-full flex-col border-transparent bg-transparent shadow-none">
               <div className="flex flex-col px-0 pb-3 pt-1">
@@ -2115,7 +2088,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
                 <div className="mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
                   <div
-                    className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#1a3327]/92"
+                    className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#101715]/92"
                   >
                     <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                       {text.currentStatus}
@@ -2147,7 +2120,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     >
                     {selectedClientName && (
                       <div
-                        className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 px-3.5 py-4 dark:bg-[#1a3327]/88"
+                        className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 px-3.5 py-4 dark:bg-[#101715]/88"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
@@ -2187,7 +2160,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     {showSelectedLocationSummary && (
                       <div
                         className={cn(
-                          'relative rounded-[1.45rem] bg-white/88 dark:bg-[#1a3327]/88',
+                          'relative rounded-[1.45rem] bg-white/88 dark:bg-[#101715]/88',
                           selectedClientName ? 'px-3.5 py-4' : 'px-3.5 py-5'
                         )}
                       >
@@ -2248,8 +2221,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
               {palletPhotoUrl && (
                 <div className="px-0 pb-3 pt-0.5">
-                  <div className="w-full overflow-hidden rounded-[1.45rem] bg-white p-2 dark:bg-[#1a3327]">
-                    <div className="relative overflow-hidden rounded-[1.3rem] bg-emerald-50 dark:bg-[#203d31]">
+                  <div className="w-full overflow-hidden rounded-[1.45rem] bg-white p-2 dark:bg-[#101715]">
+                    <div className="relative overflow-hidden rounded-[1.3rem] bg-emerald-50 dark:bg-[#151d1a]">
                       <img
                         src={palletPhotoUrl}
                         alt={text.capturePalletPhoto}
@@ -2326,7 +2299,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   )}
                 </div>
               ) : isScannerOpen ? (
-                <div className="grid h-full grid-cols-1">
+                <div
+                  className={cn(
+                    'grid h-full gap-1',
+                    scannerBottomActionCount === 1 && 'grid-cols-1',
+                    scannerBottomActionCount === 2 && 'grid-cols-2',
+                    scannerBottomActionCount >= 3 && 'grid-cols-3'
+                  )}
+                >
                   <button
                     type="button"
                     onClick={openScannedPalletsModal}
@@ -2341,6 +2321,26 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     <History size={20} className="shrink-0" />
                     {text.historyPallets}
                   </button>
+                  {showNoQrReturnAction && (
+                    <button
+                      type="button"
+                      onClick={() => setIsNoQrReturnFormOpen(true)}
+                      className={cn(actionButtonClass, 'hover:bg-white/10 hover:text-white')}
+                    >
+                      <AlertTriangle size={20} className="shrink-0" />
+                      {noQrReturnCopy.reportButtonLabel}
+                    </button>
+                  )}
+                  {showNoQrPickupAction && (
+                    <button
+                      type="button"
+                      onClick={() => setIsNoQrPickupListOpen(true)}
+                      className={cn(actionButtonClass, 'hover:bg-white/10 hover:text-white')}
+                    >
+                      <PackageSearch size={20} className="shrink-0" />
+                      {noQrPickupCopy.buttonTitle}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div
@@ -2408,6 +2408,50 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           />
         )}
 
+        {confirmationPrompt && (
+          <DriverModalShell
+            onClose={() => setConfirmationPrompt(null)}
+            title={confirmationPrompt.title}
+            width="sm"
+            overlayClassName="z-[130] items-center p-4"
+            contentClassName="h-auto max-h-[82dvh] max-w-sm rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
+            bodyClassName="bg-zinc-50/80 px-5 py-5 dark:bg-[#070b0a]"
+            footer={
+              <div className="grid grid-cols-2 gap-2.5 bg-white px-5 py-4 dark:bg-[#101715]">
+                <button
+                  type="button"
+                  onClick={() => setConfirmationPrompt(null)}
+                  className="flex h-12 items-center justify-center rounded-[1rem] bg-zinc-100 px-4 text-[11px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all active:scale-[0.98] dark:bg-[#101715] dark:text-zinc-200"
+                >
+                  {text.damageModalCancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    confirmationPrompt.onConfirm();
+                    setConfirmationPrompt(null);
+                  }}
+                  className={cn(
+                    'flex h-12 items-center justify-center rounded-[1rem] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98]',
+                    confirmationPrompt.tone === 'warning' ? 'bg-amber-500' : 'bg-[#00A655]'
+                  )}
+                >
+                  {confirmationPrompt.confirmLabel}
+                </button>
+              </div>
+            }
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-600 dark:border-white/10 dark:bg-[#101715] dark:text-emerald-100">
+                <CheckCircle2 size={18} />
+              </div>
+              <p className="text-[13px] font-bold leading-6 text-zinc-700 dark:text-zinc-200">
+                {confirmationPrompt.message}
+              </p>
+            </div>
+          </DriverModalShell>
+        )}
+
         {isNoQrPickupListOpen && (
           <DriverModalShell
             onClose={() => {
@@ -2418,7 +2462,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             width="md"
             overlayClassName="z-[110] items-center p-3"
             contentClassName="h-auto max-h-[88dvh] rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
-            bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#13241b]"
+            bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#070b0a]"
           >
             <div className="space-y-4">
               <div className="relative">
@@ -2431,7 +2475,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   value={noQrClientSearch}
                   onChange={(event) => setNoQrClientSearch(event.target.value)}
                   placeholder={noQrPickupCopy.search}
-                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-white pl-11 pr-4 text-[12px] font-bold text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white"
+                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-white pl-11 pr-4 text-[12px] font-bold text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 dark:border-white/10 dark:bg-[#101715] dark:text-white"
                 />
               </div>
 
@@ -2440,7 +2484,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {noQrPickupPallets.map((pallet, index) => (
                     <div
                       key={`driver-no-qr-pickup-${pallet.id}`}
-                      className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#1f3a2d]"
+                      className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#101715]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -2457,7 +2501,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       </div>
 
                       <div className="mt-4 grid gap-3">
-                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                           <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
                             {noQrPickupCopy.location}
                           </p>
@@ -2466,7 +2510,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           </p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                             <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
                               {noQrPickupCopy.pickup}
                             </p>
@@ -2474,7 +2518,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                               {getNoQrPickupLabel(pallet)}
                             </p>
                           </div>
-                          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                             <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
                               {noQrPickupCopy.comment}
                             </p>
@@ -2488,9 +2532,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm(noQrPickupCopy.confirm)) {
-                            deletePallet(pallet.id);
-                          }
+                          setConfirmationPrompt({
+                            title: noQrPickupCopy.returned,
+                            message: noQrPickupCopy.confirm,
+                            confirmLabel: noQrPickupCopy.returned,
+                            tone: 'success',
+                            onConfirm: () => deletePallet(pallet.id),
+                          });
                         }}
                         className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00A655] px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.99]"
                       >
@@ -2501,7 +2549,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   ))}
                 </div>
               ) : (
-                <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#1f3a2d]">
+                <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#101715]">
                   <PackageSearch size={24} className="mx-auto mb-3 text-zinc-300" />
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                     {noQrPickupCopy.empty}
@@ -2519,14 +2567,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             width="md"
             overlayClassName="z-[110] items-center p-3"
             contentClassName="h-auto max-h-[88dvh] rounded-[1.75rem] border border-amber-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
-            bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#13241b]"
+            bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#070b0a]"
           >
             {repairPallets.length > 0 ? (
               <div className="max-h-[68dvh] space-y-3 overflow-y-auto pr-1 no-scrollbar">
                 {repairPallets.map((pallet, index) => (
                   <div
                     key={`service-repair-pallet-${pallet.id}`}
-                    className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#1f3a2d]"
+                    className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#101715]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -2544,7 +2592,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
                     <div className="mt-4 grid gap-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                           <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
                             {repairListCopy.type}
                           </p>
@@ -2552,7 +2600,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {getDriverPalletTypeLabel(pallet.type, language)}
                           </p>
                         </div>
-                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                           <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
                             {repairListCopy.location}
                           </p>
@@ -2562,7 +2610,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#172d22]">
+                      <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                         <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
                           {repairListCopy.note}
                         </p>
@@ -2575,28 +2623,39 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(repairListCopy.confirm)) {
-                          updatePalletStatus(
-                            pallet.id,
-                            1,
-                            user.id,
-                            user.name,
-                            pallet.current_location,
-                            'Service marked pallet as repaired from mobile screen.'
-                          );
-                          showFlash(repairListCopy.successTitle, repairListCopy.successDetail, 'success');
-                        }
+                        setConfirmationPrompt({
+                          title: repairListCopy.successTitle,
+                          message: language === 'bs' ? 'Oznaciti paletu kao popravljenu?' : repairListCopy.confirm,
+                          confirmLabel:
+                            language === 'bs' ? 'Oznaci kao popravljeno' : repairListCopy.repaired,
+                          tone: 'success',
+                          onConfirm: () => {
+                            updatePalletStatus(
+                              pallet.id,
+                              1,
+                              user.id,
+                              user.name,
+                              pallet.current_location,
+                              'Service marked pallet as repaired from mobile screen.'
+                            );
+                            showFlash(
+                              repairListCopy.successTitle,
+                              language === 'bs' ? 'Paleta je vracena iz servisa.' : repairListCopy.successDetail,
+                              'success'
+                            );
+                          },
+                        });
                       }}
                       className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00A655] px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.99]"
                     >
                       <CheckCircle2 size={16} />
-                      {repairListCopy.repaired}
+                      {language === 'bs' ? 'Oznaci kao popravljeno' : repairListCopy.repaired}
                     </button>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#1f3a2d]">
+              <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#101715]">
                 <PackageSearch size={24} className="mx-auto mb-3 text-zinc-300" />
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                   {repairListCopy.empty}
@@ -2621,7 +2680,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     value={clientSearchTerm}
                     onChange={(event) => setClientSearchTerm(event.target.value)}
                     placeholder={text.searchClientPlaceholder}
-                    className="h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 pl-11 pr-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
+                    className="h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 pl-11 pr-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#101715] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
                   />
                 </div>
               ) : undefined
@@ -2645,7 +2704,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       'flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all',
                       draftStatusId === status.id
                         ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                        : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                        : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
                     )}
                   >
                     {getDriverStatusLabel(status.name)}
@@ -2666,7 +2725,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         'flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all',
                         draftClientId === client.user_id
                           ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                          : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                          : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
                       )}
                     >
                       <div className="text-center">
@@ -2678,7 +2737,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     </button>
                   ))}
                   {filteredClients.length === 0 && (
-                    <div className="rounded-[1rem] border border-dashed border-emerald-100 bg-emerald-50/40 px-4 py-6 text-center text-[11px] font-black uppercase tracking-[0.12em] text-emerald-500 dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-300">
+                    <div className="rounded-[1rem] border border-dashed border-emerald-100 bg-emerald-50/40 px-4 py-6 text-center text-[11px] font-black uppercase tracking-[0.12em] text-emerald-500 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-300">
                       {text.noClientsFound}
                     </div>
                   )}
@@ -2695,7 +2754,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
                     draftLocationMode === 'warehouse_1'
                       ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
                   )}
                 >
                   <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseDefault}</span>
@@ -2710,7 +2769,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
                     draftLocationMode === 'warehouse_2'
                       ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5'
+                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
                   )}
                 >
                   <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseSecondary}</span>
@@ -2767,7 +2826,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       }
                     }}
                     placeholder={text.manualLocationPlaceholder}
-                    className="h-12 w-full rounded-[1rem] border-2 border-emerald-200 bg-white px-4 text-[14px] font-bold text-emerald-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 focus:bg-white dark:border-white/10 dark:bg-[#203d31] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
+                    className="h-12 w-full rounded-[1rem] border-2 border-emerald-200 bg-white px-4 text-[14px] font-bold text-emerald-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 focus:bg-white dark:border-white/10 dark:bg-[#151d1a] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
                   />
 
                   <div className="grid grid-cols-2 gap-2.5">
@@ -2777,7 +2836,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         setManualLocationInput('');
                         setIsEditingAlternateAddress(false);
                       }}
-                      className="flex items-center justify-center rounded-[1rem] bg-white px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all hover:bg-zinc-50 active:scale-[0.98] dark:bg-[#1f3a2d] dark:text-zinc-200 dark:hover:bg-white/5"
+                      className="flex items-center justify-center rounded-[1rem] bg-white px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all hover:bg-zinc-50 active:scale-[0.98] dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5"
                     >
                       {text.damageModalCancel}
                     </button>
@@ -2814,7 +2873,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   value={damageDescription}
                   onChange={(event) => setDamageDescription(event.target.value)}
                   placeholder={text.damageModalPlaceholder}
-                  className="mt-2 h-28 w-full resize-none rounded-[1.2rem] border border-emerald-100 bg-emerald-50/55 px-4 py-3 text-[16px] font-bold leading-6 text-emerald-950 outline-none transition-colors placeholder:text-zinc-400 md:text-[13px] md:leading-5 focus:border-emerald-300 dark:border-white/10 dark:bg-[#203d31] dark:text-white dark:placeholder:text-zinc-500"
+                  className="mt-2 h-28 w-full resize-none rounded-[1.2rem] border border-emerald-100 bg-emerald-50/55 px-4 py-3 text-[16px] font-bold leading-6 text-emerald-950 outline-none transition-colors placeholder:text-zinc-400 md:text-[13px] md:leading-5 focus:border-emerald-300 dark:border-white/10 dark:bg-[#151d1a] dark:text-white dark:placeholder:text-zinc-500"
                 />
               </div>
 
@@ -2833,7 +2892,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 />
 
                 {damagePhotoUrl ? (
-                  <div className="mt-2 overflow-hidden rounded-[1.4rem] border border-emerald-100 bg-white p-2 dark:border-white/10 dark:bg-[#1a3327]">
+                  <div className="mt-2 overflow-hidden rounded-[1.4rem] border border-emerald-100 bg-white p-2 dark:border-white/10 dark:bg-[#101715]">
                     <div className="relative overflow-hidden rounded-[1.1rem]">
                       <img
                         src={damagePhotoUrl}
@@ -2843,7 +2902,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       <button
                         type="button"
                         onClick={clearDamagePhoto}
-                        className="absolute right-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:bg-[#172d22]/92 dark:text-emerald-100"
+                        className="absolute right-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:bg-[#101715]/92 dark:text-emerald-100"
                       >
                         {text.damageModalRemove}
                       </button>
@@ -2853,7 +2912,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   <button
                     type="button"
                     onClick={() => damagePhotoInputRef.current?.click()}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-[1.4rem] border border-dashed border-emerald-200 bg-emerald-50/55 px-4 py-6 text-[12px] font-black uppercase tracking-[0.16em] text-emerald-700 transition-all hover:border-emerald-300 hover:text-emerald-900 dark:border-white/10 dark:bg-[#203d31] dark:text-emerald-100 dark:hover:text-white"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-[1.4rem] border border-dashed border-emerald-200 bg-emerald-50/55 px-4 py-6 text-[12px] font-black uppercase tracking-[0.16em] text-emerald-700 transition-all hover:border-emerald-300 hover:text-emerald-900 dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100 dark:hover:text-white"
                   >
                     <Camera size={16} className="shrink-0" />
                     {text.damageModalUpload}
@@ -2882,7 +2941,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       key={pallet.id}
                       type="button"
                       onClick={() => handleHistoryPalletOpen(pallet.qr_code)}
-                      className="flex w-full items-center justify-between gap-3 rounded-[1.15rem] border border-emerald-100 bg-white px-3 py-3 text-left transition-all hover:bg-emerald-50/50 dark:border-white/10 dark:bg-[#1f3a2d] dark:hover:bg-white/5"
+                      className="flex w-full items-center justify-between gap-3 rounded-[1.15rem] border border-emerald-100 bg-white px-3 py-3 text-left transition-all hover:bg-emerald-50/50 dark:border-white/10 dark:bg-[#101715] dark:hover:bg-white/5"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-black uppercase tracking-tight text-emerald-950 dark:text-white">
@@ -2899,7 +2958,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           </p>
                         )}
                       </div>
-                      <span className="shrink-0 self-center rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
+                      <span className="shrink-0 self-center rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:border dark:border-white/10 dark:bg-[#101715] dark:text-emerald-100">
                         {getDriverStatusLabel(pallet.current_status_name)}
                       </span>
                     </button>
