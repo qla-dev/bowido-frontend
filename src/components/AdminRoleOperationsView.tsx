@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { ListPagination } from './ListPagination';
 import { Badge, Button, cn } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet } from '../types';
@@ -56,6 +57,8 @@ const MIN_WIDTHS: Record<string, number> = {
   amount: 135,
 };
 
+const ADMIN_ROLE_PAGE_SIZE = 25;
+
 const getDaysSince = (date: string) =>
   Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
 
@@ -64,6 +67,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<string, HTMLTableCellElement | null>>>({});
   const [selectedRow, setSelectedRow] = useState<OperationRow | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(ADMIN_ROLE_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: SortDirection }>({
     key: 'primary',
     direction: 'asc',
@@ -270,6 +275,23 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     return nextRows;
   }, [rows, sortConfig]);
 
+  const paginatedRows = useMemo(
+    () => visibleRows.slice(pageOffset, pageOffset + pageLimit),
+    [pageLimit, pageOffset, visibleRows]
+  );
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [mode, sortConfig]);
+
+  useEffect(() => {
+    if (visibleRows.length === 0 || pageOffset < visibleRows.length) {
+      return;
+    }
+
+    setPageOffset(Math.max(Math.floor((visibleRows.length - 1) / pageLimit) * pageLimit, 0));
+  }, [pageLimit, pageOffset, visibleRows.length]);
+
   const toggleSort = (key: string) => {
     setSortConfig((current) =>
       current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }
@@ -331,7 +353,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-white/10">
-              {visibleRows.map((row, index) => (
+              {paginatedRows.map((row, index) => (
                 <motion.tr
                   key={`role-admin-row-${row.id}`}
                   initial={{ opacity: 0, x: -5 }}
@@ -362,6 +384,18 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             </tbody>
           </table>
         )}
+      />
+      <ListPagination
+        total={visibleRows.length}
+        limit={pageLimit}
+        offset={pageOffset}
+        count={paginatedRows.length}
+        language={language}
+        onPageChange={setPageOffset}
+        onLimitChange={(limit) => {
+          setPageOffset(0);
+          setPageLimit(limit);
+        }}
       />
 
       {selectedRow && (
