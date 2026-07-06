@@ -84,7 +84,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
         transition={{ duration: 0.2, ease: 'easeOut' }}
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          'flex h-[100dvh] max-h-[100dvh] w-full min-h-0 flex-col overflow-hidden rounded-none border-0 bg-white dark:bg-[#172d22] md:h-auto md:max-h-[92dvh] md:rounded-[2rem] md:border md:border-emerald-100 md:dark:border-white/10',
+          'flex h-[100dvh] max-h-[100dvh] w-full min-h-0 flex-col overflow-hidden rounded-none border-0 bg-white dark:bg-[#0f1513] md:h-auto md:max-h-[92dvh] md:rounded-[2rem] md:border md:border-emerald-100 md:dark:border-white/10',
           widthClassMap[width],
           contentClassName
         )}
@@ -100,7 +100,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 transition-all active:scale-[0.98] dark:bg-[#1f3a2d] dark:text-emerald-100"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 transition-all active:scale-[0.98] dark:bg-[#101715] dark:text-emerald-100"
           >
             <X size={18} />
           </button>

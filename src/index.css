@@ -15,13 +15,13 @@
     --brand-dark: #008f49;
     --brand-soft: #E8FFF3;
     --ink: #14532d;
-    --surface-dark: #13241b;
-    --surface-dark-elevated: #1a3327;
-    --surface-dark-soft: #234437;
-    --surface-dark-muted: #315849;
-    --dark-border: rgb(220 252 231 / 0.18);
-    --dark-text: #f7fff9;
-    --dark-muted: #b6d1c1;
+    --surface-dark: #070b0a;
+    --surface-dark-elevated: #101715;
+    --surface-dark-soft: #17211d;
+    --surface-dark-muted: #22312b;
+    --dark-border: rgb(217 249 230 / 0.12);
+    --dark-text: #f4f8f5;
+    --dark-muted: #9bb0a5;
   }
 
   body {
@@ -52,7 +52,9 @@
   }
 
   .dark body {
-    background-color: var(--surface-dark);
+    background:
+    radial-gradient(circle at top left, rgb(255 255 255 / 0.045), transparent 34rem),
+      linear-gradient(180deg, #070b0a 0%, #0a0f0d 46%, #060807 100%);
     color: var(--dark-text);
   }
   
@@ -276,9 +278,9 @@ body:has([data-lock-scroll-modal="true"]) {
 #app-container.dark {
   color-scheme: dark;
   background:
-    radial-gradient(circle at top left, rgb(16 185 129 / 0.13), transparent 34%),
-    radial-gradient(circle at top right, rgb(59 130 246 / 0.1), transparent 28%),
-    linear-gradient(180deg, #12241b 0%, #17291f 46%, #122017 100%);
+    radial-gradient(circle at top left, rgb(255 255 255 / 0.045), transparent 34%),
+    radial-gradient(circle at top right, rgb(113 113 122 / 0.08), transparent 28%),
+    linear-gradient(180deg, #070b0a 0%, #0a0a0b 46%, #060607 100%);
 }
 
 #app-container.dark main,
@@ -288,11 +290,11 @@ body:has([data-lock-scroll-modal="true"]) {
 
 #app-container.dark header,
 #app-container.dark #mobile-bottom-nav {
-  background-color: rgb(21 39 31 / 0.94) !important;
+  background-color: rgb(12 12 13 / 0.94) !important;
 }
 
 #app-container.dark .bg-white {
-  background-color: rgb(27 51 40 / 0.97) !important;
+  background-color: rgb(16 17 19 / 0.97) !important;
 }
 
 #app-container.dark .text-black,
@@ -323,7 +325,7 @@ body:has([data-lock-scroll-modal="true"]) {
 #app-container.dark .text-emerald-600,
 #app-container.dark .text-emerald-500,
 #app-container.dark .text-indigo-900 {
-  color: #d9f5e5 !important;
+  color: #e5e7eb !important;
 }
 
 #app-container.dark .text-rose-700,
@@ -356,21 +358,21 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 #app-container.dark .text-white\/40 {
-  color: rgb(247 255 249 / 0.68) !important;
+  color: rgb(244 244 245 / 0.68) !important;
 }
 
 #app-container.dark .text-white\/50,
 #app-container.dark .text-white\/60,
 #app-container.dark .text-white\/70,
 #app-container.dark .text-white\/75 {
-  color: rgb(247 255 249 / 0.78) !important;
+  color: rgb(244 244 245 / 0.78) !important;
 }
 
 #app-container.dark .text-zinc-700,
 #app-container.dark .text-zinc-600,
 #app-container.dark .text-gray-700,
 #app-container.dark .text-gray-600 {
-  color: #d8efe0 !important;
+  color: #d4d4d8 !important;
 }
 
 #app-container.dark .text-zinc-500,
@@ -430,18 +432,18 @@ body:has([data-lock-scroll-modal="true"]) {
 #app-container.dark .bg-gray-50\/40,
 #app-container.dark .bg-gray-50\/50,
 #app-container.dark .bg-gray-100 {
-  background-color: rgb(34 61 48 / 0.94) !important;
+  background-color: rgb(24 24 27 / 0.94) !important;
 }
 
 #app-container.dark .bg-zinc-100 {
-  background-color: rgb(42 74 59 / 0.96) !important;
+  background-color: rgb(32 32 35 / 0.96) !important;
 }
 
 #app-container.dark .bg-black,
 #app-container.dark .bg-zinc-950,
 #app-container.dark .bg-zinc-900,
 #app-container.dark .bg-gray-900 {
-  background-color: rgb(25 49 38 / 0.98) !important;
+  background-color: rgb(14 14 16 / 0.98) !important;
 }
 
 #app-container.dark .bg-emerald-50,
@@ -450,7 +452,7 @@ body:has([data-lock-scroll-modal="true"]) {
 #app-container.dark .bg-emerald-50\/50,
 #app-container.dark .bg-emerald-50\/60,
 #app-container.dark .bg-emerald-50\/70 {
-  background-color: rgb(16 185 129 / 0.22) !important;
+  background-color: rgb(39 39 42 / 0.78) !important;
 }
 
 #app-container.dark .bg-rose-50,
@@ -494,7 +496,7 @@ body:has([data-lock-scroll-modal="true"]) {
 
 #app-container.dark .border-emerald-100,
 #app-container.dark .border-emerald-200 {
-  border-color: rgb(52 211 153 / 0.34) !important;
+  border-color: var(--dark-border) !important;
 }
 
 #app-container.dark .border-rose-100,
@@ -524,7 +526,7 @@ body:has([data-lock-scroll-modal="true"]) {
 #app-container.dark .hover\:bg-emerald-100:hover,
 #app-container.dark .hover\:bg-emerald-50\/40:hover,
 #app-container.dark .hover\:bg-emerald-50\/60:hover {
-  background-color: rgb(16 185 129 / 0.2) !important;
+  background-color: rgb(39 39 42 / 0.92) !important;
 }
 
 #app-container.dark .hover\:bg-rose-50:hover,
@@ -554,7 +556,7 @@ body:has([data-lock-scroll-modal="true"]) {
 
 #app-container.dark .hover\:border-emerald-200:hover,
 #app-container.dark .hover\:border-emerald-300:hover {
-  border-color: rgb(52 211 153 / 0.34) !important;
+  border-color: rgb(255 255 255 / 0.2) !important;
 }
 
 #app-container.dark .hover\:border-rose-100:hover,
@@ -572,7 +574,7 @@ body:has([data-lock-scroll-modal="true"]) {
 
 #app-container.dark .hover\:text-emerald-700:hover,
 #app-container.dark .hover\:text-emerald-600:hover {
-  color: #d7ffe4 !important;
+  color: var(--dark-text) !important;
 }
 
 #app-container.dark .hover\:text-rose-600:hover,
@@ -586,21 +588,118 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 #app-container.dark .group:hover .group-hover\:bg-black {
-  background-color: rgb(47 101 77 / 0.98) !important;
+  background-color: rgb(39 39 42 / 0.98) !important;
 }
 
 #app-container.dark .group:hover .group-hover\:border-black {
-  border-color: rgb(82 201 140 / 0.52) !important;
+  border-color: rgb(255 255 255 / 0.2) !important;
 }
 
 #app-container.dark .ring-white {
-  --tw-ring-color: rgb(26 51 39 / 0.96) !important;
+  --tw-ring-color: rgb(16 17 19 / 0.96) !important;
 }
 
 #app-container.dark .shadow-zinc-200\/70,
 #app-container.dark .shadow-emerald-950\/10,
 #app-container.dark .shadow-emerald-900\/10 {
   --tw-shadow-color: rgb(0 0 0 / 0.5) !important;
+}
+
+#app-container.dark .bg-\[\#00A655\],
+#app-container.dark .hover\:bg-\[\#008f49\]:hover,
+#app-container.dark .group:hover .group-hover\:bg-\[\#00A655\] {
+  background-color: rgb(63 63 70) !important;
+}
+
+#app-container.dark .border-\[\#00A655\],
+#app-container.dark .group:hover .group-hover\:border-\[\#00A655\] {
+  border-color: rgb(82 82 91) !important;
+}
+
+#app-container.dark .text-\[\#00A655\] {
+  color: rgb(212 212 216) !important;
+}
+
+#app-container.dark .hover\:border-\[\#00A655\]:hover {
+  border-color: rgb(255 255 255 / 0.2) !important;
+}
+
+#app-container.dark .dark\:text-\[\#9fcbb3\],
+#app-container.dark .dark\:text-\[\#d5f1de\],
+#app-container.dark .dark\:text-\[\#cce0d3\],
+#app-container.dark .dark\:text-\[\#d8e8de\] {
+  color: #a1a1aa !important;
+}
+
+#app-container.dark .bg-emerald-400,
+#app-container.dark .bg-emerald-500,
+#app-container.dark .bg-emerald-600,
+#app-container.dark .bg-green-500,
+#app-container.dark .bg-emerald-400\/70,
+#app-container.dark .bg-emerald-400\/12,
+#app-container.dark .bg-emerald-500\/10 {
+  background-color: rgb(82 82 91) !important;
+}
+
+#app-container.dark .border-emerald-300\/20,
+#app-container.dark .border-emerald-300\/60,
+#app-container.dark .border-emerald-400\/95,
+#app-container.dark .border-emerald-500\/20,
+#app-container.dark .border-emerald-500\/25 {
+  border-color: rgb(161 161 170 / 0.42) !important;
+}
+
+#app-container.dark .text-emerald-50,
+#app-container.dark .text-emerald-100,
+#app-container.dark .text-emerald-200,
+#app-container.dark .text-emerald-300 {
+  color: #e5e7eb !important;
+}
+
+#app-container.dark .dark\:text-emerald-50,
+#app-container.dark .dark\:text-emerald-100,
+#app-container.dark .dark\:text-emerald-200,
+#app-container.dark .dark\:text-emerald-300,
+#app-container.dark .dark\:text-green-50,
+#app-container.dark .dark\:text-green-100,
+#app-container.dark .dark\:text-green-200,
+#app-container.dark .dark\:text-green-300 {
+  color: #e5e7eb !important;
+}
+
+#app-container.dark .dark\:bg-emerald-400\/8,
+#app-container.dark .dark\:bg-emerald-400\/10,
+#app-container.dark .dark\:bg-emerald-400\/20,
+#app-container.dark .dark\:bg-emerald-500\/10,
+#app-container.dark .dark\:bg-emerald-900\/20,
+#app-container.dark .dark\:bg-green-400\/10,
+#app-container.dark .dark\:bg-green-500\/10 {
+  background-color: rgb(39 39 42 / 0.82) !important;
+}
+
+#app-container.dark .dark\:border-emerald-300\/20,
+#app-container.dark .dark\:border-emerald-300\/25,
+#app-container.dark .dark\:border-emerald-300\/35,
+#app-container.dark .dark\:border-emerald-400\/40,
+#app-container.dark .dark\:border-emerald-500\/20,
+#app-container.dark .dark\:border-emerald-500\/25,
+#app-container.dark .dark\:border-green-300\/20,
+#app-container.dark .dark\:border-green-400\/40 {
+  border-color: var(--dark-border) !important;
+}
+
+#app-container.dark .dark\:hover\:text-emerald-100:hover,
+#app-container.dark .dark\:hover\:text-emerald-200:hover,
+#app-container.dark .dark\:hover\:text-green-100:hover,
+#app-container.dark .dark\:hover\:text-green-200:hover {
+  color: var(--dark-text) !important;
+}
+
+#app-container.dark .dark\:hover\:border-emerald-300\/35:hover,
+#app-container.dark .dark\:focus\:border-emerald-300:focus,
+#app-container.dark .dark\:focus\:border-emerald-300\/50:focus,
+#app-container.dark .dark\:focus\:border-green-300:focus {
+  border-color: rgb(255 255 255 / 0.25) !important;
 }
 
 /* Custom scrollbar for minimalist look */
@@ -655,11 +754,11 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 #app-container.dark .sidebar-scroll:hover {
-  scrollbar-color: rgb(52 211 153 / 0.54) transparent;
+  scrollbar-color: rgb(161 161 170 / 0.48) transparent;
 }
 
 #app-container.dark .sidebar-scroll:hover::-webkit-scrollbar-thumb {
-  background-color: rgb(52 211 153 / 0.54);
+  background-color: rgb(161 161 170 / 0.48);
 }
 
 .animate-in {
@@ -724,11 +823,15 @@ body:has([data-lock-scroll-modal="true"]) {
 }
 
 #app-container.dark .safari-tint-sentinel--app {
-  background: rgb(23 41 31 / 0.95);
+  background: rgb(7 11 10 / 0.95);
 }
 
 .safari-tint-sentinel--driver {
   background: #00A655;
+}
+
+#app-container.dark .safari-tint-sentinel--driver {
+  background: #070b0a;
 }
 
 @media (max-width: 768px) and (hover: none) and (pointer: coarse) {

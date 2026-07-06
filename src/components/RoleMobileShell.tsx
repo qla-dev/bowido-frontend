@@ -40,13 +40,13 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   <div
     id={containerId}
     className={cn(
-      'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#13241b] dark:text-white',
+      'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#070b0a] dark:text-white',
       isNightMode && 'dark',
       'fixed inset-0 flex flex-col overflow-hidden'
     )}
   >
     <div className={cn('safari-tint-sentinel', `safari-tint-sentinel--${sentinelVariant}`)} aria-hidden="true" />
-    <header className="shrink-0 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#172d22]/92">
+    <header className="shrink-0 border-b border-emerald-100/80 bg-white/92 backdrop-blur-xl dark:border-white/10 dark:bg-[#0c1110]/94">
       <div className="mx-auto flex h-16 w-full max-w-md items-center justify-between px-4">
         <img src={logoSrc} alt="Trackpal logo" className="h-6 w-auto" />
 
@@ -56,7 +56,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
               type="button"
               onClick={onPalletIconClick}
               className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100',
+                'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100 dark:hover:bg-white/[0.07]',
                 palletActive
                   ? 'border-[#00A655] bg-[#00A655] text-white'
                   : 'border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700'
@@ -70,7 +70,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
             title={settingsTitle}
             onClick={onToggleSettings}
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#1f3a2d] dark:text-zinc-100',
+              'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100 dark:hover:bg-white/[0.07]',
               settingsActive
                 ? 'border-[#00A655] bg-[#00A655] text-white'
                 : 'border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700'

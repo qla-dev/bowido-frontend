@@ -181,9 +181,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
 
         <Card title={t('returnBoard')}>
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#203d31]">
+            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#151d1a]">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#101715] dark:text-emerald-100">
                   <RotateCcw size={18} />
                 </div>
                 <div>
@@ -194,9 +194,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
               <Badge variant="warning">{t('forPickup')}</Badge>
             </div>
 
-            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#203d31]">
+            <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#151d1a]">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#172d22] dark:text-emerald-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-100 bg-white text-zinc-500 dark:border-white/10 dark:bg-[#101715] dark:text-emerald-100">
                   <Package size={18} />
                 </div>
                 <div>
@@ -207,7 +207,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
               <Badge variant="info">{t('liveInventory')}</Badge>
             </div>
 
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#203d31]">
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#151d1a]">
               <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('chargeAlert')}</p>
               <p className="mt-2 text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-white">
                 {chargingPallets.length > 0 ? `${chargingPallets.length} ${t('activeCharges')}` : t('allUnitsStable')}
@@ -297,13 +297,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('chargeAlert')}</p>
                       <p className={`mt-2 text-sm font-black uppercase tracking-tight ${isCharging ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-900 dark:text-white'}`}>
                         {isCharging ? `EUR ${palletDebt.toFixed(2)}` : t('unitsInGrace')}
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#203d31]">
+                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('gracePeriodLabel')}</p>
                       <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white">{graceDays} d</p>
                     </div>
@@ -332,7 +332,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
           })}
 
           {clientPallets.length === 0 && (
-            <div className="col-span-full flex flex-col items-center justify-center rounded-[3rem] border-2 border-dashed border-zinc-100 bg-zinc-50 py-20 text-zinc-400 dark:border-white/10 dark:bg-[#203d31] dark:text-[#9fcbb3]">
+            <div className="col-span-full flex flex-col items-center justify-center rounded-[3rem] border-2 border-dashed border-zinc-100 bg-zinc-50 py-20 text-zinc-400 dark:border-white/10 dark:bg-[#151d1a] dark:text-zinc-400">
               <Package size={32} className="mb-4 opacity-20" />
               <p className="text-[10px] font-black uppercase tracking-widest leading-none">{t('noActiveUnits')}</p>
             </div>

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { ListPagination } from './ListPagination';
 import { Badge, Button, cn } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet } from '../types';
@@ -56,6 +57,8 @@ const MIN_WIDTHS: Record<string, number> = {
   amount: 135,
 };
 
+const ADMIN_ROLE_PAGE_SIZE = 25;
+
 const getDaysSince = (date: string) =>
   Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
 
@@ -64,6 +67,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<string, HTMLTableCellElement | null>>>({});
   const [selectedRow, setSelectedRow] = useState<OperationRow | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLimit, setPageLimit] = useState(ADMIN_ROLE_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: SortDirection }>({
     key: 'primary',
     direction: 'asc',
@@ -270,6 +275,23 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     return nextRows;
   }, [rows, sortConfig]);
 
+  const paginatedRows = useMemo(
+    () => visibleRows.slice(pageOffset, pageOffset + pageLimit),
+    [pageLimit, pageOffset, visibleRows]
+  );
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [mode, sortConfig]);
+
+  useEffect(() => {
+    if (visibleRows.length === 0 || pageOffset < visibleRows.length) {
+      return;
+    }
+
+    setPageOffset(Math.max(Math.floor((visibleRows.length - 1) / pageLimit) * pageLimit, 0));
+  }, [pageLimit, pageOffset, visibleRows.length]);
+
   const toggleSort = (key: string) => {
     setSortConfig((current) =>
       current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }
@@ -331,13 +353,19 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-white/10">
-              {visibleRows.map((row, index) => (
+              {paginatedRows.map((row, index) => (
                 <motion.tr
                   key={`role-admin-row-${row.id}`}
                   initial={{ opacity: 0, x: -5 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.01 }}
                   onClick={() => setSelectedRow(row)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedRow(row);
+                    }
+                  }}
                   tabIndex={0}
                   role="button"
                   className="group cursor-pointer transition-colors hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none dark:hover:bg-white/5"
@@ -350,7 +378,14 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                             {value}
                           </Badge>
                         ) : (
-                          <span className={cn(bodyTextClass, cellIndex === 6 && mode === 'finance' && !String(value).includes('0.00') ? 'text-rose-600' : 'text-zinc-600 dark:text-zinc-200')}>
+                          <span
+                            className={cn(
+                              bodyTextClass,
+                              cellIndex === 6 && mode === 'finance' && Number(row.sortValues.amount) > 0
+                                ? 'text-rose-600'
+                                : 'text-zinc-600 dark:text-zinc-200'
+                            )}
+                          >
                             {value}
                           </span>
                         )}
@@ -363,13 +398,25 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
           </table>
         )}
       />
+      <ListPagination
+        total={visibleRows.length}
+        limit={pageLimit}
+        offset={pageOffset}
+        count={paginatedRows.length}
+        language={language}
+        onPageChange={setPageOffset}
+        onLimitChange={(limit) => {
+          setPageOffset(0);
+          setPageLimit(limit);
+        }}
+      />
 
       {selectedRow && (
         <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setSelectedRow(null)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-7 shadow-2xl no-scrollbar dark:bg-[#172d22]"
+            className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-7 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-start justify-between gap-4">
@@ -384,7 +431,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
 
             <div className="grid gap-3 sm:grid-cols-2">
               {columns.map((column, index) => (
-                <div key={`role-admin-detail-${column.key}`} className="rounded-2xl bg-zinc-50 p-4 text-center dark:bg-[#203d31]">
+                <div key={`role-admin-detail-${column.key}`} className="rounded-2xl bg-zinc-50 p-4 text-center dark:bg-[#151d1a]">
                   <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{column.label}</p>
                   <p className="mt-2 text-xs font-black uppercase text-zinc-900 dark:text-white">
                     {[selectedRow.primary, selectedRow.secondary, selectedRow.status, selectedRow.location, selectedRow.client, selectedRow.metric, selectedRow.amount][index]}
@@ -394,7 +441,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             </div>
 
             {selectedRow.pallet && (
-              <div className="mt-5 rounded-2xl border border-zinc-100 bg-white p-4 dark:border-white/10 dark:bg-[#203d31]">
+              <div className="mt-5 rounded-2xl border border-zinc-100 bg-white p-4 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t('timestamp')}</p>
                 <p className="mt-2 text-xs font-bold uppercase text-zinc-700 dark:text-zinc-200">
                   {dateFormatter.format(new Date(selectedRow.pallet.last_status_changed_at))}

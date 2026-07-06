@@ -42,7 +42,7 @@ export type PaginatedResult<T> = {
 type ApiRecord = Record<string, any>;
 
 const API_BACKENDS = {
-  local: 'http://127.0.0.1:8000/api',
+  local: '/api',
   production: 'https://api.trackpal.app/api',
 } as const;
 
@@ -255,6 +255,21 @@ const toBackendStatusId = (uiStatusId: number) => backendStatusIdByUiId.get(uiSt
 
 const backendRoleToUi: Record<string, RoleType> = {
   admin: RoleType.ADMIN,
+  admin_service: RoleType.ADMIN_SERVICE,
+  service_admin: RoleType.ADMIN_SERVICE,
+  'admin service': RoleType.ADMIN_SERVICE,
+  admin_servis: RoleType.ADMIN_SERVICE,
+  'admin servis': RoleType.ADMIN_SERVICE,
+  admin_warehouse: RoleType.ADMIN_WAREHOUSE,
+  warehouse_admin: RoleType.ADMIN_WAREHOUSE,
+  'admin warehouse': RoleType.ADMIN_WAREHOUSE,
+  admin_magacin: RoleType.ADMIN_WAREHOUSE,
+  'admin magacin': RoleType.ADMIN_WAREHOUSE,
+  finance_administration: RoleType.FINANCE_ADMINISTRATION,
+  finance_admin: RoleType.FINANCE_ADMINISTRATION,
+  finance_and_administration: RoleType.FINANCE_ADMINISTRATION,
+  'finance & administration': RoleType.FINANCE_ADMINISTRATION,
+  'finance and administration': RoleType.FINANCE_ADMINISTRATION,
   driver: RoleType.VOZAC,
   warehouse_operator: RoleType.MAGACINER,
   operator: RoleType.MAGACINER,
@@ -265,6 +280,9 @@ const backendRoleToUi: Record<string, RoleType> = {
 
 const uiRoleToBackend: Record<RoleType, string> = {
   [RoleType.ADMIN]: 'admin',
+  [RoleType.ADMIN_SERVICE]: 'admin_service',
+  [RoleType.ADMIN_WAREHOUSE]: 'admin_warehouse',
+  [RoleType.FINANCE_ADMINISTRATION]: 'finance_administration',
   [RoleType.VOZAC]: 'driver',
   [RoleType.MAGACINER]: 'warehouse_operator',
   [RoleType.KLIJENT]: 'customer',

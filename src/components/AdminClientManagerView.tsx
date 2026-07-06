@@ -13,7 +13,9 @@ import {
   MapPin,
   Package,
   Phone,
+  Plus,
   Search,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react';
@@ -206,6 +208,8 @@ export const AdminClientManagerView: React.FC = () => {
           : 'No clients match this search.',
     clientDetails:
       language === 'bs' ? 'Podaci o klijentu' : language === 'nl' ? 'Klantgegevens' : 'Client details',
+    companyName:
+      language === 'bs' ? 'Naziv firme' : language === 'nl' ? 'Bedrijfsnaam' : 'Company name',
     address: language === 'bs' ? 'Adresa' : language === 'nl' ? 'Adres' : 'Address',
     phone: language === 'bs' ? 'Broj telefona' : language === 'nl' ? 'Telefoonnummer' : 'Phone number',
     totalPallets:
@@ -213,7 +217,7 @@ export const AdminClientManagerView: React.FC = () => {
     overduePallets:
       language === 'bs' ? 'Paleta kasni' : language === 'nl' ? 'Bokken te laat' : 'Overdue pallets',
     rate:
-      language === 'bs' ? 'Iznos po danu kašnjenja' : language === 'nl' ? 'Tarief per dag te laat' : 'Late fee per day',
+      language === 'bs' ? 'Dnevna tarifa' : language === 'nl' ? 'Dagtarief' : 'Daily rate',
     overdueDays:
       language === 'bs' ? 'Broj dana kašnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days',
     gracePeriod:
@@ -423,6 +427,34 @@ export const AdminClientManagerView: React.FC = () => {
     });
   };
 
+  const addDraftWarehouse = () => {
+    setClientDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const addresses = [...(current.warehouse_addresses || [])];
+      if (addresses.length >= 2) {
+        return current;
+      }
+
+      return { ...current, warehouse_addresses: [...addresses, ''] };
+    });
+  };
+
+  const removeDraftWarehouse = (index: number) => {
+    setClientDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const addresses = [...(current.warehouse_addresses || [])];
+      addresses.splice(index, 1);
+
+      return { ...current, warehouse_addresses: addresses.length > 0 ? addresses : [''] };
+    });
+  };
+
   const saveClientDraft = () => {
     if (!clientDraft) {
       return;
@@ -474,8 +506,8 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const renderMetricCard = (label: string, value: React.ReactNode, danger = false) => (
-    <div className="flex min-h-[5.75rem] flex-col items-center justify-center rounded-2xl bg-gray-50 p-4 text-center dark:bg-[#203d31]">
-      <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-[#9fcbb3]">
+    <div className="flex min-h-[5.75rem] flex-col items-center justify-center rounded-2xl bg-gray-50 p-4 text-center dark:bg-[#151d1a]">
+      <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
         {label}
       </span>
       <p className={cn('w-full truncate text-xs font-black uppercase text-zinc-900 dark:text-white', danger && 'text-rose-600 dark:text-rose-200')}>
@@ -486,13 +518,13 @@ export const AdminClientManagerView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#1a3327]">
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-white/10 dark:text-emerald-100">
             <UserRound size={18} />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">
               Client Manager
             </p>
             <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
@@ -510,7 +542,7 @@ export const AdminClientManagerView: React.FC = () => {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={labels.search}
-            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#243f32]"
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
           />
         </div>
       </div>
@@ -668,7 +700,7 @@ export const AdminClientManagerView: React.FC = () => {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[3rem] bg-white p-8 shadow-2xl no-scrollbar dark:bg-[#172d22]"
+            className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[3rem] bg-white p-8 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="absolute left-0 right-0 top-0 h-2 bg-black dark:bg-[#00A655]" />
@@ -679,7 +711,7 @@ export const AdminClientManagerView: React.FC = () => {
                   {selectedRow.clientName}
                 </h3>
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  {labels.clientDetails} · KVK {selectedRow.kvkLabel}
+                  {labels.clientDetails}
                 </span>
               </div>
               <button
@@ -700,20 +732,30 @@ export const AdminClientManagerView: React.FC = () => {
               {renderMetricCard(labels.overdueTotal, selectedRow.overdueTotalLabel, selectedRow.overdueTotal > 0)}
             </div>
 
-            <div className="grid items-stretch gap-6 lg:grid-cols-[1fr_1.25fr]">
-              <div className="flex h-full flex-col rounded-[2rem] border border-zinc-100 bg-zinc-50/70 p-5 dark:border-white/10 dark:bg-[#203d31]">
-                <div className="grid auto-rows-fr gap-4 md:grid-cols-2">
-                  <div className="flex flex-col justify-end space-y-1 md:col-span-2">
+            <div className="grid items-stretch gap-6 lg:grid-cols-2">
+              <div className="flex h-full flex-col rounded-[2rem] border border-zinc-100 bg-zinc-50/70 p-5 dark:border-white/10 dark:bg-[#151d1a]">
+                <div className="mb-4 rounded-[1.5rem] border border-emerald-100 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#101715]">
+                  <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
+                    <Hash size={13} />
+                    KVK
+                  </div>
+                  <p className="mt-1 text-base font-black uppercase tracking-tight text-emerald-950 dark:text-white">
+                    {selectedRow.kvkLabel}
+                  </p>
+                </div>
+
+                <div className="grid auto-rows-fr gap-4 md:grid-cols-3">
+                  <div className="flex min-w-0 flex-col justify-end space-y-1 md:col-span-3">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {labels.address}
+                      {labels.companyName}
                     </label>
                     <Input
-                      value={clientDraft.warehouse_addresses?.[0] || ''}
-                      onChange={(event) => updateDraftWarehouse(0, event.target.value)}
+                      value={clientDraft.name}
+                      onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })}
                       className="bg-white normal-case tracking-normal"
                     />
                   </div>
-                  <div className="flex flex-col justify-end space-y-1">
+                  <div className="flex min-w-0 flex-col justify-end space-y-1">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.phone}
                     </label>
@@ -723,7 +765,7 @@ export const AdminClientManagerView: React.FC = () => {
                       className="bg-white normal-case tracking-normal"
                     />
                   </div>
-                  <div className="flex flex-col justify-end space-y-1">
+                  <div className="flex min-w-0 flex-col justify-end space-y-1">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.rate}
                     </label>
@@ -737,7 +779,7 @@ export const AdminClientManagerView: React.FC = () => {
                       className="bg-white"
                     />
                   </div>
-                  <div className="flex flex-col justify-end space-y-1">
+                  <div className="flex min-w-0 flex-col justify-end space-y-1">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.gracePeriod}
                     </label>
@@ -750,30 +792,113 @@ export const AdminClientManagerView: React.FC = () => {
                       className="bg-white"
                     />
                   </div>
-                  <div className="flex flex-col justify-end space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {labels.warehouse2}
-                    </label>
-                    <Input
-                      value={clientDraft.warehouse_addresses?.[1] || ''}
-                      onChange={(event) => updateDraftWarehouse(1, event.target.value)}
-                      className="bg-white normal-case tracking-normal"
-                    />
+                </div>
+
+                <div className="mt-5 border-t border-zinc-100 pt-5 dark:border-white/10">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      {language === 'bs' ? 'Magacini' : language === 'nl' ? 'Magazijnen' : 'Warehouses'}
+                    </h4>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-300">
+                      {(clientDraft.warehouse_addresses || []).filter(Boolean).length}/2
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {Array.from({ length: Math.max(1, Math.min(2, (clientDraft.warehouse_addresses || []).length)) }).map((_, index) => (
+                      <div
+                        key={`client-warehouse-editor-${index}`}
+                        className="flex min-h-[9.5rem] flex-col justify-between rounded-[1.5rem] border border-zinc-100 bg-white p-4 dark:border-white/10 dark:bg-[#101715]"
+                      >
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <label className="flex min-w-0 items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-400">
+                            <MapPin size={13} className="shrink-0" />
+                            <span className="truncate">{index === 0 ? labels.warehouse1 : labels.warehouse2}</span>
+                          </label>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => removeDraftWarehouse(index)}
+                              className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+                              aria-label={
+                                language === 'bs'
+                                  ? 'Ukloni magacin'
+                                  : language === 'nl'
+                                    ? 'Magazijn verwijderen'
+                                    : 'Delete warehouse'
+                              }
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          className="group relative"
+                          title={
+                            language === 'bs'
+                              ? 'Klikni za uređivanje adrese'
+                              : language === 'nl'
+                                ? 'Klik om adres te bewerken'
+                                : 'Click to edit address'
+                          }
+                        >
+                          <Input
+                            value={clientDraft.warehouse_addresses?.[index] || ''}
+                            onChange={(event) => updateDraftWarehouse(index, event.target.value)}
+                            placeholder={
+                              index === 0
+                                ? labels.warehouse1
+                                : language === 'bs'
+                                  ? 'Dodaj drugi magacin'
+                                  : language === 'nl'
+                                    ? 'Tweede magazijn toevoegen'
+                                    : 'Add second warehouse'
+                            }
+                            className="w-full bg-zinc-50 normal-case tracking-normal transition-colors hover:border-emerald-300 hover:bg-emerald-50/40 focus:border-emerald-400 dark:bg-[#151d1a] dark:hover:bg-white/[0.07]"
+                          />
+                          <span className="pointer-events-none absolute -top-8 left-3 z-10 rounded-full bg-emerald-950 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:bg-emerald-100 dark:text-emerald-950">
+                            {language === 'bs'
+                              ? 'Klikni za edit'
+                              : language === 'nl'
+                                ? 'Klik om te bewerken'
+                                : 'Click to edit address'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {(clientDraft.warehouse_addresses || []).length === 1 && (
+                      <button
+                        type="button"
+                        onClick={addDraftWarehouse}
+                        className="flex min-h-[9.5rem] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-emerald-200 bg-emerald-50/50 p-4 text-center text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-100"
+                      >
+                        <Plus size={18} />
+                        <span className="mt-2 text-[10px] font-black uppercase tracking-widest">
+                          {language === 'bs' ? 'Dodaj magacin 2' : language === 'nl' ? 'Magazijn 2 toevoegen' : 'Add warehouse 2'}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-4 grid auto-rows-fr grid-cols-2 gap-3">
-                  {renderMetricCard('KVK', selectedRow.kvkLabel)}
-                  {renderMetricCard(labels.warehouse1, clientDraft.warehouse_addresses?.[0] || '-')}
+                <div className="mt-auto grid gap-3 pt-5 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={addDraftWarehouse}
+                    disabled={(clientDraft.warehouse_addresses || []).length >= 2}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-white px-4 text-[10px] font-black uppercase tracking-widest text-emerald-700 transition-colors hover:border-emerald-300 hover:text-emerald-900 disabled:cursor-not-allowed disabled:border-zinc-100 disabled:text-zinc-300 dark:border-white/10 dark:bg-[#101715] dark:text-emerald-100 dark:hover:bg-white/[0.07] dark:disabled:text-zinc-500"
+                  >
+                    <Plus size={14} />
+                    {language === 'bs' ? 'Dodaj magacin' : language === 'nl' ? 'Magazijn toevoegen' : 'Add warehouse'}
+                  </button>
+                  <Button type="button" className="h-12 w-full justify-center" onClick={saveClientDraft}>
+                    {labels.save}
+                  </Button>
                 </div>
-
-                <Button type="button" className="mt-auto w-full py-4" onClick={saveClientDraft}>
-                  {labels.save}
-                </Button>
               </div>
 
               <div className="grid h-full gap-4">
-                <div className="flex min-h-[17rem] flex-col rounded-[2rem] border border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#203d31]">
+                <div className="flex min-h-[17rem] flex-col rounded-[2rem] border border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#151d1a]">
                   <div className="mb-4 flex items-center justify-between">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.palletsAtClient}
@@ -809,7 +934,7 @@ export const AdminClientManagerView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex min-h-[17rem] flex-col rounded-[2rem] border border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#203d31]">
+                <div className="flex min-h-[17rem] flex-col rounded-[2rem] border border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#151d1a]">
                   <div className="mb-4 flex items-center justify-between">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.lastInvoices}
@@ -821,7 +946,7 @@ export const AdminClientManagerView: React.FC = () => {
                       selectedInvoices.map((invoice) => (
                         <div
                           key={`admin-client-invoice-${invoice.id}`}
-                          className="flex min-h-16 items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-4 py-3 dark:bg-[#172d22]"
+                          className="flex min-h-16 items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-4 py-3 dark:bg-[#101715]"
                         >
                           <div className="min-w-0">
                             <p className="truncate text-[11px] font-black uppercase text-zinc-950 dark:text-white">

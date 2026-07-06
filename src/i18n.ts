@@ -30,6 +30,9 @@ export const isAppLanguage = (value: string | null | undefined): value is AppLan
 export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   en: {
     [RoleType.ADMIN]: 'Admin',
+    [RoleType.ADMIN_SERVICE]: 'Admin Service',
+    [RoleType.ADMIN_WAREHOUSE]: 'Admin Warehouse',
+    [RoleType.FINANCE_ADMINISTRATION]: 'Finance & Administration',
     [RoleType.VOZAC]: 'Driver',
     [RoleType.MAGACINER]: 'Warehouse',
     [RoleType.KLIJENT]: 'Client / Buyer',
@@ -37,6 +40,9 @@ export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   },
   nl: {
     [RoleType.ADMIN]: 'Admin',
+    [RoleType.ADMIN_SERVICE]: 'Admin Service',
+    [RoleType.ADMIN_WAREHOUSE]: 'Admin Magazijn',
+    [RoleType.FINANCE_ADMINISTRATION]: 'Financien en Administratie',
     [RoleType.VOZAC]: 'Chauffeur',
     [RoleType.MAGACINER]: 'Magazijn',
     [RoleType.KLIJENT]: 'Klant / Koper',
@@ -44,6 +50,9 @@ export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   },
   bs: {
     [RoleType.ADMIN]: 'Admin',
+    [RoleType.ADMIN_SERVICE]: 'Admin Servis',
+    [RoleType.ADMIN_WAREHOUSE]: 'Admin Magacin',
+    [RoleType.FINANCE_ADMINISTRATION]: 'Finansije i Administracija',
     [RoleType.VOZAC]: 'Vozač',
     [RoleType.MAGACINER]: 'Magaciner',
     [RoleType.KLIJENT]: 'Klijent / Kupac',
@@ -51,13 +60,28 @@ export const roleLabels: Record<AppLanguage, Record<RoleType, string>> = {
   },
 };
 
-export const rolePermissionCatalog: Record<AppLanguage, Record<RoleType, string[]>> = {
+export const rolePermissionCatalog: Record<AppLanguage, Partial<Record<RoleType, string[]>>> = {
   en: {
     [RoleType.ADMIN]: [
       'View every module',
       'Create and edit users',
       'Manage roles and access',
       'Control invoices and logistics',
+    ],
+    [RoleType.ADMIN_SERVICE]: [
+      'View service operations',
+      'Track repair queue',
+      'Close service tasks',
+    ],
+    [RoleType.ADMIN_WAREHOUSE]: [
+      'View warehouse operations',
+      'Track stock and movements',
+      'Manage operational statuses',
+    ],
+    [RoleType.FINANCE_ADMINISTRATION]: [
+      'View finance overview',
+      'Review overdue balances',
+      'Export invoices',
     ],
     [RoleType.VOZAC]: [
       'View active routes',
@@ -86,6 +110,21 @@ export const rolePermissionCatalog: Record<AppLanguage, Record<RoleType, string[
       'Gebruikers aanmaken en bewerken',
       'Rollen en toegang beheren',
       'Facturen en logistiek beheren',
+    ],
+    [RoleType.ADMIN_SERVICE]: [
+      'Serviceoverzicht bekijken',
+      'Reparatierij volgen',
+      'Servicetaken afsluiten',
+    ],
+    [RoleType.ADMIN_WAREHOUSE]: [
+      'Magazijnoverzicht bekijken',
+      'Voorraad en bewegingen volgen',
+      'Operationele statussen beheren',
+    ],
+    [RoleType.FINANCE_ADMINISTRATION]: [
+      'Financieel overzicht bekijken',
+      'Openstaande saldi controleren',
+      'Facturen exporteren',
     ],
     [RoleType.VOZAC]: [
       'Actieve ritten bekijken',
@@ -293,6 +332,14 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     Servis: 'Service',
     Onbekend: 'Unassigned',
     'Bij klijent': 'At Client',
+    'Kod klijenta': 'At Client',
+    'Transport BiH-NL': 'BiH-NL Transport',
+    'Transport NL-BiH': 'NL-BiH Transport',
+    'Bowido NL': 'Bowido NL',
+    'Bowido BiH': 'Bowido BiH',
+    'Za preuzimanje kod klijenta': 'Customer Pickup',
+    Nepoznato: 'Unknown',
+    'BiH - drugo': 'BiH - Other',
   },
   nl: {
     'Bowido BIH': 'Bowido BIH',
@@ -304,6 +351,14 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     Servis: 'Service',
     Onbekend: 'Ongemerkt',
     'Bij klijent': 'Bij de klant',
+    'Kod klijenta': 'Bij de klant',
+    'Transport BiH-NL': 'BiH-NL transport',
+    'Transport NL-BiH': 'NL-BiH transport',
+    'Bowido NL': 'Bowido NL',
+    'Bowido BiH': 'Bowido BiH',
+    'Za preuzimanje kod klijenta': 'Ophalen klant',
+    Nepoznato: 'Onbekend',
+    'BiH - drugo': 'BiH - overig',
   },
   bs: {
     'Bowido BIH': 'Bowido BIH',
@@ -315,6 +370,14 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     Servis: 'Servis',
     Onbekend: 'Neoznačene',
     'Bij klijent': 'Kod klijenta',
+    'Kod klijenta': 'Kod klijenta',
+    'Transport BiH-NL': 'Transport BiH-NL',
+    'Transport NL-BiH': 'Transport NL-BiH',
+    'Bowido NL': 'Bowido NL',
+    'Bowido BiH': 'Bowido BiH',
+    'Za preuzimanje kod klijenta': 'Za preuzimanje kod klijenta',
+    Nepoznato: 'Nepoznato',
+    'BiH - drugo': 'BiH - drugo',
   },
 };
 
