@@ -607,7 +607,7 @@ export default function App() {
       <div
         className={cn(
           'flex flex-col md:flex-row bg-white dark:bg-transparent',
-          usesFixedMobileShell ? 'min-h-0 flex-1 pt-28' : 'min-h-screen pt-28 md:pt-16'
+          usesFixedMobileShell ? 'min-h-0 flex-1 pt-28 md:pt-0' : 'min-h-screen pt-28 md:pt-0'
         )}
       >
         <Sidebar 
@@ -622,7 +622,7 @@ export default function App() {
             'relative flex flex-1 flex-col bg-white dark:bg-transparent',
             usesFixedMobileShell
               ? 'min-h-0 overflow-y-auto overscroll-y-contain pb-[calc(env(safe-area-inset-bottom)+5.5rem)] scroll-smooth no-scrollbar'
-              : 'h-[calc(100vh-7rem)] overflow-y-auto pb-24 scroll-smooth no-scrollbar md:h-[calc(100vh-4rem)] md:pb-0'
+              : 'h-[calc(100vh-7rem)] overflow-y-auto pb-24 scroll-smooth no-scrollbar md:h-screen md:pt-16 md:pb-0'
           )}
           style={usesFixedMobileShell ? { WebkitOverflowScrolling: 'touch' } : undefined}
         >
