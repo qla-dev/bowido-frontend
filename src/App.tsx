@@ -12,16 +12,30 @@ import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
 import { AdminRoleOperationsView } from './components/AdminRoleOperationsView';
-import { ManagedUser, RoleType, User } from './types';
-import { Eye, EyeOff, LogIn, Smartphone, X } from 'lucide-react';
+import { RoleType, User } from './types';
+import { Eye, EyeOff, LogIn, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
 import { Button, Card, Input, Select, cn } from './components/ui';
 import { apiService } from './services/api';
 import logoImage from './assets/logo.png';
-import { getRoleLabel, languageOptions } from './i18n';
+import { languageOptions } from './i18n';
 
 const CURRENT_USER_STORAGE_KEY = 'trackpal_current_user';
+const LOGIN_PROFILES_STORAGE_KEY = 'trackpal_login_profiles';
+const RECENT_LOGIN_LIMIT = 6;
+
+type LoginMode = 'user' | 'customer';
+
+type StoredLoginProfile = {
+  id: string;
+  mode: LoginMode;
+  name: string;
+  email?: string;
+  kvk?: string;
+  saved: boolean;
+  lastUsedAt: string;
+};
 
 const readStoredCurrentUser = (): User | null => {
   if (typeof window === 'undefined' || !apiService.hasToken()) {
@@ -50,45 +64,156 @@ const storeCurrentUser = (user: User | null) => {
   window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
 };
 
+const readLoginProfiles = (): StoredLoginProfile[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const storedProfiles = window.localStorage.getItem(LOGIN_PROFILES_STORAGE_KEY);
+    const profiles = storedProfiles ? JSON.parse(storedProfiles) : [];
+
+    if (!Array.isArray(profiles)) {
+      return [];
+    }
+
+    return profiles
+      .filter((profile): profile is StoredLoginProfile =>
+        Boolean(profile) &&
+        typeof profile.id === 'string' &&
+        (profile.mode === 'user' || profile.mode === 'customer') &&
+        typeof profile.name === 'string'
+      )
+      .sort((left, right) => new Date(right.lastUsedAt).getTime() - new Date(left.lastUsedAt).getTime())
+      .slice(0, RECENT_LOGIN_LIMIT);
+  } catch {
+    window.localStorage.removeItem(LOGIN_PROFILES_STORAGE_KEY);
+    return [];
+  }
+};
+
+const storeLoginProfiles = (profiles: StoredLoginProfile[]) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(LOGIN_PROFILES_STORAGE_KEY, JSON.stringify(profiles.slice(0, RECENT_LOGIN_LIMIT)));
+};
+
+const loginProfileId = (mode: LoginMode, identifier: string) =>
+  `${mode}:${identifier.trim().toLowerCase()}`;
+
+const loginProfileSubtitle = (profile: StoredLoginProfile) =>
+  profile.mode === 'customer' ? `KVK ${profile.kvk || ''}`.trim() : profile.email || '';
+
+const rememberedKvkFromUser = (user: User) =>
+  user.customer_detail?.kvk_number || user.customer_detail?.kvk || undefined;
+
+const buildLoginProfile = (
+  user: User,
+  mode: LoginMode,
+  identifier: string,
+  saved: boolean,
+): StoredLoginProfile => {
+  const normalizedIdentifier = identifier.trim();
+  const kvk = mode === 'customer' ? rememberedKvkFromUser(user) || normalizedIdentifier : undefined;
+  const email = mode === 'user' ? user.email || normalizedIdentifier : undefined;
+  const customerName = user.customer_detail?.name || user.customer_detail?.company_name;
+
+  return {
+    id: loginProfileId(mode, mode === 'customer' ? kvk || normalizedIdentifier : email || normalizedIdentifier),
+    mode,
+    name: mode === 'customer' ? customerName || user.name : user.name,
+    email,
+    kvk,
+    saved,
+    lastUsedAt: new Date().toISOString(),
+  };
+};
+
+const upsertLoginProfile = (
+  profiles: StoredLoginProfile[],
+  nextProfile: StoredLoginProfile,
+) => {
+  const existingProfile = profiles.find((profile) => profile.id === nextProfile.id);
+  const mergedProfile = existingProfile
+    ? { ...existingProfile, ...nextProfile, saved: existingProfile.saved || nextProfile.saved }
+    : nextProfile;
+
+  return [
+    mergedProfile,
+    ...profiles.filter((profile) => profile.id !== nextProfile.id),
+  ]
+    .sort((left, right) => {
+      if (left.saved !== right.saved) {
+        return left.saved ? -1 : 1;
+      }
+
+      return new Date(right.lastUsedAt).getTime() - new Date(left.lastUsedAt).getTime();
+    })
+    .slice(0, RECENT_LOGIN_LIMIT);
+};
+
 const getCredentialLoginCopy = (language: string) => {
   if (language === 'nl') {
     return {
       title: 'Prijava',
+      userMode: 'I am a user',
+      customerMode: 'I am a customer',
       email: 'E-mail',
+      kvk: 'KVK nummer',
       password: 'Wachtwoord',
+      savedLogins: 'Opgeslagen logins',
+      recentLogins: 'Recente logins',
+      noLogins: 'Nog geen recente logins.',
+      rememberMe: 'Onthoud mij',
       cancel: 'Annuleren',
       submit: 'Prijava',
       showPassword: 'Wachtwoord tonen',
       hidePassword: 'Wachtwoord verbergen',
-      required: 'Vul e-mail en wachtwoord in.',
-      invalid: 'E-mail of wachtwoord is onjuist.',
+      required: 'Vul de gegevens en het wachtwoord in.',
+      invalid: 'Gegevens of wachtwoord zijn onjuist.',
     };
   }
 
   if (language === 'en') {
     return {
       title: 'Prijava',
+      userMode: 'I am a user',
+      customerMode: 'I am a customer',
       email: 'Email',
+      kvk: 'KVK number',
       password: 'Password',
+      savedLogins: 'Saved logins',
+      recentLogins: 'Recent logins',
+      noLogins: 'No recent logins yet.',
+      rememberMe: 'Remember me',
       cancel: 'Cancel',
       submit: 'Prijava',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
-      required: 'Enter email and password.',
-      invalid: 'Email or password is incorrect.',
+      required: 'Enter login details and password.',
+      invalid: 'Login details or password are incorrect.',
     };
   }
 
   return {
     title: 'Prijava',
+    userMode: 'I am a user',
+    customerMode: 'I am a customer',
     email: 'Email',
+    kvk: 'KVK broj',
     password: 'Lozinka',
+    savedLogins: 'Sacuvane prijave',
+    recentLogins: 'Nedavne prijave',
+    noLogins: 'Jos nema nedavnih prijava.',
+    rememberMe: 'Zapamti me',
     cancel: 'Odustani',
     submit: 'Prijava',
     showPassword: 'Prikazi lozinku',
     hidePassword: 'Sakrij lozinku',
-    required: 'Unesite email i lozinku.',
-    invalid: 'Email ili lozinka nisu ispravni.',
+    required: 'Unesite podatke za prijavu i lozinku.',
+    invalid: 'Podaci za prijavu ili lozinka nisu ispravni.',
   };
 };
 
@@ -125,15 +250,15 @@ export default function App() {
   const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen, refreshData, resetData } = useApp();
   const [currentUser, setCurrentUser] = useState<User | null>(() => readStoredCurrentUser());
   const [isRestoringSession, setIsRestoringSession] = useState(() => apiService.hasToken() && !readStoredCurrentUser());
-  const [loginUsers, setLoginUsers] = useState<User[]>([]);
+  const [loginProfiles, setLoginProfiles] = useState<StoredLoginProfile[]>(() => readLoginProfiles());
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [loginUsersError, setLoginUsersError] = useState<string | null>(null);
-  const [loggingInUserId, setLoggingInUserId] = useState<number | null>(null);
   const [isCredentialLoginOpen, setIsCredentialLoginOpen] = useState(false);
-  const [credentialLoginForm, setCredentialLoginForm] = useState({ email: '', password: '' });
+  const [credentialLoginMode, setCredentialLoginMode] = useState<LoginMode>('user');
+  const [credentialLoginForm, setCredentialLoginForm] = useState({ email: '', kvk: '', password: '' });
   const [credentialLoginError, setCredentialLoginError] = useState<string | null>(null);
   const [isCredentialLoginSubmitting, setIsCredentialLoginSubmitting] = useState(false);
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNightMode, setIsNightMode] = useState(false);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<number | null>(null);
@@ -144,31 +269,6 @@ export default function App() {
 
     return window.matchMedia('(max-width: 767px)').matches;
   });
-
-  const loadLoginUsers = async () => {
-    setLoginUsersError(null);
-
-    try {
-      const storedUsers = await apiService.users.loginOptions();
-      setLoginUsers(storedUsers.map(({ password, ...user }: ManagedUser) => user));
-    } catch (error) {
-      console.error('Failed to load login users', error);
-      setLoginUsers([]);
-      setLoginUsersError(
-        language === 'bs'
-          ? 'Korisnici se trenutno ne mogu ucitati. Provjeri API okruzenje i pokreni frontend ponovo.'
-          : language === 'nl'
-            ? 'Gebruikers kunnen niet worden geladen. Controleer de API-omgeving en start de frontend opnieuw.'
-            : 'Users cannot be loaded. Check the API environment and restart the frontend.'
-      );
-    }
-  };
-
-  useEffect(() => {
-    if (!currentUser) {
-      void loadLoginUsers();
-    }
-  }, []);
 
   useEffect(() => {
     if (!apiService.hasToken()) {
@@ -250,6 +350,8 @@ export default function App() {
   const usesInternalScrollShell = Boolean(currentUser) && (usesRoleMobileShell || usesFixedMobileShell);
   const chromeTintColor = isNightMode ? '#070b0a' : usesRoleMobileShell ? '#00A655' : '#ffffff';
   const credentialLoginCopy = getCredentialLoginCopy(language);
+  const savedLoginProfiles = loginProfiles.filter((profile) => profile.saved);
+  const recentLoginProfiles = loginProfiles.filter((profile) => !profile.saved);
 
   useEffect(() => {
     if (!usesInternalScrollShell) {
@@ -340,32 +442,17 @@ export default function App() {
     };
   }, [chromeTintColor]);
 
-  const handleLogin = async (user: User) => {
-    setLoginError(null);
-    setLoggingInUserId(user.id);
-
-    try {
-      const result = await apiService.auth.loginDemoUser(user);
-      setCurrentUser(result.user);
-      storeCurrentUser(result.user);
-      void refreshData();
-    } catch (error) {
-      console.error('Failed to login', error);
-      setLoginError(
-        language === 'bs'
-          ? 'Prijava nije uspjela. Provjeri backend i seed podatke.'
-          : language === 'nl'
-            ? 'Inloggen is mislukt. Controleer de backend en seeddata.'
-            : 'Login failed. Check the backend and seed data.'
-      );
-    } finally {
-      setLoggingInUserId(null);
-    }
-  };
-
-  const openCredentialLogin = () => {
+  const openCredentialLogin = (profile?: StoredLoginProfile) => {
     setLoginError(null);
     setCredentialLoginError(null);
+    setCredentialLoginMode(profile?.mode || 'user');
+    setCredentialLoginForm({
+      email: profile?.mode === 'user' ? profile.email || '' : '',
+      kvk: profile?.mode === 'customer' ? profile.kvk || '' : '',
+      password: '',
+    });
+    setRememberLogin(Boolean(profile?.saved));
+    setShowCredentialPassword(false);
     setIsCredentialLoginOpen(true);
   };
 
@@ -379,13 +466,20 @@ export default function App() {
     setShowCredentialPassword(false);
   };
 
+  const selectCredentialLoginMode = (mode: LoginMode) => {
+    setCredentialLoginMode(mode);
+    setCredentialLoginError(null);
+  };
+
   const handleCredentialLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const email = credentialLoginForm.email.trim();
+    const loginIdentifier = credentialLoginMode === 'customer'
+      ? credentialLoginForm.kvk.trim()
+      : credentialLoginForm.email.trim();
     const password = credentialLoginForm.password;
 
-    if (!email || !password) {
+    if (!loginIdentifier || !password) {
       setCredentialLoginError(credentialLoginCopy.required);
       return;
     }
@@ -394,12 +488,25 @@ export default function App() {
     setIsCredentialLoginSubmitting(true);
 
     try {
-      const result = await apiService.auth.login({ email, password });
+      const result = await apiService.auth.login({
+        loginType: credentialLoginMode,
+        email: credentialLoginMode === 'user' ? loginIdentifier : undefined,
+        kvk: credentialLoginMode === 'customer' ? loginIdentifier : undefined,
+        password,
+      });
+      const updatedProfiles = upsertLoginProfile(
+        loginProfiles,
+        buildLoginProfile(result.user, credentialLoginMode, loginIdentifier, rememberLogin),
+      );
+
+      setLoginProfiles(updatedProfiles);
+      storeLoginProfiles(updatedProfiles);
       setCurrentUser(result.user);
       storeCurrentUser(result.user);
-      setCredentialLoginForm({ email: '', password: '' });
+      setCredentialLoginForm({ email: '', kvk: '', password: '' });
       setIsCredentialLoginOpen(false);
       setShowCredentialPassword(false);
+      setRememberLogin(false);
       void refreshData();
     } catch (error) {
       console.error('Failed to login with credentials', error);
@@ -416,7 +523,7 @@ export default function App() {
     setActiveTab('dashboard');
     setIsGhostReportOpen(false);
     resetData();
-    void loadLoginUsers();
+    setLoginProfiles(readLoginProfiles());
   };
 
  if (isRestoringSession && !currentUser) {
@@ -454,68 +561,67 @@ export default function App() {
 
           <Card title={t('welcome') || 'System Login'} noPadding>
             <div className="p-8 space-y-6 text-center">
-              <div className="space-y-1 text-center">
-                <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">
-                  {t('loggedAs') === 'Logged as'
-                    ? 'Select a role to preview'
-                    : 'Odaberite ulogu'}
-                </p>
-              </div>
+              {savedLoginProfiles.length > 0 && (
+                <div className="space-y-3 text-left">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                    {credentialLoginCopy.savedLogins}
+                  </p>
+                  {savedLoginProfiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => openCredentialLogin(profile)}
+                      className="w-full group flex items-center justify-between rounded-2xl border border-[#00A655] bg-emerald-50 p-5 text-left transition-all duration-300 hover:bg-white hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:border-white/10 dark:bg-[#101715] dark:hover:border-[#00A655]"
+                    >
+                      <div className="flex min-w-0 flex-col items-start">
+                        <span className="font-display max-w-full truncate text-xs font-black uppercase tracking-tight text-emerald-900 dark:text-white">
+                          {profile.name}
+                        </span>
+                        <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                          {loginProfileSubtitle(profile)}
+                        </span>
+                      </div>
 
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  title="Prijava"
-                  aria-label="Prijava"
-                  onClick={openCredentialLogin}
-                  className="w-full group flex items-center justify-between rounded-2xl border border-[#00A655] bg-emerald-50 p-5 transition-all duration-300 hover:bg-white hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:border-white/10 dark:bg-[#101715] dark:hover:border-[#00A655]"
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="font-display text-xs font-black uppercase tracking-tight text-emerald-900 dark:text-white">
-                      Prijava
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                      {credentialLoginCopy.email} / {credentialLoginCopy.password}
-                    </span>
-                  </div>
+                      <div className="rounded-xl border border-[#00A655] bg-white p-2.5 text-[#00A655] shadow-sm transition-all group-hover:bg-[#00A655] group-hover:text-white dark:border-white/10 dark:bg-[#151d1a]">
+                        <LogIn size={18} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-                  <div className="rounded-xl border border-[#00A655] bg-white p-2.5 text-[#00A655] shadow-sm transition-all group-hover:bg-[#00A655] group-hover:text-white dark:border-white/10 dark:bg-[#151d1a]">
-                    <LogIn size={18} />
-                  </div>
-                </button>
+              {recentLoginProfiles.length > 0 && (
+                <div className="space-y-3 text-left">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                    {credentialLoginCopy.recentLogins}
+                  </p>
+                  {recentLoginProfiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => openCredentialLogin(profile)}
+                      className="w-full group flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-left transition-all duration-300 hover:border-[#00A655] hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:border-white/10 dark:bg-[#101715] dark:hover:border-[#00A655]"
+                    >
+                      <div className="flex min-w-0 flex-col items-start">
+                        <span className="font-display max-w-full truncate text-xs font-black uppercase tracking-tight text-emerald-900 dark:text-white">
+                          {profile.name}
+                        </span>
+                        <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                          {loginProfileSubtitle(profile)}
+                        </span>
+                      </div>
 
-                {loginUsers.map((user) => (
-                  <button
-                    id={`login-${user.role_name.toLowerCase()}`}
-                    key={user.id}
-                    onClick={() => void handleLogin(user)}
-                    disabled={loggingInUserId !== null}
-                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#101715] dark:border-white/10 dark:hover:border-[#00A655]"
-                  >
-                    <div className="flex flex-col items-start">
-                      <span className="font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
-                        {getRoleLabel(user.role_name, language)}
-                      </span>
-                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest">
-                        {user.email}
-                      </span>
-                    </div>
+                      <div className="rounded-xl border border-zinc-200 bg-white p-2.5 shadow-sm transition-all group-hover:border-[#00A655] group-hover:bg-[#00A655] group-hover:text-white dark:border-white/10 dark:bg-[#151d1a]">
+                        <LogIn size={18} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
 
-                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#151d1a] dark:border-white/10">
-                      <LogIn size={18} className={loggingInUserId === user.id ? 'animate-pulse' : ''} />
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {loginUsers.length === 0 && (
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
-                  {loginUsersError ||
-                    (language === 'bs'
-                      ? 'Nema korisnika za prijavu iz baze.'
-                      : language === 'nl'
-                        ? 'Geen login-gebruikers gevonden in de database.'
-                        : 'No database login users found.')}
+              {savedLoginProfiles.length === 0 && recentLoginProfiles.length === 0 && (
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                  {credentialLoginCopy.noLogins}
                 </p>
               )}
 
@@ -527,16 +633,23 @@ export default function App() {
             </div>
           </Card>
 
-          <div className="flex flex-col items-center gap-4 pt-8 border-t border-zinc-100 dark:border-white/10">
-            <div className="flex items-center gap-2">
-              <Smartphone size={16} className="text-zinc-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                {t('mobileResponsiveReady')}
-              </span>
-            </div>
-          </div>
         </motion.div>
       </div>
+
+      <div className="flex justify-center px-6 pb-5">
+        <Button
+          type="button"
+          title="Prijava"
+          aria-label="Prijava"
+          onClick={() => openCredentialLogin()}
+          className="w-full max-w-sm gap-2 shadow-2xl shadow-emerald-900/20"
+          size="lg"
+        >
+          <LogIn size={16} />
+          Prijava
+        </Button>
+      </div>
+
       <AppFooter />
 
       <AnimatePresence>
@@ -580,28 +693,52 @@ export default function App() {
                 </button>
               </div>
 
+              <div className="grid grid-cols-2 gap-2 border-b border-zinc-100 p-4 dark:border-white/10">
+                {(['user', 'customer'] as LoginMode[]).map((mode) => {
+                  const isActive = credentialLoginMode === mode;
+
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => selectCredentialLoginMode(mode)}
+                      disabled={isCredentialLoginSubmitting}
+                      className={cn(
+                        'rounded-xl border px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] transition-all disabled:opacity-50',
+                        isActive
+                          ? 'border-[#00A655] bg-[#00A655] text-white shadow-md shadow-emerald-900/10'
+                          : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-emerald-200 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300'
+                      )}
+                    >
+                      {mode === 'user' ? credentialLoginCopy.userMode : credentialLoginCopy.customerMode}
+                    </button>
+                  );
+                })}
+              </div>
+
               <form className="space-y-5 p-6" onSubmit={(event) => void handleCredentialLoginSubmit(event)}>
                 <div className="space-y-2">
                   <label
-                    htmlFor="credential-login-email"
+                    htmlFor={credentialLoginMode === 'customer' ? 'credential-login-kvk' : 'credential-login-email'}
                     className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400"
                   >
-                    {credentialLoginCopy.email}
+                    {credentialLoginMode === 'customer' ? credentialLoginCopy.kvk : credentialLoginCopy.email}
                   </label>
                   <Input
-                    id="credential-login-email"
-                    type="email"
+                    id={credentialLoginMode === 'customer' ? 'credential-login-kvk' : 'credential-login-email'}
+                    type={credentialLoginMode === 'customer' ? 'text' : 'email'}
                     autoComplete="username"
-                    value={credentialLoginForm.email}
+                    inputMode={credentialLoginMode === 'customer' ? 'numeric' : 'email'}
+                    value={credentialLoginMode === 'customer' ? credentialLoginForm.kvk : credentialLoginForm.email}
                     onChange={(event) => {
                       setCredentialLoginForm((previousState) => ({
                         ...previousState,
-                        email: event.target.value,
+                        [credentialLoginMode === 'customer' ? 'kvk' : 'email']: event.target.value,
                       }));
                       setCredentialLoginError(null);
                     }}
                     className="normal-case tracking-normal"
-                    placeholder="korisnik@trackpal.app"
+                    placeholder={credentialLoginMode === 'customer' ? '12345678' : 'korisnik@trackpal.app'}
                     disabled={isCredentialLoginSubmitting}
                   />
                 </div>
@@ -641,6 +778,31 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setRememberLogin((isRemembered) => !isRemembered)}
+                  disabled={isCredentialLoginSubmitting}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-all disabled:opacity-50',
+                    rememberLogin
+                      ? 'border-[#00A655] bg-emerald-50 text-emerald-900 dark:border-white/10 dark:bg-white/[0.08] dark:text-white'
+                      : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-emerald-200 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300'
+                  )}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-[0.16em]">
+                    {credentialLoginCopy.rememberMe}
+                  </span>
+                  <span
+                    className={cn(
+                      'flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all',
+                      rememberLogin ? 'border-[#00A655] bg-[#00A655]' : 'border-zinc-300 bg-white dark:border-white/20 dark:bg-transparent'
+                    )}
+                    aria-hidden="true"
+                  >
+                    {rememberLogin && <span className="h-2 w-2 rounded-sm bg-white" />}
+                  </span>
+                </button>
 
                 {credentialLoginError && (
                   <p

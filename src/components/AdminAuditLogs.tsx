@@ -30,6 +30,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   onExport,
 }) => {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filter, setFilter] = useState<AuditFilter>('all');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [pageOffset, setPageOffset] = useState(0);
@@ -44,7 +45,15 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 
   useEffect(() => {
     setPageOffset(0);
-  }, [filter]);
+  }, [debouncedQuery, filter]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(query.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [query]);
 
   useEffect(() => {
     let isMounted = true;
@@ -56,6 +65,9 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         const page = await apiService.auditLogs.page({
           limit: pageLimit,
           offset: pageOffset,
+          search: debouncedQuery || undefined,
+          sort_by: 'created_at',
+          sort_direction: 'desc',
           event_type:
             filter === 'qr_version'
               ? 'qr_code_changed'
@@ -84,7 +96,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [filter, pageLimit, pageOffset]);
+  }, [debouncedQuery, filter, pageLimit, pageOffset]);
 
   useEffect(() => {
     if (cachedAuditLogs.length === 0) {
@@ -104,35 +116,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     [auditLogs]
   );
 
-  const filteredLogs = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return sortedLogs.filter((log) => {
-      const logType = log.type || 'status';
-      const matchesType = filter === 'all' || filter === logType;
-
-      if (!matchesType) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return [
-        log.pallet_qr,
-        log.old_qr_code,
-        log.new_qr_code,
-        log.made_by_user_name,
-        log.note,
-        log.qr_version,
-        log.old_status_name,
-        log.new_status_name,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(normalizedQuery));
-    });
-  }, [auditLogs, filter, query, sortedLogs]);
+  const filteredLogs = sortedLogs;
 
   const statusLogCount = auditLogs.filter((log) => (log.type || 'status') === 'status').length;
   const qrVersionLogCount = auditLogs.filter((log) => log.type === 'qr_version').length;
@@ -158,17 +142,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         noPadding
       >
         <div className="border-b border-zinc-100 bg-zinc-50/60 p-4">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="relative">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t('searchPallets')}
-                className="pl-11 bg-white"
-              />
-            </div>
-
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_minmax(0,28rem)] lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2">
               {([
                 ['all', t('allLogTypes')],
@@ -188,6 +162,16 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                   {label}
                 </button>
               ))}
+            </div>
+
+            <div className="relative w-full">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t('searchPallets')}
+                className="pl-11 bg-white"
+              />
             </div>
           </div>
         </div>

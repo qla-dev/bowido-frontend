@@ -241,7 +241,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
   useEffect(() => {
     void loadUsers();
-  }, [pageLimit, pageOffset]);
+  }, [deferredSearchTerm, pageLimit, pageOffset]);
 
   useEffect(() => {
     setPageOffset(0);
@@ -255,6 +255,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
       const page = await apiService.users.page({
         limit: pageLimit,
         offset: pageOffset,
+        search: deferredSearchTerm.trim() || undefined,
       });
       setUsers(page.items);
       setPaginationMeta(page.meta);
@@ -368,15 +369,9 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   };
 
   const filteredUsers = users.filter((user) => {
-    const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
-    const matchesSearch =
-      normalizedSearch.length === 0 ||
-      user.email.toLowerCase().includes(normalizedSearch) ||
-      user.name.toLowerCase().includes(normalizedSearch) ||
-      user.role_name.toLowerCase().includes(normalizedSearch);
     const matchesRole = roleFilter === 'all' || user.role_name === roleFilter;
 
-    return matchesSearch && matchesRole;
+    return matchesRole;
   });
 
   const adminCount = users.filter((user) => user.role_name === RoleType.ADMIN).length;

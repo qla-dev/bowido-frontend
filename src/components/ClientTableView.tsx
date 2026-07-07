@@ -25,6 +25,7 @@ import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 type SortKey =
   | 'client'
@@ -102,6 +103,12 @@ const MIN_COLUMN_WIDTHS: Record<ColumnKey, number> = {
 };
 
 const CLIENT_PAGE_SIZE = 25;
+const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
+  client: 'client',
+  kvk: 'kvk',
+  warehouses: 'warehouses',
+  rate: 'rate',
+};
 
 interface ClientTableViewProps {
   onAddClient?: () => void;
@@ -121,6 +128,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     count: 0,
   });
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
+    key: 'client',
+    direction: 'asc',
+  });
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -153,6 +166,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           limit: clientIdFilter === undefined ? pageLimit : 1,
           offset: clientIdFilter === undefined ? pageOffset : 0,
           user_id: clientIdFilter,
+          search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
+          sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
+          sort_direction: sortConfig.direction,
         });
 
         if (!isMounted) {
@@ -175,7 +191,19 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     return () => {
       isMounted = false;
     };
-  }, [clientIdFilter, pageLimit, pageOffset]);
+  }, [clientIdFilter, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [debouncedSearchQuery, sortConfig]);
 
   useEffect(() => {
     if (cachedClients.length === 0) {
@@ -230,10 +258,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     overdueTotal: '',
     atClient: '',
     returnReports: '',
-  });
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
-    key: 'client',
-    direction: 'asc',
   });
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
   const [isDesktopReturnFormOpen, setIsDesktopReturnFormOpen] = useState(false);
@@ -610,16 +634,29 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
   const hasActiveFilter = (key: SortKey) => selectedFilters[key].length > 0;
 
-  const renderSortButton = (key: SortKey, label: string) => (
-    <button
-      type="button"
-      onClick={() => toggleSort(key)}
-      className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700"
-    >
-      <span className="block min-w-0 truncate">{label}</span>
-      <ArrowUpDown size={13} className="shrink-0" />
-    </button>
-  );
+  const renderSortButton = (key: SortKey, label: string) => {
+    const isActive = sortConfig.key === key;
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(key)}
+        aria-pressed={isActive}
+        className={cn(
+          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+          isActive
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+            : 'border-transparent text-zinc-900 hover:text-zinc-700'
+        )}
+      >
+        <span className="block min-w-0 truncate">{label}</span>
+        <ArrowUpDown
+          size={13}
+          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+        />
+      </button>
+    );
+  };
 
   const renderFilterButton = (key: SortKey) => (
     <button
@@ -847,7 +884,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                       title={`${getPalletTypeLabel(pallet.type, language)} • ${pallet.current_location || '-'}`}
                     >
                       <span className="truncate text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {pallet.qr_code}
+                        {getPalletDisplayName(pallet)}
                       </span>
                       <span className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500 dark:text-[#d8e8de]">
                         {getStatusLabel(pallet.current_status_name, language)}
@@ -958,7 +995,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                 title={`${getPalletTypeLabel(item.pallet.type, language)} - ${item.pallet.current_location || '-'}`}
                               >
                                 <span className="truncate text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                                  {item.pallet.qr_code}
+                                  {getPalletDisplayName(item.pallet)}
                                 </span>
                                 <span className="truncate text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-500 dark:text-[#d8e8de]">
                                   {getStatusLabel(item.pallet.current_status_name, language)}
@@ -1003,7 +1040,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 subtitle={
                   selectedMobilePallet.view === 'withoutQr'
                     ? `${mobilePalletNumberLabel} ${selectedMobilePallet.index + 1}`
-                    : selectedMobilePallet.item.pallet.qr_code
+                    : getPalletDisplayName(selectedMobilePallet.item.pallet)
                 }
                 width="sm"
                 overlayClassName="z-[120] items-center p-4"
@@ -1019,7 +1056,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                       <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                         {selectedMobilePallet.view === 'withoutQr'
                           ? selectedMobilePallet.index + 1
-                          : selectedMobilePallet.item.pallet.qr_code}
+                          : getPalletDisplayName(selectedMobilePallet.item.pallet)}
                       </p>
                     </div>
                     <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
@@ -1154,6 +1191,18 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <div className="relative w-full sm:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+          />
+        </div>
+      </div>
+
       <AdminDataTable<ColumnKey>
         columnOrder={columnOrder}
         initialColumnWidths={INITIAL_COLUMN_WIDTHS}

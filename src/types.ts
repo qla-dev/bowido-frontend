@@ -30,6 +30,12 @@ export interface User {
   role_id: number;
   role_name: RoleType;
   phone_number?: string;
+  customer_detail?: {
+    name?: string;
+    company_name?: string;
+    kvk?: string;
+    kvk_number?: string;
+  };
 }
 
 export interface ManagedUser extends User {
@@ -48,6 +54,7 @@ export interface PalletStatus {
 export interface Pallet {
   id: number;
   qr_code: string;
+  reference_code?: string;
   pallet_name?: string;
   current_status_id: number;
   current_status_name: string;
@@ -60,6 +67,12 @@ export interface Pallet {
   last_status_changed_at: string;
   created_at: string;
   note?: string;
+}
+
+export interface PalletDashboardStats {
+  total_pallets: number;
+  in_transport: number;
+  overdue_units: number;
 }
 
 export interface AuditLog {
@@ -102,9 +115,11 @@ export interface ClientDetail {
   name: string;
   kvk_number?: string;
   phone_number?: string;
+  fixed_phone?: string;
   billing_email?: string;
   warehouse_addresses?: string[];
   country: string;
+  province?: string;
   grace_period_days: number;
   price_per_day: number;
   is_active: boolean;

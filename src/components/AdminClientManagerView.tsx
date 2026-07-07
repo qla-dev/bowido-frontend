@@ -27,6 +27,7 @@ import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 type SortKey =
   | 'client'
@@ -99,6 +100,14 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
 };
 
 const CLIENT_MANAGER_PAGE_SIZE = 25;
+const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
+  client: 'client',
+  kvk: 'kvk',
+  phone: 'phone',
+  address: 'address',
+  rate: 'rate',
+  gracePeriod: 'gracePeriod',
+};
 
 export const AdminClientManagerView: React.FC = () => {
   const { clients: cachedClients, pallets, statuses, invoices, updateClient, t, language } = useApp();
@@ -115,6 +124,7 @@ export const AdminClientManagerView: React.FC = () => {
   });
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'client',
     direction: 'asc',
@@ -140,6 +150,9 @@ export const AdminClientManagerView: React.FC = () => {
         const page = await apiService.clients.page({
           limit: pageLimit,
           offset: pageOffset,
+          search: debouncedSearchQuery || undefined,
+          sort_by: SERVER_SORT_BY_KEY[sortConfig.key],
+          sort_direction: sortConfig.direction,
         });
 
         if (!isMounted) {
@@ -162,7 +175,19 @@ export const AdminClientManagerView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [pageLimit, pageOffset]);
+  }, [debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [debouncedSearchQuery, sortConfig]);
 
   useEffect(() => {
     if (cachedClients.length === 0) {
@@ -323,23 +348,7 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const visibleRows = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const nextRows = rows.filter((row) => {
-      if (!query) {
-        return true;
-      }
-
-      return [
-        row.clientName,
-        row.kvkLabel,
-        row.phoneLabel,
-        row.addressLabel,
-        ...row.warehouses,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query);
-    });
+    const nextRows = [...rows];
 
     nextRows.sort((left, right) => {
       const leftValue = getSortValue(left, sortConfig.key);
@@ -356,7 +365,7 @@ export const AdminClientManagerView: React.FC = () => {
     });
 
     return nextRows;
-  }, [rows, searchQuery, sortConfig]);
+  }, [rows, sortConfig]);
 
   const selectedInvoices = useMemo(() => {
     if (!selectedRow) {
@@ -478,16 +487,29 @@ export const AdminClientManagerView: React.FC = () => {
     );
   };
 
-  const renderSortButton = (key: SortKey, label: string) => (
-    <button
-      type="button"
-      onClick={() => toggleSort(key)}
-      className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700 dark:text-white dark:hover:text-emerald-100"
-    >
-      <span className="block min-w-0 truncate">{label}</span>
-      <ArrowUpDown size={13} className="shrink-0" />
-    </button>
-  );
+  const renderSortButton = (key: SortKey, label: string) => {
+    const isActive = sortConfig.key === key;
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(key)}
+        aria-pressed={isActive}
+        className={cn(
+          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+          isActive
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+            : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-white dark:hover:text-emerald-100'
+        )}
+      >
+        <span className="block min-w-0 truncate">{label}</span>
+        <ArrowUpDown
+          size={13}
+          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+        />
+      </button>
+    );
+  };
 
   const headerConfig: Record<
     SortKey,
@@ -913,7 +935,7 @@ export const AdminClientManagerView: React.FC = () => {
                           className="grid min-h-14 grid-cols-[1fr_1fr_1.2fr] items-center gap-2 border-b border-zinc-100 px-4 py-3 text-center last:border-b-0 dark:border-white/10"
                         >
                           <span className="truncate text-[11px] font-black uppercase text-emerald-950 dark:text-white">
-                            {pallet.qr_code}
+                            {getPalletDisplayName(pallet)}
                           </span>
                           <span className="truncate text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-300">
                             {getPalletTypeLabel(pallet.type, language)}
