@@ -5,6 +5,9 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const apiBackend = String(env.VITE_API_BACKEND || 'local').trim().toLowerCase();
+  const apiProxyTarget = String(env.VITE_API_PROXY_TARGET || '').trim();
+
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -21,9 +24,11 @@ export default defineConfig(({mode}) => {
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
         '/api': {
-          target: env.VITE_API_BACKEND === 'production'
-            ? 'https://api.trackpal.app'
-            : 'http://127.0.0.1:8000',
+          target: apiProxyTarget || (
+            apiBackend === 'production'
+              ? 'https://api.trackpal.app'
+              : 'http://127.0.0.1:8000'
+          ),
           changeOrigin: true,
         },
       },
