@@ -46,9 +46,15 @@ const API_BACKENDS = {
   production: 'https://api.trackpal.app/api',
 } as const;
 
-const apiBackend = String(import.meta.env.VITE_API_BACKEND || 'local').toLowerCase();
-const API_BASE_URL = (API_BACKENDS[apiBackend as keyof typeof API_BACKENDS] || API_BACKENDS.local)
-  .replace(/\/+$/, '');
+const normalizeApiBackend = (value: unknown) => String(value || 'local').trim().toLowerCase();
+
+const apiBackend = normalizeApiBackend(import.meta.env.VITE_API_BACKEND);
+const explicitApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || '').trim();
+const API_BASE_URL = (
+  explicitApiBaseUrl ||
+  (import.meta.env.DEV ? '/api' : API_BACKENDS[apiBackend as keyof typeof API_BACKENDS]) ||
+  API_BACKENDS.local
+).replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'trackpal_api_token';
 const TOKEN_ONLY_HEADER = 'X-Trackpal-Token-Only';
 const DEMO_PASSWORD = 'password123';
