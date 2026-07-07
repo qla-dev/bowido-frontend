@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Sidebar, BottomNav, TopNavbar } from './components/Navigation';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -13,26 +12,16 @@ import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
 import { AdminRoleOperationsView } from './components/AdminRoleOperationsView';
-import { RoleType, User } from './types';
-import { Lock, LogIn, Mail, Smartphone, X } from 'lucide-react';
+import { ManagedUser, RoleType, User } from './types';
+import { LogIn, Smartphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from './AppContext';
-import { Button, Card, Input, Select, cn } from './components/ui';
+import { Card, Select, cn } from './components/ui';
 import { apiService } from './services/api';
 import logoImage from './assets/logo.png';
 import { getRoleLabel, languageOptions } from './i18n';
 
 const CURRENT_USER_STORAGE_KEY = 'trackpal_current_user';
-const RECENT_LOGINS_STORAGE_KEY = 'trackpal_recent_logins';
-
-interface RecentLogin {
-  id: number;
-  name: string;
-  email: string;
-  role_id: number;
-  role_name: RoleType;
-  last_used_at: string;
-}
 
 const readStoredCurrentUser = (): User | null => {
   if (typeof window === 'undefined' || !apiService.hasToken()) {
@@ -59,61 +48,6 @@ const storeCurrentUser = (user: User | null) => {
   }
 
   window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-};
-
-const readRecentLogins = (): RecentLogin[] => {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const storedLogins = window.localStorage.getItem(RECENT_LOGINS_STORAGE_KEY);
-    const parsedLogins = storedLogins ? JSON.parse(storedLogins) as RecentLogin[] : [];
-
-    if (!Array.isArray(parsedLogins)) {
-      return [];
-    }
-
-    return parsedLogins
-      .filter((login) => login?.email && login?.name && login?.role_name)
-      .slice(0, 4);
-  } catch {
-    window.localStorage.removeItem(RECENT_LOGINS_STORAGE_KEY);
-    return [];
-  }
-};
-
-const storeRecentLogins = (logins: RecentLogin[]) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(RECENT_LOGINS_STORAGE_KEY, JSON.stringify(logins.slice(0, 4)));
-};
-
-const rememberRecentLogin = (user: User) => {
-  const nextLogin: RecentLogin = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role_id: user.role_id,
-    role_name: user.role_name,
-    last_used_at: new Date().toISOString(),
-  };
-
-  const nextLogins = [
-    nextLogin,
-    ...readRecentLogins().filter((login) => login.email.toLowerCase() !== user.email.toLowerCase()),
-  ];
-
-  storeRecentLogins(nextLogins);
-  return nextLogins.slice(0, 4);
-};
-
-const forgetRecentLogin = (email: string) => {
-  const nextLogins = readRecentLogins().filter((login) => login.email.toLowerCase() !== email.toLowerCase());
-  storeRecentLogins(nextLogins);
-  return nextLogins;
 };
 
 const AppFooter = ({ className }: { className?: string }) => {
@@ -149,15 +83,9 @@ export default function App() {
   const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen, refreshData, resetData } = useApp();
   const [currentUser, setCurrentUser] = useState<User | null>(() => readStoredCurrentUser());
   const [isRestoringSession, setIsRestoringSession] = useState(() => apiService.hasToken() && !readStoredCurrentUser());
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginUsers, setLoginUsers] = useState<User[]>([]);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [isLoginErrorModalOpen, setIsLoginErrorModalOpen] = useState(false);
-  const [rememberLogin, setRememberLogin] = useState(false);
-  const [selectedRecentLogin, setSelectedRecentLogin] = useState<RecentLogin | null>(null);
-  const [recentLogins, setRecentLogins] = useState<RecentLogin[]>(() => readRecentLogins());
-  const [isCredentialLoginLoading, setIsCredentialLoginLoading] = useState(false);
+  const [loggingInUserId, setLoggingInUserId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isNightMode, setIsNightMode] = useState(false);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<number | null>(null);
@@ -168,6 +96,22 @@ export default function App() {
 
     return window.matchMedia('(max-width: 767px)').matches;
   });
+
+  const loadLoginUsers = async () => {
+    try {
+      const storedUsers = await apiService.users.loginOptions();
+      setLoginUsers(storedUsers.map(({ password, ...user }: ManagedUser) => user));
+    } catch (error) {
+      console.error('Failed to load login users', error);
+      setLoginUsers([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) {
+      void loadLoginUsers();
+    }
+  }, []);
 
   useEffect(() => {
     if (!apiService.hasToken()) {
@@ -338,73 +282,26 @@ export default function App() {
     };
   }, [chromeTintColor]);
 
-  const loginErrorMessage =
-    language === 'bs'
-      ? 'E-mail ili lozinka nisu ispravni.'
-      : language === 'nl'
-        ? 'E-mail of wachtwoord is onjuist.'
-        : 'Email or password is incorrect.';
-
-  const openLoginModal = (recentLogin?: RecentLogin) => {
-    setSelectedRecentLogin(recentLogin || null);
-    setLoginEmail(recentLogin?.email || '');
-    setLoginPassword('');
-    setRememberLogin(Boolean(recentLogin));
+  const handleLogin = async (user: User) => {
     setLoginError(null);
-    setIsLoginErrorModalOpen(false);
-    setIsLoginModalOpen(true);
-  };
-
-  const closeLoginModal = () => {
-    if (isCredentialLoginLoading) {
-      return;
-    }
-
-    setIsLoginModalOpen(false);
-    setSelectedRecentLogin(null);
-    setLoginEmail('');
-    setLoginPassword('');
-    setRememberLogin(false);
-    setLoginError(null);
-    setIsLoginErrorModalOpen(false);
-  };
-
-  const handleCredentialLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setLoginError(null);
-    setIsLoginErrorModalOpen(false);
-
-    if (!loginEmail.trim() || !loginPassword) {
-      setLoginError(loginErrorMessage);
-      setIsLoginErrorModalOpen(true);
-      return;
-    }
-
-    setIsCredentialLoginLoading(true);
+    setLoggingInUserId(user.id);
 
     try {
-      const result = await apiService.auth.login({
-        email: loginEmail.trim(),
-        password: loginPassword,
-      });
+      const result = await apiService.auth.loginDemoUser(user);
       setCurrentUser(result.user);
       storeCurrentUser(result.user);
-      setRecentLogins(rememberLogin
-        ? rememberRecentLogin(result.user)
-        : forgetRecentLogin(result.user.email)
-      );
-      setIsLoginModalOpen(false);
-      setLoginEmail('');
-      setLoginPassword('');
-      setRememberLogin(false);
-      setSelectedRecentLogin(null);
       void refreshData();
     } catch (error) {
       console.error('Failed to login', error);
-      setLoginError(loginErrorMessage);
-      setIsLoginErrorModalOpen(true);
+      setLoginError(
+        language === 'bs'
+          ? 'Prijava nije uspjela. Provjeri backend i seed podatke.'
+          : language === 'nl'
+            ? 'Inloggen is mislukt. Controleer de backend en seeddata.'
+            : 'Login failed. Check the backend and seed data.'
+      );
     } finally {
-      setIsCredentialLoginLoading(false);
+      setLoggingInUserId(null);
     }
   };
 
@@ -415,6 +312,7 @@ export default function App() {
     setActiveTab('dashboard');
     setIsGhostReportOpen(false);
     resetData();
+    void loadLoginUsers();
   };
 
  if (isRestoringSession && !currentUser) {
@@ -434,9 +332,9 @@ export default function App() {
   return (
     <div
       id="login-screen"
-      className="relative min-h-screen bg-white flex flex-col text-emerald-900 font-sans"
+      className="min-h-screen bg-white flex flex-col text-emerald-900 font-sans"
     >
-      <div className="flex-1 flex items-center justify-center p-6 pb-36">
+      <div className="flex-1 flex items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -460,31 +358,45 @@ export default function App() {
                 </p>
               </div>
 
-              {recentLogins.length > 0 && (
-                <div className="space-y-3">
-                  {recentLogins.map((login) => (
-                    <button
-                      id={`recent-login-${login.id}`}
-                      key={`${login.id}-${login.email}`}
-                      type="button"
-                      onClick={() => openLoginModal(login)}
-                      className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#101715] dark:border-white/10 dark:hover:border-[#00A655]"
-                    >
-                      <div className="flex min-w-0 flex-col items-start text-left">
-                        <span className="max-w-full truncate font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
-                          {login.name}
-                        </span>
-                        <span className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-[#00A655] dark:text-zinc-300">
-                          {getRoleLabel(login.role_name, language)}
-                        </span>
-                      </div>
+              <div className="space-y-3">
+                {loginUsers.map((user) => (
+                  <button
+                    id={`login-${user.role_name.toLowerCase()}`}
+                    key={user.id}
+                    onClick={() => void handleLogin(user)}
+                    disabled={loggingInUserId !== null}
+                    className="w-full group flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-200 hover:border-[#00A655] transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:bg-[#101715] dark:border-white/10 dark:hover:border-[#00A655]"
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-black text-xs uppercase tracking-tight text-emerald-900 font-display dark:text-white">
+                        {getRoleLabel(user.role_name, language)}
+                      </span>
+                      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest">
+                        {user.email}
+                      </span>
+                    </div>
 
-                      <div className="ml-4 shrink-0 p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#151d1a] dark:border-white/10">
-                        <LogIn size={18} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                    <div className="p-2.5 bg-white border border-zinc-200 rounded-xl group-hover:bg-[#00A655] group-hover:text-white group-hover:border-[#00A655] transition-all shadow-sm dark:bg-[#151d1a] dark:border-white/10">
+                      <LogIn size={18} className={loggingInUserId === user.id ? 'animate-pulse' : ''} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {loginUsers.length === 0 && (
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
+                  {language === 'bs'
+                    ? 'Nema korisnika za prijavu iz baze.'
+                    : language === 'nl'
+                      ? 'Geen login-gebruikers gevonden in de database.'
+                      : 'No database login users found.'}
+                </p>
+              )}
+
+              {loginError && (
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
+                  {loginError}
+                </p>
               )}
             </div>
           </Card>
@@ -499,193 +411,7 @@ export default function App() {
           </div>
         </motion.div>
       </div>
-
-      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-20 px-6">
-        <div className="mx-auto w-full max-w-md">
-          <Button
-            type="button"
-            size="lg"
-            onClick={() => openLoginModal()}
-            className="w-full rounded-2xl py-4 text-sm shadow-xl shadow-emerald-900/15"
-          >
-            <LogIn size={18} className="mr-2" />
-            PRIJAVA
-          </Button>
-        </div>
-      </div>
-
       <AppFooter />
-
-      <AnimatePresence>
-        {isLoginModalOpen && (
-          <motion.div
-            data-lock-scroll-modal="true"
-            className="modal-overlay fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={closeLoginModal}
-          >
-            <motion.div
-              className="w-full max-w-md"
-              initial={{ opacity: 0, y: 28, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 18, scale: 0.98 }}
-              transition={{ duration: 0.2 }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Card
-                title="Prijava"
-                noPadding
-                action={
-                  <button
-                    type="button"
-                    onClick={closeLoginModal}
-                    disabled={isCredentialLoginLoading}
-                    aria-label="Close login modal"
-                    className="rounded-xl border border-zinc-200 bg-zinc-50 p-2 text-zinc-500 transition-colors hover:border-[#00A655] hover:text-emerald-900 disabled:opacity-50 dark:border-white/10 dark:bg-[#151d1a] dark:text-zinc-300"
-                  >
-                    <X size={16} />
-                  </button>
-                }
-              >
-                <form onSubmit={handleCredentialLogin} className="p-6 sm:p-8">
-                  <div className="mb-7 flex justify-center">
-                    <img src={logoImage} alt="Trackpal logo" className="h-12 w-auto" />
-                  </div>
-
-                  <div className="space-y-3">
-                    {selectedRecentLogin ? (
-                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left dark:border-white/10 dark:bg-[#151d1a]">
-                        <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                          E-mail
-                        </span>
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-[#00A655] dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200">
-                            <Mail size={17} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-black uppercase tracking-tight text-emerald-900 font-display dark:text-white">
-                              {selectedRecentLogin.name}
-                            </p>
-                            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                              {selectedRecentLogin.email}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <label className="block text-left">
-                        <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                          E-mail
-                        </span>
-                        <div className="relative">
-                          <Mail size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                          <Input
-                            type="email"
-                            value={loginEmail}
-                            onChange={(event) => setLoginEmail(event.target.value)}
-                            autoComplete="email"
-                            placeholder="mail@example.com"
-                            className="pl-11 normal-case tracking-normal"
-                          />
-                        </div>
-                      </label>
-                    )}
-
-                    <label className="block text-left">
-                      <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                        Lozinka
-                      </span>
-                      <div className="relative">
-                        <Lock size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                        <Input
-                          type="password"
-                          value={loginPassword}
-                          onChange={(event) => setLoginPassword(event.target.value)}
-                          autoComplete="current-password"
-                          placeholder="********"
-                          className="pl-11 normal-case tracking-normal"
-                        />
-                      </div>
-                    </label>
-                  </div>
-
-                  <label className="mt-5 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left transition-colors hover:border-[#00A655] dark:border-white/10 dark:bg-[#101715]">
-                    <input
-                      type="checkbox"
-                      checked={rememberLogin}
-                      onChange={(event) => setRememberLogin(event.target.checked)}
-                      className="h-4 w-4 rounded border-zinc-300 accent-[#00A655]"
-                    />
-                    <span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-300">
-                      {language === 'bs' ? 'Zapamti me' : language === 'nl' ? 'Onthoud mij' : 'Remember me'}
-                    </span>
-                  </label>
-
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={isCredentialLoginLoading}
-                    className="mt-5 w-full rounded-2xl py-4 text-sm"
-                  >
-                    {isCredentialLoginLoading ? 'PRIJAVA...' : 'PRIJAVA'}
-                  </Button>
-                </form>
-              </Card>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isLoginErrorModalOpen && loginError && (
-          <motion.div
-            className="modal-overlay fixed inset-0 z-[70] flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsLoginErrorModalOpen(false)}
-          >
-            <motion.div
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="login-error-title"
-              className="w-full max-w-sm"
-              initial={{ opacity: 0, y: 20, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.97 }}
-              transition={{ duration: 0.18 }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <Card title="Greška" noPadding>
-                <div className="p-6 text-center">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100">
-                    <X size={20} />
-                  </div>
-                  <p
-                    id="login-error-title"
-                    className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-600 dark:text-rose-100"
-                  >
-                    {loginError}
-                  </p>
-                  <Button
-                    type="button"
-                    size="md"
-                    onClick={() => {
-                      setIsLoginErrorModalOpen(false);
-                      setLoginError(null);
-                    }}
-                    className="mt-5 w-full rounded-2xl"
-                  >
-                    OK
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
