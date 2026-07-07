@@ -47,8 +47,7 @@ const API_BACKENDS = {
 } as const;
 
 const apiBackend = String(import.meta.env.VITE_API_BACKEND || 'local').toLowerCase();
-const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-const API_BASE_URL = (configuredApiBaseUrl || API_BACKENDS[apiBackend as keyof typeof API_BACKENDS] || API_BACKENDS.local)
+const API_BASE_URL = (API_BACKENDS[apiBackend as keyof typeof API_BACKENDS] || API_BACKENDS.local)
   .replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'trackpal_api_token';
 const TOKEN_ONLY_HEADER = 'X-Trackpal-Token-Only';
