@@ -5,6 +5,7 @@ import {
   InvoiceItem,
   ManagedUser,
   Pallet,
+  PalletDashboardStats,
   PalletStatus,
   Permission,
   Role,
@@ -40,6 +41,12 @@ export type PaginatedResult<T> = {
 };
 
 type ApiRecord = Record<string, any>;
+type LoginCredentials = {
+  email?: string;
+  kvk?: string;
+  password: string;
+  loginType?: 'user' | 'customer';
+};
 
 const API_BACKENDS = {
   local: '/api',
@@ -336,6 +343,14 @@ const normalizeUser = (user: ApiRecord): ManagedUser => {
     role_id: Number(user.role_id || role?.id || 0),
     role_name: roleType,
     phone_number: user.phone_number || undefined,
+    customer_detail: user.customer_detail
+      ? {
+          name: user.customer_detail.name || user.customer_detail.company_name || undefined,
+          company_name: user.customer_detail.company_name || user.customer_detail.name || undefined,
+          kvk: user.customer_detail.kvk || user.customer_detail.kvk_number || undefined,
+          kvk_number: user.customer_detail.kvk_number || user.customer_detail.kvk || undefined,
+        }
+      : undefined,
   };
 };
 
@@ -350,9 +365,11 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     name: client.name || client.company_name || client.user?.name || 'Client',
     kvk_number: client.kvk_number || client.kvk || client.tax_number || undefined,
     phone_number: client.user?.phone_number || undefined,
+    fixed_phone: client.fixed_phone || undefined,
     billing_email: client.billing_email || undefined,
     warehouse_addresses: addresses.filter(Boolean),
     country: client.country || 'NL',
+    province: client.province || undefined,
     grace_period_days: Number(client.grace_period_days ?? 0),
     price_per_day: Number(client.price_per_day ?? client.default_price_per_day ?? 0),
     is_active: Boolean(client.is_active),
@@ -363,6 +380,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
   const status = pallet.current_status ? normalizeStatus(pallet.current_status) : undefined;
   const currentStatusId = status?.id || uiStatusIdByBackendId.get(Number(pallet.current_status_id)) || Number(pallet.current_status_id);
   const currentStatusName = status?.name || pallet.current_status_name || statusUiByName[pallet.current_status_name]?.name || 'Onbekend';
+  const palletDisplayName = pallet.pallet_name || pallet.reference_code || pallet.qr_code || '';
   const clientName =
     pallet.client_name ||
     pallet.user?.customer_detail?.company_name ||
@@ -372,7 +390,8 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
   return {
     id: Number(pallet.id),
     qr_code: pallet.qr_code,
-    pallet_name: pallet.qr_code || pallet.pallet_name || undefined,
+    reference_code: pallet.reference_code || undefined,
+    pallet_name: palletDisplayName || undefined,
     current_status_id: currentStatusId,
     current_status_name: currentStatusName,
     user_id: pallet.user_id ? Number(pallet.user_id) : undefined,
@@ -387,6 +406,12 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
   };
 };
 
+const normalizePalletDashboardStats = (stats: ApiRecord): PalletDashboardStats => ({
+  total_pallets: Number(stats.total_pallets ?? 0),
+  in_transport: Number(stats.in_transport ?? 0),
+  overdue_units: Number(stats.overdue_units ?? 0),
+});
+
 const normalizeAuditLog = (log: ApiRecord): AuditLog => {
   const oldStatus = log.old_status ? normalizeStatus(log.old_status) : undefined;
   const newStatus = log.new_status ? normalizeStatus(log.new_status) : undefined;
@@ -395,7 +420,7 @@ const normalizeAuditLog = (log: ApiRecord): AuditLog => {
   return {
     id: Number(log.id),
     pallet_id: Number(log.pallet_id),
-    pallet_qr: log.pallet_qr || log.pallet?.qr_code || '',
+    pallet_qr: log.pallet?.pallet_name || log.pallet?.reference_code || log.pallet_qr || log.pallet?.qr_code || '',
     made_by_user_id: Number(log.made_by_user_id || 0),
     made_by_user_name: log.made_by_user_name || log.made_by_user?.name || '',
     type: eventType.includes('qr_code') ? 'qr_version' : 'status',
@@ -512,8 +537,10 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
     user_id: client.user_id,
     company_name: client.name || 'New Client',
     country: client.country || 'NL',
+    province: client.province || null,
     kvk: client.kvk_number || null,
     billing_email: client.billing_email || null,
+    fixed_phone: client.fixed_phone || null,
     billing_address: addresses[1] || addresses[0] || null,
     delivery_address: addresses[0] || null,
     tax_number: client.kvk_number || null,
@@ -531,8 +558,8 @@ const toPalletPayload = (pallet: Partial<Pallet>) => ({
   type: pallet.type || 'pallet',
   asset_type: 'pallet',
   qr_code: pallet.qr_code,
-  pallet_name: pallet.qr_code,
-  reference_code: undefined,
+  pallet_name: pallet.pallet_name || pallet.reference_code || pallet.qr_code,
+  reference_code: pallet.reference_code,
   current_location: pallet.current_location || '',
   notes: pallet.note || undefined,
   is_active: pallet.is_active ?? true,
@@ -545,11 +572,14 @@ export const apiService = {
   clearToken: () => setStoredToken(null),
 
   auth: {
-    login: async (credentials: { email: string; password: string }) => {
+    login: async (credentials: LoginCredentials) => {
+      const loginType = credentials.loginType || (credentials.kvk ? 'customer' : 'user');
       const result = await apiData<ApiRecord>('/auth/login', {
         method: 'POST',
         body: jsonBody({
-          email: credentials.email,
+          login_type: loginType,
+          email: loginType === 'user' ? credentials.email : undefined,
+          kvk: loginType === 'customer' ? credentials.kvk : undefined,
           password: credentials.password,
           token_name: 'trackpal-frontend',
         }),
@@ -640,6 +670,8 @@ export const apiService = {
   },
 
   pallets: {
+    stats: async (): Promise<PalletDashboardStats> =>
+      normalizePalletDashboardStats(await apiData<ApiRecord>('/pallets/dashboard-stats')),
     page: (params: ListParams = {}) => listPage<Pallet>('/pallets', params, normalizePallet),
     list: async (params: ListParams = {}): Promise<Pallet[]> => (await listAll<ApiRecord>('/pallets', params)).map(normalizePallet),
     get: async (id: number): Promise<Pallet> => normalizePallet(await apiData<ApiRecord>(`/pallets/${id}`)),

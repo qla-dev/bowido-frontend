@@ -100,6 +100,8 @@ export const NoQrPalletTableView: React.FC = () => {
     count: 0,
   });
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const {
     headerCellClass,
     headerIconClass,
@@ -199,6 +201,9 @@ export const NoQrPalletTableView: React.FC = () => {
           limit: pageLimit,
           offset: pageOffset,
           is_ghost: true,
+          search: debouncedSearchQuery || undefined,
+          sort_by: 'created_at',
+          sort_direction: 'desc',
         });
 
         if (!isMounted) {
@@ -221,7 +226,19 @@ export const NoQrPalletTableView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [pageLimit, pageOffset]);
+  }, [debouncedSearchQuery, pageLimit, pageOffset]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [debouncedSearchQuery]);
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -505,6 +522,18 @@ export const NoQrPalletTableView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <div className="relative w-full sm:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+          />
+        </div>
+      </div>
+
       <AdminDataTable<NoQrColumnKey>
         columnOrder={NO_QR_TABLE_COLUMN_ORDER}
         initialColumnWidths={NO_QR_INITIAL_COLUMN_WIDTHS}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Filter, FileText, ChevronRight, ArrowLeft } from 'lucide-react';
-import { Button, Card, Badge } from './ui';
+import { Filter, FileText, ChevronRight, ArrowLeft, Search } from 'lucide-react';
+import { Button, Card, Badge, Input } from './ui';
 import { InvoiceViewer } from './InvoiceViewer';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
@@ -29,6 +29,8 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
     count: 0,
   });
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -40,6 +42,7 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
         const page = await apiService.invoices.page({
           limit: pageLimit,
           offset: pageOffset,
+          search: debouncedSearchQuery || undefined,
         });
 
         if (!isMounted) {
@@ -62,7 +65,19 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
     return () => {
       isMounted = false;
     };
-  }, [pageLimit, pageOffset]);
+  }, [debouncedSearchQuery, pageLimit, pageOffset]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [debouncedSearchQuery]);
 
   const getInvoiceStatusLabel = (status: Invoice['status']) => {
     if (status === 'paid') return t('paid');
@@ -70,10 +85,12 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
     if (status === 'sent') return t('sentLabel');
     return status;
   };
+  const searchPlaceholder =
+    language === 'bs' ? 'Pretrazi fakture' : language === 'nl' ? 'Zoek facturen' : 'Search invoices';
 
   return (
     <div className="space-y-6">
-      <div className={`flex ${compact ? 'items-center justify-between gap-3' : 'items-center justify-between'} px-1 sm:px-2`}>
+      <div className={`flex flex-col gap-3 ${compact ? '' : ''} px-1 sm:px-2 lg:flex-row lg:items-center lg:justify-between`}>
         <div className="flex flex-wrap items-center gap-2">
           {onBack && (
             <Button variant="ghost" size="sm" onClick={onBack} className="h-10 rounded-xl px-3 text-zinc-500">
@@ -88,9 +105,20 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
             </div>
           )}
         </div>
-        <Button variant="outline" size="sm" className={`${compact ? 'h-10 self-start sm:self-auto' : ''}`}>
-          <Filter size={14} className="mr-2" /> {t('filter')}
-        </Button>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+          <div className="relative w-full sm:w-80">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-10 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+            />
+          </div>
+          <Button variant="outline" size="sm" className={`${compact ? 'h-10 self-start sm:self-auto' : ''}`}>
+            <Filter size={14} className="mr-2" /> {t('filter')}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">

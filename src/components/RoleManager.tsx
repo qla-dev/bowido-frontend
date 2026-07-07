@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, ShieldCheck, Plus, Edit2, X, Check, Trash2 } from 'lucide-react';
+import { Shield, ShieldCheck, Plus, Edit2, X, Check, Trash2, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Button, Card, Input, Badge, cn } from './ui';
 import { Permission, Role } from '../types';
@@ -31,6 +31,8 @@ export const RoleManager: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -41,7 +43,11 @@ export const RoleManager: React.FC = () => {
 
       try {
         const [rolePage, nextPermissions] = await Promise.all([
-          apiService.roles.page({ limit: pageLimit, offset: pageOffset }),
+          apiService.roles.page({
+            limit: pageLimit,
+            offset: pageOffset,
+            search: debouncedSearchQuery || undefined,
+          }),
           permissions.length > 0 ? Promise.resolve(permissions) : apiService.permissions.list(),
         ]);
 
@@ -74,7 +80,19 @@ export const RoleManager: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [pageLimit, pageOffset, reloadKey]);
+  }, [debouncedSearchQuery, pageLimit, pageOffset, reloadKey]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [debouncedSearchQuery]);
 
   const handleSave = async () => {
     if (!currentRole?.name) return;
@@ -144,21 +162,32 @@ export const RoleManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between px-2">
+      <div className="flex flex-col gap-3 px-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('manageRoles')}</h2>
           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-loose">
             {t('defineAccessLevels')}
           </p>
         </div>
-        <Button 
-          onClick={() => {
-            setCurrentRole({ name: '', description: '', permissions: [] });
-            setIsEditing(true);
-          }}
-        >
-          <Plus size={14} className="mr-2" /> {t('addRole')}
-        </Button>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={language === 'nl' ? 'Zoek rollen' : language === 'bs' ? 'Pretrazi uloge' : 'Search roles'}
+              className="h-10 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+            />
+          </div>
+          <Button
+            onClick={() => {
+              setCurrentRole({ name: '', description: '', permissions: [] });
+              setIsEditing(true);
+            }}
+          >
+            <Plus size={14} className="mr-2" /> {t('addRole')}
+          </Button>
+        </div>
       </div>
 
       {error && (

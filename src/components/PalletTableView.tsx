@@ -31,6 +31,7 @@ import {
   type CustomerPalletReportRow,
   type CustomerPalletReportText,
 } from '../lib/customerPalletReportExport';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 interface PalletTableViewProps {
   onAddPallet?: () => void;
@@ -168,6 +169,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     key: 'lastUpdate',
     direction: 'desc',
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
   const [showReportExportModal, setShowReportExportModal] = useState(false);
   const [selectedReportClientId, setSelectedReportClientId] = useState<string>('all');
@@ -189,6 +192,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         const page = await apiService.pallets.page({
           limit: pageLimit,
           offset: pageOffset,
+          search: debouncedSearchQuery || undefined,
+          sort_by: sortConfig.key,
+          sort_direction: sortConfig.direction,
         });
 
         if (!isMounted) {
@@ -215,7 +221,19 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [pageLimit, pageOffset]);
+  }, [debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [debouncedSearchQuery, sortConfig]);
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -621,7 +639,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       const overdueDays = Math.max(daysAtClient - graceDays, 0);
       const debt = Number((overdueDays * ratePerDay).toFixed(2));
       const row: CustomerPalletReportRow = {
-        palletName: pallet.qr_code,
+        palletName: getPalletDisplayName(pallet),
         palletType: getTypeLabel(pallet),
         statusLabel: getStatusLabelText(pallet),
         sentDate: dateFormatter.format(new Date(pallet.last_status_changed_at)),
@@ -706,7 +724,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
     switch (key) {
       case 'qr':
-        return pallet.qr_code;
+        return getPalletDisplayName(pallet);
       case 'type':
         return getTypeLabel(pallet);
       case 'client':
@@ -728,7 +746,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   const filterOptions = useMemo<Record<SortKey, FilterOption[]>>(
     () => ({
-      qr: Array.from<string>(new Set(pallets.map((pallet) => pallet.qr_code)))
+      qr: Array.from<string>(new Set(pallets.map((pallet) => getPalletDisplayName(pallet))))
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
@@ -803,7 +821,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   );
 
   const filteredPallets = useMemo(() => {
-    const nextPallets = pallets.filter((pallet) =>
+    return pallets.filter((pallet) =>
       (Object.keys(selectedFilters) as SortKey[]).every((key) => {
         const selectedValues = selectedFilters[key];
 
@@ -814,51 +832,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         return selectedValues.includes(getFilterValue(pallet, key));
       })
     );
-
-    const getSortValue = (pallet: Pallet, key: SortKey) => {
-      const timelineInfo = getTimelineInfo(pallet);
-
-      switch (key) {
-        case 'lastUpdate':
-          return timelineInfo.dateSortValue;
-        case 'dueDate':
-          return timelineInfo.termSortValue;
-        case 'deadline':
-          return timelineInfo.deadlineSortValue;
-        default:
-          return getFilterValue(pallet, key);
-      }
-    };
-
-    nextPallets.sort((left, right) => {
-      const leftValue = getSortValue(left, sortConfig.key);
-      const rightValue = getSortValue(right, sortConfig.key);
-
-      if (leftValue == null && rightValue == null) {
-        return 0;
-      }
-
-      if (leftValue == null) {
-        return 1;
-      }
-
-      if (rightValue == null) {
-        return -1;
-      }
-
-      const comparison =
-        typeof leftValue === 'number' && typeof rightValue === 'number'
-          ? leftValue - rightValue
-          : String(leftValue).localeCompare(String(rightValue), undefined, {
-              numeric: true,
-              sensitivity: 'base',
-            });
-
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
-
-    return nextPallets;
-  }, [clients, language, pallets, selectedFilters, sortConfig, palletTimelineMap]);
+  }, [clients, language, pallets, selectedFilters, palletTimelineMap]);
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -981,14 +955,25 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   };
 
   const renderSortButton = (key: SortKey, label: string) => {
+    const isActive = sortConfig.key === key;
+
     return (
       <button
         type="button"
         onClick={() => toggleSort(key)}
-        className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50"
+        aria-pressed={isActive}
+        className={cn(
+          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+          isActive
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+            : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50'
+        )}
       >
         <span className="block min-w-0 truncate">{label}</span>
-        <ArrowUpDown size={13} className="shrink-0" />
+        <ArrowUpDown
+          size={13}
+          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+        />
       </button>
     );
   };
@@ -1108,6 +1093,18 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <div className="relative w-full sm:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
+          />
+        </div>
+      </div>
+
       <AdminDataTable<ColumnKey>
         columnOrder={PALLET_TABLE_COLUMN_ORDER}
         initialColumnWidths={INITIAL_COLUMN_WIDTHS}
@@ -1351,7 +1348,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
                         <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-zinc-300')}>
-                          {pallet.qr_code}
+                          {getPalletDisplayName(pallet)}
                         </span>
                       </div>
                     </td>

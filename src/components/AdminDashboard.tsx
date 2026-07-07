@@ -23,7 +23,7 @@ import { AdminRoleOperationsView } from './AdminRoleOperationsView';
 import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
-import { RoleType, Pallet, PalletStatus, ClientDetail, User, AuditLog } from '../types';
+import { RoleType, Pallet, PalletDashboardStats, PalletStatus, ClientDetail, User, AuditLog } from '../types';
 import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost, QrCode } from 'lucide-react';
 import {
   getCountryLabel,
@@ -32,6 +32,7 @@ import {
   normalizePalletTypeCode,
   palletTypeValues,
 } from '../i18n';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 interface AdminDashboardProps {
   initialView?:
@@ -108,6 +109,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
+  const [dashboardStats, setDashboardStats] = useState<PalletDashboardStats | null>(null);
 
   const handleExportPdf = () => {
     alert('Generating PDF Delivery/Stock Report...');
@@ -123,6 +125,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       void fetchAuditLogs();
     }
   }, [view]);
+
+  React.useEffect(() => {
+    if (view !== 'overview') {
+      return;
+    }
+
+    let isCancelled = false;
+
+    void apiService.pallets
+      .stats()
+      .then((stats) => {
+        if (!isCancelled) {
+          setDashboardStats(stats);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load pallet dashboard stats', error);
+
+        if (!isCancelled) {
+          setDashboardStats(null);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [view, pallets]);
 
   React.useEffect(() => {
     if (!openPalletId) {
@@ -266,7 +295,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       id: 9000 + pallet.id,
       invoice_number: `INV-OVD-2026-${String(pallet.id).padStart(4, '0')}`,
       pallet_id: pallet.id,
-      pallet_qr: pallet.qr_code,
+      pallet_qr: getPalletDisplayName(pallet),
       customer_name: client?.name || pallet.client_name || 'Warehouse Holding',
       recipient_email: client?.billing_email || '',
       user_id: pallet.user_id ?? 1,
@@ -437,7 +466,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return {
       id: -pallet.id,
       pallet_id: pallet.id,
-      pallet_qr: pallet.qr_code,
+      pallet_qr: getPalletDisplayName(pallet),
       made_by_user_id: fallbackActor.id,
       made_by_user_name: fallbackActor.name,
       type: 'status',
@@ -516,13 +545,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const overduePallets = pallets.filter(p => calculateDebt(p) > 0);
     const totalDebt = pallets.reduce((acc, p) => acc + calculateDebt(p), 0);
     const ghostPallets = pallets.filter(p => p.is_ghost);
+    const overviewStats = dashboardStats ?? {
+      total_pallets: pallets.length,
+      in_transport: pallets.filter(p => [2, 6].includes(p.current_status_id)).length,
+      overdue_units: overduePallets.length,
+    };
     
     return (
       <div className="space-y-6 pb-12">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label={t('totalPallets')} value={pallets.length.toString()} trend="+12%" trendUp />
-          <StatCard label={t('inTransit')} value={pallets.filter(p => [2, 6].includes(p.current_status_id)).length.toString()} variant="info" />
-          <StatCard label={t('overdueUnits')} value={overduePallets.length.toString()} trend={overduePallets.length > 0 ? t('actionRequired') : t('allGood')} trendUp={false} variant="danger" />
+          <StatCard label={t('totalPallets')} value={overviewStats.total_pallets.toString()} />
+          <StatCard label={t('inTransit')} value={overviewStats.in_transport.toString()} variant="info" />
+          <StatCard label={t('overdueUnits')} value={overviewStats.overdue_units.toString()} trend={overviewStats.overdue_units > 0 ? t('actionRequired') : t('allGood')} trendUp={false} variant="danger" />
           <StatCard label={t('totalAccrued')} value={`\u20AC${totalDebt.toFixed(2)}`} trend="Live" trendUp variant="success" />
         </div>
 
@@ -640,7 +674,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <tbody className="text-[11px] divide-y divide-zinc-50">
                       {pallets.slice(0, 5).map((pallet) => (
                         <tr key={`pallet-overview-${pallet.id}`} className="hover:bg-zinc-50">
-                          <td className="px-6 py-3 font-mono font-black">{pallet.qr_code}</td>
+                          <td className="px-6 py-3 font-mono font-black">{getPalletDisplayName(pallet)}</td>
                           <td className="px-6 py-3 font-mono font-black text-emerald-600">{"\u20AC"}{calculateDebt(pallet).toFixed(2)}</td>
                         </tr>
                       ))}
@@ -1703,7 +1737,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           subject={
             deleteConfirm
               ? deleteConfirm.kind === 'pallet'
-                ? deleteConfirm.pallet.qr_code
+                ? getPalletDisplayName(deleteConfirm.pallet)
                 : getStatusLabel(deleteConfirm.status.name, language)
               : undefined
           }

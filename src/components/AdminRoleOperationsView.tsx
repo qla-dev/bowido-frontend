@@ -16,10 +16,11 @@ import {
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { ListPagination } from './ListPagination';
-import { Badge, Button, cn } from './ui';
+import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
@@ -73,6 +74,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     key: 'primary',
     direction: 'asc',
   });
+  const [searchQuery, setSearchQuery] = useState('');
   const {
     headerCellClass,
     headerIconClass,
@@ -238,7 +240,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       return {
         id: `${mode}-${pallet.id}`,
         pallet,
-        primary: pallet.qr_code,
+        primary: getPalletDisplayName(pallet),
         secondary: getPalletTypeLabel(pallet.type, language),
         status: getStatusLabel(pallet.current_status_name, language),
         location: pallet.current_location || '-',
@@ -246,7 +248,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         metric: `${days}`,
         amount: activity,
         sortValues: {
-          primary: pallet.qr_code,
+          primary: getPalletDisplayName(pallet),
           secondary: pallet.type,
           status: pallet.current_status_name,
           location: pallet.current_location,
@@ -259,7 +261,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   }, [clients, currencyFormatter, invoices, language, mode, pallets, serviceReports, statuses]);
 
   const visibleRows = useMemo(() => {
-    const nextRows = [...rows];
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const nextRows = normalizedQuery
+      ? rows.filter((row) =>
+          [row.primary, row.secondary, row.status, row.location, row.client, row.metric, row.amount]
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedQuery)
+        )
+      : [...rows];
 
     nextRows.sort((left, right) => {
       const leftValue = left.sortValues[sortConfig.key] ?? '';
@@ -273,7 +283,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     });
 
     return nextRows;
-  }, [rows, sortConfig]);
+  }, [rows, searchQuery, sortConfig]);
 
   const paginatedRows = useMemo(
     () => visibleRows.slice(pageOffset, pageOffset + pageLimit),
@@ -282,7 +292,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
 
   useEffect(() => {
     setPageOffset(0);
-  }, [mode, sortConfig]);
+  }, [mode, searchQuery, sortConfig]);
 
   useEffect(() => {
     if (visibleRows.length === 0 || pageOffset < visibleRows.length) {
@@ -305,7 +315,19 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   };
 
   return (
-    <div>
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <div className="relative w-full sm:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={copy.search}
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
+          />
+        </div>
+      </div>
+
       <AdminDataTable<string>
         columnOrder={columns.map((column) => column.key)}
         initialColumnWidths={COLUMN_WIDTHS}
@@ -331,6 +353,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               <tr>
                 {columns.map((column) => {
                   const Icon = column.icon;
+                  const isActiveSort = sortConfig.key === column.key;
+
                   return (
                     <th key={`role-admin-header-${mode}-${column.key}`} ref={registerHeaderCell(column.key)} className={cn(headerCellClass, 'group')}>
                       <div className={headerContentClass}>
@@ -340,10 +364,22 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                         <button
                           type="button"
                           onClick={() => toggleSort(column.key)}
-                          className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700 dark:text-white"
+                          aria-pressed={isActiveSort}
+                          className={cn(
+                            'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+                            isActiveSort
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+                              : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-white'
+                          )}
                         >
                           <span className="block min-w-0 truncate">{column.label}</span>
-                          <ArrowUpDown size={13} className="shrink-0" />
+                          <ArrowUpDown
+                            size={13}
+                            className={cn(
+                              'shrink-0 transition-transform',
+                              isActiveSort && sortConfig.direction === 'desc' && 'rotate-180'
+                            )}
+                          />
                         </button>
                       </div>
                       {renderResizeHandle(column.key)}

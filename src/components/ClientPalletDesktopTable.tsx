@@ -23,6 +23,7 @@ import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 type SortKey =
   | 'pallet'
@@ -133,6 +134,8 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     key: 'debt',
     direction: 'desc',
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<FilterSelections>(createEmptySelections);
   const [filterSearch, setFilterSearch] = useState<FilterSearch>(createEmptySearch);
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
@@ -216,6 +219,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
           limit: pageLimit,
           offset: pageOffset,
           user_id: client.user_id,
+          search: debouncedSearchQuery || undefined,
+          sort_by: sortConfig.key,
+          sort_direction: sortConfig.direction,
         });
 
         if (!isMounted) {
@@ -238,7 +244,19 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     return () => {
       isMounted = false;
     };
-  }, [client.user_id, pageLimit, pageOffset]);
+  }, [client.user_id, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [client.user_id, debouncedSearchQuery, sortConfig]);
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -267,7 +285,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
 
           return {
             pallet,
-            palletLabel: pallet.qr_code,
+            palletLabel: getPalletDisplayName(pallet),
             typeLabel: getPalletTypeLabel(pallet.type, language),
             statusLabel: getStatusLabel(pallet.current_status_name, language),
             lastUpdateLabel: dateFormatter.format(new Date(pallet.last_status_changed_at)),
@@ -447,16 +465,29 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     setFilterSearch((current) => ({ ...current, [key]: '' }));
   };
 
-  const renderSortButton = (key: SortKey, label: string) => (
-    <button
-      type="button"
-      onClick={() => toggleSort(key)}
-      className="flex min-w-0 items-center justify-center gap-1.5 overflow-hidden text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 transition-colors hover:text-zinc-700"
-    >
-      <span className="block min-w-0 truncate">{label}</span>
-      <ArrowUpDown size={13} className="shrink-0" />
-    </button>
-  );
+  const renderSortButton = (key: SortKey, label: string) => {
+    const isActive = sortConfig.key === key;
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(key)}
+        aria-pressed={isActive}
+        className={cn(
+          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+          isActive
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+            : 'border-transparent text-zinc-900 hover:text-zinc-700'
+        )}
+      >
+        <span className="block min-w-0 truncate">{label}</span>
+        <ArrowUpDown
+          size={13}
+          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+        />
+      </button>
+    );
+  };
 
   const renderFilterButton = (key: SortKey) => (
     <button
@@ -553,6 +584,18 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
 
   return (
     <>
+      <div className="mb-3 flex justify-end">
+        <div className="relative w-full sm:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+          <Input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+          />
+        </div>
+      </div>
+
       <AdminDataTable<SortKey>
         columnOrder={COLUMN_ORDER}
         initialColumnWidths={INITIAL_COLUMN_WIDTHS}
