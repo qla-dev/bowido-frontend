@@ -158,8 +158,8 @@ const getCredentialLoginCopy = (language: string) => {
   if (language === 'nl') {
     return {
       title: 'Prijava',
-      userMode: 'I am a user',
-      customerMode: 'I am a customer',
+      userMode: 'Ik ben gebruiker',
+      customerMode: 'Ik ben klant',
       email: 'E-mail',
       kvk: 'KVK nummer',
       password: 'Wachtwoord',
@@ -199,8 +199,8 @@ const getCredentialLoginCopy = (language: string) => {
 
   return {
     title: 'Prijava',
-    userMode: 'I am a user',
-    customerMode: 'I am a customer',
+    userMode: 'Ja sam korisnik',
+    customerMode: 'Ja sam kupac',
     email: 'Email',
     kvk: 'KVK broj',
     password: 'Lozinka',
