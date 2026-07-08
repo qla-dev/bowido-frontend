@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Badge, Input, Select, StatCard, cn } from './ui';
 import { useApp } from '../AppContext';
 import {
@@ -116,11 +116,56 @@ const normalizeTimeInput = (value: string) => {
   return null;
 };
 
-const calendarTimeOptions = Array.from({ length: 48 }, (_, index) => {
-  const hour = Math.floor(index / 2);
-  const minute = index % 2 === 0 ? '00' : '30';
-  return `${String(hour).padStart(2, '0')}:${minute}`;
-});
+const calendarHourOptions = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'));
+const calendarMinuteOptions = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'));
+const DEFAULT_NOTE_TIME_PARTS = { hour: '09', minute: '00' };
+
+const getTimeParts = (value: string) => {
+  const normalized = normalizeTimeInput(value);
+
+  if (!normalized) {
+    return DEFAULT_NOTE_TIME_PARTS;
+  }
+
+  const [hour, minute] = normalized.split(':');
+  return {
+    hour: hour || DEFAULT_NOTE_TIME_PARTS.hour,
+    minute: minute || DEFAULT_NOTE_TIME_PARTS.minute,
+  };
+};
+
+const TimeSelect = ({
+  label,
+  options,
+  selectedValue,
+  disabled,
+  onSelect,
+}: {
+  label: string;
+  options: string[];
+  selectedValue: string | null;
+  disabled: boolean;
+  onSelect: (value: string) => void;
+}) => (
+  <div className="min-w-0 flex-1">
+    <label className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+      {label}
+    </label>
+    <select
+      value={selectedValue || ''}
+      onChange={(event) => onSelect(event.target.value)}
+      disabled={disabled}
+      className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-sm font-black text-zinc-950 outline-none transition-all hover:border-zinc-300 focus:border-[#00A655] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <option value="">--</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  </div>
+);
 
 export const BillingCalendar: React.FC = () => {
   const { invoices, t, language } = useApp();
@@ -143,6 +188,7 @@ export const BillingCalendar: React.FC = () => {
   const [userSearch, setUserSearch] = useState('');
   const [notifyCandidates, setNotifyCandidates] = useState<ManagedUser[]>([]);
   const [isUserSearchLoading, setIsUserSearchLoading] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   const weekDays = useMemo(() => {
     const start = new Date(2024, 0, 7);
@@ -354,6 +400,16 @@ export const BillingCalendar: React.FC = () => {
     return parsedDate?.year === year && parsedDate.month === month;
   });
   const markedDayCount = new Set([...Object.keys(monthMarkers), ...visibleNoteDayKeys]).size;
+  const normalizedNoteTimeDraft = normalizeTimeInput(noteTimeDraft);
+  const hasNoteTimeDraft = Boolean(normalizedNoteTimeDraft);
+  const noteTimeParts = getTimeParts(noteTimeDraft);
+  const setNoteTimePart = (part: 'hour' | 'minute', value: string) => {
+    const currentParts = getTimeParts(noteTimeDraft);
+    const nextHour = part === 'hour' ? value : currentParts.hour;
+    const nextMinute = part === 'minute' ? value : currentParts.minute;
+
+    setNoteTimeDraft(`${nextHour}:${nextMinute}`);
+  };
 
   const upcomingAgenda = useMemo(() => {
     return Object.entries(monthMarkers)
@@ -489,6 +545,18 @@ export const BillingCalendar: React.FC = () => {
 
     const label = formatDayMonthLabel(parsedDate.day, parsedDate.month);
     return language === 'en' ? `${label}, ${parsedDate.year}` : `${label} ${parsedDate.year}`;
+  };
+
+  const formatNoteDateDayMonth = (dateKey: string) => {
+    const parsedDate = parseDateKey(dateKey);
+    if (!parsedDate) return '--';
+    return formatDayMonthLabel(parsedDate.day, parsedDate.month);
+  };
+
+  const formatNoteDateYear = (dateKey: string) => {
+    const parsedDate = parseDateKey(dateKey);
+    if (!parsedDate) return '----';
+    return String(parsedDate.year);
   };
 
   const handleMonthChange = (nextMonth: number) => {
@@ -917,45 +985,75 @@ export const BillingCalendar: React.FC = () => {
                   </Button>
                 </div>
 
-                <div className="p-5 space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                        {t('noteDate')}
-                      </label>
-                      <Input
-                        type="date"
-                        value={noteDateDraft}
-                        onChange={(event) => setNoteDateDraft(event.target.value)}
-                        className="h-11 normal-case tracking-normal"
-                        disabled={isSavingNote}
-                      />
-                    </div>
+                 <div className="p-5 space-y-4">
+                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_15rem]">
+                     <div className="space-y-1">
+                       <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block text-center">
+                         {t('noteDate')}
+                       </label>
+                       <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
+                         <div className="flex items-center gap-2">
+                           <div className="flex-1 min-w-0">
+                             <div className="flex flex-col py-2">
+                               <span className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
+                                 {noteDateDraft ? formatNoteDateDayMonth(noteDateDraft) : '--'}
+                               </span>
+                               <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                                 {noteDateDraft ? formatNoteDateYear(noteDateDraft) : '----'}
+                               </span>
+                             </div>
+                           </div>
+                           <button
+                             type="button"
+                             onClick={() => dateInputRef.current?.click()}
+                             className="h-9 w-9 shrink-0 rounded-xl border border-zinc-200 bg-white flex items-center justify-center text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-700"
+                           >
+                             <CalendarIcon size={18} />
+                           </button>
+                           <input
+                             ref={dateInputRef}
+                             type="date"
+                             value={noteDateDraft}
+                             onChange={(event) => setNoteDateDraft(event.target.value)}
+                             className="sr-only"
+                             disabled={isSavingNote}
+                           />
+                         </div>
+                       </div>
+                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                        {t('noteHour')}
-                      </label>
-                      <Input
-                        list="calendar-note-time-options"
-                        inputMode="numeric"
-                        placeholder={t('reminderPlaceholder')}
-                        value={noteTimeDraft}
-                        onChange={(event) => setNoteTimeDraft(event.target.value)}
-                        onBlur={() => {
-                          const normalized = normalizeTimeInput(noteTimeDraft);
-                          if (normalized !== null) {
-                            setNoteTimeDraft(normalized);
-                          }
-                        }}
-                        className="h-11 normal-case tracking-normal"
-                        disabled={isSavingNote}
-                      />
-                      <datalist id="calendar-note-time-options">
-                        {calendarTimeOptions.map((option) => (
-                          <option key={option} value={option} />
-                        ))}
-                      </datalist>
+                     <div className="space-y-1">
+                       <div className="mb-1 flex items-center justify-center gap-3">
+                         <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">
+                           {t('reminderTime')}
+                         </label>
+                         <button
+                           type="button"
+                           onClick={() => setNoteTimeDraft('')}
+                           disabled={isSavingNote || !noteTimeDraft}
+                           className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-300 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40"
+                         >
+                           {t('clear')}
+                         </button>
+                       </div>
+                       <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
+                         <div className="flex gap-2">
+                           <TimeSelect
+                             label={t('noteHour')}
+                             options={calendarHourOptions}
+                             selectedValue={hasNoteTimeDraft ? noteTimeParts.hour : null}
+                             disabled={isSavingNote}
+                             onSelect={(value) => setNoteTimePart('hour', value)}
+                           />
+                           <TimeSelect
+                             label={t('noteMinute')}
+                             options={calendarMinuteOptions}
+                             selectedValue={hasNoteTimeDraft ? noteTimeParts.minute : null}
+                             disabled={isSavingNote}
+                             onSelect={(value) => setNoteTimePart('minute', value)}
+                           />
+                         </div>
+                       </div>
                     </div>
                   </div>
 

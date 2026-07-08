@@ -79,6 +79,9 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
   const { t, language, roles, permissions } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredRole, setHoveredRole] = useState<RoleType>(value);
+  const [popupPlacement, setPopupPlacement] = useState<'below' | 'above' | 'left' | 'right'>('below');
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
+  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -101,6 +104,41 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const updatePlacement = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const spaceRight = window.innerWidth - rect.right;
+      const spaceLeft = rect.left;
+      const estimatedHeight = 340;
+      const estimatedWidth = 280;
+
+      if (spaceBelow >= estimatedHeight) {
+        setPopupPlacement('below');
+      } else if (spaceAbove >= estimatedHeight) {
+        setPopupPlacement('above');
+      } else if (spaceRight >= estimatedWidth) {
+        setPopupPlacement('right');
+      } else if (spaceLeft >= estimatedWidth) {
+        setPopupPlacement('left');
+      } else {
+        setPopupPlacement('below');
+      }
+
+      setTriggerRect(rect);
+    };
+
+    updatePlacement();
+    window.addEventListener('resize', updatePlacement);
+    return () => window.removeEventListener('resize', updatePlacement);
   }, [isOpen]);
 
   const previewRole = hoveredRole || value;
@@ -145,12 +183,21 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
       </button>
 
       <AnimatePresence>
-        {isOpen && (
+        {isOpen && triggerRect && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            className="absolute left-0 right-0 top-full mt-2 z-30"
+            initial={{ opacity: 0, y: popupPlacement === 'above' ? -8 : 8, x: popupPlacement === 'left' ? -8 : popupPlacement === 'right' ? 8 : 0, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+            exit={{ opacity: 0, y: popupPlacement === 'above' ? -8 : 8, x: popupPlacement === 'left' ? -8 : popupPlacement === 'right' ? 8 : 0, scale: 0.98 }}
+            className="z-[9999]"
+            style={
+              popupPlacement === 'below'
+                ? { position: 'fixed', left: triggerRect.left, top: triggerRect.bottom + 8, width: triggerRect.width }
+                : popupPlacement === 'above'
+                  ? { position: 'fixed', left: triggerRect.left, bottom: window.innerHeight - triggerRect.top + 8, width: triggerRect.width }
+                  : popupPlacement === 'right'
+                    ? { position: 'fixed', left: triggerRect.right + 8, top: triggerRect.top, width: 280 }
+                    : { position: 'fixed', right: window.innerWidth - triggerRect.left + 8, top: triggerRect.top, width: 280 }
+            }
           >
             <div className="relative rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-emerald-950/10 overflow-visible">
               <div className="p-2 space-y-1">
@@ -161,8 +208,14 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
                     <div key={role} className="relative">
                       <button
                         type="button"
-                        onMouseEnter={() => setHoveredRole(role)}
-                        onFocus={() => setHoveredRole(role)}
+                        onMouseEnter={(event) => {
+                          setHoveredRole(role);
+                          setHoveredRect(event.currentTarget.getBoundingClientRect());
+                        }}
+                        onFocus={(event) => {
+                          setHoveredRole(role);
+                          setHoveredRect(event.currentTarget.getBoundingClientRect());
+                        }}
                         onClick={() => {
                           onChange(role);
                           setHoveredRole(role);
@@ -190,23 +243,32 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
                         )}
                       </button>
 
-                      {hoveredRole === role && (
-                        <div className="hidden xl:block pointer-events-none absolute right-full mr-3 top-1/2 -translate-y-1/2 w-60 rounded-2xl border border-emerald-100 bg-white p-4 shadow-2xl shadow-emerald-950/10">
-                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
-                            {getRoleLabel(role, language)}
-                          </p>
-                          <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
-                            {t('dummyRoleActions')}
-                          </p>
-                          <div className="space-y-2">
-                            {getPermissionLabelsForRole(role).map((permission) => (
-                              <div key={permission} className="flex items-start gap-2">
-                                <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
-                                  {permission}
-                                </span>
-                              </div>
-                            ))}
+                      {hoveredRole === role && hoveredRect && (
+                        <div
+                          className="z-[9999] pointer-events-none"
+                          style={
+                            hoveredRect.right + 300 < window.innerWidth
+                              ? { position: 'fixed', left: hoveredRect.right + 12, top: hoveredRect.top }
+                              : { position: 'fixed', right: window.innerWidth - hoveredRect.left + 12, top: hoveredRect.top }
+                          }
+                        >
+                          <div className="w-60 rounded-2xl border border-emerald-100 bg-white p-4 shadow-2xl shadow-emerald-950/10">
+                            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
+                              {getRoleLabel(role, language)}
+                            </p>
+                            <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
+                              {t('dummyRoleActions')}
+                            </p>
+                            <div className="space-y-2">
+                              {getPermissionLabelsForRole(role).map((permission) => (
+                                <div key={permission} className="flex items-start gap-2">
+                                  <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                                  <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
+                                    {permission}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       )}
