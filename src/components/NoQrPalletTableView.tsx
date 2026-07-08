@@ -246,7 +246,9 @@ export const NoQrPalletTableView: React.FC = () => {
     }
 
     setPagedPallets((current) =>
-      current.map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+      current
+        .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+        .filter((pallet) => pallet.is_ghost)
     );
   }, [cachedPallets]);
 
@@ -522,7 +524,10 @@ export const NoQrPalletTableView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-black uppercase tracking-[0.14em] text-zinc-900">
+          {t('noQrPallets')}
+        </h2>
         <div className="relative w-full sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
           <Input

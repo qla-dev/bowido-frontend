@@ -378,32 +378,13 @@ export const AdminClientManagerView: React.FC = () => {
         invoice.customer_name.toLowerCase() === selectedRow.clientName.toLowerCase()
     );
 
-    if (realInvoices.length > 0) {
-      return realInvoices.slice(0, 3).map((invoice) => ({
-        id: invoice.id,
-        number: invoice.invoice_number,
-        amount: `EUR ${currencyFormatter.format(invoice.total_amount)}`,
-        date: dateFormatter.format(new Date(invoice.issue_date)),
-        status: invoice.status,
-      }));
-    }
-
-    return [
-      {
-        id: 8000 + selectedRow.client.id,
-        number: `INV-${selectedRow.client.id.toString().padStart(4, '0')}-01`,
-        amount: `EUR ${currencyFormatter.format(Math.max(selectedRow.overdueTotal, selectedRow.rate * 3))}`,
-        date: dateFormatter.format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
-        status: selectedRow.overdueTotal > 0 ? 'overdue' : 'sent',
-      },
-      {
-        id: 8100 + selectedRow.client.id,
-        number: `INV-${selectedRow.client.id.toString().padStart(4, '0')}-00`,
-        amount: `EUR ${currencyFormatter.format(selectedRow.rate * 5)}`,
-        date: dateFormatter.format(new Date(Date.now() - 36 * 24 * 60 * 60 * 1000)),
-        status: 'paid',
-      },
-    ];
+    return realInvoices.slice(0, 3).map((invoice) => ({
+      id: invoice.id,
+      number: invoice.invoice_number,
+      amount: `EUR ${currencyFormatter.format(invoice.total_amount)}`,
+      date: dateFormatter.format(new Date(invoice.issue_date)),
+      status: invoice.status,
+    }));
   }, [currencyFormatter, dateFormatter, invoices, selectedRow]);
 
   const openClientModal = (row: ClientManagerRow) => {
