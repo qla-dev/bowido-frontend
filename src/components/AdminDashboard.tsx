@@ -105,12 +105,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
   const [showEditingPalletDetails, setShowEditingPalletDetails] = useState(false);
-  const [qrPreview, setQrPreview] = useState<{ value: string; label: string } | null>(null);
+  const [qrPreviewValue, setQrPreviewValue] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
   const [dashboardStats, setDashboardStats] = useState<PalletDashboardStats | null>(null);
-  const [palletAuditLogsById, setPalletAuditLogsById] = useState<Record<number, AuditLog[]>>({});
 
   const handleExportPdf = () => {
     alert('Generating PDF Delivery/Stock Report...');
@@ -167,39 +166,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [openPalletId, onPalletDetailOpened, pallets]);
 
-  const activeDetailPalletId = selectedPallet?.id ?? editingPallet?.id ?? null;
-
-  React.useEffect(() => {
-    if (!activeDetailPalletId || palletAuditLogsById[activeDetailPalletId]) {
-      return;
-    }
-
-    let isCancelled = false;
-
-    void apiService.auditLogs
-      .list({
-        pallet_id: activeDetailPalletId,
-        limit: 100,
-        sort_by: 'created_at',
-        sort_direction: 'desc',
-      })
-      .then((logs) => {
-        if (isCancelled) {
-          return;
-        }
-
-        setPalletAuditLogsById((current) => ({
-          ...current,
-          [activeDetailPalletId]: logs,
-        }));
-      })
-      .catch((error) => console.error('Failed to load pallet audit history', error));
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [activeDetailPalletId]);
-
   const calculateDays = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -244,7 +210,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const invalidRangeLabel = language === 'bs' ? 'Unesi ispravan raspon.' : language === 'nl' ? 'Vul een geldig bereik in.' : 'Enter a valid range.';
   const bulkHintLabel = language === 'bs' ? 'Status novih paleta' : language === 'nl' ? 'Status van nieuwe bokken' : 'Status for new pallets';
   const createBulkLabel = language === 'bs' ? 'Kreiraj palete' : language === 'nl' ? 'Bokken aanmaken' : 'Create pallets';
-  const referenceCodeLabel = language === 'bs' ? 'Stari QR / referenca' : language === 'nl' ? 'Oude QR / referentie' : 'Old QR / reference';
 
   const parseBulkNumber = (value: string) => {
     const trimmedValue = value.trim();
@@ -437,36 +402,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDeleteConfirm(null);
   };
 
-  const databasePalletTypeOptions = React.useMemo(
-    () =>
-      Array.from<string>(
-        new Set(
-          pallets
-            .map((pallet) => normalizePalletTypeCode(pallet.type) || pallet.type)
-            .filter((value): value is string => Boolean(value && value.trim()))
-        )
-      ).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })),
-    [pallets]
-  );
-
   const getPalletTypeOptions = (currentType?: string) =>
     Array.from(
       new Set(
-        [normalizePalletTypeCode(currentType || ''), ...databasePalletTypeOptions, ...palletTypeValues].filter(
+        [normalizePalletTypeCode(currentType || ''), ...palletTypeValues].filter(
           (value): value is string => Boolean(value && value.trim())
         )
       )
     );
-
-  const openQrPreview = (pallet: Pallet) => {
-    const value = pallet.qr_code.trim();
-    if (!value) return;
-
-    setQrPreview({
-      value,
-      label: getPalletDisplayName(pallet) || value,
-    });
-  };
 
   const detailToggleLabel =
     language === 'bs' ? 'Prikaz detalja' : language === 'nl' ? 'Details tonen' : 'Show details';
@@ -502,13 +445,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       minute: '2-digit',
     }
   );
+  const getFallbackAuditActor = (pallet: Pallet) => {
+    if ([2, 6].includes(pallet.current_status_id)) {
+      return { id: 2, name: 'Dragan Driver' };
+    }
+
+    if ([1, 3].includes(pallet.current_status_id)) {
+      return { id: 3, name: 'Marko Magaciner' };
+    }
+
+    if (pallet.current_status_id === 7) {
+      return { id: 5, name: 'Sava Serviser' };
+    }
+
+    return { id: 1, name: 'Admin User' };
+  };
   const buildFallbackStatusLog = (pallet: Pallet): AuditLog => {
+    const fallbackActor = getFallbackAuditActor(pallet);
+
     return {
       id: -pallet.id,
       pallet_id: pallet.id,
       pallet_qr: getPalletDisplayName(pallet),
-      made_by_user_id: 0,
-      made_by_user_name: '',
+      made_by_user_id: fallbackActor.id,
+      made_by_user_name: fallbackActor.name,
       type: 'status',
       old_status_id: pallet.current_status_id,
       new_status_id: pallet.current_status_id,
@@ -518,7 +478,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       new_client_id: pallet.user_id,
       old_location: pallet.current_location,
       new_location: pallet.current_location,
-      note: '',
+      note: 'Dummy audit entry for pallet detail preview.',
       created_at: pallet.last_status_changed_at || pallet.created_at,
     };
   };
@@ -527,36 +487,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     log.new_status_id === pallet.current_status_id &&
     log.new_status_name === pallet.current_status_name &&
     (log.new_location || '').trim() === (pallet.current_location || '').trim();
+  const normalizeAuditLogActor = (log: AuditLog, pallet: Pallet): AuditLog => {
+    if (log.made_by_user_name?.trim() || log.made_by_user_id) {
+      return log;
+    }
+
+    const fallbackActor = getFallbackAuditActor(pallet);
+    return {
+      ...log,
+      made_by_user_id: fallbackActor.id,
+      made_by_user_name: fallbackActor.name,
+    };
+  };
   const ensureCurrentStatusLog = (logs: AuditLog[], pallet: Pallet) => {
-    const currentStateLogIndex = logs.findIndex((log) =>
+    const normalizedLogs = logs.map((log) => normalizeAuditLogActor(log, pallet));
+    const currentStateLogIndex = normalizedLogs.findIndex((log) =>
       matchesPalletCurrentState(log, pallet)
     );
 
     if (currentStateLogIndex === 0) {
-      return logs;
+      return normalizedLogs;
     }
 
     if (currentStateLogIndex > 0) {
-      const currentStateLog = logs[currentStateLogIndex];
+      const currentStateLog = normalizedLogs[currentStateLogIndex];
       return [
         currentStateLog,
-        ...logs.filter((_, index) => index !== currentStateLogIndex),
+        ...normalizedLogs.filter((_, index) => index !== currentStateLogIndex),
       ];
     }
 
-    return logs;
+    return [buildFallbackStatusLog(pallet), ...normalizedLogs];
   };
   const getPalletStatusHistory = (pallet: Pallet) => {
-    const loadedLogs = palletAuditLogsById[pallet.id] || [];
-    const logsById = new Map<number, AuditLog>();
-
-    [...auditLogs, ...loadedLogs].forEach((log) => {
-      if (log.pallet_id === pallet.id && (log.type || 'status') === 'status') {
-        logsById.set(log.id, log);
-      }
-    });
-
-    const logs = Array.from(logsById.values())
+    const logs = auditLogs
+      .filter((log) => log.pallet_id === pallet.id && (log.type || 'status') === 'status')
       .sort(
         (left, right) =>
           new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
@@ -578,9 +543,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const renderOverview = () => {
     const overduePallets = pallets.filter(p => calculateDebt(p) > 0);
-    const topOverduePallets = [...overduePallets]
-      .sort((left, right) => calculateDebt(right) - calculateDebt(left))
-      .slice(0, 10);
     const totalDebt = pallets.reduce((acc, p) => acc + calculateDebt(p), 0);
     const ghostPallets = pallets.filter(p => p.is_ghost);
     const overviewStats = dashboardStats ?? {
@@ -619,22 +581,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </tr>
                       </thead>
                       <tbody className="text-[11px] divide-y divide-zinc-50">
-                        {topOverduePallets.map(p => {
+                        {overduePallets.map(p => {
                            const client = clients.find(c => c.user_id === p.user_id);
                            const invoiceWasSent = Boolean(sentInvoiceTimestamps[p.id]);
                            return (
                             <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
-                              <td className="px-6 py-3 text-center align-middle">
-                                <button
-                                  type="button"
-                                  onClick={() => openQrPreview(p)}
-                                  title={t('showQrCode')}
-                                  aria-label={`${t('showQrCode')}: ${getPalletDisplayName(p)}`}
-                                  className="rounded-lg px-2 py-1 font-mono font-black text-emerald-700 underline decoration-emerald-300 underline-offset-4 transition-colors hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-                                >
-                                  {p.qr_code}
-                                </button>
-                              </td>
+                              <td className="px-6 py-3 font-mono font-black text-center align-middle">{p.qr_code}</td>
                               <td className="px-6 py-3 text-center align-middle">
                                 <p className="font-bold text-zinc-900 leading-none mb-1">{client?.name || t('inWarehouse')}</p>
                                 <p className="text-[9px] text-zinc-400 uppercase tracking-tighter leading-none">{p.current_location}</p>
@@ -787,7 +739,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
                   <Badge variant={ghostPallets.length > 0 ? 'warning' : 'success'}>
-                    {ghostPallets.length > 0 ? 'Akcija' : 'Čisto'}
+                    {ghostPallets.length > 0 ? 'Akcija' : 'Cisto'}
                   </Badge>
                 </div>
 
@@ -1144,7 +1096,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     title={t('showQrCode')}
                     aria-label={t('showQrCode')}
-                    onClick={() => openQrPreview(editingPallet)}
+                    onClick={() => setQrPreviewValue(editingPallet.qr_code)}
                     disabled={!editingPallet.qr_code.trim()}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-emerald-800 transition-colors hover:border-zinc-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -1173,17 +1125,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('qrCode')}</label>
                       <input 
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-black" 
+                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-black uppercase" 
                         value={editingPallet.qr_code} 
-                        onChange={e => setEditingPallet({...editingPallet, qr_code: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{referenceCodeLabel}</label>
-                      <input
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-black"
-                        value={editingPallet.reference_code || ''}
-                        onChange={e => setEditingPallet({...editingPallet, reference_code: e.target.value || undefined})}
+                        onChange={e => setEditingPallet({...editingPallet, qr_code: e.target.value.toUpperCase()})}
                       />
                     </div>
                     <div className="space-y-1">
@@ -1382,7 +1326,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {qrPreview && (
+        {qrPreviewValue && (
           <div className="modal-overlay fixed inset-0 z-[140] flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.92, opacity: 0 }}
@@ -1398,7 +1342,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setQrPreview(null)}
+                  onClick={() => setQrPreviewValue(null)}
                   className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
                 >
                   <X size={20} />
@@ -1406,16 +1350,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div className="rounded-[2rem] border border-zinc-100 bg-zinc-50 p-4 text-zinc-950">
-                <PalletQrCode value={qrPreview.value} className="mx-auto aspect-square w-full max-w-[260px]" />
+                <PalletQrCode value={qrPreviewValue} className="mx-auto aspect-square w-full max-w-[260px]" />
               </div>
 
-              <p className="mt-4 break-all rounded-2xl bg-zinc-50 px-4 py-3 text-xs font-black uppercase tracking-tight text-zinc-700">
-                {qrPreview.label}
+              <p className="mt-4 break-all rounded-2xl bg-zinc-50 px-4 py-3 font-mono text-xs font-black uppercase tracking-tight text-zinc-700">
+                {qrPreviewValue}
               </p>
 
               <button
                 type="button"
-                onClick={() => setQrPreview(null)}
+                onClick={() => setQrPreviewValue(null)}
                 className="mt-5 h-12 w-full rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/10"
               >
                 {t('close')}
@@ -1524,9 +1468,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <input
                         autoFocus
                         placeholder={t('qrPlaceholder')}
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold uppercase"
                         value={newPalletQr}
-                        onChange={(event) => setNewPalletQr(event.target.value)}
+                        onChange={(event) => setNewPalletQr(event.target.value.toUpperCase())}
                       />
                    </div>
                  ) : (

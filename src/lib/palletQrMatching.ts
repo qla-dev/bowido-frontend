@@ -1,81 +1,41 @@
 import { Pallet } from '../types';
 
-export const normalizeQrCodeForStorage = (value?: string | null) => {
-  const trimmedValue = (value || '').trim();
-
-  if (/^https?:\/\//i.test(trimmedValue)) {
-    return trimmedValue.replace(/\s+/g, '');
-  }
-
-  return trimmedValue.replace(/\s+/g, '').toUpperCase();
-};
-
 const normalizeQrValue = (value?: string | null) =>
   (value || '').trim().replace(/\s+/g, '').toUpperCase();
 
-const getUrlCandidates = (value?: string | null) => {
-  const trimmedValue = (value || '').trim();
-
-  if (!/^https?:\/\//i.test(trimmedValue)) {
-    return [];
-  }
-
-  try {
-    const url = new URL(trimmedValue);
-    url.protocol = url.protocol.toLowerCase();
-    url.hostname = url.hostname.toLowerCase();
-    url.hash = '';
-
-    const fullUrl = url.toString().replace(/\/+$/, '');
-    url.search = '';
-
-    return [fullUrl, url.toString().replace(/\/+$/, '')];
-  } catch {
-    return [trimmedValue.replace(/\s+/g, '').replace(/\/+$/, '')];
-  }
-};
-
 const getBaseQrValue = (value?: string | null) => normalizeQrValue(value).split(';')[0] || '';
-
-const addQrCandidates = (candidates: Set<string>, value?: string | null) => {
-  const normalizedValue = normalizeQrValue(value);
-  const normalizedBase = getBaseQrValue(value);
-
-  [normalizedValue, normalizedBase, ...getUrlCandidates(value)].forEach((candidate) => {
-    if (candidate && candidate.length >= 3) {
-      candidates.add(candidate);
-    }
-  });
-};
 
 export const getPalletQrCandidates = (pallet: Pallet) => {
   const candidates = new Set<string>();
+  const qrCode = normalizeQrValue(pallet.qr_code);
+  const palletName = normalizeQrValue(pallet.pallet_name);
+  const qrBase = getBaseQrValue(pallet.qr_code);
+  const nameBase = getBaseQrValue(pallet.pallet_name);
 
-  addQrCandidates(candidates, pallet.qr_code);
-  addQrCandidates(candidates, pallet.pallet_name);
-  addQrCandidates(candidates, pallet.reference_code);
+  [qrCode, palletName, qrBase, nameBase].forEach((candidate) => {
+    if (candidate) {
+      candidates.add(candidate);
+    }
+  });
 
-  return Array.from(candidates);
+  return Array.from(candidates).filter((candidate) => candidate.length >= 3);
 };
 
 export const findPalletByScannedQr = (rawValue: string, pallets: Pallet[]) => {
-  const scannedCandidates = new Set<string>();
-  addQrCandidates(scannedCandidates, rawValue);
+  const normalized = normalizeQrValue(rawValue);
+  const normalizedBase = getBaseQrValue(rawValue);
 
-  if (scannedCandidates.size === 0) {
+  if (!normalized) {
     return null;
   }
-
-  const scannedValues = Array.from(scannedCandidates);
 
   return (
     pallets.find((pallet) =>
       getPalletQrCandidates(pallet).some((candidate) =>
-        scannedValues.some((scannedValue) =>
-          scannedValue === candidate ||
-          scannedValue.includes(candidate) ||
-          candidate.includes(scannedValue)
-        )
+        normalized === candidate ||
+        normalizedBase === candidate ||
+        normalized.includes(candidate) ||
+        candidate.includes(normalized)
       )
     ) || null
   );

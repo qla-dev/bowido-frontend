@@ -15,21 +15,12 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
   const { t } = useApp();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const customerTaxLabel = invoice.customer_vat || invoice.customer_kvk || '-';
-  const customerAddress = invoice.billing_address || invoice.delivery_address || '-';
-  const customerEmail = invoice.customer_email || '';
 
   useEffect(() => {
     const loadItems = async () => {
-      try {
-        const data = await apiService.invoices.getItems(invoice.id);
-        setItems(data);
-      } catch (error) {
-        console.error('Failed to load invoice items', error);
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
+      const data = await apiService.invoices.getItems(invoice.id);
+      setItems(data);
+      setLoading(false);
     };
     loadItems();
   }, [invoice.id]);
@@ -65,11 +56,8 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                 <div>
                   <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400 mb-2">Billed To</h4>
                   <p className="text-lg font-black text-black leading-none uppercase tracking-tight">{invoice.customer_name}</p>
-                  {customerEmail && (
-                    <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1 break-all">{customerEmail}</p>
-                  )}
-                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">VAT/KVK: {customerTaxLabel}</p>
-                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight leading-relaxed max-w-xs mt-2">{customerAddress}</p>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">VAT: NL823456789B01</p>
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight leading-relaxed max-w-xs mt-2">Industrieweg 12, 5621AA Eindhoven, NL</p>
                 </div>
                 <div className="flex gap-12">
                   <div>
@@ -99,7 +87,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                       <p className="text-2xl font-black text-black uppercase tracking-tighter leading-none">
                          {invoice.status === 'paid' ? t('paid') : t('unpaid')}
                       </p>
-                      <p className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.15em] mt-2">{invoice.status}</p>
+                      <p className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.15em] mt-2">Via SEPA Direct</p>
                     </div>
                  </div>
               </div>
@@ -120,16 +108,9 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-50">
-                      {!loading && items.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-zinc-300">
-                            No invoice items
-                          </td>
-                        </tr>
-                      )}
                       {items.map(item => (
                         <tr key={item.id} className="group hover:bg-zinc-50/20 transition-colors">
-                          <td className="px-6 py-5 font-mono text-zinc-950">{item.pallet_qr || '-'}</td>
+                          <td className="px-6 py-5 font-mono text-zinc-950">{item.pallet_qr}</td>
                           <td className="px-6 py-5 text-zinc-500 truncate max-w-[200px]">{item.description}</td>
                           <td className="px-6 py-5 text-center text-zinc-950">{item.quantity}</td>
                           <td className="px-6 py-5 text-right text-zinc-400 whitespace-nowrap">€{item.unit_price.toFixed(2)}</td>

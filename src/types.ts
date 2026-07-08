@@ -67,7 +67,6 @@ export interface Pallet {
   last_status_changed_at: string;
   created_at: string;
   note?: string;
-  metadata?: Record<string, unknown> | null;
 }
 
 export interface PalletDashboardStats {
@@ -142,11 +141,6 @@ export interface Invoice {
   invoice_number: string;
   customer_id: number;
   customer_name: string;
-  customer_email?: string;
-  customer_kvk?: string;
-  customer_vat?: string;
-  billing_address?: string;
-  delivery_address?: string;
   issue_date: string;
   due_date: string;
   total_amount: number;
@@ -161,18 +155,4 @@ export interface InvoiceItem {
   quantity: number;
   unit_price: number;
   total: number;
-}
-
-export interface CalendarNote {
-  id: number;
-  note_date: string;
-  note_time?: string;
-  title?: string;
-  note: string;
-  created_by_user_id: number;
-  created_by_user_name?: string;
-  notified_user_ids: number[];
-  notified_users: ManagedUser[];
-  created_at: string;
-  updated_at: string;
 }

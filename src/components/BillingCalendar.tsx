@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Badge, Input, Select, StatCard, cn } from './ui';
+import React, { useMemo, useState } from 'react';
+import { Button, Card, Badge, Input, StatCard, cn } from './ui';
 import { useApp } from '../AppContext';
 import {
-  Bell,
   Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
   DollarSign,
   Plus,
   MessageSquare,
@@ -12,15 +13,16 @@ import {
   Clock3,
   CircleAlert,
   BadgeCheck,
-  Pencil,
-  Search,
-  Trash2,
-  Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarNote, Invoice, ManagedUser } from '../types';
+import { Invoice } from '../types';
 import { localeMap } from '../i18n';
-import { apiService } from '../services/api';
+
+interface DateNote {
+  note?: string;
+  noteKey?: string;
+  reminder: string;
+}
 
 type MarkerKind = 'review' | 'collection' | 'followup' | 'ops';
 
@@ -68,81 +70,29 @@ const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0
 const toDateKey = (year: number, month: number, day: number) =>
   `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-const toDateInputValue = (date: Date) => toDateKey(date.getFullYear(), date.getMonth(), date.getDate());
-
-const calendarMonthNames: Record<string, string[]> = {
-  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-  nl: ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'],
-  bs: ['januar', 'februar', 'mart', 'april', 'maj', 'juni', 'juli', 'august', 'septembar', 'oktobar', 'novembar', 'decembar'],
-};
-
-const parseDateKey = (value: string) => {
-  const [year, month, day] = value.split('-').map(Number);
-
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  return { year, month: month - 1, day };
-};
-
-const getMonthDateRange = (year: number, month: number) => ({
-  date_from: toDateKey(year, month, 1),
-  date_to: toDateKey(year, month, daysInMonth(year, month)),
-});
-
-const normalizeTimeInput = (value: string) => {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return '';
-  }
-
-  const hourOnly = trimmed.match(/^([01]?\d|2[0-3])$/);
-  if (hourOnly) {
-    return `${hourOnly[1].padStart(2, '0')}:00`;
-  }
-
-  const colonTime = trimmed.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
-  if (colonTime) {
-    return `${colonTime[1].padStart(2, '0')}:${colonTime[2]}`;
-  }
-
-  const compactTime = trimmed.match(/^([01]?\d|2[0-3])([0-5]\d)$/);
-  if (compactTime) {
-    return `${compactTime[1].padStart(2, '0')}:${compactTime[2]}`;
-  }
-
-  return null;
-};
-
-const calendarTimeOptions = Array.from({ length: 48 }, (_, index) => {
-  const hour = Math.floor(index / 2);
-  const minute = index % 2 === 0 ? '00' : '30';
-  return `${String(hour).padStart(2, '0')}:${minute}`;
-});
-
 export const BillingCalendar: React.FC = () => {
   const { invoices, t, language } = useApp();
   const locale = localeMap[language];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
   const [showNoteEditor, setShowNoteEditor] = useState(false);
-  const [showNotifyModal, setShowNotifyModal] = useState(false);
-  const [editingNote, setEditingNote] = useState<CalendarNote | null>(null);
-  const [noteDateDraft, setNoteDateDraft] = useState('');
-  const [noteTitleDraft, setNoteTitleDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
-  const [noteTimeDraft, setNoteTimeDraft] = useState('');
-  const [notifiedUserIds, setNotifiedUserIds] = useState<number[]>([]);
-  const [notifiedUsersDraft, setNotifiedUsersDraft] = useState<ManagedUser[]>([]);
-  const [calendarNotes, setCalendarNotes] = useState<CalendarNote[]>([]);
-  const [isNotesLoading, setIsNotesLoading] = useState(false);
-  const [isSavingNote, setIsSavingNote] = useState(false);
-  const [noteError, setNoteError] = useState<string | null>(null);
-  const [userSearch, setUserSearch] = useState('');
-  const [notifyCandidates, setNotifyCandidates] = useState<ManagedUser[]>([]);
-  const [isUserSearchLoading, setIsUserSearchLoading] = useState(false);
+  const [reminderDraft, setReminderDraft] = useState('');
+  const [dateNotes, setDateNotes] = useState<Record<string, DateNote>>(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    return {
+      [toDateKey(year, month, 6)]: {
+        noteKey: 'calendarSeedReminderBatch',
+        reminder: '09:00',
+      },
+      [toDateKey(year, month, 18)]: {
+        noteKey: 'calendarSeedGraceReview',
+        reminder: '14:30',
+      },
+    };
+  });
 
   const weekDays = useMemo(() => {
     const start = new Date(2024, 0, 7);
@@ -153,100 +103,13 @@ export const BillingCalendar: React.FC = () => {
     );
   }, [locale]);
 
+  const monthYearStr = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(currentDate);
+  const shortMonthStr = new Intl.DateTimeFormat(locale, { month: 'short' }).format(currentDate);
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const monthNames = calendarMonthNames[language] || calendarMonthNames.en;
-  const monthYearStr = `${monthNames[month]} ${year}`;
-  const monthOptions = useMemo(
-    () =>
-      Array.from({ length: 12 }, (_, optionMonth) => ({
-        value: optionMonth,
-        label: monthNames[optionMonth],
-      })),
-    [monthNames]
-  );
-  const yearOptions = useMemo(() => {
-    const years = new Set<number>();
-    const currentYear = new Date().getFullYear();
-
-    for (let optionYear = currentYear - 5; optionYear <= currentYear + 5; optionYear += 1) {
-      years.add(optionYear);
-    }
-
-    years.add(year);
-    invoices.forEach((invoice) => {
-      const invoiceYear = new Date(invoice.due_date).getFullYear();
-      if (!Number.isNaN(invoiceYear)) {
-        years.add(invoiceYear);
-      }
-    });
-
-    return Array.from(years).sort((left, right) => left - right);
-  }, [invoices, year]);
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const monthDays = Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1);
   const emptyDays = Array.from({ length: firstDayOfMonth }, (_, i) => i);
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    if (!apiService.hasToken()) {
-      setCalendarNotes([]);
-      return undefined;
-    }
-
-    setIsNotesLoading(true);
-    void apiService.calendarNotes
-      .list({
-        ...getMonthDateRange(year, month),
-        limit: 100,
-        sort_by: 'note_date',
-        sort_direction: 'asc',
-      })
-      .then((notes) => {
-        if (isCurrent) {
-          setCalendarNotes(notes);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to load calendar notes', error);
-        if (isCurrent) {
-          setCalendarNotes([]);
-        }
-      })
-      .finally(() => {
-        if (isCurrent) {
-          setIsNotesLoading(false);
-        }
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [month, year]);
-
-  useEffect(() => {
-    if (!showNotifyModal || !apiService.hasToken()) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setIsUserSearchLoading(true);
-      void apiService.calendarNotes
-        .notifyCandidates({
-          search: userSearch.trim() || undefined,
-          limit: 20,
-        })
-        .then(setNotifyCandidates)
-        .catch((error) => {
-          console.error('Failed to search users for calendar notification', error);
-          setNotifyCandidates([]);
-        })
-        .finally(() => setIsUserSearchLoading(false));
-    }, 250);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [showNotifyModal, userSearch]);
 
   const invoicesByDay = useMemo(() => {
     const map: Record<number, Invoice[]> = {};
@@ -317,22 +180,13 @@ export const BillingCalendar: React.FC = () => {
 
   const selectedDateKey = selectedDay ? toDateKey(year, month, selectedDay) : null;
   const selectedDayInvoices = selectedDay ? invoicesByDay[selectedDay] || [] : [];
-  const calendarNotesByDay = useMemo(() => {
-    return calendarNotes.reduce<Record<string, CalendarNote[]>>((acc, note) => {
-      if (!note.note_date) {
-        return acc;
-      }
-
-      if (!acc[note.note_date]) {
-        acc[note.note_date] = [];
-      }
-
-      acc[note.note_date].push(note);
-      return acc;
-    }, {});
-  }, [calendarNotes]);
-  const selectedNotes = selectedDateKey ? calendarNotesByDay[selectedDateKey] || [] : [];
+  const selectedNote = selectedDateKey ? dateNotes[selectedDateKey] : null;
   const selectedMarkers = selectedDateKey ? monthMarkers[selectedDateKey] || [] : [];
+  const resolveNoteText = (entry?: DateNote | null) => {
+    if (!entry) return '';
+    return entry.noteKey ? t(entry.noteKey) : entry.note || '';
+  };
+  const selectedNoteText = resolveNoteText(selectedNote);
   const monthlyInvoices: Invoice[] = (Object.values(invoicesByDay) as Invoice[][]).reduce<Invoice[]>(
     (allInvoices, dayInvoices) => allInvoices.concat(dayInvoices),
     []
@@ -349,11 +203,7 @@ export const BillingCalendar: React.FC = () => {
   const monthlyDue = monthlyInvoices.reduce((sum, invoice) => sum + invoice.total_amount, 0);
   const monthlyInvoiceCount = monthlyInvoices.length;
   const monthlyUnpaidCount = monthlyInvoices.filter((invoice) => invoice.status !== 'paid').length;
-  const visibleNoteDayKeys = Object.keys(calendarNotesByDay).filter((dateKey) => {
-    const parsedDate = parseDateKey(dateKey);
-    return parsedDate?.year === year && parsedDate.month === month;
-  });
-  const markedDayCount = new Set([...Object.keys(monthMarkers), ...visibleNoteDayKeys]).size;
+  const markedDayCount = Object.keys(monthMarkers).length;
 
   const upcomingAgenda = useMemo(() => {
     return Object.entries(monthMarkers)
@@ -366,138 +216,42 @@ export const BillingCalendar: React.FC = () => {
       .slice(0, 4);
   }, [monthMarkers]);
 
-  const openNoteEditor = (note?: CalendarNote) => {
-    const draftDate = note?.note_date || selectedDateKey || toDateInputValue(new Date());
-
-    setEditingNote(note || null);
-    setNoteDateDraft(draftDate);
-    setNoteTitleDraft(note?.title || '');
-    setNoteDraft(note?.note || '');
-    setNoteTimeDraft(note?.note_time || '');
-    setNotifiedUserIds(note?.notified_user_ids || []);
-    setNotifiedUsersDraft(note?.notified_users || []);
-    setNoteError(null);
+  const openNoteEditor = () => {
+    if (!selectedDateKey) return;
+    const current = dateNotes[selectedDateKey];
+    setNoteDraft(resolveNoteText(current));
+    setReminderDraft(current?.reminder || '');
     setShowNoteEditor(true);
   };
 
-  const saveNote = async () => {
+  const saveNote = () => {
+    if (!selectedDateKey) return;
     const note = noteDraft.trim();
-    const title = noteTitleDraft.trim();
-    const normalizedTime = normalizeTimeInput(noteTimeDraft);
+    const reminder = reminderDraft.trim();
 
-    if (!noteDateDraft || !note) {
-      setNoteError(t('calendarNoteRequired'));
-      return;
-    }
+    setDateNotes((prev) => {
+      if (!note) {
+        const next = { ...prev };
+        delete next[selectedDateKey];
+        return next;
+      }
 
-    if (normalizedTime === null) {
-      setNoteError(t('calendarInvalidTime'));
-      return;
-    }
-
-    setIsSavingNote(true);
-    setNoteError(null);
-
-    try {
-      const payload = {
-        note_date: noteDateDraft,
-        note_time: normalizedTime || undefined,
-        title: title || undefined,
-        note,
-        notified_user_ids: notifiedUserIds,
+      return {
+        ...prev,
+        [selectedDateKey]: { note, reminder },
       };
-      const savedNote = editingNote
-        ? await apiService.calendarNotes.update(editingNote.id, payload)
-        : await apiService.calendarNotes.create(payload);
-      const parsedDate = parseDateKey(savedNote.note_date);
-
-      setCalendarNotes((prev) => {
-        const nextNotes = editingNote
-          ? prev.map((existingNote) => (existingNote.id === savedNote.id ? savedNote : existingNote))
-          : [...prev, savedNote];
-
-        return nextNotes.sort((left, right) =>
-          `${left.note_date} ${left.note_time || ''} ${left.id}`.localeCompare(
-            `${right.note_date} ${right.note_time || ''} ${right.id}`
-          )
-        );
-      });
-
-      if (parsedDate) {
-        setCurrentDate(new Date(parsedDate.year, parsedDate.month, 1));
-        setSelectedDay(parsedDate.day);
-      }
-
-      setShowNoteEditor(false);
-    } catch (error) {
-      console.error('Failed to save calendar note', error);
-      setNoteError(t('calendarNoteSaveFailed'));
-    } finally {
-      setIsSavingNote(false);
-    }
-  };
-
-  const deleteNote = async () => {
-    if (!editingNote) {
-      return;
-    }
-
-    setIsSavingNote(true);
-    setNoteError(null);
-
-    try {
-      await apiService.calendarNotes.delete(editingNote.id);
-      setCalendarNotes((prev) => prev.filter((note) => note.id !== editingNote.id));
-      setShowNoteEditor(false);
-    } catch (error) {
-      console.error('Failed to delete calendar note', error);
-      setNoteError(t('calendarNoteDeleteFailed'));
-    } finally {
-      setIsSavingNote(false);
-    }
-  };
-
-  const toggleNotifyUser = (user: ManagedUser) => {
-    setNotifiedUserIds((prev) => {
-      if (prev.includes(user.id)) {
-        return prev.filter((id) => id !== user.id);
-      }
-
-      return [...prev, user.id];
     });
 
-    setNotifiedUsersDraft((prev) => {
-      if (prev.some((item) => item.id === user.id)) {
-        return prev.filter((item) => item.id !== user.id);
-      }
-
-      return [...prev, user];
-    });
+    setShowNoteEditor(false);
   };
 
-  const formatDayMonthLabel = (day: number, monthIndex = month) =>
-    language === 'en' ? `${monthNames[monthIndex]} ${day}` : `${day}. ${monthNames[monthIndex]}`;
-
-  const formatCalendarDayLabel = (day: number) => formatDayMonthLabel(day);
-
-  const formatDateKeyLabel = (dateKey: string) => {
-    const parsedDate = parseDateKey(dateKey);
-
-    if (!parsedDate) {
-      return dateKey;
-    }
-
-    const label = formatDayMonthLabel(parsedDate.day, parsedDate.month);
-    return language === 'en' ? `${label}, ${parsedDate.year}` : `${label} ${parsedDate.year}`;
-  };
-
-  const handleMonthChange = (nextMonth: number) => {
-    setCurrentDate(new Date(year, nextMonth, 1));
+  const nextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
     setSelectedDay(null);
   };
 
-  const handleYearChange = (nextYear: number) => {
-    setCurrentDate(new Date(nextYear, month, 1));
+  const prevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
     setSelectedDay(null);
   };
 
@@ -530,31 +284,13 @@ export const BillingCalendar: React.FC = () => {
                 </h3>
               </div>
 
-              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-[minmax(11rem,13rem)_7.5rem]">
-                <Select
-                  value={String(month)}
-                  onChange={(event) => handleMonthChange(Number(event.target.value))}
-                  className="h-11 bg-white py-0 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-700"
-                  aria-label={t('calendar')}
-                >
-                  {monthOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  value={String(year)}
-                  onChange={(event) => handleYearChange(Number(event.target.value))}
-                  className="h-11 bg-white py-0 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-700"
-                  aria-label={String(year)}
-                >
-                  {yearOptions.map((optionYear) => (
-                    <option key={optionYear} value={optionYear}>
-                      {optionYear}
-                    </option>
-                  ))}
-                </Select>
+              <div className="flex items-center gap-2">
+                <Button onClick={prevMonth} variant="outline" size="sm" className="bg-white">
+                  <ChevronLeft size={16} />
+                </Button>
+                <Button onClick={nextMonth} variant="outline" size="sm" className="bg-white">
+                  <ChevronRight size={16} />
+                </Button>
               </div>
             </div>
 
@@ -586,7 +322,7 @@ export const BillingCalendar: React.FC = () => {
                   const dayInvoices = invoicesByDay[day] || [];
                   const hasUnpaid = dayInvoices.some((invoice) => invoice.status !== 'paid');
                   const dayKey = toDateKey(year, month, day);
-                  const dayNotes = calendarNotesByDay[dayKey] || [];
+                  const dayNote = dateNotes[dayKey];
                   const dayMarkers = monthMarkers[dayKey] || [];
                   const isToday =
                     day === new Date().getDate() &&
@@ -625,7 +361,7 @@ export const BillingCalendar: React.FC = () => {
                               )}
                             />
                           )}
-                          {dayNotes.length > 0 && (
+                          {dayNote && (
                             <span
                               className={cn(
                                 'w-2 h-2 rounded-full bg-blue-500',
@@ -669,14 +405,14 @@ export const BillingCalendar: React.FC = () => {
                           </p>
                         )}
 
-                        {!dayInvoices.length && !dayMarkers.length && dayNotes.length > 0 && (
+                        {!dayInvoices.length && !dayMarkers.length && dayNote && (
                           <p
                             className={cn(
-                              'truncate text-[9px] font-black uppercase tracking-tight leading-none',
+                              'text-[9px] font-black uppercase tracking-tight leading-none',
                               selectedDay === day ? 'text-white/75' : 'text-zinc-300'
                             )}
                           >
-                            {dayNotes.length === 1 ? dayNotes[0].title || t('calendarNoteSaved') : `${dayNotes.length} ${t('note')}`}
+                            {t('calendarNoteSaved')}
                           </p>
                         )}
                       </div>
@@ -697,7 +433,7 @@ export const BillingCalendar: React.FC = () => {
                 </p>
                 <h4 className="text-2xl font-black uppercase tracking-tighter text-zinc-950">
                   {selectedDay
-                    ? formatCalendarDayLabel(selectedDay)
+                    ? `${selectedDay} ${shortMonthStr}`
                     : t('selectDate')}
                 </h4>
               </div>
@@ -718,7 +454,7 @@ export const BillingCalendar: React.FC = () => {
                   {t('itemsLabel')}
                 </p>
                 <p className="text-xl font-black tracking-tight">
-                  {selectedDayInvoices.length + selectedMarkers.length + selectedNotes.length}
+                  {selectedDayInvoices.length + selectedMarkers.length + (selectedNote ? 1 : 0)}
                 </p>
               </div>
               <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/60">
@@ -739,67 +475,28 @@ export const BillingCalendar: React.FC = () => {
           <Card
             title={t('dayActivity')}
             action={
-              <Button
-                variant="primary"
-                size="xs"
-                onClick={() => openNoteEditor()}
-                className="h-8 w-8 rounded-xl p-0"
-                aria-label={t('addCalendarNote')}
-                title={t('addCalendarNote')}
-              >
+              <Button variant="ghost" size="xs" onClick={openNoteEditor}>
                 <Plus size={14} />
               </Button>
             }
           >
             <div className="space-y-3">
-              {isNotesLoading && (
-                <div className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50/50">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                    {t('loadingNotes')}
-                  </p>
+              {selectedNote && (
+                <div className="p-4 rounded-2xl border border-blue-100 bg-blue-50/60">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare size={14} className="text-blue-600" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">
+                      {t('savedNote')}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold text-zinc-700 leading-relaxed">{selectedNoteText}</p>
+                  {selectedNote.reminder && (
+                    <Badge className="mt-3 bg-white text-blue-700 border-blue-100">
+                      {t('reminderLabel')} {selectedNote.reminder}
+                    </Badge>
+                  )}
                 </div>
               )}
-
-              {selectedNotes.map((note) => (
-                <div key={note.id} className="p-4 rounded-2xl border border-blue-100 bg-blue-50/60">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <MessageSquare size={14} className="text-blue-600 shrink-0" />
-                      <p className="truncate text-[10px] font-black uppercase tracking-widest text-blue-700">
-                        {note.title || t('savedNote')}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => openNoteEditor(note)}
-                      className="h-7 w-7 rounded-lg p-0 text-blue-700"
-                      aria-label={t('editCalendarNote')}
-                      title={t('editCalendarNote')}
-                    >
-                      <Pencil size={13} />
-                    </Button>
-                  </div>
-                  <p className="text-sm font-bold text-zinc-700 leading-relaxed">{note.note}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {note.note_time && (
-                      <Badge className="bg-white text-blue-700 border-blue-100">
-                        {t('reminderLabel')} {note.note_time}
-                      </Badge>
-                    )}
-                    {note.notified_user_ids.length > 0 && (
-                      <Badge className="bg-white text-blue-700 border-blue-100">
-                        {note.notified_user_ids.length} {t('membersNotified')}
-                      </Badge>
-                    )}
-                    {note.created_by_user_name && (
-                      <Badge className="bg-white text-zinc-500 border-blue-100">
-                        {note.created_by_user_name}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
 
               {selectedMarkers.map((marker, index) => (
                 <div
@@ -853,7 +550,7 @@ export const BillingCalendar: React.FC = () => {
                 </div>
               ))}
 
-              {!selectedNotes.length && !selectedMarkers.length && !selectedDayInvoices.length && (
+              {!selectedNote && !selectedMarkers.length && !selectedDayInvoices.length && (
                 <div className="p-8 rounded-2xl border-2 border-dashed border-zinc-100 bg-zinc-50/50 text-center">
                   <CircleAlert size={18} className="mx-auto mb-3 text-zinc-300" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
@@ -871,7 +568,7 @@ export const BillingCalendar: React.FC = () => {
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                        {formatCalendarDayLabel(day)}
+                        {shortMonthStr} {day}
                       </p>
                     </div>
                     <Badge className="bg-white text-zinc-700 border-zinc-200">
@@ -900,156 +597,8 @@ export const BillingCalendar: React.FC = () => {
       </div>
 
       <AnimatePresence>
-        {showNoteEditor && (
+        {showNoteEditor && selectedDay && selectedDateKey && (
           <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.98, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-full max-w-md"
-            >
-              <Card noPadding>
-                <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/40">
-                  <h3 className="text-sm font-black uppercase tracking-tight">
-                    {editingNote ? t('editCalendarNote') : t('addCalendarNote')}: {noteDateDraft ? formatDateKeyLabel(noteDateDraft) : t('selectDate')}
-                  </h3>
-                  <Button variant="ghost" size="sm" onClick={() => setShowNoteEditor(false)} disabled={isSavingNote}>
-                    <X size={18} />
-                  </Button>
-                </div>
-
-                <div className="p-5 space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                        {t('noteDate')}
-                      </label>
-                      <Input
-                        type="date"
-                        value={noteDateDraft}
-                        onChange={(event) => setNoteDateDraft(event.target.value)}
-                        className="h-11 normal-case tracking-normal"
-                        disabled={isSavingNote}
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                        {t('noteHour')}
-                      </label>
-                      <Input
-                        list="calendar-note-time-options"
-                        inputMode="numeric"
-                        placeholder={t('reminderPlaceholder')}
-                        value={noteTimeDraft}
-                        onChange={(event) => setNoteTimeDraft(event.target.value)}
-                        onBlur={() => {
-                          const normalized = normalizeTimeInput(noteTimeDraft);
-                          if (normalized !== null) {
-                            setNoteTimeDraft(normalized);
-                          }
-                        }}
-                        className="h-11 normal-case tracking-normal"
-                        disabled={isSavingNote}
-                      />
-                      <datalist id="calendar-note-time-options">
-                        {calendarTimeOptions.map((option) => (
-                          <option key={option} value={option} />
-                        ))}
-                      </datalist>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                      {t('noteTitle')}
-                    </label>
-                    <Input
-                      autoFocus
-                      placeholder={t('noteTitlePlaceholder')}
-                      value={noteTitleDraft}
-                      onChange={(event) => setNoteTitleDraft(event.target.value)}
-                      className="h-11 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
-                      disabled={isSavingNote}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
-                      {t('mainNote')}
-                    </label>
-                    <textarea
-                      placeholder={t('dailyLogsPlaceholder')}
-                      className="w-full p-4 bg-zinc-50 border-2 border-transparent focus:border-black rounded-2xl font-black text-sm h-24 outline-none transition-all resize-none tracking-tight"
-                      value={noteDraft}
-                      onChange={(event) => setNoteDraft(event.target.value)}
-                      disabled={isSavingNote}
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 w-full justify-between"
-                      onClick={() => setShowNotifyModal(true)}
-                      disabled={isSavingNote}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Bell size={14} />
-                        {t('notifyMembers')}
-                      </span>
-                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">
-                        {notifiedUserIds.length}
-                      </Badge>
-                    </Button>
-
-                    {notifiedUsersDraft.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {notifiedUsersDraft.map((user) => (
-                          <button
-                            key={user.id}
-                            type="button"
-                            onClick={() => toggleNotifyUser(user)}
-                            className="inline-flex h-8 max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 text-[10px] font-black uppercase tracking-tight text-blue-700"
-                            disabled={isSavingNote}
-                          >
-                            <span className="truncate">{user.name}</span>
-                            <X size={12} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {noteError && (
-                    <p className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-rose-600">
-                      {noteError}
-                    </p>
-                  )}
-                </div>
-
-                <div className="p-5 bg-zinc-50/40 border-t border-zinc-100 flex flex-wrap gap-3">
-                  {editingNote && (
-                    <Button variant="danger" onClick={deleteNote} disabled={isSavingNote} className="sm:w-auto">
-                      <Trash2 size={14} className="mr-2" />
-                      {t('remove')}
-                    </Button>
-                  )}
-                  <Button variant="outline" className="flex-1" onClick={() => setShowNoteEditor(false)} disabled={isSavingNote}>
-                    {t('cancel')}
-                  </Button>
-                  <Button className="flex-1" onClick={() => void saveNote()} disabled={isSavingNote}>
-                    <BadgeCheck size={14} className="mr-2" />
-                    {t('saveNote')}
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          </div>
-        )}
-
-        {showNotifyModal && (
-          <div className="modal-overlay fixed inset-0 z-[140] flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1057,79 +606,48 @@ export const BillingCalendar: React.FC = () => {
             >
               <Card noPadding>
                 <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/40">
-                  <h3 className="text-sm font-black uppercase tracking-tight">{t('notifyMembers')}</h3>
-                  <Button variant="ghost" size="sm" onClick={() => setShowNotifyModal(false)}>
+                  <h3 className="text-sm font-black uppercase tracking-tight">
+                    {t('dayNoteLabel')}: {selectedDay} {shortMonthStr}
+                  </h3>
+                  <Button variant="ghost" size="sm" onClick={() => setShowNoteEditor(false)}>
                     <X size={18} />
                   </Button>
                 </div>
 
                 <div className="p-5 space-y-4">
-                  <div className="relative">
-                    <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
-                    <Input
-                      placeholder={t('searchMembers')}
-                      value={userSearch}
-                      onChange={(event) => setUserSearch(event.target.value)}
-                      className="h-11 pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
+                      {t('mainNote')}
+                    </label>
+                    <textarea
+                      autoFocus
+                      placeholder={t('dailyLogsPlaceholder')}
+                      className="w-full p-4 bg-zinc-50 border-2 border-transparent focus:border-black rounded-2xl font-black text-sm h-24 outline-none transition-all resize-none tracking-tight"
+                      value={noteDraft}
+                      onChange={(event) => setNoteDraft(event.target.value)}
                     />
                   </div>
 
-                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                    {isUserSearchLoading && (
-                      <p className="px-3 py-4 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                        {t('loadingUsers')}
-                      </p>
-                    )}
-
-                    {!isUserSearchLoading && notifyCandidates.map((user) => {
-                      const selected = notifiedUserIds.includes(user.id);
-
-                      return (
-                        <button
-                          key={user.id}
-                          type="button"
-                          onClick={() => toggleNotifyUser(user)}
-                          className={cn(
-                            'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-                            selected
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                              : 'border-zinc-100 bg-white text-zinc-700 hover:border-emerald-200'
-                          )}
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-[11px] font-black uppercase tracking-tight">
-                              {user.name}
-                            </span>
-                            <span className="block truncate text-[10px] font-bold text-zinc-400">
-                              {user.email}
-                            </span>
-                          </span>
-                          <span
-                            className={cn(
-                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2',
-                              selected ? 'border-emerald-600 bg-emerald-600' : 'border-zinc-200 bg-white'
-                            )}
-                          >
-                            {selected && <span className="h-2 w-2 rounded-sm bg-white" />}
-                          </span>
-                        </button>
-                      );
-                    })}
-
-                    {!isUserSearchLoading && notifyCandidates.length === 0 && (
-                      <div className="rounded-2xl border border-dashed border-zinc-100 bg-zinc-50/50 p-6 text-center">
-                        <Users size={18} className="mx-auto mb-3 text-zinc-300" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                          {t('noMembersFound')}
-                        </p>
-                      </div>
-                    )}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block">
+                      {t('reminderTime')}
+                    </label>
+                    <Input
+                      placeholder={t('reminderPlaceholder')}
+                      value={reminderDraft}
+                      onChange={(event) => setReminderDraft(event.target.value)}
+                      className="h-11"
+                    />
                   </div>
                 </div>
 
-                <div className="p-5 bg-zinc-50/40 border-t border-zinc-100">
-                  <Button className="w-full" onClick={() => setShowNotifyModal(false)}>
-                    {t('done')}
+                <div className="p-5 bg-zinc-50/40 border-t border-zinc-100 flex gap-3">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowNoteEditor(false)}>
+                    {t('cancel')}
+                  </Button>
+                  <Button className="flex-1" onClick={saveNote}>
+                    <BadgeCheck size={14} className="mr-2" />
+                    {t('saveNote')}
                   </Button>
                 </div>
               </Card>

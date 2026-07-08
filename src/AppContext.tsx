@@ -18,7 +18,6 @@ import {
   LANGUAGE_STORAGE_KEY,
   translate,
 } from './i18n';
-import { normalizeQrCodeForStorage } from './lib/palletQrMatching';
 
 interface AppContextType {
   pallets: Pallet[];
@@ -232,39 +231,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    const [statusesData, palletsData, clientsData, auditLogsData, serviceReportsData, invoicesData, rolesPage, permissionsData] = await Promise.all([
+    const [statusesData, palletsData, clientsData, auditLogsData, serviceReportsData] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
-      safeLoad(() => apiService.pallets.list(), []),
-      safeLoad(() => apiService.clients.list(), []),
+      safeLoad(() => apiService.pallets.list({ limit: 100 }), []),
+      safeLoad(() => apiService.clients.list({ limit: 100 }), []),
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
-      safeLoad(() => apiService.invoices.list(), []),
-      safeLoad(() => apiService.roles.page({ limit: 100 }), {
-        items: [],
-        meta: { total: 0, limit: 100, offset: 0, count: 0 },
-      }),
-      safeLoad(() => apiService.permissions.list(), []),
     ]);
-    const rolesData = rolesPage.items;
 
     setStatuses(statusesData);
     setPallets(palletsData);
     setClients(clientsData);
     setAuditLogs(auditLogsData);
     setServiceReports(serviceReportsData);
-    setInvoices(invoicesData);
-    setRoles(rolesData);
-    setPermissions(permissionsData);
-    setNotifications(buildNotifications(auditLogsData, serviceReportsData, invoicesData));
+    setNotifications(buildNotifications(auditLogsData, serviceReportsData, invoices));
     writeAppDataCache({
       statuses: statusesData,
       pallets: palletsData,
       clients: clientsData,
       auditLogs: auditLogsData,
       serviceReports: serviceReportsData,
-      invoices: invoicesData,
-      roles: rolesData,
-      permissions: permissionsData,
     });
   };
 
@@ -468,7 +454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const buildNewPallet = (id: number, qrCode: string, type: string): Pallet => {
     const defaultStatus = statuses.find((status) => status.id === 8) || statuses[0];
     const timestamp = new Date().toISOString();
-    const normalizedQrCode = normalizeQrCodeForStorage(qrCode);
+    const normalizedQrCode = qrCode.trim().toUpperCase();
 
     return {
       id,
@@ -542,14 +528,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePallet = (pallet: Pallet, actor?: { id: number; name: string }) => {
-    const normalizedQrCode = normalizeQrCodeForStorage(pallet.qr_code);
-    const previousPallet = pallets.find((item) => item.id === pallet.id);
-    const normalizedPallet: Pallet = {
+    const normalizedQrCode = pallet.qr_code.trim().toUpperCase();
+    const normalizedPallet = {
       ...pallet,
       qr_code: normalizedQrCode,
       pallet_name: normalizedQrCode,
-      reference_code: pallet.reference_code ? normalizeQrCodeForStorage(pallet.reference_code) : undefined,
     };
+    const previousPallet = pallets.find((item) => item.id === pallet.id);
     const hasOperationalChange = Boolean(
       previousPallet &&
       (
@@ -562,20 +547,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const hasQrCodeChange = Boolean(previousPallet && previousPallet.qr_code !== normalizedPallet.qr_code);
     const timestamp = new Date().toISOString();
-    const palletWithLegacyReference =
-      previousPallet && hasQrCodeChange && !normalizedPallet.reference_code
-        ? {
-            ...normalizedPallet,
-            reference_code: previousPallet.qr_code,
-          }
-        : normalizedPallet;
     const nextPallet =
       previousPallet && hasOperationalChange
         ? {
-            ...palletWithLegacyReference,
+            ...normalizedPallet,
             last_status_changed_at: timestamp,
           }
-        : palletWithLegacyReference;
+        : normalizedPallet;
 
     setPallets((prev) => prev.map((item) => (item.id === pallet.id ? nextPallet : item)));
 
@@ -810,7 +788,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const pairGhostPallet = (ghostId: number, newQrCode: string) => {
-    const normalizedQrCode = normalizeQrCodeForStorage(newQrCode);
+    const normalizedQrCode = newQrCode.trim().toUpperCase();
     const ghost = pallets.find((pallet) => pallet.id === ghostId);
 
     setPallets((prev) =>

@@ -143,10 +143,8 @@ export const Select: React.FC<SelectProps> = ({ children, className, ...props })
       >
         {children}
       </select>
-      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-        <svg fill="none" viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
-          <path d="M6 8l4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-        </svg>
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-300">
+        <svg fill="currentColor" viewBox="0 0 20 20" className="w-4 h-4"><path d="M5.293 7.293a1 1 0 011414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
       </div>
     </div>
   );
