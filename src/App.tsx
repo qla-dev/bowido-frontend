@@ -269,6 +269,7 @@ export default function App() {
 
     return window.matchMedia('(max-width: 767px)').matches;
   });
+  const [showLoginLanguageMenu, setShowLoginLanguageMenu] = useState(false);
 
   useEffect(() => {
     if (!apiService.hasToken()) {
@@ -539,27 +540,78 @@ export default function App() {
   );
 }
 
- if (!currentUser) {
-  return (
-    <div
-      id="login-screen"
-      className="min-h-screen bg-white flex flex-col text-emerald-900 font-sans"
-    >
-      <div className="flex-1 flex items-center justify-center p-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md space-y-12"
-        >
-          <div className="flex flex-col items-center gap-6">
-            <div className="relative">
-              <div className="flex items-center justify-center">
-                <img src={logoImage} alt="Logo" className="h-12 w-auto" />
-              </div>
-            </div>
-          </div>
+  if (!currentUser) {
+   const currentLanguageOption = languageOptions.find((option) => option.code === language) || languageOptions[0];
 
-          <Card title={t('welcome') || 'System Login'} noPadding>
+   return (
+     <div
+       id="login-screen"
+       className="min-h-screen bg-white flex flex-col text-emerald-900 font-sans"
+     >
+       <div className="flex-1 flex items-center justify-center p-6">
+         <motion.div
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+           className="w-full max-w-md space-y-12"
+         >
+           <div className="flex flex-col items-center gap-6">
+             <div className="relative">
+               <div className="flex items-center justify-center">
+                 <img src={logoImage} alt="Logo" className="h-12 w-auto" />
+               </div>
+             </div>
+           </div>
+
+           <Card title={t('welcome') || 'System Login'} noPadding action={
+             <div className="relative">
+               <button
+                 type="button"
+                 title={t('language')}
+                 onClick={() => setShowLoginLanguageMenu(!showLoginLanguageMenu)}
+                 className="h-10 w-10 border-2 border-emerald-100 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em] bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
+               >
+                 {currentLanguageOption.shortLabel}
+               </button>
+
+               <AnimatePresence>
+                 {showLoginLanguageMenu && (
+                   <motion.div
+                     initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                     className="absolute right-0 top-full mt-3 w-36 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#101715]"
+                   >
+                     <div className="border-b border-emerald-50 bg-emerald-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
+                         {t('language')}
+                       </span>
+                     </div>
+                     <div className="p-2">
+                       {languageOptions.map((option) => (
+                         <button
+                           key={option.code}
+                           type="button"
+                           onClick={() => {
+                             setLanguage(option.code);
+                             setShowLoginLanguageMenu(false);
+                           }}
+                           className={cn(
+                             "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-all",
+                             option.code === language
+                               ? "bg-emerald-50 text-emerald-700 dark:bg-white/5 dark:text-emerald-200"
+                               : "text-zinc-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-300 dark:hover:bg-white/5 dark:hover:text-emerald-200"
+                           )}
+                         >
+                           <span className="text-[10px] font-black uppercase tracking-[0.14em]">{option.shortLabel}</span>
+                           <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">{option.nativeLabel}</span>
+                         </button>
+                       ))}
+                     </div>
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+             </div>
+           }>
             <div className="p-8 space-y-6 text-center">
               {savedLoginProfiles.length > 0 && (
                 <div className="space-y-3 text-left">
@@ -639,14 +691,14 @@ export default function App() {
       <div className="flex justify-center px-6 pb-5">
         <Button
           type="button"
-          title="Prijava"
-          aria-label="Prijava"
+          title={t('loginButton')}
+          aria-label={t('loginButton')}
           onClick={() => openCredentialLogin()}
           className="w-full max-w-sm gap-2 shadow-2xl shadow-emerald-900/20"
           size="lg"
         >
           <LogIn size={16} />
-          Prijava
+          {t('loginButton')}
         </Button>
       </div>
 

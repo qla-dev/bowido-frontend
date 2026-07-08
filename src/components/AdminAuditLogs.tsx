@@ -185,7 +185,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
               ))}
               <div className="flex flex-wrap items-center gap-2">
                 <label
-                  className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-0"
+                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
                   onClick={openDatePickerFromPill}
                 >
                   <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
@@ -195,11 +195,11 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                     type="date"
                     value={createdFrom}
                     onChange={(event) => setCreatedFrom(event.target.value)}
-                    className="h-full w-[8.75rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
+                    className="h-full w-[7.5rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
                   />
                 </label>
                 <label
-                  className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-0"
+                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
                   onClick={openDatePickerFromPill}
                 >
                   <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
@@ -209,7 +209,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                     type="date"
                     value={createdTo}
                     onChange={(event) => setCreatedTo(event.target.value)}
-                    className="h-full w-[8.75rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
+                    className="h-full w-[7.5rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
                   />
                 </label>
               </div>

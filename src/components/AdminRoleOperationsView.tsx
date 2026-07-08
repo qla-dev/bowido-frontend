@@ -11,6 +11,7 @@ import {
   Search,
   ShieldCheck,
   Truck,
+  Warehouse,
   Wrench,
   X,
 } from 'lucide-react';
@@ -313,10 +314,24 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     updatePalletStatus(row.pallet.id, 1, 1, 'Admin Service', row.pallet.current_location, 'Service resolved from admin service table.');
     setSelectedRow(null);
   };
+  const ModeIcon = mode === 'service' ? Wrench : mode === 'warehouse' ? Warehouse : Banknote;
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-200">
+            <ModeIcon size={18} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-zinc-950 dark:text-white">
+              {copy.title}
+            </h2>
+            <p className="mt-1 line-clamp-2 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400">
+              {copy.subtitle}
+            </p>
+          </div>
+        </div>
         <div className="relative w-full sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
           <Input
