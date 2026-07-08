@@ -11,7 +11,7 @@ import {
 } from './ui';
 import { apiService, PaginationMeta } from '../services/api';
 import { useApp } from '../AppContext';
-import { getRoleLabel, getRolePermissions } from '../i18n';
+import { getPermissionLabel, getRoleLabel, getRolePermissions } from '../i18n';
 import { ManagedUser, RoleType, User } from '../types';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -59,6 +59,16 @@ const roleBadgeClasses: Record<RoleType, string> = {
 };
 
 const roleOptions = Object.values(RoleType);
+const backendRoleNamesByType: Record<RoleType, string[]> = {
+  [RoleType.ADMIN]: ['admin'],
+  [RoleType.ADMIN_SERVICE]: ['admin_service', 'service_admin', 'admin_servis'],
+  [RoleType.ADMIN_WAREHOUSE]: ['admin_warehouse', 'warehouse_admin', 'admin_magacin'],
+  [RoleType.FINANCE_ADMINISTRATION]: ['finance_administration', 'finance_admin'],
+  [RoleType.VOZAC]: ['driver'],
+  [RoleType.MAGACINER]: ['warehouse_operator', 'operator', 'user'],
+  [RoleType.KLIJENT]: ['customer'],
+  [RoleType.SERVISER]: ['technician'],
+};
 
 interface RoleSelectProps {
   value: RoleType;
@@ -66,7 +76,7 @@ interface RoleSelectProps {
 }
 
 const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
-  const { t, language } = useApp();
+  const { t, language, roles, permissions } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredRole, setHoveredRole] = useState<RoleType>(value);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -94,7 +104,19 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
   }, [isOpen]);
 
   const previewRole = hoveredRole || value;
-  const previewPermissions = getRolePermissions(previewRole, language);
+  const getPermissionLabelsForRole = (role: RoleType) => {
+    const backendNames = backendRoleNamesByType[role].map((name) => name.toLowerCase());
+    const databaseRole = roles.find((item) => backendNames.includes(String(item.name).toLowerCase()));
+    const databasePermissions = databaseRole
+      ? databaseRole.permissions
+          .map((permissionId) => permissions.find((permission) => permission.id === permissionId))
+          .filter((permission): permission is NonNullable<typeof permission> => Boolean(permission))
+          .map((permission) => getPermissionLabel(permission, language))
+      : [];
+
+    return databasePermissions.length > 0 ? databasePermissions : getRolePermissions(role, language);
+  };
+  const previewPermissions = getPermissionLabelsForRole(previewRole);
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -109,7 +131,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
           </Badge>
           <div className="min-w-0 text-left">
             <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 truncate">
-              {getRolePermissions(value, language).length} {t('permissionsAvailable')}
+              {getPermissionLabelsForRole(value).length} {t('permissionsAvailable')}
             </p>
             <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400 truncate">
               {t('hoverForAccessPreview')}
@@ -158,7 +180,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
                             {getRoleLabel(role, language)}
                           </p>
                           <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400 truncate">
-                            {getRolePermissions(role, language).length} {t('permissionsAvailable')}
+                            {getPermissionLabelsForRole(role).length} {t('permissionsAvailable')}
                           </p>
                         </div>
                         {isSelected && (
@@ -177,7 +199,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
                             {t('dummyRoleActions')}
                           </p>
                           <div className="space-y-2">
-                            {getRolePermissions(role, language).map((permission) => (
+                            {getPermissionLabelsForRole(role).map((permission) => (
                               <div key={permission} className="flex items-start gap-2">
                                 <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
                                 <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
