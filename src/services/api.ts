@@ -14,6 +14,8 @@ import {
   ServiceReport,
   User,
 } from '../types';
+import { appLanguages, defaultLanguage, LANGUAGE_STORAGE_KEY } from '../i18n';
+import type { AppLanguage } from '../i18n';
 
 type ApiEnvelope<T> = {
   message: string;
@@ -71,7 +73,10 @@ const API_BASE_URL = (
 ).replace(/\/+$/, '');
 const TOKEN_STORAGE_KEY = 'trackpal_api_token';
 const TOKEN_ONLY_HEADER = 'X-Trackpal-Token-Only';
+const LOCALE_HEADER = 'X-Locale';
 const DEMO_PASSWORD = 'password123';
+
+let apiLocale: AppLanguage | null = null;
 
 class ApiError extends Error {
   constructor(
@@ -86,6 +91,20 @@ class ApiError extends Error {
 const hasBrowserStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage);
 
 const getStoredToken = () => (hasBrowserStorage() ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null);
+
+const normalizeApiLocale = (locale: unknown): AppLanguage | null => {
+  const normalized = String(locale || '').trim().toLowerCase();
+  return appLanguages.includes(normalized as AppLanguage) ? normalized as AppLanguage : null;
+};
+
+const getStoredLocale = () =>
+  hasBrowserStorage() ? normalizeApiLocale(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)) : null;
+
+const getRequestLocale = () => apiLocale || getStoredLocale() || defaultLanguage;
+
+export const setApiLocale = (locale: AppLanguage | string | null | undefined) => {
+  apiLocale = normalizeApiLocale(locale);
+};
 
 const toBoolean = (value: unknown, defaultValue = false) => {
   if (typeof value === 'boolean') {
@@ -135,6 +154,10 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiE
 
   headers.set('Accept', 'application/json');
   headers.set(TOKEN_ONLY_HEADER, 'true');
+
+  if (!headers.has(LOCALE_HEADER)) {
+    headers.set(LOCALE_HEADER, getRequestLocale());
+  }
 
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
