@@ -1,5 +1,6 @@
 import {
   AuditLog,
+  CalendarNote,
   ClientDetail,
   Invoice,
   InvoiceItem,
@@ -80,6 +81,30 @@ const hasBrowserStorage = () => typeof window !== 'undefined' && Boolean(window.
 
 const getStoredToken = () => (hasBrowserStorage() ? window.localStorage.getItem(TOKEN_STORAGE_KEY) : null);
 
+const toBoolean = (value: unknown, defaultValue = false) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+
+    if (['0', 'false', 'no', 'off', ''].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return defaultValue;
+};
+
 const setStoredToken = (token: string | null) => {
   if (!hasBrowserStorage()) {
     return;
@@ -144,7 +169,7 @@ const buildQuery = (params: ListParams) => {
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) {
-      query.set(key, String(value));
+      query.set(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value));
     }
   });
 
@@ -398,11 +423,12 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     client_name: clientName,
     type: pallet.type || pallet.asset_type || 'pallet',
     current_location: pallet.current_location || '',
-    is_ghost: Boolean(pallet.is_ghost),
-    is_active: Boolean(pallet.is_active),
+    is_ghost: toBoolean(pallet.is_ghost),
+    is_active: toBoolean(pallet.is_active),
     last_status_changed_at: pallet.last_status_changed_at || pallet.updated_at || new Date().toISOString(),
     created_at: pallet.created_at || pallet.last_status_changed_at || new Date().toISOString(),
     note: pallet.note || pallet.notes || undefined,
+    metadata: pallet.metadata && typeof pallet.metadata === 'object' ? pallet.metadata : undefined,
   };
 };
 
@@ -464,6 +490,11 @@ const normalizeInvoice = (invoice: ApiRecord): Invoice => ({
   invoice_number: invoice.invoice_number,
   customer_id: Number(invoice.customer_id || invoice.user_id),
   customer_name: invoice.customer_name || invoice.user?.customer_detail?.company_name || invoice.user?.name || 'Client',
+  customer_email: invoice.user?.customer_detail?.billing_email || invoice.user?.email || undefined,
+  customer_kvk: invoice.user?.customer_detail?.kvk_number || invoice.user?.customer_detail?.kvk || undefined,
+  customer_vat: invoice.user?.customer_detail?.vat_number || invoice.user?.customer_detail?.tax_number || undefined,
+  billing_address: invoice.user?.customer_detail?.billing_address || undefined,
+  delivery_address: invoice.user?.customer_detail?.delivery_address || undefined,
   issue_date: invoice.issue_date || invoice.issued_at?.slice?.(0, 10) || invoice.period_end || '',
   due_date: invoice.due_date || invoice.due_at || '',
   total_amount: Number(invoice.total_amount ?? 0),
@@ -564,7 +595,21 @@ const toPalletPayload = (pallet: Partial<Pallet>) => ({
   notes: pallet.note || undefined,
   is_active: pallet.is_active ?? true,
   is_ghost: pallet.is_ghost ?? false,
-  metadata: undefined,
+  metadata: pallet.metadata,
+});
+
+const normalizeCalendarNote = (note: ApiRecord): CalendarNote => ({
+  id: Number(note.id),
+  note_date: note.note_date || '',
+  note_time: note.note_time || undefined,
+  title: note.title || undefined,
+  note: note.note || '',
+  created_by_user_id: Number(note.created_by_user_id || 0),
+  created_by_user_name: note.created_by_user_name || note.creator?.name || undefined,
+  notified_user_ids: (note.notified_user_ids || []).map(Number),
+  notified_users: (note.notified_users || []).map(normalizeUser),
+  created_at: note.created_at || new Date().toISOString(),
+  updated_at: note.updated_at || note.created_at || new Date().toISOString(),
 });
 
 export const apiService = {
@@ -848,5 +893,45 @@ export const apiService = {
       (await listAll<ApiRecord>('/invoices', params)).map(normalizeInvoice),
     getItems: async (invoiceId: number): Promise<InvoiceItem[]> =>
       (await listAll<ApiRecord>('/invoice_items', { invoice_id: invoiceId })).map(normalizeInvoiceItem),
+  },
+
+  calendarNotes: {
+    page: (params: ListParams = {}) => listPage<CalendarNote>('/calendar_notes', params, normalizeCalendarNote),
+    list: async (params: ListParams = {}): Promise<CalendarNote[]> =>
+      (await listAll<ApiRecord>('/calendar_notes', params)).map(normalizeCalendarNote),
+    create: async (data: {
+      note_date: string;
+      note_time?: string;
+      title?: string;
+      note: string;
+      notified_user_ids?: number[];
+    }): Promise<CalendarNote> =>
+      normalizeCalendarNote(
+        await apiData<ApiRecord>('/calendar_notes', {
+          method: 'POST',
+          body: jsonBody(data),
+        })
+      ),
+    update: async (
+      id: number,
+      data: {
+        note_date: string;
+        note_time?: string;
+        title?: string;
+        note: string;
+        notified_user_ids?: number[];
+      }
+    ): Promise<CalendarNote> =>
+      normalizeCalendarNote(
+        await apiData<ApiRecord>(`/calendar_notes/${id}`, {
+          method: 'PUT',
+          body: jsonBody(data),
+        })
+      ),
+    delete: async (id: number): Promise<void> => {
+      await apiData<null>(`/calendar_notes/${id}`, { method: 'DELETE' });
+    },
+    notifyCandidates: async (params: ListParams = {}): Promise<ManagedUser[]> =>
+      (await listAll<ApiRecord>('/calendar_notes/notify-candidates', params)).map(normalizeUser),
   },
 };

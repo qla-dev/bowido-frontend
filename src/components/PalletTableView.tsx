@@ -1093,7 +1093,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-sm font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white">
+          {t('pallets')}
+        </h2>
         <div className="relative w-full sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
           <Input

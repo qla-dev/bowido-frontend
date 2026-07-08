@@ -32,6 +32,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filter, setFilter] = useState<AuditFilter>('all');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [pageOffset, setPageOffset] = useState(0);
   const [pageLimit, setPageLimit] = useState(AUDIT_LOG_PAGE_SIZE);
@@ -45,7 +47,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 
   useEffect(() => {
     setPageOffset(0);
-  }, [debouncedQuery, filter]);
+  }, [debouncedQuery, filter, createdFrom, createdTo]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -68,6 +70,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           search: debouncedQuery || undefined,
           sort_by: 'created_at',
           sort_direction: 'desc',
+          created_from: createdFrom || undefined,
+          created_to: createdTo || undefined,
           event_type:
             filter === 'qr_version'
               ? 'qr_code_changed'
@@ -96,7 +100,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [debouncedQuery, filter, pageLimit, pageOffset]);
+  }, [createdFrom, createdTo, debouncedQuery, filter, pageLimit, pageOffset]);
 
   useEffect(() => {
     if (cachedAuditLogs.length === 0) {
@@ -123,6 +127,23 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 
   const getClientName = (clientId?: number) =>
     clientId ? clients.find((client) => client.user_id === clientId)?.name || `#${clientId}` : null;
+  const dateFromLabel = language === 'bs' ? 'Od' : language === 'nl' ? 'Van' : 'From';
+  const dateToLabel = language === 'bs' ? 'Do' : language === 'nl' ? 'Tot' : 'To';
+  const openDatePickerFromPill = (event: React.MouseEvent<HTMLLabelElement>) => {
+    const input = event.currentTarget.querySelector('input');
+
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+
+    try {
+      (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      // Some browsers only allow showPicker from direct input interaction.
+    }
+  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -143,7 +164,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
       >
         <div className="border-b border-zinc-100 bg-zinc-50/60 p-4">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_minmax(0,28rem)] lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {([
                 ['all', t('allLogTypes')],
                 ['status', t('statusChange')],
@@ -153,7 +174,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                   key={value}
                   type="button"
                   onClick={() => setFilter(value)}
-                  className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] transition-all ${
+                  className={`inline-flex h-9 items-center rounded-xl border px-3 py-0 text-[10px] font-black uppercase tracking-[0.14em] transition-all ${
                     filter === value
                       ? 'border-[#00A655] bg-emerald-50 text-emerald-700'
                       : 'border-zinc-200 bg-white text-zinc-500 hover:border-emerald-200 hover:text-emerald-700'
@@ -162,6 +183,36 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                   {label}
                 </button>
               ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <label
+                  className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-0"
+                  onClick={openDatePickerFromPill}
+                >
+                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                    {dateFromLabel}
+                  </span>
+                  <Input
+                    type="date"
+                    value={createdFrom}
+                    onChange={(event) => setCreatedFrom(event.target.value)}
+                    className="h-full w-[8.75rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
+                  />
+                </label>
+                <label
+                  className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-0"
+                  onClick={openDatePickerFromPill}
+                >
+                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                    {dateToLabel}
+                  </span>
+                  <Input
+                    type="date"
+                    value={createdTo}
+                    onChange={(event) => setCreatedTo(event.target.value)}
+                    className="h-full w-[8.75rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="relative w-full">
