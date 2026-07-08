@@ -217,6 +217,25 @@ const getCredentialLoginCopy = (language: string) => {
   };
 };
 
+const getCredentialLoginErrorMessage = (error: unknown, fallback: string) => {
+  const errors = error && typeof error === 'object'
+    ? (error as { errors?: Record<string, string[]> }).errors
+    : undefined;
+  const firstFieldError = errors && typeof errors === 'object'
+    ? Object.values(errors).find((fieldErrors) => Array.isArray(fieldErrors) && fieldErrors.length > 0)?.[0]
+    : undefined;
+
+  if (firstFieldError) {
+    return firstFieldError;
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  return fallback;
+};
+
 const AppFooter = ({ className }: { className?: string }) => {
   const { t } = useApp();
   const currentYear = new Date().getFullYear();
@@ -511,7 +530,7 @@ export default function App() {
       void refreshData();
     } catch (error) {
       console.error('Failed to login with credentials', error);
-      setCredentialLoginError(credentialLoginCopy.invalid);
+      setCredentialLoginError(getCredentialLoginErrorMessage(error, credentialLoginCopy.invalid));
     } finally {
       setIsCredentialLoginSubmitting(false);
     }

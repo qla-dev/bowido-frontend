@@ -10,7 +10,7 @@ import {
   Role,
   ServiceReport,
 } from './types';
-import { apiService } from './services/api';
+import { apiService, setApiLocale } from './services/api';
 import {
   AppLanguage,
   defaultLanguage,
@@ -152,12 +152,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
 
   useEffect(() => {
+    setApiLocale(language);
+
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     }
   }, [language]);
 
   const setLanguage = (lang: AppLanguage) => {
+    setApiLocale(lang);
     setLanguageState(lang);
   };
 
