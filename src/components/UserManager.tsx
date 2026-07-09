@@ -1,5 +1,6 @@
 import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { createPortal } from 'react-dom';
+import { motion } from 'motion/react';
 import {
   Badge,
   Button,
@@ -59,6 +60,23 @@ const roleBadgeClasses: Record<RoleType, string> = {
 };
 
 const roleOptions = Object.values(RoleType);
+const ROLE_POPUP_MARGIN = 16;
+const ROLE_POPUP_GAP = 8;
+const ROLE_MENU_MIN_HEIGHT = 240;
+const ROLE_MENU_ITEM_HEIGHT = 62;
+const ROLE_PREVIEW_WIDTH = 240;
+const ROLE_PREVIEW_MAX_HEIGHT = 360;
+
+type RolePopupPlacement = 'below' | 'above';
+
+interface RolePopupLayout {
+  placement: RolePopupPlacement;
+  style: React.CSSProperties;
+  maxHeight: number;
+}
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
 const backendRoleNamesByType: Record<RoleType, string[]> = {
   [RoleType.ADMIN]: ['admin'],
   [RoleType.ADMIN_SERVICE]: ['admin_service', 'service_admin', 'admin_servis'],
@@ -79,10 +97,10 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
   const { t, language, roles, permissions } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredRole, setHoveredRole] = useState<RoleType>(value);
-  const [popupPlacement, setPopupPlacement] = useState<'below' | 'above' | 'left' | 'right'>('below');
-  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
+  const [popupLayout, setPopupLayout] = useState<RolePopupLayout | null>(null);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setHoveredRole(value);
@@ -94,7 +112,8 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
     }
 
     const handleOutsideClick = (event: MouseEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!wrapperRef.current?.contains(target) && !menuRef.current?.contains(target)) {
         setIsOpen(false);
       }
     };
@@ -114,31 +133,52 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
     const updatePlacement = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const spaceRight = window.innerWidth - rect.right;
-      const spaceLeft = rect.left;
-      const estimatedHeight = 340;
-      const estimatedWidth = 280;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const availableViewportWidth = viewportWidth - ROLE_POPUP_MARGIN * 2;
+      const estimatedHeight = roleOptions.length * ROLE_MENU_ITEM_HEIGHT + ROLE_POPUP_MARGIN;
+      const spaceBelow = viewportHeight - rect.bottom - ROLE_POPUP_GAP - ROLE_POPUP_MARGIN;
+      const spaceAbove = rect.top - ROLE_POPUP_GAP - ROLE_POPUP_MARGIN;
+      const placement: RolePopupPlacement = spaceBelow >= Math.min(estimatedHeight, ROLE_MENU_MIN_HEIGHT) || spaceBelow >= spaceAbove
+        ? 'below'
+        : 'above';
+      const availableHeight = Math.max(
+        ROLE_MENU_MIN_HEIGHT,
+        placement === 'below' ? spaceBelow : spaceAbove
+      );
+      const maxHeight = Math.min(estimatedHeight, availableHeight, viewportHeight - ROLE_POPUP_MARGIN * 2);
+      const width = Math.min(rect.width, availableViewportWidth);
+      const left = clamp(rect.left, ROLE_POPUP_MARGIN, viewportWidth - ROLE_POPUP_MARGIN - width);
+      const preferredTop = placement === 'below'
+        ? rect.bottom + ROLE_POPUP_GAP
+        : rect.top - ROLE_POPUP_GAP - maxHeight;
+      const top = clamp(preferredTop, ROLE_POPUP_MARGIN, viewportHeight - ROLE_POPUP_MARGIN - maxHeight);
 
-      if (spaceBelow >= estimatedHeight) {
-        setPopupPlacement('below');
-      } else if (spaceAbove >= estimatedHeight) {
-        setPopupPlacement('above');
-      } else if (spaceRight >= estimatedWidth) {
-        setPopupPlacement('right');
-      } else if (spaceLeft >= estimatedWidth) {
-        setPopupPlacement('left');
-      } else {
-        setPopupPlacement('below');
-      }
-
-      setTriggerRect(rect);
+      setPopupLayout({
+        placement,
+        maxHeight,
+        style: {
+          left,
+          top,
+          width,
+        },
+      });
     };
 
     updatePlacement();
     window.addEventListener('resize', updatePlacement);
-    return () => window.removeEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPopupLayout(null);
+      setHoveredRect(null);
+    }
   }, [isOpen]);
 
   const previewRole = hoveredRole || value;
@@ -155,6 +195,23 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
     return databasePermissions.length > 0 ? databasePermissions : getRolePermissions(role, language);
   };
   const previewPermissions = getPermissionLabelsForRole(previewRole);
+  const getHoverPreviewStyle = (rect: DOMRect): React.CSSProperties => {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const maxHeight = Math.min(ROLE_PREVIEW_MAX_HEIGHT, viewportHeight - ROLE_POPUP_MARGIN * 2);
+    const canPlaceRight = rect.right + ROLE_POPUP_GAP + ROLE_PREVIEW_WIDTH <= viewportWidth - ROLE_POPUP_MARGIN;
+    const left = canPlaceRight
+      ? rect.right + ROLE_POPUP_GAP
+      : clamp(rect.left - ROLE_POPUP_GAP - ROLE_PREVIEW_WIDTH, ROLE_POPUP_MARGIN, viewportWidth - ROLE_POPUP_MARGIN - ROLE_PREVIEW_WIDTH);
+    const top = clamp(rect.top, ROLE_POPUP_MARGIN, viewportHeight - ROLE_POPUP_MARGIN - maxHeight);
+
+    return {
+      left,
+      top,
+      width: ROLE_PREVIEW_WIDTH,
+      maxHeight,
+    };
+  };
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -182,123 +239,122 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
         />
       </button>
 
-      <AnimatePresence>
-        {isOpen && triggerRect && (
-          <motion.div
-            initial={{ opacity: 0, y: popupPlacement === 'above' ? -8 : 8, x: popupPlacement === 'left' ? -8 : popupPlacement === 'right' ? 8 : 0, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
-            exit={{ opacity: 0, y: popupPlacement === 'above' ? -8 : 8, x: popupPlacement === 'left' ? -8 : popupPlacement === 'right' ? 8 : 0, scale: 0.98 }}
-            className="z-[9999]"
-            style={
-              popupPlacement === 'below'
-                ? { position: 'fixed', left: triggerRect.left, top: triggerRect.bottom + 8, width: triggerRect.width }
-                : popupPlacement === 'above'
-                  ? { position: 'fixed', left: triggerRect.left, bottom: window.innerHeight - triggerRect.top + 8, width: triggerRect.width }
-                  : popupPlacement === 'right'
-                    ? { position: 'fixed', left: triggerRect.right + 8, top: triggerRect.top, width: 280 }
-                    : { position: 'fixed', right: window.innerWidth - triggerRect.left + 8, top: triggerRect.top, width: 280 }
-            }
-          >
-            <div className="relative rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-emerald-950/10 overflow-visible">
-              <div className="p-2 space-y-1">
-                {roleOptions.map((role) => {
-                  const isSelected = value === role;
+      {isOpen && popupLayout && createPortal(
+        <>
+            <motion.div
+              ref={menuRef}
+              initial={{ opacity: 0, y: popupLayout.placement === 'above' ? -8 : 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+              exit={{ opacity: 0, y: popupLayout.placement === 'above' ? -8 : 8, scale: 0.98 }}
+              className="fixed z-[10000]"
+              onMouseLeave={() => setHoveredRect(null)}
+              style={popupLayout.style}
+            >
+              <div
+                className="relative rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-emerald-950/10 overflow-hidden"
+                style={{ maxHeight: popupLayout.maxHeight }}
+              >
+                <div className="max-h-[inherit] overflow-y-auto" onScroll={() => setHoveredRect(null)}>
+                  <div className="p-2 space-y-1">
+                    {roleOptions.map((role) => {
+                      const isSelected = value === role;
 
-                  return (
-                    <div key={role} className="relative">
-                      <button
-                        type="button"
-                        onMouseEnter={(event) => {
-                          setHoveredRole(role);
-                          setHoveredRect(event.currentTarget.getBoundingClientRect());
-                        }}
-                        onFocus={(event) => {
-                          setHoveredRole(role);
-                          setHoveredRect(event.currentTarget.getBoundingClientRect());
-                        }}
-                        onClick={() => {
-                          onChange(role);
-                          setHoveredRole(role);
-                          setIsOpen(false);
-                        }}
-                        className={cn(
-                          'w-full px-4 py-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3',
-                          isSelected
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                            : 'border-transparent bg-white hover:border-zinc-200 hover:bg-zinc-50 text-zinc-700'
-                        )}
-                      >
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-black uppercase tracking-tight truncate">
-                            {getRoleLabel(role, language)}
-                          </p>
-                          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400 truncate">
-                            {getPermissionLabelsForRole(role).length} {t('permissionsAvailable')}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <Badge variant="success" className="shrink-0">
-                            {t('activeLabel')}
-                          </Badge>
-                        )}
-                      </button>
-
-                      {hoveredRole === role && hoveredRect && (
-                        <div
-                          className="z-[9999] pointer-events-none"
-                          style={
-                            hoveredRect.right + 300 < window.innerWidth
-                              ? { position: 'fixed', left: hoveredRect.right + 12, top: hoveredRect.top }
-                              : { position: 'fixed', right: window.innerWidth - hoveredRect.left + 12, top: hoveredRect.top }
-                          }
-                        >
-                          <div className="w-60 rounded-2xl border border-emerald-100 bg-white p-4 shadow-2xl shadow-emerald-950/10">
-                            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
-                              {getRoleLabel(role, language)}
-                            </p>
-                            <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
-                              {t('dummyRoleActions')}
-                            </p>
-                            <div className="space-y-2">
-                              {getPermissionLabelsForRole(role).map((permission) => (
-                                <div key={permission} className="flex items-start gap-2">
-                                  <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                                  <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
-                                    {permission}
-                                  </span>
-                                </div>
-                              ))}
+                      return (
+                        <div key={role} className="relative">
+                          <button
+                            type="button"
+                            onMouseEnter={(event) => {
+                              setHoveredRole(role);
+                              setHoveredRect(event.currentTarget.getBoundingClientRect());
+                            }}
+                            onFocus={(event) => {
+                              setHoveredRole(role);
+                              setHoveredRect(event.currentTarget.getBoundingClientRect());
+                            }}
+                            onClick={() => {
+                              onChange(role);
+                              setHoveredRole(role);
+                              setIsOpen(false);
+                            }}
+                            className={cn(
+                              'w-full px-4 py-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3',
+                              isSelected
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                : 'border-transparent bg-white hover:border-zinc-200 hover:bg-zinc-50 text-zinc-700'
+                            )}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-black uppercase tracking-tight truncate">
+                                {getRoleLabel(role, language)}
+                              </p>
+                              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400 truncate">
+                                {getPermissionLabelsForRole(role).length} {t('permissionsAvailable')}
+                              </p>
                             </div>
-                          </div>
+                            {isSelected && (
+                              <Badge variant="success" className="shrink-0">
+                                {t('activeLabel')}
+                              </Badge>
+                            )}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
 
-              <div className="xl:hidden border-t border-zinc-100 bg-zinc-50/70 p-4">
-                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
-                  {getRoleLabel(previewRole, language)}
-                </p>
-                <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
-                  {t('dummyHoverPermissions')}
-                </p>
-                <div className="space-y-2">
-                  {previewPermissions.map((permission) => (
-                    <div key={permission} className="flex items-start gap-2">
-                      <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
-                        {permission}
-                      </span>
+                  <div className="xl:hidden border-t border-zinc-100 bg-zinc-50/70 p-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
+                      {getRoleLabel(previewRole, language)}
+                    </p>
+                    <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
+                      {t('dummyHoverPermissions')}
+                    </p>
+                    <div className="space-y-2">
+                      {previewPermissions.map((permission) => (
+                        <div key={permission} className="flex items-start gap-2">
+                          <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
+                            {permission}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+
+            {hoveredRect && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="pointer-events-none fixed z-[10001] rounded-2xl border border-emerald-100 bg-white p-4 shadow-2xl shadow-emerald-950/10"
+                style={getHoverPreviewStyle(hoveredRect)}
+              >
+                <div className="max-h-[inherit] overflow-y-auto pr-1">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">
+                    {getRoleLabel(hoveredRole, language)}
+                  </p>
+                  <p className="text-[11px] font-bold text-zinc-700 mt-2 mb-3">
+                    {t('dummyRoleActions')}
+                  </p>
+                  <div className="space-y-2">
+                    {getPermissionLabelsForRole(hoveredRole).map((permission) => (
+                      <div key={permission} className="flex items-start gap-2">
+                        <CheckCircle2 size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.08em] text-zinc-600">
+                          {permission}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+        </>,
+        document.body
+      )}
     </div>
   );
 };

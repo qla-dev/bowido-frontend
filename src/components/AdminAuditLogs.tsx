@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
-import { Badge, Button, Card, Input, StatCard } from './ui';
+import { Badge, Card, Input, StatCard } from './ui';
 import { AppLanguage, getStatusLabel, localeMap } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -14,7 +14,6 @@ interface AdminAuditLogsProps {
   language: AppLanguage;
   t: (key: string) => string;
   onSelectPallet: (pallet: Pallet | null) => void;
-  onExport: () => void;
 }
 
 type AuditFilter = 'all' | 'status' | 'qr_version';
@@ -27,7 +26,6 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   language,
   t,
   onSelectPallet,
-  onExport,
 }) => {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -144,6 +142,38 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
       // Some browsers only allow showPicker from direct input interaction.
     }
   };
+  const dateRangeFilter = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <label
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
+        onClick={openDatePickerFromPill}
+      >
+        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+          {dateFromLabel}
+        </span>
+        <Input
+          type="date"
+          value={createdFrom}
+          onChange={(event) => setCreatedFrom(event.target.value)}
+          className="h-full w-[7.5rem] cursor-pointer border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
+        />
+      </label>
+      <label
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
+        onClick={openDatePickerFromPill}
+      >
+        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+          {dateToLabel}
+        </span>
+        <Input
+          type="date"
+          value={createdTo}
+          onChange={(event) => setCreatedTo(event.target.value)}
+          className="h-full w-[7.5rem] cursor-pointer border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
+        />
+      </label>
+    </div>
+  );
 
   return (
     <div className="space-y-6 pb-12">
@@ -155,11 +185,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 
       <Card
         title={t('auditLogs')}
-        action={
-          <Button variant="outline" size="sm" onClick={onExport}>
-            PDF
-          </Button>
-        }
+        action={dateRangeFilter}
         noPadding
       >
         <div className="border-b border-zinc-100 bg-zinc-50/60 p-4">
@@ -174,7 +200,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                   key={value}
                   type="button"
                   onClick={() => setFilter(value)}
-                  className={`inline-flex h-9 items-center rounded-xl border px-3 py-0 text-[10px] font-black uppercase tracking-[0.14em] transition-all ${
+                  className={`inline-flex h-9 cursor-pointer items-center rounded-xl border px-3 py-0 text-[10px] font-black uppercase tracking-[0.14em] transition-all ${
                     filter === value
                       ? 'border-[#00A655] bg-emerald-50 text-emerald-700'
                       : 'border-zinc-200 bg-white text-zinc-500 hover:border-emerald-200 hover:text-emerald-700'
@@ -183,36 +209,6 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                   {label}
                 </button>
               ))}
-              <div className="flex flex-wrap items-center gap-2">
-                <label
-                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
-                  onClick={openDatePickerFromPill}
-                >
-                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                    {dateFromLabel}
-                  </span>
-                  <Input
-                    type="date"
-                    value={createdFrom}
-                    onChange={(event) => setCreatedFrom(event.target.value)}
-                    className="h-full w-[7.5rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
-                  />
-                </label>
-                <label
-                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
-                  onClick={openDatePickerFromPill}
-                >
-                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                    {dateToLabel}
-                  </span>
-                  <Input
-                    type="date"
-                    value={createdTo}
-                    onChange={(event) => setCreatedTo(event.target.value)}
-                    className="h-full w-[7.5rem] border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
-                  />
-                </label>
-              </div>
             </div>
 
             <div className="relative w-full">
