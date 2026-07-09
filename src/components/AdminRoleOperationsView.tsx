@@ -1,19 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import {
-  AlertTriangle,
-  ArrowUpDown,
-  Banknote,
-  CalendarClock,
-  FileText,
-  MapPin,
-  Package,
-  Search,
-  ShieldCheck,
-  Truck,
-  Wrench,
-  X,
-} from 'lucide-react';
+import { ArrowUpDown, Search, X } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { ListPagination } from './ListPagination';
 import { Badge, Button, cn, Input } from './ui';
@@ -77,7 +64,6 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const [searchQuery, setSearchQuery] = useState('');
   const {
     headerCellClass,
-    headerIconClass,
     headerContentClass,
     bodyCellClass,
     bodyCellInnerClass,
@@ -176,15 +162,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const columns = useMemo(
     () =>
       [
-        { key: 'primary', label: copy.primary, icon: mode === 'finance' ? FileText : Package },
-        { key: 'secondary', label: copy.secondary, icon: mode === 'service' ? Wrench : ShieldCheck },
-        { key: 'status', label: copy.status, icon: mode === 'finance' ? FileText : Truck },
-        { key: 'location', label: copy.location, icon: MapPin },
-        { key: 'client', label: copy.client, icon: mode === 'finance' ? Package : FileText },
-        { key: 'metric', label: copy.metric, icon: CalendarClock },
-        { key: 'amount', label: copy.amount, icon: mode === 'finance' ? Banknote : AlertTriangle },
+        { key: 'primary', label: copy.primary },
+        { key: 'secondary', label: copy.secondary },
+        { key: 'status', label: copy.status },
+        { key: 'location', label: copy.location },
+        { key: 'client', label: copy.client },
+        { key: 'metric', label: copy.metric },
+        { key: 'amount', label: copy.amount },
       ] as const,
-    [copy, mode]
+    [copy]
   );
 
   const rows = useMemo<OperationRow[]>(() => {
@@ -352,15 +338,11 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-white/5">
               <tr>
                 {columns.map((column) => {
-                  const Icon = column.icon;
                   const isActiveSort = sortConfig.key === column.key;
 
                   return (
                     <th key={`role-admin-header-${mode}-${column.key}`} ref={registerHeaderCell(column.key)} className={cn(headerCellClass, 'group')}>
                       <div className={headerContentClass}>
-                        <div className={headerIconClass}>
-                          <Icon size={16} />
-                        </div>
                         <button
                           type="button"
                           onClick={() => toggleSort(column.key)}

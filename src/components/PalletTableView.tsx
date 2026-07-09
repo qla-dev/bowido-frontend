@@ -2,18 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Input, Badge, Button, Select, cn } from './ui';
 import {
   Search,
-  Hash,
-  Package,
-  User as UserIcon,
-  MapPin,
+  ArrowUpDown,
   Edit,
   Trash2,
   Plus,
-  Funnel,
   RotateCcw,
-  Tag,
-  Clock3,
-  ArrowUpDown,
   FileSpreadsheet,
   X,
 } from 'lucide-react';
@@ -981,8 +974,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const hasActiveFilter = (key: SortKey) => selectedFilters[key].length > 0;
   const {
     headerCellClass,
-    headerIconClass,
-    headerIconButtonClass,
     headerContentClass,
     bodyCellClass,
     bodyCellInnerClass,
@@ -1146,174 +1137,57 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
               <tr>
                 <th ref={registerHeaderCell('qr')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Hash size={16} />
-                    </div>
                     {renderSortButton('qr', firstColumnLabel)}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'qr' ? null : 'qr'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('qr') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('qr')}
                 </th>
                 <th ref={registerHeaderCell('type')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Package size={16} />
-                    </div>
                     {renderSortButton('type', t('type'))}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'type' ? null : 'type'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('type') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('type')}
                 </th>
                 <th ref={registerHeaderCell('client')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <UserIcon size={16} />
-                    </div>
                     {renderSortButton('client', t('client'))}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'client' ? null : 'client'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('client') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('client')}
                 </th>
                 <th ref={registerHeaderCell('status')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Tag size={16} />
-                    </div>
                     {renderSortButton('status', t('status'))}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'status' ? null : 'status'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('status') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('status')}
                 </th>
                 <th ref={registerHeaderCell('lastUpdate')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Clock3 size={16} />
-                    </div>
                     {renderSortButton('lastUpdate', timelineCopy.date)}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOpenFilterKey((current) => (current === 'lastUpdate' ? null : 'lastUpdate'))
-                      }
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('lastUpdate') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('lastUpdate')}
                 </th>
                 <th ref={registerHeaderCell('dueDate')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Clock3 size={16} />
-                    </div>
                     {renderSortButton('dueDate', timelineCopy.term)}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'dueDate' ? null : 'dueDate'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('dueDate') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('dueDate')}
                 </th>
                 <th ref={registerHeaderCell('deadline')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Clock3 size={16} />
-                    </div>
                     {renderSortButton('deadline', timelineCopy.deadline)}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'deadline' ? null : 'deadline'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('deadline') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('deadline')}
                 </th>
                 <th ref={registerHeaderCell('location')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <MapPin size={16} />
-                    </div>
                     {renderSortButton('location', t('location'))}
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'location' ? null : 'location'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('location') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('location')}
                 </th>
                 <th className={cn(headerCellClass, stickyActionsHeaderClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Edit size={16} />
-                    </div>
                     <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 dark:text-zinc-300">
                       {t('actions')}
                     </p>
-                    <button
-                      type="button"
-                      onClick={resetFilters}
-                      className={headerIconButtonClass}
-                      title={t('reset')}
-                    >
-                      <RotateCcw size={12} />
-                    </button>
                   </div>
                   {renderResizeHandle('actions')}
                 </th>

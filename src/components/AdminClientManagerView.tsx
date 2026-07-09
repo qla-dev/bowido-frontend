@@ -1,18 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  AlertTriangle,
   ArrowUpDown,
-  Building2,
-  CalendarClock,
-  CreditCard,
   Download,
-  Euro,
   FileText,
   Hash,
   MapPin,
   Package,
-  Phone,
   Plus,
   Search,
   Trash2,
@@ -133,7 +127,6 @@ export const AdminClientManagerView: React.FC = () => {
   const [clientDraft, setClientDraft] = useState<ClientDetail | null>(null);
   const {
     headerCellClass,
-    headerIconClass,
     headerContentClass,
     bodyCellClass,
     bodyCellInnerClass,
@@ -492,20 +485,17 @@ export const AdminClientManagerView: React.FC = () => {
     );
   };
 
-  const headerConfig: Record<
-    SortKey,
-    { label: string; icon: React.ComponentType<{ size?: number }> }
-  > = {
-    client: { label: t('client'), icon: Building2 },
-    kvk: { label: 'KVK', icon: Hash },
-    phone: { label: labels.phone, icon: Phone },
-    address: { label: labels.address, icon: MapPin },
-    totalPallets: { label: labels.totalPallets, icon: Package },
-    overduePallets: { label: labels.overduePallets, icon: AlertTriangle },
-    rate: { label: labels.rate, icon: Euro },
-    overdueDays: { label: labels.overdueDays, icon: CalendarClock },
-    gracePeriod: { label: labels.gracePeriod, icon: CreditCard },
-    overdueTotal: { label: labels.overdueTotal, icon: FileText },
+  const headerConfig: Record<SortKey, { label: string }> = {
+    client: { label: t('client') },
+    kvk: { label: 'KVK' },
+    phone: { label: labels.phone },
+    address: { label: labels.address },
+    totalPallets: { label: labels.totalPallets },
+    overduePallets: { label: labels.overduePallets },
+    rate: { label: labels.rate },
+    overdueDays: { label: labels.overdueDays },
+    gracePeriod: { label: labels.gracePeriod },
+    overdueTotal: { label: labels.overdueTotal },
   };
 
   const renderMetricCard = (label: string, value: React.ReactNode, danger = false) => (
@@ -578,24 +568,18 @@ export const AdminClientManagerView: React.FC = () => {
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-white/5">
               <tr>
-                {COLUMN_ORDER.map((key) => {
-                  const Icon = headerConfig[key].icon;
-                  return (
+                {COLUMN_ORDER.map((key) => (
                     <th
                       key={`admin-client-header-${key}`}
                       ref={registerHeaderCell(key)}
                       className={cn(headerCellClass, 'group')}
                     >
                       <div className={headerContentClass}>
-                        <div className={headerIconClass}>
-                          <Icon size={16} />
-                        </div>
                         {renderSortButton(key, headerConfig[key].label)}
                       </div>
                       {renderResizeHandle(key)}
                     </th>
-                  );
-                })}
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-white/10">

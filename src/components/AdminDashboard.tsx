@@ -583,6 +583,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       .slice(0, 10);
     const totalDebt = pallets.reduce((acc, p) => acc + calculateDebt(p), 0);
     const ghostPallets = pallets.filter(p => p.is_ghost);
+    const latestActivityLogs = auditLogs
+      .filter(log => (log.type || 'status') === 'status')
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .slice(0, 5);
+    const latestInventoryPallets = [...pallets]
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .slice(0, 5);
     const overviewStats = dashboardStats ?? {
       total_pallets: pallets.length,
       in_transport: pallets.filter(p => [2, 6].includes(p.current_status_id)).length,
@@ -590,32 +597,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
     
     return (
-      <div className="space-y-6 pb-12">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard label={t('totalPallets')} value={overviewStats.total_pallets.toString()} />
           <StatCard label={t('inTransit')} value={overviewStats.in_transport.toString()} variant="info" />
           <StatCard label={t('overdueUnits')} value={overviewStats.overdue_units.toString()} trend={overviewStats.overdue_units > 0 ? t('actionRequired') : t('allGood')} trendUp={false} variant="danger" />
           <StatCard label={t('totalAccrued')} value={`\u20AC${totalDebt.toFixed(2)}`} trend="Live" trendUp variant="success" />
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <div className="xl:col-span-2 space-y-6">
-            {overduePallets.length > 0 && (
-              <Card title={`${t('revenueRecovery')} (${t('overdue')})`} noPadding>
-                 <div className="p-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-rose-700">
-                      <AlertTriangle size={14} />
-                      <span className="text-[9px] font-black uppercase tracking-widest">{t('actionRequired')} ({overduePallets.length})</span>
-                    </div>
-                 </div>
-                 <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-zinc-50/50 text-[9px] font-black text-zinc-400 uppercase tracking-widest border-b border-zinc-100 text-center">
+        <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(22rem,0.8fr)]">
+          <div className="grid min-w-0 gap-4 xl:grid-rows-[auto_minmax(24rem,1fr)]">
+            <Card title={`${t('revenueRecovery')} (${t('overdue')})`} noPadding className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-rose-100 bg-rose-50 px-4 py-2.5">
+                <div className="flex items-center gap-2 text-rose-700">
+                  <AlertTriangle size={14} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">
+                    {overduePallets.length > 0 ? `${t('actionRequired')} (${overduePallets.length})` : t('allGood')}
+                  </span>
+                </div>
+                <Badge variant={overduePallets.length > 0 ? 'danger' : 'success'}>
+                  {overduePallets.length > 0 ? t('overdue') : t('allGood')}
+                </Badge>
+              </div>
+              <div className="overflow-x-auto">
+                {overduePallets.length > 0 ? (
+                  <table className="w-full">
+                    <thead className="border-b border-zinc-100 bg-zinc-50/95 text-center text-[9px] font-black uppercase tracking-widest text-zinc-400">
                         <tr>
-                          <th className="px-6 py-3 align-middle">{t('qrCode')}</th>
-                          <th className="px-6 py-3 align-middle">{t('client')}</th>
-                          <th className="px-6 py-3 align-middle">{t('owed')}</th>
-                          <th className="px-6 py-3 align-middle">{t('invoiceLabel')}</th>
+                          <th className="px-4 py-2.5 align-middle">{t('qrCode')}</th>
+                          <th className="px-4 py-2.5 align-middle">{t('client')}</th>
+                          <th className="px-4 py-2.5 align-middle">{t('owed')}</th>
+                          <th className="px-4 py-2.5 align-middle">{t('invoiceLabel')}</th>
                         </tr>
                       </thead>
                       <tbody className="text-[11px] divide-y divide-zinc-50">
@@ -624,7 +636,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                            const invoiceWasSent = Boolean(sentInvoiceTimestamps[p.id]);
                            return (
                             <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
-                              <td className="px-6 py-3 text-center align-middle">
+                              <td className="px-4 py-2.5 text-center align-middle">
                                 <button
                                   type="button"
                                   onClick={() => openQrPreview(p)}
@@ -635,15 +647,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   {p.qr_code}
                                 </button>
                               </td>
-                              <td className="px-6 py-3 text-center align-middle">
+                              <td className="px-4 py-2.5 text-center align-middle">
                                 <p className="font-bold text-zinc-900 leading-none mb-1">{client?.name || t('inWarehouse')}</p>
                                 <p className="text-[9px] text-zinc-400 uppercase tracking-tighter leading-none">{p.current_location}</p>
                               </td>
-                              <td className="px-6 py-3 text-center text-rose-600 font-mono font-black align-middle">
+                              <td className="px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
                                  {"\u20AC"}{calculateDebt(p).toFixed(2)}
                               </td>
-                              <td className="px-6 py-3 align-middle">
-                                <div className="grid min-w-[17rem] max-w-md mx-auto grid-cols-1 gap-2 sm:grid-cols-2">
+                              <td className="px-4 py-2.5 align-middle">
+                                <div className="mx-auto grid min-w-[15rem] max-w-sm grid-cols-1 gap-1.5 sm:grid-cols-2">
                                   <Button
                                     variant="outline"
                                     size="xs"
@@ -665,77 +677,106 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </Button>
                                 </div>
                               </td>
-                              <td className="hidden px-6 py-3 text-center text-rose-600 font-mono font-black align-middle">
+                              <td className="hidden px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
                                  {"\u20AC"}{calculateDebt(p).toFixed(2)}
                               </td>
                             </tr>
                            );
                         })}
                       </tbody>
-                    </table>
-                 </div>
-              </Card>
-            )}
+                  </table>
+                ) : (
+                  <div className="flex min-h-[12rem] items-center justify-center px-6 text-center">
+                    <div>
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400">
+                        <TrendingUp size={20} />
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                        {t('allGood')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
               <Card 
                 title={t('activity')} 
                 noPadding
+                className="h-full min-h-[24rem] overflow-hidden"
                 action={<Button variant="ghost" size="xs" onClick={() => setView('logs')}>{t('viewHistory')}</Button>}
               >
-                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-zinc-50/50 text-[9px] font-black text-zinc-400 uppercase tracking-widest border-b border-zinc-100">
+                 <div className="flex h-full min-h-[19.5rem] overflow-x-auto">
+                    {latestActivityLogs.length > 0 ? (
+                    <table className="w-full table-fixed text-left">
+                      <thead className="border-b border-zinc-100 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-400">
                         <tr>
-                          <th className="px-6 py-3">{t('qrCode')}</th>
-                          <th className="px-6 py-3">{t('status')}</th>
+                          <th className="w-[48%] px-5 py-3.5 align-middle">{t('qrCode')}</th>
+                          <th className="px-5 py-3.5 align-middle">{t('status')}</th>
                         </tr>
                       </thead>
-                      <tbody className="text-[11px] divide-y divide-zinc-50">
-                        {auditLogs.filter(log => (log.type || 'status') === 'status').slice(0, 5).map(log => (
+                      <tbody className="divide-y divide-zinc-50 text-[13px]">
+                        {latestActivityLogs.map(log => (
                           <tr key={`audit-log-${log.id}`} className="hover:bg-zinc-50/50">
-                            <td className="px-6 py-3 font-mono font-black underline underline-offset-2">{log.pallet_qr}</td>
-                            <td className="px-6 py-3">
-                              <span className="font-black text-zinc-900 block leading-none mb-1">{getStatusLabel(log.new_status_name, language)}</span>
-                              <span className="text-[9px] text-zinc-400 uppercase tracking-tighter block leading-none">{new Date(log.created_at).toLocaleTimeString()}</span>
+                            <td className="px-5 py-4 align-middle font-mono font-black underline underline-offset-2">{log.pallet_qr}</td>
+                            <td className="px-5 py-4 align-middle">
+                              <span className="mb-1.5 block truncate font-black leading-tight text-zinc-900">{getStatusLabel(log.new_status_name, language)}</span>
+                              <span className="block text-[10px] font-black uppercase leading-none tracking-wider text-zinc-400">{new Date(log.created_at).toLocaleTimeString()}</span>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    ) : (
+                      <div className="flex flex-1 items-center justify-center px-6 text-center">
+                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                          {noMovementHistoryLabel}
+                        </p>
+                      </div>
+                    )}
                  </div>
               </Card>
 
               <Card 
                 title={t('inventory')} 
                 noPadding
+                className="h-full min-h-[24rem] overflow-hidden"
                 action={<Button variant="ghost" size="xs" onClick={() => setView('pallets')}>{t('manageAll')}</Button>}
               >
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-zinc-50/50 text-[9px] font-black text-zinc-400 uppercase tracking-widest border-b border-zinc-100">
+                <div className="flex h-full min-h-[19.5rem] overflow-x-auto">
+                  {latestInventoryPallets.length > 0 ? (
+                  <table className="w-full table-fixed text-left">
+                    <thead className="border-b border-zinc-100 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-400">
                       <tr>
-                        <th className="px-6 py-3">{t('qrCode')}</th>
-                        <th className="px-6 py-3">{t('owed')}</th>
+                        <th className="w-[58%] px-5 py-3.5 align-middle">{t('qrCode')}</th>
+                        <th className="px-5 py-3.5 text-right align-middle">{t('owed')}</th>
                       </tr>
                     </thead>
-                    <tbody className="text-[11px] divide-y divide-zinc-50">
-                      {pallets.slice(0, 5).map((pallet) => (
+                    <tbody className="divide-y divide-zinc-50 text-[13px]">
+                      {latestInventoryPallets.map((pallet) => (
                         <tr key={`pallet-overview-${pallet.id}`} className="hover:bg-zinc-50">
-                          <td className="px-6 py-3 font-mono font-black">{getPalletDisplayName(pallet)}</td>
-                          <td className="px-6 py-3 font-mono font-black text-emerald-600">{"\u20AC"}{calculateDebt(pallet).toFixed(2)}</td>
+                          <td className="px-5 py-4 align-middle font-mono font-black">{getPalletDisplayName(pallet)}</td>
+                          <td className="px-5 py-4 text-right align-middle font-mono font-black text-emerald-600">{"\u20AC"}{calculateDebt(pallet).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  ) : (
+                    <div className="flex flex-1 items-center justify-center px-6 text-center">
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                        {t('noPalletsFound')}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </Card>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <Card title={t('quickAnalysis')}>
-               <div className="space-y-6">
+          <div className="grid min-w-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+            <Card title={t('quickAnalysis')} noPadding>
+               <div className="space-y-4 p-4">
                   <div className="flex items-center justify-between">
                      <div className="flex items-center gap-2">
                         <TrendingUp size={14} className="text-emerald-500" />
@@ -743,12 +784,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                      </div>
                      <span className="text-xs font-black">84.2%</span>
                   </div>
-                  <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
                      <div style={{ width: '84.2%' }} className="h-full bg-black rounded-full" />
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex gap-3">
+                  <div className="space-y-2.5">
+                    <div className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
                        <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
                        <div className="min-w-0">
                           <p className="text-[9px] font-black uppercase tracking-widest text-blue-800 mb-1">{t('logisticsNote')}</p>
@@ -756,7 +797,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        </div>
                     </div>
 
-                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex gap-3">
+                    <div className="flex gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
                        <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                        <div className="min-w-0">
                           <p className="text-[9px] font-black uppercase tracking-widest text-amber-800 mb-1">{t('overdueWarning')}</p>
@@ -769,21 +810,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <Card
               title="Ghost Reports"
+              noPadding
+              className="h-full overflow-hidden"
               action={
                 <Button variant="ghost" size="xs" onClick={() => setIsGhostReportOpen(true)}>
                   Otvori
                 </Button>
               }
             >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-2xl border border-rose-100 bg-rose-50/60">
+              <div className="flex h-full min-h-0 flex-col space-y-3 p-4">
+                <div className="flex items-center justify-between rounded-2xl border border-rose-100 bg-rose-50/60 p-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center">
                       <Ghost size={18} />
                     </div>
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-500">Otvorene prijave</p>
-                      <p className="text-lg font-black uppercase tracking-tight text-rose-700">{ghostPallets.length}</p>
+                      <p className="text-base font-black uppercase tracking-tight text-rose-700">{ghostPallets.length}</p>
                     </div>
                   </div>
                   <Badge variant={ghostPallets.length > 0 ? 'warning' : 'success'}>
@@ -791,10 +834,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </Badge>
                 </div>
 
-                <div className="space-y-3">
+                <div className="max-h-[18rem] min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1 no-scrollbar xl:max-h-none">
                   {ghostPallets.length > 0 ? (
-                    ghostPallets.slice(0, 3).map((ghostPallet) => (
-                      <div key={`admin-ghost-${ghostPallet.id}`} className="p-4 rounded-2xl border border-zinc-100 bg-white">
+                    ghostPallets.map((ghostPallet) => (
+                      <div key={`admin-ghost-${ghostPallet.id}`} className="rounded-2xl border border-zinc-100 bg-white p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">
@@ -812,7 +855,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     ))
                   ) : (
-                    <div className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50 text-center">
+                    <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3 text-center">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                         Trenutno nema otvorenih ghost prijava.
                       </p>
@@ -1011,7 +1054,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
 
   return (
-    <div className="pb-16 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className={`${view === 'overview' ? 'pb-0' : 'pb-16'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
       {view === 'overview' && renderOverview()}
       {view === 'pallets' && renderPallets()}
       {view === 'noQrPallets' && renderNoQrPallets()}
