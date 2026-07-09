@@ -147,7 +147,7 @@ const TimeSelect = ({
   disabled: boolean;
   onSelect: (value: string) => void;
 }) => (
-  <div className="min-w-0 flex-1">
+  <div className="flex min-w-0 flex-1 flex-col justify-end">
     <label className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
       {label}
     </label>
@@ -155,7 +155,7 @@ const TimeSelect = ({
       value={selectedValue || ''}
       onChange={(event) => onSelect(event.target.value)}
       disabled={disabled}
-      className="w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-sm font-black text-zinc-950 outline-none transition-all hover:border-zinc-300 focus:border-[#00A655] disabled:cursor-not-allowed disabled:opacity-50"
+      className="h-12 w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-sm font-black text-zinc-950 outline-none transition-all hover:border-zinc-300 focus:border-[#00A655] disabled:cursor-not-allowed disabled:opacity-50"
     >
       <option value="">--</option>
       {options.map((option) => (
@@ -409,6 +409,28 @@ export const BillingCalendar: React.FC = () => {
     const nextMinute = part === 'minute' ? value : currentParts.minute;
 
     setNoteTimeDraft(`${nextHour}:${nextMinute}`);
+  };
+  const openDatePicker = () => {
+    if (isSavingNote) {
+      return;
+    }
+
+    const input = dateInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+
+    if (!input) {
+      return;
+    }
+
+    if (typeof input.showPicker === 'function') {
+      try {
+        input.showPicker();
+        return;
+      } catch {
+      }
+    }
+
+    input.focus();
+    input.click();
   };
 
   const upcomingAgenda = useMemo(() => {
@@ -986,30 +1008,32 @@ export const BillingCalendar: React.FC = () => {
                 </div>
 
                  <div className="p-5 space-y-4">
-                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_15rem]">
-                     <div className="space-y-1">
-                       <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-1 block text-center">
-                         {t('noteDate')}
-                       </label>
-                       <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
-                         <div className="flex items-center gap-2">
-                           <div className="flex-1 min-w-0">
-                             <div className="flex flex-col py-2">
-                               <span className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
-                                 {noteDateDraft ? formatNoteDateDayMonth(noteDateDraft) : '--'}
-                               </span>
-                               <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400">
-                                 {noteDateDraft ? formatNoteDateYear(noteDateDraft) : '----'}
-                               </span>
+                    <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-[minmax(0,1fr)_15rem]">
+                      <div className="flex h-full flex-col justify-end space-y-1">
+                        <label className="mb-1 block text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                          {t('noteDate')}
+                        </label>
+                        <div className="flex min-h-[6.75rem] items-center rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                          <div className="flex w-full items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-col items-center justify-center py-2 text-center">
+                                <span className="text-sm font-black uppercase tracking-tight text-zinc-900">
+                                  {noteDateDraft ? formatNoteDateDayMonth(noteDateDraft) : '--'}
+                                </span>
+                                <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                                  {noteDateDraft ? formatNoteDateYear(noteDateDraft) : '----'}
+                                </span>
                              </div>
                            </div>
-                           <button
-                             type="button"
-                             onClick={() => dateInputRef.current?.click()}
-                             className="h-9 w-9 shrink-0 rounded-xl border border-zinc-200 bg-white flex items-center justify-center text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-700"
-                           >
-                             <CalendarIcon size={18} />
-                           </button>
+                            <button
+                              type="button"
+                              onClick={openDatePicker}
+                              disabled={isSavingNote}
+                              aria-label={t('selectDate')}
+                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <CalendarIcon size={21} />
+                            </button>
                            <input
                              ref={dateInputRef}
                              type="date"
@@ -1019,25 +1043,15 @@ export const BillingCalendar: React.FC = () => {
                              disabled={isSavingNote}
                            />
                          </div>
-                       </div>
-                     </div>
+                        </div>
+                      </div>
 
-                     <div className="space-y-1">
-                       <div className="mb-1 flex items-center justify-center gap-3">
-                         <label className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">
-                           {t('reminderTime')}
-                         </label>
-                         <button
-                           type="button"
-                           onClick={() => setNoteTimeDraft('')}
-                           disabled={isSavingNote || !noteTimeDraft}
-                           className="text-[8px] font-black uppercase tracking-[0.16em] text-zinc-300 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40"
-                         >
-                           {t('clear')}
-                         </button>
-                       </div>
-                       <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
-                         <div className="flex gap-2">
+                      <div className="flex h-full flex-col justify-end space-y-1">
+                        <label className="mb-1 block text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                          {t('reminderTime')}
+                        </label>
+                        <div className="flex min-h-[6.75rem] items-center rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                          <div className="flex w-full items-end gap-2">
                            <TimeSelect
                              label={t('noteHour')}
                              options={calendarHourOptions}
