@@ -518,7 +518,7 @@ export const AdminClientManagerView: React.FC = () => {
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">
-              Client Manager
+              {t('clientManager')}
             </p>
             <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
               {language === 'bs'

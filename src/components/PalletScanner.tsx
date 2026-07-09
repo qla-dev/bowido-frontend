@@ -14,17 +14,6 @@ const CAMERA_ZOOM_STEP = 0.1;
 const clampCameraZoom = (value: number) =>
   Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, Number(value.toFixed(2))));
 
-const getPinchDistance = (touches: TouchList) => {
-  const firstTouch = touches.item(0);
-  const secondTouch = touches.item(1);
-
-  if (!firstTouch || !secondTouch) {
-    return 0;
-  }
-
-  return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
-};
-
 interface DetectedCode {
   rawValue?: string;
 }
@@ -45,7 +34,7 @@ interface ScannerProps {
 }
 
 export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, onPalletDetected }) => {
-  const { pallets, statuses, clients, updatePalletStatus, t } = useApp();
+  const { pallets, statuses, clients, updatePalletStatus, t, language } = useApp();
   const isDetailScan = Boolean(onPalletDetected);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -63,8 +52,6 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const scanFrameRef = React.useRef<number | null>(null);
   const scanBusyRef = React.useRef(false);
   const lastDetectedAtRef = React.useRef(0);
-  const pinchStateRef = React.useRef<{ distance: number; zoom: number } | null>(null);
-  const suppressNextClickRef = React.useRef(false);
 
   const getAllowedStatusIds = () => {
     switch (currentUser.role_id) {
@@ -272,70 +259,8 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const updateCameraZoom = (value: number) => {
     setCameraZoom(clampCameraZoom(value));
   };
-
-  const handleCameraClick = () => {
-    if (suppressNextClickRef.current) {
-      suppressNextClickRef.current = false;
-      return;
-    }
-
-    if (isDetailScan || isCameraActive) {
-      return;
-    }
-  };
-
-  const handleCameraTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 2) {
-      return;
-    }
-
-    event.preventDefault();
-    const distance = getPinchDistance(event.touches);
-
-    if (distance > 0) {
-      pinchStateRef.current = { distance, zoom: cameraZoom };
-      suppressNextClickRef.current = true;
-    }
-  };
-
-  const handleCameraTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 2 || !pinchStateRef.current) {
-      return;
-    }
-
-    event.preventDefault();
-    const distance = getPinchDistance(event.touches);
-
-    if (distance > 0) {
-      updateCameraZoom(pinchStateRef.current.zoom * (distance / pinchStateRef.current.distance));
-      suppressNextClickRef.current = true;
-    }
-  };
-
-  const handleCameraTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length >= 2 || !pinchStateRef.current) {
-      return;
-    }
-
-    pinchStateRef.current = null;
-    window.setTimeout(() => {
-      suppressNextClickRef.current = false;
-    }, 400);
-  };
-
-  const handleCameraWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey) {
-      return;
-    }
-
-    event.preventDefault();
-    suppressNextClickRef.current = true;
-    updateCameraZoom(cameraZoom - event.deltaY * 0.01);
-
-    window.setTimeout(() => {
-      suppressNextClickRef.current = false;
-    }, 300);
-  };
+  const cameraZoomLabel =
+    language === 'bs' ? 'Zoom kamere' : language === 'nl' ? 'Camera zoom' : 'Camera zoom';
 
   const handleComplete = () => {
     scannedCodes.forEach((code) => {
@@ -497,14 +422,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
                 <div className="bg-zinc-50 rounded-2xl p-6 flex flex-col items-center border border-zinc-200">
                   <div
-                    className="relative mb-6 aspect-square w-full max-w-[240px] touch-none select-none group cursor-pointer"
-                    onClick={handleCameraClick}
-                    onTouchStart={handleCameraTouchStart}
-                    onTouchMove={handleCameraTouchMove}
-                    onTouchEnd={handleCameraTouchEnd}
-                    onTouchCancel={handleCameraTouchEnd}
-                    onWheel={handleCameraWheel}
-                    style={{ touchAction: 'none' }}
+                    className="relative mb-3 aspect-square w-full max-w-[240px] select-none group"
                   >
                     <div className="absolute inset-0 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-2xl">
                       <video
@@ -513,12 +431,16 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         muted
                         playsInline
                         className={cn(
-                          "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
-                          isCameraActive ? "opacity-70" : "opacity-0"
+                          "absolute inset-0 h-full w-full origin-center object-cover transition-[opacity,transform] duration-300",
+                          isCameraActive ? "opacity-100" : "opacity-0"
                         )}
+                        style={{ transform: `scale(${cameraZoom})` }}
                       />
                       <div
-                        className="absolute inset-0 origin-center transition-transform duration-300 ease-out"
+                        className={cn(
+                          "absolute inset-0 origin-center transition-[opacity,transform] duration-300 ease-out",
+                          isCameraActive ? "opacity-20" : "opacity-100"
+                        )}
                         style={{ transform: `scale(${cameraZoom})` }}
                       >
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,166,85,0.2),transparent_48%),linear-gradient(135deg,rgba(255,255,255,0.12),transparent_36%),#07110d]" />
@@ -544,6 +466,28 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="sticky top-0 z-10 mx-auto mb-6 w-3/4 max-w-[180px] rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <label htmlFor="scanner-camera-zoom" className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                        {cameraZoomLabel}
+                      </label>
+                      <span className="font-mono text-[10px] font-black text-zinc-700">
+                        {cameraZoom.toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      id="scanner-camera-zoom"
+                      type="range"
+                      min={CAMERA_ZOOM_MIN}
+                      max={CAMERA_ZOOM_MAX}
+                      step={CAMERA_ZOOM_STEP}
+                      value={cameraZoom}
+                      onChange={(event) => updateCameraZoom(Number(event.target.value))}
+                      className="h-2 w-full cursor-pointer accent-[#00A655]"
+                      aria-label={cameraZoomLabel}
+                    />
                   </div>
 
                   <div className="w-full space-y-4">

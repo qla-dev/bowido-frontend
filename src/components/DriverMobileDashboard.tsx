@@ -1758,7 +1758,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             </p>
           </div>
 
-          <div className="flex flex-1">
+          <div className="flex flex-1 flex-col">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key="scanner-view"
@@ -1844,6 +1844,30 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 )}
               </motion.div>
             </AnimatePresence>
+
+            {(cameraState === 'ready' || cameraState === 'preview') && (
+              <div className="mx-auto mt-4 w-3/4 rounded-xl border border-emerald-200 bg-white p-3 dark:border-white/10 dark:bg-[#151d1a]">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label htmlFor="driver-camera-zoom" className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">
+                    {language === 'bs' ? 'Zoom kamere' : language === 'nl' ? 'Camera zoom' : 'Camera zoom'}
+                  </label>
+                  <span className="font-mono text-[10px] font-black text-zinc-700 dark:text-zinc-300">
+                    {cameraZoom.toFixed(1)}x
+                  </span>
+                </div>
+                <input
+                  id="driver-camera-zoom"
+                  type="range"
+                  min={cameraZoomRange.min}
+                  max={cameraZoomRange.max}
+                  step={cameraZoomRange.step}
+                  value={cameraZoom}
+                  onChange={(event) => updateCameraZoom(Number(event.target.value))}
+                  className="h-2 w-full cursor-pointer accent-[#00A655]"
+                  aria-label={language === 'bs' ? 'Zoom kamere' : 'Camera zoom'}
+                />
+              </div>
+            )}
           </div>
 
           {showRepairListAction && (

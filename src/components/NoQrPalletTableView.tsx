@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowUpDown,
+  Ghost,
   RotateCcw,
   Save,
   Search,
@@ -592,7 +593,10 @@ export const NoQrPalletTableView: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-sm font-black uppercase tracking-[0.14em] text-zinc-900">
+        <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-900">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm">
+            <Ghost size={16} />
+          </span>
           {t('noQrPallets')}
         </h2>
         <div className="relative w-full sm:max-w-sm">
