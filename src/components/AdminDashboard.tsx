@@ -112,10 +112,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [dashboardStats, setDashboardStats] = useState<PalletDashboardStats | null>(null);
   const [palletAuditLogsById, setPalletAuditLogsById] = useState<Record<number, AuditLog[]>>({});
 
-  const handleExportPdf = () => {
-    alert('Generating PDF Delivery/Stock Report...');
-  };
-
   // Sync view with prop changes (e.g. from sidebar)
   React.useEffect(() => {
     setView(initialView);
@@ -1885,7 +1881,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           language={language}
           t={t}
           onSelectPallet={setSelectedPallet}
-          onExport={handleExportPdf}
         />
       )}
     </div>
