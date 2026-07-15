@@ -105,8 +105,25 @@ export interface ServiceReport {
   resolved_by_user_id?: number;
   problem_description: string;
   image_path?: string;
+  photos?: PalletPhoto[];
   resolved_at?: string;
   resolution_note?: string;
+  created_at: string;
+}
+
+export interface PalletPhoto {
+  id: number;
+  pallet_id: number;
+  old_status_id?: number;
+  new_status_id?: number;
+  client_id?: number;
+  service_report_id?: number;
+  type: 'scan' | 'damage_report';
+  original_name?: string;
+  mime_type: string;
+  size_bytes: number;
+  expires_at: string;
+  url?: string;
   created_at: string;
 }
 

@@ -10,6 +10,7 @@ import { NoQrReturnFormModal, getNoQrReturnButtonCopy } from './NoQrReturnFormMo
 import { getPalletTypeLabel } from '../i18n';
 import { findPalletByScannedQr } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
+import { apiService } from '../services/api';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -439,6 +440,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const { pallets, clients, deletePallet, updatePalletStatus, statuses, language } = useApp();
   const [isScanning, setIsScanning] = useState(false);
   const [selectedPalletId, setSelectedPalletId] = useState<number | null>(null);
+  const [palletPhoto, setPalletPhoto] = useState<File | null>(null);
   const [palletPhotoUrl, setPalletPhotoUrl] = useState<string | null>(null);
   const [damagePhotoUrl, setDamagePhotoUrl] = useState<string | null>(null);
   const [damageDescription, setDamageDescription] = useState('');
@@ -480,10 +482,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const palletPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const damagePhotoInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoUrlRef = useRef<string | null>(null);
+  const palletPhotoUploadedRef = useRef(false);
   const damagePhotoUrlRef = useRef<string | null>(null);
   const detectorRef = useRef<BarcodeDetectorLike | null>(null);
   const palletsRef = useRef(pallets);
   const scanBusyRef = useRef(false);
+  const lastScanAttemptAtRef = useRef(0);
   const lastScanAtRef = useRef(0);
   const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextScannerClickRef = useRef(false);
@@ -1129,19 +1133,26 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     const now = Date.now();
-    if (now - lastScanAtRef.current < 1300) {
+    if (now - lastScanAtRef.current < 1300 || now - lastScanAttemptAtRef.current < 150) {
       return;
     }
 
+    lastScanAttemptAtRef.current = now;
     scanBusyRef.current = true;
 
     try {
       let rawValue: string | null = null;
 
       if (detector) {
-        const codes = await detector.detect(video);
-        rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
-      } else {
+        try {
+          const codes = await detector.detect(video);
+          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+        } catch {
+          rawValue = null;
+        }
+      }
+
+      if (!rawValue) {
         rawValue = decodeQrFromVideo(video, scanCanvasRef);
       }
 
@@ -1318,6 +1329,35 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     setPalletPhotoUrl(null);
+    setPalletPhoto(null);
+    palletPhotoUploadedRef.current = false;
+  };
+
+  const uploadPalletPhoto = (pallet: Pallet, nextStatusId: number, nextClientId?: number) => {
+    if (!palletPhoto || palletPhotoUploadedRef.current) {
+      return;
+    }
+
+    const photoClientId =
+      nextStatusId === 4
+        ? nextClientId
+        : pallet.current_status_id === 4
+          ? pallet.user_id
+          : undefined;
+
+    palletPhotoUploadedRef.current = true;
+
+    void apiService.palletPhotos
+      .uploadScan(pallet.id, palletPhoto, {
+        old_status_id: pallet.current_status_id,
+        new_status_id: nextStatusId,
+        client_id: photoClientId,
+      })
+      .catch((error) => {
+        palletPhotoUploadedRef.current = false;
+        console.error('Failed to upload driver pallet photo', error);
+        showFlash(text.capturePalletPhoto, text.scanImageFallbackDetail, 'warning');
+      });
   };
 
   const clearDamageDraft = () => {
@@ -1348,6 +1388,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const handleScanNext = () => {
+    if (selectedPallet) {
+      uploadPalletPhoto(selectedPallet, selectedPallet.current_status_id, selectedPallet.user_id);
+    }
+
     clearPalletPhoto();
     clearDamageDraft();
     setIsDamageModalOpen(false);
@@ -1371,6 +1415,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     const preserveClientAssignment = clientLinkedStatusIds.includes(nextStatusId);
     const nextClientId = preserveClientAssignment ? clientId ?? selectedPallet.user_id : undefined;
+
+    uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
 
     updatePalletStatus(
       selectedPallet.id,
@@ -1533,6 +1579,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     const nextPhotoUrl = URL.createObjectURL(file);
     palletPhotoUrlRef.current = nextPhotoUrl;
+    palletPhotoUploadedRef.current = false;
+    setPalletPhoto(file);
     setPalletPhotoUrl(nextPhotoUrl);
     event.target.value = '';
   };
@@ -1676,9 +1724,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     try {
       bitmap = await createImageBitmap(file);
-      const rawValue = detector
-        ? (await detector.detect(bitmap)).find((item) => item.rawValue?.trim())?.rawValue?.trim() || null
-        : decodeQrFromImageBitmap(bitmap, scanCanvasRef);
+      let rawValue: string | null = null;
+
+      if (detector) {
+        try {
+          const codes = await detector.detect(bitmap);
+          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+        } catch {
+          rawValue = null;
+        }
+      }
+
+      rawValue = rawValue || decodeQrFromImageBitmap(bitmap, scanCanvasRef);
 
       if (rawValue) {
         handleDetectedCode(rawValue);
