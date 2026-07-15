@@ -57,8 +57,8 @@ interface AppContextType {
   addStatus: (status: Omit<PalletStatus, 'id'>) => void;
   deleteStatus: (id: number) => void;
   reportDamage: (
-    report: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
-  ) => void;
+    report: { pallet_id: number; problem_description: string; image?: File }
+  ) => Promise<void>;
   resolveService: (reportId: number, userId: number, note: string) => void;
   reportGhostPallets: (
     count: number,
@@ -676,37 +676,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const reportDamage = (
-    report: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
+    report: { pallet_id: number; problem_description: string; image?: File }
   ) => {
-    void apiService.serviceReports
+    return apiService.serviceReports
       .create(report)
       .then((createdReport) => {
         setServiceReports((prev) => [createdReport, ...prev.filter((item) => item.id !== createdReport.id)]);
-      })
-      .catch((error) => console.error('Failed to create service report', error));
-
-    setServiceReports((prev) => {
-      const nextId = prev.length > 0 ? Math.max(...prev.map((item) => item.id)) + 1 : 1;
-      const newReport: ServiceReport = {
-        ...report,
-        id: nextId,
-        created_at: new Date().toISOString(),
-      };
-
-      const pallet = pallets.find((item) => item.id === report.pallet_id);
-      if (pallet && pallet.current_status_id !== 7) {
-        updatePalletStatus(
-          pallet.id,
-          7,
-          report.reported_by_user_id,
-          report.reported_by_user_name || 'Technician',
-          pallet.current_location,
-          `Damage reported: ${report.problem_description.slice(0, 50)}...`
-        );
-      }
-
-      return [newReport, ...prev];
-    });
+      });
   };
 
   const resolveService = (reportId: number, userId: number, note: string) => {

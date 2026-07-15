@@ -11,31 +11,37 @@ interface DamageReportModalProps {
   currentUser: User;
 }
 
-export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, currentUser }) => {
+export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose }) => {
   const { pallets, reportDamage, t, language } = useApp();
   const [search, setSearch] = useState('');
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [description, setDescription] = useState('');
-  const [image, setImage] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredPallets =
     search.length > 1
       ? pallets.filter((pallet) => pallet.qr_code.toLowerCase().includes(search.toLowerCase())).slice(0, 5)
       : [];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedPallet || !description) return;
 
-    reportDamage({
-      pallet_id: selectedPallet.id,
-      reported_by_user_id: currentUser.id,
-      reported_by_user_name: currentUser.name,
-      problem_description: description,
-      image_path: image || undefined,
-    });
+    setIsSubmitting(true);
 
-    onClose();
+    try {
+      await reportDamage({
+        pallet_id: selectedPallet.id,
+        problem_description: description,
+        image: image || undefined,
+      });
+      onClose();
+    } catch (error) {
+      console.error('Failed to create damage report', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -128,11 +134,15 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
 
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-1">3. {t('evidencePhoto')}</h4>
-                  {image ? (
+                  {imagePreview ? (
                     <div className="relative rounded-2xl overflow-hidden group border-2 border-rose-50">
-                      <img src={image} className="w-full h-40 object-cover" alt="Damage" />
+                      <img src={imagePreview} className="w-full h-40 object-cover" alt="Damage" />
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Button variant="danger" size="sm" onClick={() => setImage(null)}>
+                        <Button variant="danger" size="sm" onClick={() => {
+                          if (imagePreview) URL.revokeObjectURL(imagePreview);
+                          setImage(null);
+                          setImagePreview(null);
+                        }}>
                           <X size={14} className="mr-2" /> {t('remove')}
                         </Button>
                       </div>
@@ -146,13 +156,9 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            setIsUploading(true);
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setImage(reader.result as string);
-                              setIsUploading(false);
-                            };
-                            reader.readAsDataURL(file);
+                            if (imagePreview) URL.revokeObjectURL(imagePreview);
+                            setImage(file);
+                            setImagePreview(URL.createObjectURL(file));
                           }
                         }}
                         className="hidden"
@@ -162,7 +168,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
                         htmlFor="damage-photo"
                         className="w-full py-10 bg-zinc-50 border-2 border-dashed border-zinc-100/80 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white hover:border-rose-200 transition-all text-zinc-300 hover:text-rose-600 cursor-pointer group"
                       >
-                        {isUploading ? (
+                        {isSubmitting ? (
                           <div className="w-5 h-5 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
                         ) : (
                           <>
@@ -183,7 +189,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose, c
               {t('cancel')}
             </Button>
             <Button
-              disabled={!selectedPallet || !description || !image || isUploading}
+              disabled={!selectedPallet || !description || !image || isSubmitting}
               onClick={handleSubmit}
               className="flex-[2] bg-rose-600 border-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-900/10"
             >

@@ -7,6 +7,7 @@ import {
   ManagedUser,
   Pallet,
   PalletDashboardStats,
+  PalletPhoto,
   PalletStatus,
   Permission,
   Role,
@@ -547,9 +548,26 @@ const normalizeServiceReport = (report: ApiRecord): ServiceReport => ({
   resolved_by_user_id: report.resolved_by_user_id ? Number(report.resolved_by_user_id) : undefined,
   problem_description: report.problem_description || report.description || '',
   image_path: report.image_path || undefined,
+  photos: Array.isArray(report.photos) ? report.photos.map(normalizePalletPhoto) : undefined,
   resolved_at: report.resolved_at || undefined,
   resolution_note: report.resolution_note || undefined,
   created_at: report.created_at || new Date().toISOString(),
+});
+
+const normalizePalletPhoto = (photo: ApiRecord): PalletPhoto => ({
+  id: Number(photo.id),
+  pallet_id: Number(photo.pallet_id),
+  old_status_id: photo.old_status_id ? Number(photo.old_status_id) : undefined,
+  new_status_id: photo.new_status_id ? Number(photo.new_status_id) : undefined,
+  client_id: photo.client_id ? Number(photo.client_id) : undefined,
+  service_report_id: photo.service_report_id ? Number(photo.service_report_id) : undefined,
+  type: photo.type,
+  original_name: photo.original_name || undefined,
+  mime_type: photo.mime_type || 'application/octet-stream',
+  size_bytes: Number(photo.size_bytes ?? 0),
+  expires_at: photo.expires_at,
+  url: photo.url || undefined,
+  created_at: photo.created_at,
 });
 
 const formatUserName = (email: string) => {
@@ -768,10 +786,42 @@ export const apiService = {
     },
   },
 
+  palletPhotos: {
+    uploadScan: async (
+      palletId: number,
+      image: File,
+      context: { old_status_id?: number; new_status_id?: number; client_id?: number } = {}
+    ): Promise<PalletPhoto> => {
+      const formData = new FormData();
+      formData.append('image', image);
+
+      if (context.old_status_id) {
+        formData.append('old_status_id', String(toBackendStatusId(context.old_status_id)));
+      }
+
+      if (context.new_status_id) {
+        formData.append('new_status_id', String(toBackendStatusId(context.new_status_id)));
+      }
+
+      if (context.client_id) {
+        formData.append('client_id', String(context.client_id));
+      }
+
+      return normalizePalletPhoto(
+        await apiData<ApiRecord>(`/pallets/${palletId}/photos`, {
+          method: 'POST',
+          body: formData,
+        })
+      );
+    },
+  },
+
   clients: {
     page: (params: ListParams = {}) => listPage<ClientDetail>('/customer_details', params, normalizeClient),
     list: async (params: ListParams = {}): Promise<ClientDetail[]> =>
       (await listAll<ApiRecord>('/customer_details', params)).map(normalizeClient),
+    palletPhotos: async (customerDetailId: number): Promise<PalletPhoto[]> =>
+      (await listAll<ApiRecord>(`/customer_details/${customerDetailId}/pallet-photos`)).map(normalizePalletPhoto),
     create: async (data: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }): Promise<ClientDetail> => {
       if (data.user_id) {
         return normalizeClient(
@@ -875,20 +925,25 @@ export const apiService = {
     list: async (params: ListParams = {}): Promise<ServiceReport[]> =>
       (await listAll<ApiRecord>('/service_reports', params)).map(normalizeServiceReport),
     create: async (
-      data: Omit<ServiceReport, 'id' | 'created_at'> & { reported_by_user_name?: string }
-    ): Promise<ServiceReport> =>
-      normalizeServiceReport(
+      data: { pallet_id: number; problem_description: string; image?: File }
+    ): Promise<ServiceReport> => {
+      const formData = new FormData();
+      formData.append('pallet_id', String(data.pallet_id));
+      formData.append('severity', 'medium');
+      formData.append('issue_type', 'damage');
+      formData.append('description', data.problem_description);
+
+      if (data.image) {
+        formData.append('image', data.image);
+      }
+
+      return normalizeServiceReport(
         await apiData<ApiRecord>('/service_reports', {
           method: 'POST',
-          body: jsonBody({
-            pallet_id: data.pallet_id,
-            severity: 'medium',
-            issue_type: 'damage',
-            description: data.problem_description,
-            image_path: data.image_path,
-          }),
+          body: formData,
         })
-      ),
+      );
+    },
     resolve: async (reportId: number, note: string): Promise<ServiceReport> =>
       normalizeServiceReport(
         await apiData<ApiRecord>(`/service_reports/${reportId}`, {

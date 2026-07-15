@@ -5,11 +5,14 @@ import {
   ArrowUpDown,
   Building2,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Download,
   Euro,
   FileText,
   Hash,
+  Image as ImageIcon,
   MapPin,
   Package,
   Phone,
@@ -22,7 +25,7 @@ import {
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { ClientDetail, Pallet } from '../types';
+import { ClientDetail, Pallet, PalletPhoto } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -58,6 +61,13 @@ type ClientManagerRow = {
   overdueTotal: number;
   overdueTotalLabel: string;
   clientPallets: Pallet[];
+};
+
+type PhotoViewerState = {
+  palletId: number;
+  palletName: string;
+  photos: PalletPhoto[];
+  index: number;
 };
 
 const COLUMN_ORDER = [
@@ -131,6 +141,8 @@ export const AdminClientManagerView: React.FC = () => {
   });
   const [selectedRow, setSelectedRow] = useState<ClientManagerRow | null>(null);
   const [clientDraft, setClientDraft] = useState<ClientDetail | null>(null);
+  const [clientPhotos, setClientPhotos] = useState<PalletPhoto[]>([]);
+  const [photoViewer, setPhotoViewer] = useState<PhotoViewerState | null>(null);
   const {
     headerCellClass,
     headerIconClass,
@@ -258,7 +270,14 @@ export const AdminClientManagerView: React.FC = () => {
     lastInvoices:
       language === 'bs' ? 'Zadnje fakture' : language === 'nl' ? 'Laatste facturen' : 'Last invoices',
     exportInvoice:
-      language === 'bs' ? 'Export invoice' : language === 'nl' ? 'Factuur exporteren' : 'Export invoice',
+      language === 'bs' ? 'Izvezi fakturu' : language === 'nl' ? 'Factuur exporteren' : 'Export invoice',
+    viewPhotos:
+      language === 'bs' ? 'Prikaži fotografije palete' : language === 'nl' ? 'Palletfoto\'s bekijken' : 'View pallet photos',
+    noPhotos:
+      language === 'bs' ? 'Nema fotografija za ovog kupca' : language === 'nl' ? 'Geen foto\'s voor deze klant' : 'No photos for this customer',
+    photos: language === 'bs' ? 'Fotografije' : language === 'nl' ? 'Foto\'s' : 'Photos',
+    previous: language === 'bs' ? 'Prethodna fotografija' : language === 'nl' ? 'Vorige foto' : 'Previous photo',
+    next: language === 'bs' ? 'Sljedeća fotografija' : language === 'nl' ? 'Volgende foto' : 'Next photo',
     save:
       language === 'bs' ? 'Sačuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes',
     close:
@@ -268,7 +287,7 @@ export const AdminClientManagerView: React.FC = () => {
     noInvoices:
       language === 'bs' ? 'Nema faktura za prikaz.' : language === 'nl' ? 'Geen facturen om te tonen.' : 'No invoices to show.',
     invoiceExported:
-      language === 'bs' ? 'Invoice export pripremljen za' : language === 'nl' ? 'Factuurexport voorbereid voor' : 'Invoice export prepared for',
+      language === 'bs' ? 'Izvoz fakture pripremljen za' : language === 'nl' ? 'Factuurexport voorbereid voor' : 'Invoice export prepared for',
     resize:
       language === 'bs'
         ? 'Promijeni sirinu kolone'
@@ -387,6 +406,64 @@ export const AdminClientManagerView: React.FC = () => {
     }));
   }, [currencyFormatter, dateFormatter, invoices, selectedRow]);
 
+  const clientPhotosByPallet = useMemo(() => {
+    const photosByPallet = new Map<number, PalletPhoto[]>();
+
+    clientPhotos.forEach((photo) => {
+      const photos = photosByPallet.get(photo.pallet_id) || [];
+      photos.push(photo);
+      photosByPallet.set(photo.pallet_id, photos);
+    });
+
+    return photosByPallet;
+  }, [clientPhotos]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!selectedRow) {
+      setClientPhotos([]);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setClientPhotos([]);
+
+    void apiService.clients
+      .palletPhotos(selectedRow.client.id)
+      .then((photos) => {
+        if (isMounted) {
+          setClientPhotos(photos);
+        }
+      })
+      .catch((error) => console.error('Failed to load customer pallet photos', error));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedRow]);
+
+  useEffect(() => {
+    if (!photoViewer) {
+      return;
+    }
+
+    const latestPhotos = clientPhotosByPallet.get(photoViewer.palletId);
+
+    if (!latestPhotos && photoViewer.photos.length === 0) {
+      return;
+    }
+
+    if (latestPhotos !== photoViewer.photos) {
+      setPhotoViewer((current) => current && ({
+        ...current,
+        photos: latestPhotos || [],
+        index: Math.min(current.index, Math.max((latestPhotos?.length || 1) - 1, 0)),
+      }));
+    }
+  }, [clientPhotosByPallet, photoViewer]);
+
   const openClientModal = (row: ClientManagerRow) => {
     setSelectedRow(row);
     setClientDraft({
@@ -399,6 +476,7 @@ export const AdminClientManagerView: React.FC = () => {
   const closeClientModal = () => {
     setSelectedRow(null);
     setClientDraft(null);
+    setPhotoViewer(null);
   };
 
   const updateDraftWarehouse = (index: number, value: string) => {
@@ -518,6 +596,8 @@ export const AdminClientManagerView: React.FC = () => {
       </p>
     </div>
   );
+
+  const visiblePhoto = photoViewer?.photos[photoViewer.index];
 
   return (
     <div className="space-y-4">
@@ -910,25 +990,44 @@ export const AdminClientManagerView: React.FC = () => {
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-100 no-scrollbar dark:border-white/10">
                     {selectedRow.clientPallets.length > 0 ? (
-                      selectedRow.clientPallets.map((pallet) => (
-                        <div
-                          key={`admin-client-modal-pallet-${pallet.id}`}
-                          className="grid min-h-14 grid-cols-[1fr_1fr_1.2fr] items-center gap-2 border-b border-zinc-100 px-4 py-3 text-center last:border-b-0 dark:border-white/10"
-                        >
-                          <span className="truncate text-[11px] font-black uppercase text-emerald-950 dark:text-white">
-                            {getPalletDisplayName(pallet)}
-                          </span>
-                          <span className="truncate text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-300">
-                            {getPalletTypeLabel(pallet.type, language)}
-                          </span>
-                          <Badge
-                            variant={pallet.current_status_id === 4 ? 'success' : pallet.current_status_id === 7 ? 'danger' : 'info'}
-                            className="justify-self-end rounded-lg text-[8px]"
+                      selectedRow.clientPallets.map((pallet) => {
+                        const palletPhotos = clientPhotosByPallet.get(pallet.id) || [];
+                        const hasPalletPhotos = palletPhotos.length > 0;
+
+                        return (
+                          <div
+                            key={`admin-client-modal-pallet-${pallet.id}`}
+                            className="grid min-h-14 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_2rem] items-center gap-2 border-b border-zinc-100 px-4 py-3 text-center last:border-b-0 dark:border-white/10"
                           >
-                            {getStatusLabel(pallet.current_status_name, language)}
-                          </Badge>
-                        </div>
-                      ))
+                            <span className="truncate text-[11px] font-black uppercase text-emerald-950 dark:text-white">
+                              {getPalletDisplayName(pallet)}
+                            </span>
+                            <span className="truncate text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-300">
+                              {getPalletTypeLabel(pallet.type, language)}
+                            </span>
+                            <Badge
+                              variant={pallet.current_status_id === 4 ? 'success' : pallet.current_status_id === 7 ? 'danger' : 'info'}
+                              className="justify-self-end rounded-lg text-[8px]"
+                            >
+                              {getStatusLabel(pallet.current_status_name, language)}
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() => setPhotoViewer({
+                                palletId: pallet.id,
+                                palletName: getPalletDisplayName(pallet),
+                                photos: palletPhotos,
+                                index: 0,
+                              })}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-white/10"
+                              title={hasPalletPhotos ? labels.viewPhotos : labels.noPhotos}
+                              aria-label={hasPalletPhotos ? labels.viewPhotos : labels.noPhotos}
+                            >
+                              <ImageIcon size={16} />
+                            </button>
+                          </div>
+                        );
+                      })
                     ) : (
                       <p className="px-4 py-8 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">
                         {labels.noPallets}
@@ -969,6 +1068,8 @@ export const AdminClientManagerView: React.FC = () => {
                               variant="outline"
                               onClick={() => alert(`${labels.invoiceExported} ${invoice.number}`)}
                               className="h-9 px-3"
+                              title={labels.exportInvoice}
+                              aria-label={labels.exportInvoice}
                             >
                               <Download size={13} />
                             </Button>
@@ -994,6 +1095,76 @@ export const AdminClientManagerView: React.FC = () => {
               </div>
             </div>
           </motion.div>
+        </div>
+      )}
+
+      {photoViewer && (
+        <div className="modal-overlay fixed inset-0 z-[130] flex items-center justify-center p-4" onClick={() => setPhotoViewer(null)}>
+          <div
+            className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between gap-4 border-b border-zinc-200 px-4 py-3 text-zinc-950">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black uppercase tracking-tight">{photoViewer.palletName}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                  {photoViewer.photos.length > 0
+                    ? `${labels.photos} ${photoViewer.index + 1}/${photoViewer.photos.length}`
+                    : labels.noPhotos}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoViewer(null)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-950"
+                aria-label={labels.close}
+                title={labels.close}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="relative flex min-h-0 flex-1 items-center justify-center bg-zinc-100 p-4">
+              {visiblePhoto?.url ? (
+                <img
+                  src={visiblePhoto.url}
+                  alt={`${photoViewer.palletName} ${labels.photos.toLowerCase()}`}
+                  className="max-h-[72vh] max-w-full object-contain"
+                />
+              ) : (
+                <p className="text-sm font-semibold text-zinc-500">{labels.noPhotos}</p>
+              )}
+
+              {photoViewer.photos.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoViewer((current) => current && ({
+                      ...current,
+                      index: (current.index - 1 + current.photos.length) % current.photos.length,
+                    }))}
+                    className="absolute left-3 flex h-10 w-10 items-center justify-center rounded-lg bg-black/60 text-white transition-colors hover:bg-black/85"
+                    aria-label={labels.previous}
+                    title={labels.previous}
+                  >
+                    <ChevronLeft size={22} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoViewer((current) => current && ({
+                      ...current,
+                      index: (current.index + 1) % current.photos.length,
+                    }))}
+                    className="absolute right-3 flex h-10 w-10 items-center justify-center rounded-lg bg-black/60 text-white transition-colors hover:bg-black/85"
+                    aria-label={labels.next}
+                    title={labels.next}
+                  >
+                    <ChevronRight size={22} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

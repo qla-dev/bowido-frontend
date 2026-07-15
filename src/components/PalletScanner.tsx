@@ -5,7 +5,8 @@ import { Button, Card, Badge, Input, cn } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { findPalletByScannedQr } from '../lib/palletQrMatching';
-import { decodeQrFromVideo } from '../lib/videoQrDecoder';
+import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
+import { apiService } from '../services/api';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
@@ -45,25 +46,25 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const [location, setLocation] = useState('');
   const [scanMode, setScanMode] = useState<'singular' | 'bulk' | null>(isDetailScan ? 'singular' : null);
   const [cameraZoom, setCameraZoom] = useState(CAMERA_ZOOM_MIN);
+  const [detectedPallet, setDetectedPallet] = useState<Pallet | null>(null);
+  const [scanPhoto, setScanPhoto] = useState<File | null>(null);
+  const [scanPhotoPreview, setScanPhotoPreview] = useState<string | null>(null);
+  const [isSavingScanPhoto, setIsSavingScanPhoto] = useState(false);
+  const [scanPhotoError, setScanPhotoError] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const scanCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const scanImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
   const detectorRef = React.useRef<BarcodeDetectorLike | null>(null);
   const scanFrameRef = React.useRef<number | null>(null);
   const scanBusyRef = React.useRef(false);
+  const lastScanAttemptAtRef = React.useRef(0);
   const lastDetectedAtRef = React.useRef(0);
 
   const getAllowedStatusIds = () => {
-    switch (currentUser.role_id) {
-      case 2:
-        return [4, 5, 2, 6, 3, 1];
-      case 3:
-        return [1, 2, 3, 4, 6, 7];
-      case 5:
-        return [1];
-      default:
-        return statuses.map((status) => status.id);
-    }
+    return statuses.map((status) => status.id);
   };
 
   const allowedStatusIds = getAllowedStatusIds();
@@ -76,23 +77,25 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   }, [currentUser.role_id]);
 
   const handleDetectedPallet = React.useCallback((pallet: Pallet) => {
-    if (onPalletDetected) {
-      onPalletDetected(pallet);
+    if (scanMode === 'singular') {
+      setDetectedPallet(pallet);
       return;
     }
 
     const code = pallet.qr_code;
     setScannedCodes((prev) => prev.includes(code) ? prev : [...prev, code]);
-  }, [onPalletDetected]);
+  }, [scanMode]);
 
   const handleDetectedCode = React.useCallback((rawValue: string) => {
     const matchedPallet = findPalletByScannedQr(rawValue, pallets);
 
     if (!matchedPallet) {
+      setScanError('This QR code is not linked to a pallet.');
       lastDetectedAtRef.current = Date.now();
       return;
     }
 
+    setScanError(null);
     handleDetectedPallet(matchedPallet);
     lastDetectedAtRef.current = Date.now();
   }, [handleDetectedPallet, pallets]);
@@ -154,24 +157,31 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       const detector = detectorRef.current;
       const video = videoRef.current;
 
-      if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || scanBusyRef.current) {
+      if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || scanBusyRef.current || detectedPallet) {
         return;
       }
 
       const now = Date.now();
-      if (now - lastDetectedAtRef.current < 1200) {
+      if (now - lastDetectedAtRef.current < 1200 || now - lastScanAttemptAtRef.current < 150) {
         return;
       }
 
+      lastScanAttemptAtRef.current = now;
       scanBusyRef.current = true;
 
       try {
         let rawValue: string | null = null;
 
         if (detector) {
-          const codes = await detector.detect(video);
-          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
-        } else {
+          try {
+            const codes = await detector.detect(video);
+            rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+          } catch {
+            rawValue = null;
+          }
+        }
+
+        if (!rawValue) {
           rawValue = decodeQrFromVideo(video, scanCanvasRef);
         }
 
@@ -195,6 +205,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
     const startCamera = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError('This browser does not provide camera access. Scan a QR image instead.');
         return;
       }
 
@@ -203,6 +214,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       }
 
       try {
+        setCameraError(null);
         const detector = await getBarcodeDetector();
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
@@ -228,7 +240,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
         setIsCameraActive(true);
         runDetectionLoop();
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'NotAllowedError') {
+          setCameraError('Camera access was blocked. Allow the camera and try again.');
+        } else {
+          setCameraError('The camera could not be started. Scan a QR image instead.');
+        }
         stopCamera();
       }
     };
@@ -239,7 +256,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       cancelled = true;
       stopCamera();
     };
-  }, [getBarcodeDetector, handleDetectedCode, scanMode]);
+  }, [detectedPallet, getBarcodeDetector, handleDetectedCode, scanMode]);
 
   const simulateScan = () => {
     setIsScanning(true);
@@ -281,6 +298,96 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     onClose();
   };
 
+  const handleScanImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    let bitmap: ImageBitmap | null = null;
+
+    try {
+      const detector = await getBarcodeDetector();
+      bitmap = await createImageBitmap(file);
+      let rawValue: string | null = null;
+
+      if (detector) {
+        try {
+          const codes = await detector.detect(bitmap);
+          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+        } catch {
+          rawValue = null;
+        }
+      }
+
+      rawValue = rawValue || decodeQrFromImageBitmap(bitmap, scanCanvasRef);
+
+      if (rawValue) {
+        handleDetectedCode(rawValue);
+      } else {
+        setScanError('No QR code was found in that image.');
+      }
+    } catch {
+      setScanError('That image could not be read. Try a PNG or JPG photo of the QR code.');
+    } finally {
+      bitmap?.close();
+    }
+  };
+
+  const clearScanPhoto = () => {
+    if (scanPhotoPreview) {
+      URL.revokeObjectURL(scanPhotoPreview);
+    }
+
+    setScanPhoto(null);
+    setScanPhotoPreview(null);
+  };
+
+  const continueAfterPhoto = async () => {
+    if (!detectedPallet) {
+      return;
+    }
+
+    setIsSavingScanPhoto(true);
+    setScanPhotoError(null);
+
+    try {
+      if (scanPhoto) {
+        const nextStatusId = isDetailScan ? detectedPallet.current_status_id : selectedStatusId;
+        const clientId =
+          nextStatusId === 4
+            ? selectedClientId ?? detectedPallet.user_id
+            : detectedPallet.current_status_id === 4
+              ? detectedPallet.user_id
+              : undefined;
+
+        await apiService.palletPhotos.uploadScan(detectedPallet.id, scanPhoto, {
+          old_status_id: detectedPallet.current_status_id,
+          new_status_id: nextStatusId,
+          client_id: clientId,
+        });
+      }
+
+      if (onPalletDetected) {
+        onPalletDetected(detectedPallet);
+        return;
+      }
+
+      setScannedCodes((previous) => (
+        previous.includes(detectedPallet.qr_code) ? previous : [...previous, detectedPallet.qr_code]
+      ));
+      setDetectedPallet(null);
+      clearScanPhoto();
+    } catch (error) {
+      console.error('Failed to upload pallet photo', error);
+      setScanPhotoError('Photo could not be uploaded. Please try again.');
+    } finally {
+      setIsSavingScanPhoto(false);
+    }
+  };
+
   return (
     <div id="scanner-modal" className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-3 sm:p-4">
       <motion.div
@@ -300,7 +407,77 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           </div>
 
           <div className="flex flex-1 flex-col items-center overflow-y-auto bg-white p-5 md:p-8 no-scrollbar">
-            {!scanMode ? (
+            {detectedPallet ? (
+              <div className="w-full max-w-md py-6 space-y-6">
+                <div className="text-center space-y-2">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                    <CheckCircle2 size={28} />
+                  </div>
+                  <h3 className="text-xl font-black uppercase tracking-tight text-zinc-950">{detectedPallet.pallet_name || detectedPallet.qr_code}</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Pallet scanned</p>
+                </div>
+
+                <div className="border border-zinc-200 bg-zinc-50 p-4">
+                  {scanPhotoPreview ? (
+                    <div className="relative overflow-hidden border border-zinc-200 bg-white">
+                      <img src={scanPhotoPreview} alt="Pallet" className="h-48 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={clearScanPhoto}
+                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center bg-zinc-950 text-white"
+                        title={t('remove')}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label htmlFor="scan-pallet-photo" className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 border border-dashed border-zinc-300 bg-white text-zinc-500 hover:border-emerald-500 hover:text-emerald-700">
+                      <Camera size={24} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Add pallet photo</span>
+                    </label>
+                  )}
+                  <input
+                    id="scan-pallet-photo"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      clearScanPhoto();
+                      setScanPhoto(file);
+                      setScanPhotoPreview(URL.createObjectURL(file));
+                    }}
+                  />
+                  {scanPhotoError && <p className="mt-3 text-xs font-semibold text-rose-600">{scanPhotoError}</p>}
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    disabled={isSavingScanPhoto}
+                    onClick={() => {
+                      clearScanPhoto();
+                      if (onPalletDetected) {
+                        onPalletDetected(detectedPallet);
+                      } else {
+                        setScannedCodes((previous) => (
+                          previous.includes(detectedPallet.qr_code) ? previous : [...previous, detectedPallet.qr_code]
+                        ));
+                        setDetectedPallet(null);
+                      }
+                    }}
+                  >
+                    Skip photo
+                  </Button>
+                  <Button className="flex-1" disabled={isSavingScanPhoto} onClick={continueAfterPhoto}>
+                    {isSavingScanPhoto ? 'Saving...' : scanPhoto ? 'Save photo' : 'Continue'}
+                  </Button>
+                </div>
+              </div>
+            ) : !scanMode ? (
               <div className="w-full max-w-2xl py-12 space-y-8 flex flex-col items-center">
                 <div className="text-center space-y-1">
                   <h3 className="text-2xl font-black tracking-tighter uppercase text-black font-display">{t('selectOperation')}</h3>
@@ -345,6 +522,8 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                     onClick={() => {
                       setScanMode(null);
                       setScannedCodes([]);
+                      setDetectedPallet(null);
+                      clearScanPhoto();
                     }}
                     className="text-zinc-400 -ml-2"
                   >
@@ -421,6 +600,13 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                 )}
 
                 <div className="bg-zinc-50 rounded-2xl p-6 flex flex-col items-center border border-zinc-200">
+                  <input
+                    ref={scanImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleScanImageChange}
+                  />
                   <div
                     className="relative mb-3 aspect-square w-full max-w-[240px] select-none group"
                   >
@@ -466,6 +652,15 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mb-5 flex w-full max-w-[240px] flex-col gap-2">
+                    <Button variant="outline" size="sm" onClick={() => scanImageInputRef.current?.click()}>
+                      <QrCode size={15} className="mr-2" /> Scan QR image
+                    </Button>
+                    {(cameraError || scanError) && (
+                      <p className="text-center text-xs font-medium text-rose-600">{cameraError || scanError}</p>
+                    )}
                   </div>
 
                   <div className="sticky top-0 z-10 mx-auto mb-6 w-3/4 max-w-[180px] rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
