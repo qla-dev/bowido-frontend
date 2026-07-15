@@ -23,6 +23,7 @@ import { languageOptions } from './i18n';
 
 const CURRENT_USER_STORAGE_KEY = 'trackpal_current_user';
 const LOGIN_PROFILES_STORAGE_KEY = 'trackpal_login_profiles';
+const ACTIVE_TAB_STORAGE_KEY = 'trackpal_active_tab';
 const RECENT_LOGIN_LIMIT = 6;
 
 type LoginMode = 'user' | 'customer';
@@ -35,6 +36,91 @@ type StoredLoginProfile = {
   kvk?: string;
   saved: boolean;
   lastUsedAt: string;
+};
+
+type StoredActiveTab = {
+  userId: number;
+  roleName: string;
+  tab: string;
+};
+
+const adminActiveTabs = new Set([
+  'dashboard',
+  'pallets',
+  'no-qr-pallets',
+  'calendar',
+  'audit-logs',
+  'users',
+  'client-manager',
+  'admin-service',
+  'admin-warehouse',
+  'admin-finance',
+  'korisnici',
+  'roles',
+  'invoices',
+  'settings',
+]);
+
+const customerActiveTabs = new Set(['dashboard', 'settings', 'client-table', 'invoices']);
+const basicActiveTabs = new Set(['dashboard', 'settings']);
+
+const canUseActiveTab = (user: User, tab: string) => {
+  if (user.role_name === RoleType.ADMIN) {
+    return adminActiveTabs.has(tab);
+  }
+
+  if (user.role_name === RoleType.KLIJENT) {
+    return customerActiveTabs.has(tab);
+  }
+
+  return basicActiveTabs.has(tab);
+};
+
+const readStoredActiveTab = (user: User | null) => {
+  if (typeof window === 'undefined' || !user) {
+    return 'dashboard';
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+    const storedTab = storedValue ? JSON.parse(storedValue) as StoredActiveTab : null;
+
+    if (
+      storedTab?.userId === user.id &&
+      storedTab.roleName === user.role_name &&
+      typeof storedTab.tab === 'string' &&
+      canUseActiveTab(user, storedTab.tab)
+    ) {
+      return storedTab.tab;
+    }
+  } catch {
+    window.localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
+  }
+
+  return 'dashboard';
+};
+
+const storeActiveTab = (user: User | null, tab: string) => {
+  if (typeof window === 'undefined' || !user || !canUseActiveTab(user, tab)) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    ACTIVE_TAB_STORAGE_KEY,
+    JSON.stringify({
+      userId: user.id,
+      roleName: user.role_name,
+      tab,
+    } satisfies StoredActiveTab)
+  );
+};
+
+const clearStoredActiveTab = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
 };
 
 const readStoredCurrentUser = (): User | null => {
@@ -278,7 +364,7 @@ export default function App() {
   const [isCredentialLoginSubmitting, setIsCredentialLoginSubmitting] = useState(false);
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => readStoredActiveTab(currentUser));
   const [isNightMode, setIsNightMode] = useState(false);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<number | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
@@ -372,6 +458,30 @@ export default function App() {
   const credentialLoginCopy = getCredentialLoginCopy(language);
   const savedLoginProfiles = loginProfiles.filter((profile) => profile.saved);
   const recentLoginProfiles = loginProfiles.filter((profile) => !profile.saved);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    setActiveTab((currentTab) => {
+      if (canUseActiveTab(currentUser, currentTab) && currentTab !== 'dashboard') {
+        return currentTab;
+      }
+
+      const storedTab = readStoredActiveTab(currentUser);
+
+      if (storedTab !== currentTab) {
+        return storedTab;
+      }
+
+      return canUseActiveTab(currentUser, currentTab) ? currentTab : 'dashboard';
+    });
+  }, [currentUser?.id, currentUser?.role_name]);
+
+  useEffect(() => {
+    storeActiveTab(currentUser, activeTab);
+  }, [activeTab, currentUser?.id, currentUser?.role_name]);
 
   useEffect(() => {
     if (!usesInternalScrollShell) {
@@ -540,6 +650,7 @@ export default function App() {
     void apiService.auth.logout();
     setCurrentUser(null);
     storeCurrentUser(null);
+    clearStoredActiveTab();
     setActiveTab('dashboard');
     setIsGhostReportOpen(false);
     resetData();
