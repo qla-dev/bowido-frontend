@@ -4,7 +4,7 @@ import {
   Filter, MoreVertical, MapPin, Clock, Settings as SettingsIcon,
   Plus, History, ClipboardList, TrendingUp, Info, X
 } from 'lucide-react';
-import { StatCard, Card, Button, Input, Select, Badge } from './ui';
+import { StatCard, Card, Button, Input, Select, Badge, cn } from './ui';
 import { PalletScanner } from './PalletScanner';
 import { DamageReportModal } from './DamageReportModal';
 import { BillingList } from './BillingList';
@@ -61,6 +61,29 @@ type DeleteConfirmState =
   | { kind: 'pallet'; pallet: Pallet }
   | { kind: 'status'; status: PalletStatus }
   | null;
+
+const FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID: Partial<Record<number, string>> = {
+  1: 'Nikole Tesle 71',
+  3: 'Maxwellstraat 2-4, 3316 GP Dordrecht',
+};
+
+const getFixedWarehouseLocation = (statusId?: number, statusName?: string) => {
+  if (statusId && FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID[statusId]) {
+    return FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID[statusId];
+  }
+
+  const normalizedStatusName = (statusName || '').toLowerCase().replace(/\s+/g, '');
+
+  if (normalizedStatusName === 'bowido(nl)' || normalizedStatusName === 'bowidonl') {
+    return 'Maxwellstraat 2-4, 3316 GP Dordrecht';
+  }
+
+  if (normalizedStatusName === 'bowidobih') {
+    return 'Nikole Tesle 71';
+  }
+
+  return undefined;
+};
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   initialView = 'overview',
@@ -240,7 +263,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const invalidRangeLabel = language === 'bs' ? 'Unesi ispravan raspon.' : language === 'nl' ? 'Vul een geldig bereik in.' : 'Enter a valid range.';
   const bulkHintLabel = language === 'bs' ? 'Status novih paleta' : language === 'nl' ? 'Status van nieuwe bokken' : 'Status for new pallets';
   const createBulkLabel = language === 'bs' ? 'Kreiraj palete' : language === 'nl' ? 'Bokken aanmaken' : 'Create pallets';
-  const referenceCodeLabel = language === 'bs' ? 'Stari QR / referenca' : language === 'nl' ? 'Oude QR / referentie' : 'Old QR / reference';
 
   const parseBulkNumber = (value: string) => {
     const trimmedValue = value.trim();
@@ -358,10 +380,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleEditPallet = (pallet: Pallet) => {
+    const fixedLocation = getFixedWarehouseLocation(pallet.current_status_id, pallet.current_status_name);
+
     setSelectedPallet(null);
     setShowEditingPalletDetails(false);
     setEditingPallet({
       ...pallet,
+      current_location: fixedLocation || pallet.current_location,
       type: normalizePalletTypeCode(pallet.type) || pallet.type,
     });
   };
@@ -464,12 +489,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  const detailToggleLabel =
-    language === 'bs' ? 'Prikaz detalja' : language === 'nl' ? 'Details tonen' : 'Show details';
   const hideDetailLabel =
     language === 'bs' ? 'Sakrij detalje' : language === 'nl' ? 'Details verbergen' : 'Hide details';
+  const showDetailLabel =
+    language === 'bs' ? 'Prikaz detalja' : language === 'nl' ? 'Details tonen' : 'Show details';
   const daysOutsideLabel =
     language === 'bs' ? 'Dana vani' : language === 'nl' ? 'Dagen buiten' : 'Days out';
+  const detailsSectionLabel = language === 'bs' ? 'Detalji' : 'Details';
   const noMovementHistoryLabel =
     language === 'bs'
       ? 'Nema zabiljezene historije kretanja.'
@@ -477,6 +503,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ? 'Geen bewegingshistoriek beschikbaar.'
         : 'No movement history available.';
   const notAvailableLabel = language === 'bs' ? 'Nije dostupno' : language === 'nl' ? 'Niet beschikbaar' : 'Not available';
+  const getAssignedClient = (pallet: Pallet) =>
+    pallet.user_id ? clients.find((client) => client.user_id === pallet.user_id) : undefined;
+  const getPrimaryClientAddress = (client?: ClientDetail) =>
+    client?.warehouse_addresses?.map((address) => address.trim()).find(Boolean);
+  const isAtCustomerStatus = (pallet: Pallet) =>
+    pallet.current_status_id === 4 ||
+    pallet.current_status_name === 'Bij de klant' ||
+    pallet.current_status_name === 'At Customer';
+  const getStatusLocationLabel = (pallet: Pallet) => {
+    const fixedLocation = getFixedWarehouseLocation(pallet.current_status_id, pallet.current_status_name);
+    const assignedClient = getAssignedClient(pallet);
+    const clientAddress = getPrimaryClientAddress(assignedClient);
+
+    if (fixedLocation) {
+      return fixedLocation;
+    }
+
+    if (isAtCustomerStatus(pallet) && clientAddress) {
+      return clientAddress;
+    }
+
+    return pallet.current_location?.trim() || clientAddress || notAvailableLabel;
+  };
+  const getAssignedClientLabel = (pallet: Pallet) =>
+    getAssignedClient(pallet)?.name || pallet.client_name || t('noClient');
+  const getPalletTitleLabel = (pallet: Pallet) =>
+    pallet.pallet_name?.trim() || pallet.qr_code?.trim() || notAvailableLabel;
+  const renderPalletInfoTile = (label: string, value: React.ReactNode, className?: string) => (
+    <div className={cn('min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-white/[0.06]', className)}>
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-500">
+        {label}
+      </p>
+      <div className="mt-2 break-words text-[15px] font-black leading-5 text-zinc-950 dark:text-white">
+        {value}
+      </div>
+    </div>
+  );
   const formatDaysOutsideValue = (days: number) => {
     if (language === 'bs') {
       return `${days} ${days === 1 ? 'dan' : 'dana'}`;
@@ -1079,7 +1142,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex gap-2">
                     {user.role_name === RoleType.ADMIN && (
                       <button 
-                        onClick={() => setEditingPallet(selectedPallet)}
+                        onClick={() => handleEditPallet(selectedPallet)}
                         className="px-4 py-2 bg-gray-50 text-black border border-gray-100 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-colors"
                       >
                          {t('editData')}
@@ -1092,7 +1155,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-4">
                   <div className="p-4 bg-gray-50 rounded-2xl">
                     <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">{t('location')}</span>
-                    <p className="text-xs font-black uppercase">{selectedPallet.current_location}</p>
+                    <p className="text-xs font-black uppercase">{getStatusLocationLabel(selectedPallet)}</p>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-2xl">
                     <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">{t('status')}</span>
@@ -1166,252 +1229,270 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="w-full max-w-3xl overflow-y-auto rounded-[3rem] border-t-[6px] border-emerald-600 bg-white p-8 shadow-2xl max-h-[95vh] no-scrollbar"
+              className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#101715]"
             >
-              <div className="mb-8 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-4xl font-black uppercase tracking-tight text-emerald-900">
-                    {editingPallet.qr_code}
-                  </h3>
-                  <p className="mt-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-400">
-                    {getPalletTypeLabel(editingPallet.type, language)}
+              <div className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4 dark:border-white/10 sm:px-6">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
+                    {t('pallets')}
                   </p>
+                  <h3 className="mt-1 truncate text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white sm:text-2xl">
+                    {getPalletTitleLabel(editingPallet)}
+                  </h3>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    title={t('showQrCode')}
-                    aria-label={t('showQrCode')}
-                    onClick={() => openQrPreview(editingPallet)}
-                    disabled={!editingPallet.qr_code.trim()}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-emerald-800 transition-colors hover:border-zinc-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <QrCode size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowEditingPalletDetails((current) => !current)}
-                    className="rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800 transition-colors hover:border-zinc-300 hover:bg-white"
-                  >
-                    {showEditingPalletDetails ? hideDetailLabel : detailToggleLabel}
-                  </button>
-                  <button
+                    aria-label={t('closeDetails')}
                     onClick={() => {
                       setEditingPallet(null);
                       setShowEditingPalletDetails(false);
                     }}
-                    className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:bg-white/[0.07] dark:text-zinc-300 dark:hover:bg-white/[0.12] dark:hover:text-white"
                   >
                     <X size={20} />
                   </button>
                 </div>
               </div>
-              <div className="space-y-4">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('qrCode')}</label>
-                      <input 
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-black" 
-                        value={editingPallet.qr_code} 
-                        onChange={e => setEditingPallet({...editingPallet, qr_code: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{referenceCodeLabel}</label>
-                      <input
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-black"
-                        value={editingPallet.reference_code || ''}
-                        onChange={e => setEditingPallet({...editingPallet, reference_code: e.target.value || undefined})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('palletType')}</label>
-                      <select
-                        value={editingPallet.type}
-                        onChange={e => setEditingPallet({...editingPallet, type: e.target.value})}
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                      >
-                        {getPalletTypeOptions(editingPallet.type).map((palletType) => (
-                          <option
-                            key={palletType}
-                            value={palletType}
-                          >
-                            {getPalletTypeLabel(palletType, language)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                 </div>
 
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('globalStatus')}</label>
-                      <select 
-                        value={editingPallet.current_status_id}
-                        onChange={e => {
-                          const sid = parseInt(e.target.value);
-                          const sname = statuses.find(s => s.id === sid)?.name || '';
-                          setEditingPallet({...editingPallet, current_status_id: sid, current_status_name: sname});
-                        }}
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                      >
-                         {statuses.map(s => <option key={`filter-status-${s.id}`} value={s.id}>{getStatusLabel(s.name, language)}</option>)}
-                      </select>
+              <div className="min-h-0 flex-1 overflow-y-auto p-5 no-scrollbar sm:p-6">
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+                  <div className="space-y-4">
+                    <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/50 p-5 dark:border-white/10 dark:bg-white/[0.06]">
+                      <div className="flex flex-col gap-4">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
+                            {t('currentStatusLabel')}
+                          </p>
+                          <p className="mt-2 break-words text-3xl font-black uppercase leading-none tracking-tight text-emerald-950 dark:text-white">
+                            {getStatusLabel(editingPallet.current_status_name, language)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('assignedClient')}</label>
-                      <select 
-                        value={editingPallet.user_id || ''}
-                        onChange={e => {
-                          const uid = e.target.value ? parseInt(e.target.value) : undefined;
-                          const cname = clients.find(c => c.user_id === uid)?.name || '';
-                          setEditingPallet({...editingPallet, user_id: uid, client_name: cname});
-                        }}
-                        className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                      >
-                         <option value="">{t('noClient')}</option>
-                         {clients.map(c => <option key={`edit-client-${c.id}`} value={c.user_id}>{c.name}</option>)}
-                      </select>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {renderPalletInfoTile(t('palletLabel'), getPalletTitleLabel(editingPallet))}
+                      {renderPalletInfoTile(t('palletType'), getPalletTypeLabel(editingPallet.type, language))}
+                      {renderPalletInfoTile(t('client'), getAssignedClientLabel(editingPallet))}
+                      {renderPalletInfoTile(t('location'), getStatusLocationLabel(editingPallet))}
                     </div>
-                 </div>
-
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('physicalLocation')}</label>
-                    <input 
-                      className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" 
-                      value={editingPallet.current_location} 
-                      onChange={e => setEditingPallet({...editingPallet, current_location: e.target.value})}
-                    />
-                 </div>
-
-                  <div className="space-y-1">
-                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('customOperationalNotes')}</label>
-                     <textarea 
-                      placeholder={t('addOperationalNotes')} 
-                      className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold text-sm h-24"
-                      value={editingPallet.note || ''}
-                      onChange={e => setEditingPallet({...editingPallet, note: e.target.value})}
-                     />
                   </div>
 
-                  <AnimatePresence initial={false}>
-                    {showEditingPalletDetails && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden border-t border-gray-100 pt-6"
-                      >
+                  <div className="flex rounded-[1.5rem] border border-zinc-200 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-white/[0.06]">
+                    <div className="flex w-full items-center justify-center">
+                      {editingPallet.qr_code.trim() ? (
+                        <PalletQrCode
+                          value={editingPallet.qr_code.trim()}
+                          className="aspect-square w-full rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-950 dark:border-white/10"
+                        />
+                      ) : (
+                        <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-white px-4 text-center text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300 dark:border-white/10 dark:bg-[#101715]">
+                          {t('notAvailable')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {showEditingPalletDetails && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-6 overflow-hidden border-t border-zinc-100 pt-5 dark:border-white/10"
+                    >
+                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
+                            {detailsSectionLabel}
+                          </p>
+                          <h4 className="mt-1 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                            {t('editData')}
+                          </h4>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
                         <div className="grid gap-4 md:grid-cols-3">
-                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                              {t('location')}
-                            </p>
-                            <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                              {editingPallet.current_location || notAvailableLabel}
-                            </p>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('palletType')}</label>
+                            <select
+                              value={editingPallet.type}
+                              onChange={e => setEditingPallet({...editingPallet, type: e.target.value})}
+                              className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                            >
+                              {getPalletTypeOptions(editingPallet.type).map((palletType) => (
+                                <option
+                                  key={palletType}
+                                  value={palletType}
+                                >
+                                  {getPalletTypeLabel(palletType, language)}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                              {t('status')}
-                            </p>
-                            <p className="mt-3 text-lg font-black uppercase leading-tight text-blue-600">
-                              {getStatusLabel(editingPallet.current_status_name, language)}
-                            </p>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('globalStatus')}</label>
+                            <select
+                              value={editingPallet.current_status_id}
+                              onChange={e => {
+                                const sid = parseInt(e.target.value);
+                                const sname = statuses.find(s => s.id === sid)?.name || '';
+                                setEditingPallet({
+                                  ...editingPallet,
+                                  current_status_id: sid,
+                                  current_status_name: sname,
+                                  current_location: getFixedWarehouseLocation(sid, sname) || editingPallet.current_location,
+                                });
+                              }}
+                              className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                            >
+                              {statuses.map(s => <option key={`filter-status-${s.id}`} value={s.id}>{getStatusLabel(s.name, language)}</option>)}
+                            </select>
                           </div>
-                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                              {daysOutsideLabel}
-                            </p>
-                            <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                              {formatDaysOutsideValue(calculateDays(editingPallet.last_status_changed_at))}
-                            </p>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('assignedClient')}</label>
+                            <select
+                              value={editingPallet.user_id || ''}
+                              onChange={e => {
+                                const uid = e.target.value ? parseInt(e.target.value) : undefined;
+                                const cname = clients.find(c => c.user_id === uid)?.name || '';
+                                setEditingPallet({...editingPallet, user_id: uid, client_name: cname});
+                              }}
+                              className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                            >
+                              <option value="">{t('noClient')}</option>
+                              {clients.map(c => <option key={`edit-client-${c.id}`} value={c.user_id}>{c.name}</option>)}
+                            </select>
                           </div>
                         </div>
 
-                        <div className="mt-4 grid gap-4">
-                          <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                              {t('timestamp')}
-                            </p>
-                            <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                              {latestEditingPalletStatusLog
-                                ? detailDateFormatter.format(new Date(latestEditingPalletStatusLog.created_at))
-                                : notAvailableLabel}
-                            </p>
-                          </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('physicalLocation')}</label>
+                          <input
+                            className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold disabled:text-gray-500"
+                            value={
+                              getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name) ||
+                              editingPallet.current_location
+                            }
+                            disabled={Boolean(getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name))}
+                            onChange={e => setEditingPallet({...editingPallet, current_location: e.target.value})}
+                          />
                         </div>
 
-                        <div className="mt-6 space-y-4">
-                          <div className="flex items-center gap-2">
-                            <History size={16} className="text-gray-400" />
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                              {t('movementHistory')}
-                            </h4>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('customOperationalNotes')}</label>
+                          <textarea
+                            placeholder={t('addOperationalNotes')}
+                            className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold text-sm h-24"
+                            value={editingPallet.note || ''}
+                            onChange={e => setEditingPallet({...editingPallet, note: e.target.value})}
+                          />
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-6">
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {daysOutsideLabel}
+                              </p>
+                              <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                                {formatDaysOutsideValue(calculateDays(editingPallet.last_status_changed_at))}
+                              </p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {t('timestamp')}
+                              </p>
+                              <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                                {latestEditingPalletStatusLog
+                                  ? detailDateFormatter.format(new Date(latestEditingPalletStatusLog.created_at))
+                                  : notAvailableLabel}
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="space-y-2 max-h-[260px] overflow-y-auto no-scrollbar">
-                            {editingPalletStatusHistory.map((log) => (
-                              <div
-                                key={`editing-log-${log.id}`}
-                                className="flex items-start gap-4 rounded-[1.5rem] border border-gray-100 bg-white p-4"
-                              >
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
-                                  <MapPin size={16} className="text-gray-400" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
-                                    {getStatusLabel(log.new_status_name, language)}
-                                  </p>
-                                  <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                                    {log.new_location || notAvailableLabel}
-                                  </p>
-                                  <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
-                                    {t('changedBy')}: {getAuditActorLabel(log)}
-                                  </p>
-                                  <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
-                                    <Clock size={12} />
-                                    <span>{detailDateFormatter.format(new Date(log.created_at))}</span>
+                          <div className="mt-6 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <History size={16} className="text-gray-400" />
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {t('movementHistory')}
+                              </h4>
+                            </div>
+
+                            <div className="space-y-2 max-h-[260px] overflow-y-auto no-scrollbar">
+                              {editingPalletStatusHistory.map((log) => (
+                                <div
+                                  key={`editing-log-${log.id}`}
+                                  className="flex items-start gap-4 rounded-[1.5rem] border border-gray-100 bg-white p-4"
+                                >
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
+                                    <MapPin size={16} className="text-gray-400" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
+                                      {getStatusLabel(log.new_status_name, language)}
+                                    </p>
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                                      {log.new_location || notAvailableLabel}
+                                    </p>
+                                    <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                                      {t('changedBy')}: {getAuditActorLabel(log)}
+                                    </p>
+                                    <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
+                                      <Clock size={12} />
+                                      <span>{detailDateFormatter.format(new Date(log.created_at))}</span>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
 
-                            {editingPalletStatusHistory.length === 0 && (
-                              <div className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                  {noMovementHistoryLabel}
-                                </p>
-                              </div>
-                            )}
+                              {editingPalletStatusHistory.length === 0 && (
+                                <div className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                    {noMovementHistoryLabel}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
 
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-              <div className="mt-8 grid grid-cols-3 items-center gap-4 border-t border-gray-100 pt-4">
+              <div className="grid shrink-0 grid-cols-3 items-center gap-4 border-t border-zinc-100 p-4 dark:border-white/10 sm:p-5">
                  <button 
-                   onClick={() => {
-                     handleDeletePallet(editingPallet);
-                   }}
-                   className="h-14 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-[0.12em] text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100"
+                   type="button"
+                   onClick={() => setShowEditingPalletDetails((current) => !current)}
+                   className="h-14 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-xs font-black uppercase tracking-[0.12em] text-emerald-800 transition-colors hover:border-emerald-200 hover:bg-emerald-50 dark:border-white/10 dark:bg-white/[0.06] dark:text-emerald-100 dark:hover:bg-white/[0.1]"
                  >
-                    {t('remove')}
+                    {showEditingPalletDetails ? hideDetailLabel : showDetailLabel}
                   </button>
                   <button
                     onClick={() => {
                       setEditingPallet(null);
                       setShowEditingPalletDetails(false);
                     }}
-                    className="h-14 rounded-2xl px-4 text-xs font-black uppercase tracking-[0.12em] text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                    className="h-14 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-[0.12em] text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100"
                   >
                     {t('cancel')}
                   </button>
                   <button onClick={() => {
-                    updatePallet(editingPallet, { id: user.id, name: user.name });
+                    updatePallet(
+                      {
+                        ...editingPallet,
+                        current_location:
+                          getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name) ||
+                          editingPallet.current_location,
+                      },
+                      { id: user.id, name: user.name }
+                    );
                     setEditingPallet(null);
                     setShowEditingPalletDetails(false);
                     setSelectedPallet(null);

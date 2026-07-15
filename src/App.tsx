@@ -1094,6 +1094,8 @@ export default function App() {
         role={currentUser.role_name}
         user={currentUser}
         onLogout={handleLogout}
+        isNightMode={isNightMode}
+        onToggleNightMode={() => setIsNightMode(!isNightMode)}
       />
 
       <div
