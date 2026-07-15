@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
-import { Badge, Card, Input, StatCard } from './ui';
+import { Badge, Card, cn, Input, StatCard } from './ui';
 import { AppLanguage, getStatusLabel, localeMap } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
+import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 
 interface AdminAuditLogsProps {
   auditLogs: AuditLog[];
@@ -17,7 +18,35 @@ interface AdminAuditLogsProps {
 }
 
 type AuditFilter = 'all' | 'status' | 'qr_version';
+type AuditColumnKey = 'timestamp' | 'logType' | 'pallet' | 'changedBy' | 'changeSummary' | 'note';
 const AUDIT_LOG_PAGE_SIZE = 25;
+
+const AUDIT_TABLE_COLUMN_ORDER = [
+  'timestamp',
+  'logType',
+  'pallet',
+  'changedBy',
+  'changeSummary',
+  'note',
+] as const satisfies readonly AuditColumnKey[];
+
+const AUDIT_INITIAL_COLUMN_WIDTHS: Record<AuditColumnKey, number> = {
+  timestamp: 190,
+  logType: 170,
+  pallet: 180,
+  changedBy: 190,
+  changeSummary: 300,
+  note: 240,
+};
+
+const AUDIT_MIN_COLUMN_WIDTHS: Record<AuditColumnKey, number> = {
+  timestamp: 160,
+  logType: 140,
+  pallet: 150,
+  changedBy: 160,
+  changeSummary: 240,
+  note: 180,
+};
 
 export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   auditLogs: cachedAuditLogs,
@@ -42,6 +71,15 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     count: 0,
   });
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const headerCellRefs = useRef<Partial<Record<AuditColumnKey, HTMLTableCellElement | null>>>({});
+  const {
+    headerCellClass,
+    headerContentClass,
+    bodyCellClass,
+    bodyCellInnerClass,
+    bodyTextClass,
+  } = adminTableStyles;
 
   useEffect(() => {
     setPageOffset(0);
@@ -175,6 +213,12 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     </div>
   );
 
+  const renderHeaderLabel = (label: string) => (
+    <p className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 dark:text-zinc-300">
+      {label}
+    </p>
+  );
+
   return (
     <div className="space-y-6 pb-12">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -223,7 +267,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden">
           <table className="w-full min-w-[980px] text-left">
             <thead className="border-b border-zinc-100 bg-zinc-50/50 text-[9px] font-black uppercase tracking-widest text-zinc-400">
               <tr>
@@ -331,9 +375,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           </table>
         </div>
 
-        <PageLoadingModal isOpen={isPageLoading} language={language} />
-
-        <div className="border-t border-zinc-100 p-4">
+        <div className="hidden">
           <ListPagination
             total={paginationMeta.total}
             limit={paginationMeta.limit}
@@ -349,6 +391,182 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           />
         </div>
       </Card>
+
+      <AdminDataTable<AuditColumnKey>
+        columnOrder={AUDIT_TABLE_COLUMN_ORDER}
+        initialColumnWidths={AUDIT_INITIAL_COLUMN_WIDTHS}
+        minColumnWidths={AUDIT_MIN_COLUMN_WIDTHS}
+        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni sirinu kolone' : 'Resize column'}
+        tableRef={tableRef}
+        headerCellRefs={headerCellRefs}
+        isEmpty={!isPageLoading && filteredLogs.length === 0}
+        emptyState={
+          <div className="p-20 text-center text-zinc-400">
+            <History size={28} className="mx-auto mb-3 opacity-40" />
+            <p className="text-[10px] font-black uppercase tracking-[0.16em]">{t('noAuditLogs')}</p>
+          </div>
+        }
+        renderTable={({ columnWidths, totalTableWidth, registerHeaderCell, renderResizeHandle }) => (
+          <table
+            className="border-collapse text-left [table-layout:fixed]"
+            style={{ width: `max(100%, ${totalTableWidth}px)` }}
+          >
+            <colgroup>
+              <col style={{ width: columnWidths.timestamp }} />
+              <col style={{ width: columnWidths.logType }} />
+              <col style={{ width: columnWidths.pallet }} />
+              <col style={{ width: columnWidths.changedBy }} />
+              <col style={{ width: columnWidths.changeSummary }} />
+              <col style={{ width: columnWidths.note }} />
+            </colgroup>
+            <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-white/5">
+              <tr>
+                <th ref={registerHeaderCell('timestamp')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>{renderHeaderLabel(t('timestamp'))}</div>
+                  {renderResizeHandle('timestamp')}
+                </th>
+                <th ref={registerHeaderCell('logType')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>{renderHeaderLabel(t('logType'))}</div>
+                  {renderResizeHandle('logType')}
+                </th>
+                <th ref={registerHeaderCell('pallet')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>{renderHeaderLabel(t('pallets'))}</div>
+                  {renderResizeHandle('pallet')}
+                </th>
+                <th ref={registerHeaderCell('changedBy')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>{renderHeaderLabel(t('changedBy'))}</div>
+                  {renderResizeHandle('changedBy')}
+                </th>
+                <th ref={registerHeaderCell('changeSummary')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>{renderHeaderLabel(t('changeSummary'))}</div>
+                  {renderResizeHandle('changeSummary')}
+                </th>
+                <th ref={registerHeaderCell('note')} className={cn(headerCellClass, 'group')}>
+                  <div className={headerContentClass}>{renderHeaderLabel(t('note'))}</div>
+                  {renderResizeHandle('note')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-white/10">
+              {filteredLogs.map((log) => {
+                const pallet = pallets.find((item) => item.id === log.pallet_id) || null;
+                const logType = log.type || 'status';
+                const oldClientName = getClientName(log.old_client_id);
+                const newClientName = getClientName(log.new_client_id);
+
+                return (
+                  <tr key={`audit-screen-table-${log.id}`} className="transition-colors hover:bg-zinc-50/60 dark:hover:bg-white/5">
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <span className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>
+                          {new Date(log.created_at).toLocaleString(localeMap[language], {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <Badge variant={logType === 'qr_version' ? 'success' : 'info'}>
+                          {logType === 'qr_version' ? t('qrVersionChange') : t('statusChange')}
+                        </Badge>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectPallet(pallet)}
+                          className="min-w-0 text-center transition-opacity hover:opacity-80"
+                        >
+                          <span className="block truncate font-mono text-[11px] font-black text-zinc-900 underline underline-offset-4 dark:text-zinc-100">
+                            {log.pallet_qr}
+                          </span>
+                          {logType === 'qr_version' && log.qr_version && (
+                            <span className="mt-1 inline-flex items-center justify-center gap-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-600">
+                              <QrCode size={11} />
+                              {t('versionLabel')} {log.qr_version}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <div className="min-w-0 text-center">
+                          <p className="truncate text-[11px] font-black text-zinc-900 dark:text-zinc-100">
+                            {log.made_by_user_name || '-'}
+                          </p>
+                          <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400">
+                            #{log.made_by_user_id || '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        {logType === 'qr_version' ? (
+                          <div className="min-w-0 space-y-2 text-center">
+                            <p className="truncate text-[11px] font-black text-zinc-900 dark:text-zinc-100">
+                              {log.old_qr_code || '-'} <span className="text-zinc-300">{'->'}</span> {log.new_qr_code || '-'}
+                            </p>
+                            <div className="space-y-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                              <p className="truncate">{t('oldQrCode')}: {log.old_qr_code || '-'}</p>
+                              <p className="truncate">{t('newQrCode')}: {log.new_qr_code || '-'}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="min-w-0 space-y-2 text-center">
+                            <p className="truncate text-[11px] font-black text-zinc-900 dark:text-zinc-100">
+                              {getStatusLabel(log.old_status_name || '-', language)} <span className="text-zinc-300">{'->'}</span>{' '}
+                              {getStatusLabel(log.new_status_name, language)}
+                            </p>
+                            <div className="space-y-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                              <p className="truncate">{log.old_location || '-'} <span className="text-zinc-300">{'->'}</span> {log.new_location}</p>
+                              {(oldClientName || newClientName) && (
+                                <p className="truncate">{oldClientName || '-'} <span className="text-zinc-300">{'->'}</span> {newClientName || '-'}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className={bodyCellClass}>
+                      <div className={bodyCellInnerClass}>
+                        <p className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>
+                          {log.note || '-'}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      />
+
+      <PageLoadingModal isOpen={isPageLoading} language={language} />
+
+      <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-[#101715]">
+        <ListPagination
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          offset={paginationMeta.offset}
+          count={paginationMeta.count}
+          isLoading={isPageLoading}
+          language={language}
+          onPageChange={setPageOffset}
+          onLimitChange={(limit) => {
+            setPageOffset(0);
+            setPageLimit(limit);
+          }}
+        />
+      </div>
     </div>
   );
 };

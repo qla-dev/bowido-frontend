@@ -1,18 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  AlertTriangle,
   ArrowUpDown,
-  CalendarClock,
   Clock3,
-  Euro,
-  Funnel,
-  Hash,
   MapPin,
   Package,
   RotateCcw,
   Search,
-  Tag,
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
@@ -147,8 +141,6 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   } | null>(null);
   const {
     headerCellClass,
-    headerIconClass,
-    headerIconButtonClass,
     headerContentClass,
     bodyCellClass,
     bodyCellInnerClass,
@@ -489,19 +481,6 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     );
   };
 
-  const renderFilterButton = (key: SortKey) => (
-    <button
-      type="button"
-      onClick={() => setOpenFilterKey((current) => (current === key ? null : key))}
-      className={cn(
-        headerIconButtonClass,
-        selectedFilters[key].length > 0 && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-      )}
-    >
-      <Funnel size={12} />
-    </button>
-  );
-
   const renderFilterMenu = (key: SortKey) => {
     if (openFilterKey !== key || !filterMenuStyle) {
       return null;
@@ -568,18 +547,15 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     );
   };
 
-  const headerConfig: Record<
-    SortKey,
-    { label: string; icon: React.ComponentType<{ size?: number }> }
-  > = {
-    pallet: { label: palletLabel, icon: Hash },
-    type: { label: t('type'), icon: Package },
-    status: { label: t('status'), icon: Tag },
-    lastUpdate: { label: lastUpdateLabel, icon: CalendarClock },
-    location: { label: t('location'), icon: MapPin },
-    daysOut: { label: daysOutLabel, icon: Clock3 },
-    overdueDays: { label: overdueDaysLabel, icon: AlertTriangle },
-    debt: { label: debtLabel, icon: Euro },
+  const headerConfig: Record<SortKey, { label: string }> = {
+    pallet: { label: palletLabel },
+    type: { label: t('type') },
+    status: { label: t('status') },
+    lastUpdate: { label: lastUpdateLabel },
+    location: { label: t('location') },
+    daysOut: { label: daysOutLabel },
+    overdueDays: { label: overdueDaysLabel },
+    debt: { label: debtLabel },
   };
 
   return (
@@ -624,25 +600,18 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80">
               <tr>
-                {COLUMN_ORDER.map((key) => {
-                  const Icon = headerConfig[key].icon;
-                  return (
+                {COLUMN_ORDER.map((key) => (
                     <th
                       key={`client-pallet-header-${key}`}
                       ref={registerHeaderCell(key)}
                       className={cn(headerCellClass, 'group')}
                     >
                       <div className={headerContentClass}>
-                        <div className={headerIconClass}>
-                          <Icon size={16} />
-                        </div>
                         {renderSortButton(key, headerConfig[key].label)}
-                        {renderFilterButton(key)}
                       </div>
                       {renderResizeHandle(key)}
                     </th>
-                  );
-                })}
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">

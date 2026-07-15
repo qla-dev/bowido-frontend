@@ -1,19 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  CalendarClock,
-  Funnel,
+  ArrowUpDown,
   Ghost,
-  Hash,
-  MapPin,
-  MessageSquareText,
   RotateCcw,
   Save,
   Search,
-  Tag,
   Trash2,
-  Truck,
-  User as UserIcon,
   X,
 } from 'lucide-react';
 import { Badge, cn, Input } from './ui';
@@ -33,6 +26,7 @@ type NoQrColumnKey =
   | 'reportedAt'
   | 'pickup'
   | 'comment';
+type SortDirection = 'asc' | 'desc';
 
 type FilterOption = {
   value: string;
@@ -103,10 +97,12 @@ export const NoQrPalletTableView: React.FC = () => {
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: NoQrColumnKey; direction: SortDirection }>({
+    key: 'reportedAt',
+    direction: 'desc',
+  });
   const {
     headerCellClass,
-    headerIconClass,
-    headerIconButtonClass,
     headerContentClass,
     bodyCellClass,
     bodyCellInnerClass,
@@ -371,6 +367,27 @@ export const NoQrPalletTableView: React.FC = () => {
     }
   };
 
+  const getSortValue = (row: NoQrTableRow, key: NoQrColumnKey): string | number => {
+    switch (key) {
+      case 'serial':
+        return row.serial;
+      case 'reportedAt':
+        return new Date(row.pallet.created_at).getTime();
+      case 'client':
+        return row.clientName;
+      case 'status':
+        return row.statusLabel;
+      case 'location':
+        return row.locationLabel;
+      case 'pickup':
+        return row.pickupLabel;
+      case 'comment':
+        return row.commentLabel;
+      default:
+        return '';
+    }
+  };
+
   const filterOptions = useMemo<Record<NoQrColumnKey, FilterOption[]>>(
     () => ({
       serial: rows.map((row) => ({ value: String(row.serial), label: String(row.serial) })),
@@ -411,6 +428,56 @@ export const NoQrPalletTableView: React.FC = () => {
       ),
     [rows, selectedFilters]
   );
+
+  const sortedRows = useMemo(() => {
+    const directionMultiplier = sortConfig.direction === 'asc' ? 1 : -1;
+
+    return [...filteredRows].sort((left, right) => {
+      const leftValue = getSortValue(left, sortConfig.key);
+      const rightValue = getSortValue(right, sortConfig.key);
+
+      if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+        return (leftValue - rightValue) * directionMultiplier;
+      }
+
+      return String(leftValue).localeCompare(String(rightValue), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      }) * directionMultiplier;
+    });
+  }, [filteredRows, sortConfig]);
+
+  const toggleSort = (key: NoQrColumnKey) => {
+    setSortConfig((current) =>
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' }
+    );
+  };
+
+  const renderSortButton = (key: NoQrColumnKey, label: string) => {
+    const isActive = sortConfig.key === key;
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(key)}
+        aria-pressed={isActive}
+        className={cn(
+          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+          isActive
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+            : 'border-transparent text-zinc-900 hover:text-zinc-700'
+        )}
+      >
+        <span className="block min-w-0 truncate">{label}</span>
+        <ArrowUpDown
+          size={13}
+          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+        />
+      </button>
+    );
+  };
 
   const toggleFilterSelection = (key: NoQrColumnKey, value: string) => {
     setSelectedFilters((current) => {
@@ -550,7 +617,7 @@ export const NoQrPalletTableView: React.FC = () => {
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && filteredRows.length === 0}
+        isEmpty={!isPageLoading && sortedRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
@@ -579,157 +646,50 @@ export const NoQrPalletTableView: React.FC = () => {
               <tr>
                 <th ref={registerHeaderCell('serial')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Hash size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      #
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'serial' ? null : 'serial'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('serial') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('serial', '#')}
                   </div>
                   {renderResizeHandle('serial')}
                 </th>
                 <th ref={registerHeaderCell('client')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <UserIcon size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {t('client')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'client' ? null : 'client'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('client') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('client', t('client'))}
                   </div>
                   {renderResizeHandle('client')}
                 </th>
                 <th ref={registerHeaderCell('status')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Tag size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {t('status')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'status' ? null : 'status'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('status') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('status', t('status'))}
                   </div>
                   {renderResizeHandle('status')}
                 </th>
                 <th ref={registerHeaderCell('location')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <MapPin size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {t('location')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'location' ? null : 'location'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('location') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('location', t('location'))}
                   </div>
                   {renderResizeHandle('location')}
                 </th>
                 <th ref={registerHeaderCell('reportedAt')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <CalendarClock size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {returnReportedLabel}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOpenFilterKey((current) => (current === 'reportedAt' ? null : 'reportedAt'))
-                      }
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('reportedAt') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('reportedAt', returnReportedLabel)}
                   </div>
                   {renderResizeHandle('reportedAt')}
                 </th>
                 <th ref={registerHeaderCell('pickup')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Truck size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {pickupLabel}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'pickup' ? null : 'pickup'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('pickup') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('pickup', pickupLabel)}
                   </div>
                   {renderResizeHandle('pickup')}
                 </th>
                 <th ref={registerHeaderCell('comment')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <MessageSquareText size={16} />
-                    </div>
-                    <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
-                      {commentLabel}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setOpenFilterKey((current) => (current === 'comment' ? null : 'comment'))}
-                      className={cn(
-                        headerIconButtonClass,
-                        hasActiveFilter('comment') && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                      )}
-                    >
-                      <Funnel size={12} />
-                    </button>
+                    {renderSortButton('comment', commentLabel)}
                   </div>
                   {renderResizeHandle('comment')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {filteredRows.map((row, index) => (
+              {sortedRows.map((row, index) => (
                 <motion.tr
                   key={`no-qr-row-${row.id}`}
                   initial={{ opacity: 0, x: -5 }}

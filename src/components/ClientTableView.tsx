@@ -3,10 +3,7 @@ import { motion } from 'motion/react';
 import {
   AlertTriangle,
   ArrowUpDown,
-  CreditCard,
   Edit,
-  Funnel,
-  Hash,
   MapPin,
   Package,
   Plus,
@@ -234,8 +231,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const headerCellRefs = useRef<Partial<Record<ColumnKey, HTMLTableCellElement | null>>>({});
   const {
     headerCellClass,
-    headerIconClass,
-    headerIconButtonClass,
     headerContentClass,
     bodyCellClass,
     bodyCellInnerClass,
@@ -632,8 +627,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     setFilterSearch((current) => ({ ...current, [key]: '' }));
   };
 
-  const hasActiveFilter = (key: SortKey) => selectedFilters[key].length > 0;
-
   const renderSortButton = (key: SortKey, label: string) => {
     const isActive = sortConfig.key === key;
 
@@ -657,19 +650,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
       </button>
     );
   };
-
-  const renderFilterButton = (key: SortKey) => (
-    <button
-      type="button"
-      onClick={() => setOpenFilterKey((current) => (current === key ? null : key))}
-      className={cn(
-        headerIconButtonClass,
-        hasActiveFilter(key) && 'border-emerald-300 bg-emerald-50 text-emerald-700'
-      )}
-    >
-      <Funnel size={12} />
-    </button>
-  );
 
   const renderFilterMenu = (key: SortKey) => {
     if (openFilterKey !== key || !filterMenuStyle) {
@@ -1239,70 +1219,43 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
               <tr>
                 <th ref={registerHeaderCell('kvk')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Hash size={16} />
-                    </div>
                     {renderSortButton('kvk', 'KVK')}
-                    {renderFilterButton('kvk')}
                   </div>
                   {renderResizeHandle('kvk')}
                 </th>
                 <th ref={registerHeaderCell('warehouses')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <MapPin size={16} />
-                    </div>
                     {renderSortButton('warehouses', warehousesHeaderLabel)}
-                    {renderFilterButton('warehouses')}
                   </div>
                   {renderResizeHandle('warehouses')}
                 </th>
                 <th ref={registerHeaderCell('rate')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <CreditCard size={16} />
-                    </div>
                     {renderSortButton('rate', t('ratePerDayLabel'))}
-                    {renderFilterButton('rate')}
                   </div>
                   {renderResizeHandle('rate')}
                 </th>
                 <th ref={registerHeaderCell('overdueTotal')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <AlertTriangle size={16} />
-                    </div>
                     {renderSortButton('overdueTotal', overdueTotalHeaderLabel)}
-                    {renderFilterButton('overdueTotal')}
                   </div>
                   {renderResizeHandle('overdueTotal')}
                 </th>
                 <th ref={registerHeaderCell('atClient')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Package size={16} />
-                    </div>
                     {renderSortButton('atClient', atClientHeaderLabel)}
-                    {renderFilterButton('atClient')}
                   </div>
                   {renderResizeHandle('atClient')}
                 </th>
                 <th ref={registerHeaderCell('returnReports')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
-                    <div className={headerIconClass}>
-                      <Undo2 size={16} />
-                    </div>
                     {renderSortButton('returnReports', returnReportsHeaderLabel)}
-                    {renderFilterButton('returnReports')}
                   </div>
                   {renderResizeHandle('returnReports')}
                 </th>
                 {clientIdFilter === undefined && (
                   <th className={cn(headerCellClass, stickyActionsHeaderClass, 'group')}>
                     <div className={headerContentClass}>
-                      <div className={headerIconClass}>
-                        <Edit size={16} />
-                      </div>
                       <p className="text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900">
                         {t('actions')}
                       </p>
