@@ -703,7 +703,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="overflow-x-auto">
                 {overduePallets.length > 0 ? (
                   <table className="w-full">
-                    <thead className="border-b border-zinc-100 bg-zinc-50/95 text-center text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                    <thead className="border-b border-zinc-200 bg-zinc-50/95 text-center text-[9px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                         <tr>
                           <th className="px-4 py-2.5 align-middle">{t('qrCode')}</th>
                           <th className="px-4 py-2.5 align-middle">{t('client')}</th>
@@ -792,7 +792,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  <div className="flex h-full min-h-[19.5rem] overflow-x-auto">
                     {latestActivityLogs.length > 0 ? (
                     <table className="w-full table-fixed text-left">
-                      <thead className="border-b border-zinc-100 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                      <thead className="border-b border-zinc-200 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                         <tr>
                           <th className="w-[48%] px-5 py-3.5 align-middle">{t('qrCode')}</th>
                           <th className="px-5 py-3.5 align-middle">{t('status')}</th>
@@ -829,7 +829,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex h-full min-h-[19.5rem] overflow-x-auto">
                   {latestInventoryPallets.length > 0 ? (
                   <table className="w-full table-fixed text-left">
-                    <thead className="border-b border-zinc-100 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                    <thead className="border-b border-zinc-200 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                       <tr>
                         <th className="w-[58%] px-5 py-3.5 align-middle">{t('qrCode')}</th>
                         <th className="px-5 py-3.5 text-right align-middle">{t('owed')}</th>
