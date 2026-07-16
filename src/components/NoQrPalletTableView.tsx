@@ -16,6 +16,7 @@ import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { Pallet } from '../types';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { apiService, PaginationMeta } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 
@@ -96,6 +97,7 @@ export const NoQrPalletTableView: React.FC = () => {
     count: 0,
   });
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const [palletPendingDeletion, setPalletPendingDeletion] = useState<Pallet | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: NoQrColumnKey; direction: SortDirection }>({
@@ -951,12 +953,7 @@ export const NoQrPalletTableView: React.FC = () => {
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(deleteConfirmLabel)) {
-                    deletePallet(editingPallet.id);
-                    setEditingPallet(null);
-                  }
-                }}
+                onClick={() => setPalletPendingDeletion(editingPallet)}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-rose-600 transition-colors hover:bg-rose-50 sm:w-auto"
               >
                 <Trash2 size={15} />
@@ -977,6 +974,21 @@ export const NoQrPalletTableView: React.FC = () => {
           </motion.div>
         </div>
       )}
+      <DeleteConfirmModal
+        open={Boolean(palletPendingDeletion)}
+        title={`${deleteLabel}?`}
+        subject={palletPendingDeletion ? `#${palletPendingDeletion.id}` : undefined}
+        message={deleteConfirmLabel}
+        confirmLabel={t('remove')}
+        cancelLabel={t('cancel')}
+        onClose={() => setPalletPendingDeletion(null)}
+        onConfirm={() => {
+          if (!palletPendingDeletion) return;
+          deletePallet(palletPendingDeletion.id);
+          setEditingPallet(null);
+          setPalletPendingDeletion(null);
+        }}
+      />
     </div>
   );
 };

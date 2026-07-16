@@ -110,7 +110,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase leading-none text-emerald-900">{t('qrScan')}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">{t('scanToUpdateHint')}</p>
+                <p className="mt-1 text-[11px] font-medium leading-4 text-emerald-700">{t('scanToUpdateHint')}</p>
               </div>
             </div>
             <ArrowRight size={16} className="shrink-0 text-emerald-300" />
@@ -126,7 +126,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-rose-600">{t('reportNow')}</p>
+                <p className="mt-1 text-[11px] font-medium leading-4 text-rose-700">{t('reportNow')}</p>
               </div>
             </div>
             <ArrowRight size={16} className="shrink-0 text-rose-300" />
@@ -142,7 +142,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase leading-none text-blue-900">{t('liveInventory')}</p>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-blue-600">{t('activePallets')}</p>
+                <p className="mt-1 text-[11px] font-medium leading-4 text-blue-700">{t('activePallets')}</p>
               </div>
             </div>
             <ArrowRight size={16} className="shrink-0 text-blue-300" />
@@ -161,19 +161,19 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
         <Card title={t('billingSnapshot')}>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-700">{t('payableAmount')}</p>
+              <p className="text-[11px] font-bold tracking-[0.08em] text-emerald-700">{t('payableAmount')}</p>
               <p className="mt-2 text-2xl font-black tracking-tight text-emerald-950">{`EUR ${calculateTotalDebt().toFixed(2)}`}</p>
             </div>
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-blue-700">{t('unitsInGrace')}</p>
+              <p className="text-[11px] font-bold tracking-[0.08em] text-blue-700">{t('unitsInGrace')}</p>
               <p className="mt-2 text-2xl font-black tracking-tight text-blue-950">{gracePallets.length}</p>
             </div>
             <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-700">{t('chargingSoon')}</p>
+              <p className="text-[11px] font-bold tracking-[0.08em] text-amber-700">{t('chargingSoon')}</p>
               <p className="mt-2 text-2xl font-black tracking-tight text-amber-950">{chargingSoonPallets.length}</p>
             </div>
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">{t('expectedInvoice')}</p>
+              <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-600">{t('expectedInvoice')}</p>
               <p className="mt-2 text-lg font-black tracking-tight text-zinc-950">{nextInvoiceDateLabel}</p>
             </div>
           </div>
@@ -187,7 +187,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   <RotateCcw size={18} />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('returnRequests')}</p>
+                  <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-[#b8cabf]">{t('returnRequests')}</p>
                   <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">{returnRequestedPallets.length}</p>
                 </div>
               </div>
@@ -200,7 +200,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   <Package size={18} />
                 </div>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('activePallets')}</p>
+                  <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-[#b8cabf]">{t('activePallets')}</p>
                   <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">{atClientPallets.length}</p>
                 </div>
               </div>
@@ -208,7 +208,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
             </div>
 
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3 dark:border-white/10 dark:bg-[#151d1a]">
-              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('chargeAlert')}</p>
+              <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-[#b8cabf]">{t('chargeAlert')}</p>
               <p className="mt-2 text-[12px] font-black uppercase tracking-tight text-zinc-900 dark:text-white">
                 {chargingPallets.length > 0 ? `${chargingPallets.length} ${t('activeCharges')}` : t('allUnitsStable')}
               </p>
@@ -264,7 +264,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
 
       <div id="client-fleet-section" className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">{t('currentFleetDetail')}</h3>
+          <h3 className="text-[11px] font-bold tracking-[0.12em] text-zinc-500">{t('currentFleetDetail')}</h3>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -280,31 +280,31 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 dark:text-[#9fcbb3]">{pallet.qr_code}</span>
+                        <span className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-[#b8cabf]">{pallet.qr_code}</span>
                         {isCharging && <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />}
                       </div>
                       <p className="mt-2 truncate text-[13px] font-black uppercase tracking-tight text-zinc-950 dark:text-emerald-50">
                         {getPalletTypeLabel(pallet.type, language)}
                       </p>
-                      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">{pallet.current_location}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-zinc-500 dark:text-[#b8cabf]">{pallet.current_location}</p>
                     </div>
                     <div className="text-right">
                       <Badge variant={pallet.current_status_id === 7 ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
                         {getStatusLabel(pallet.current_status_name, language)}
                       </Badge>
-                      <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">{days} d</p>
+                      <p className="mt-2 text-[11px] font-medium text-zinc-500 dark:text-[#b8cabf]">{days} d</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('chargeAlert')}</p>
+                      <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-[#b8cabf]">{t('chargeAlert')}</p>
                       <p className={`mt-2 text-sm font-black uppercase tracking-tight ${isCharging ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-900 dark:text-white'}`}>
                         {isCharging ? `EUR ${palletDebt.toFixed(2)}` : t('unitsInGrace')}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">{t('gracePeriodLabel')}</p>
+                      <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-[#b8cabf]">{t('gracePeriodLabel')}</p>
                       <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-900 dark:text-white">{graceDays} d</p>
                     </div>
                   </div>

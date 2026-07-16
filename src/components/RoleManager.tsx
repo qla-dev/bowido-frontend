@@ -60,13 +60,7 @@ export const RoleManager: React.FC = () => {
         setPermissions(nextPermissions);
       } catch {
         if (isMounted) {
-          setError(
-            language === 'bs'
-              ? 'Uloge se nisu mogle učitati.'
-              : language === 'nl'
-                ? 'Rollen konden niet worden geladen.'
-                : 'Roles could not be loaded.'
-          );
+          setError(t('rolesLoadError'));
         }
       } finally {
         if (isMounted) {
@@ -117,13 +111,7 @@ export const RoleManager: React.FC = () => {
       setIsEditing(false);
       setCurrentRole(null);
     } catch {
-      setError(
-        language === 'bs'
-          ? 'Uloga nije sačuvana u bazi.'
-          : language === 'nl'
-            ? 'Rol is niet opgeslagen in de database.'
-            : 'Role was not saved in the database.'
-      );
+      setError(t('roleSaveError'));
     } finally {
       setIsSaving(false);
     }
@@ -140,13 +128,7 @@ export const RoleManager: React.FC = () => {
       setReloadKey((current) => current + 1);
       setPendingDeleteRole(null);
     } catch {
-      setError(
-        language === 'bs'
-          ? 'Uloga nije obrisana. Provjeri da nije dodijeljena korisnicima.'
-          : language === 'nl'
-            ? 'Rol is niet verwijderd. Controleer of deze niet aan gebruikers is toegewezen.'
-            : 'Role was not deleted. Check that it is not assigned to users.'
-      );
+      setError(t('roleDeleteError'));
     } finally {
       setIsDeleting(false);
     }
@@ -202,7 +184,7 @@ export const RoleManager: React.FC = () => {
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={language === 'nl' ? 'Zoek rollen' : language === 'bs' ? 'Pretrazi uloge' : 'Search roles'}
+              placeholder={t('searchRoles')}
               className="h-10 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
             />
           </div>
@@ -228,7 +210,7 @@ export const RoleManager: React.FC = () => {
       {!isLoading && roles.length === 0 && (
         <Card>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
-            {language === 'bs' ? 'Nema uloga u bazi.' : language === 'nl' ? 'Geen rollen gevonden.' : 'No roles found.'}
+            {t('noRolesFound')}
           </p>
         </Card>
       )}
@@ -362,9 +344,7 @@ export const RoleManager: React.FC = () => {
                     onClick={handleDelete}
                     disabled={isDeleting}
                   >
-                    {isDeleting
-                      ? language === 'bs' ? 'Brisanje...' : language === 'nl' ? 'Verwijderen...' : 'Deleting...'
-                      : t('remove')}
+                    {isDeleting ? t('deleting') : t('remove')}
                   </Button>
                 </div>
               </Card>
@@ -451,7 +431,7 @@ export const RoleManager: React.FC = () => {
                         )}
                         {perm.code === 'image_gallery' && currentRole?.permissions?.includes(perm.id) && (
                           <select value={currentRole.role_permissions?.find(grant => grant.module_id === perm.id)?.scope || 'all'} onChange={event => setGalleryScope(perm.id, event.target.value as 'all' | 'warehouse_nl' | 'warehouse_bih')} className="mx-2 mb-2 h-11 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-bold">
-                            <option value="all">{language === 'bs' ? 'Admin / sve slike' : language === 'nl' ? 'Admin / alle afbeeldingen' : 'Admin / all images'}</option>
+                            <option value="all">{t('allImages')}</option>
                             <option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option>
                           </select>
                         )}
@@ -474,9 +454,7 @@ export const RoleManager: React.FC = () => {
                     onClick={handleSave}
                     disabled={isSaving}
                   >
-                    {isSaving
-                      ? language === 'bs' ? 'Spremanje...' : language === 'nl' ? 'Opslaan...' : 'Saving...'
-                      : t('save')}
+                    {isSaving ? t('roleSaving') : t('save')}
                   </Button>
                 </div>
               </Card>

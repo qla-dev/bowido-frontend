@@ -15,6 +15,29 @@
     --brand-dark: #008f49;
     --brand-soft: #E8FFF3;
     --ink: #14532d;
+    --surface-page: #ffffff;
+    --surface-panel: #ffffff;
+    --surface-raised: #f8fafc;
+    --surface-input: #f4f4f5;
+    --surface-overlay: rgb(15 23 42 / 0.32);
+    --border-subtle: #e4e4e7;
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+    --text-muted: #71717a;
+    --action-primary: #00a655;
+    --action-primary-hover: #008f49;
+    --status-info-bg: #eef2ff;
+    --status-info-text: #4f46e5;
+    --status-info-border: #c7d2fe;
+    --status-success-bg: #ecfdf5;
+    --status-success-text: #047857;
+    --status-success-border: #a7f3d0;
+    --status-warning-bg: #fffbeb;
+    --status-warning-text: #b45309;
+    --status-warning-border: #fde68a;
+    --status-danger-bg: #fff1f2;
+    --status-danger-text: #be123c;
+    --status-danger-border: #fecdd3;
     --surface-dark: #070b0a;
     --surface-dark-elevated: #101715;
     --surface-dark-soft: #17211d;
@@ -22,6 +45,32 @@
     --dark-border: rgb(217 249 230 / 0.12);
     --dark-text: #f4f8f5;
     --dark-muted: #9bb0a5;
+  }
+
+  .dark {
+    --surface-page: #070b0a;
+    --surface-panel: #101715;
+    --surface-raised: #151d1a;
+    --surface-input: #151d1a;
+    --surface-overlay: rgb(0 0 0 / 0.45);
+    --border-subtle: rgb(217 249 230 / 0.12);
+    --text-primary: #f4f8f5;
+    --text-secondary: #cce0d3;
+    --text-muted: #9bb0a5;
+    --action-primary: #10b981;
+    --action-primary-hover: #34d399;
+    --status-info-bg: rgb(56 189 248 / 0.14);
+    --status-info-text: #dbeafe;
+    --status-info-border: rgb(125 211 252 / 0.28);
+    --status-success-bg: rgb(52 211 153 / 0.14);
+    --status-success-text: #d1fae5;
+    --status-success-border: rgb(110 231 183 / 0.26);
+    --status-warning-bg: rgb(251 191 36 / 0.15);
+    --status-warning-text: #fde68a;
+    --status-warning-border: rgb(252 211 77 / 0.28);
+    --status-danger-bg: rgb(251 113 133 / 0.16);
+    --status-danger-text: #fecdd3;
+    --status-danger-border: rgb(253 164 175 / 0.28);
   }
 
   body {
@@ -34,7 +83,7 @@
   body,
   #root {
     min-height: 100%;
-    background-color: #fff;
+    background-color: var(--surface-page);
   }
 
   button:not(:disabled),
@@ -53,9 +102,9 @@
 
   .dark body {
     background:
-    radial-gradient(circle at top left, rgb(255 255 255 / 0.045), transparent 34rem),
-      linear-gradient(180deg, #070b0a 0%, #0a0f0d 46%, #060807 100%);
-    color: var(--dark-text);
+      radial-gradient(circle at top left, rgb(255 255 255 / 0.045), transparent 34rem),
+      linear-gradient(180deg, var(--surface-page) 0%, #0a0f0d 46%, #060807 100%);
+    color: var(--text-primary);
   }
   
   h1, h2, h3, h4, .font-display {
@@ -66,7 +115,7 @@
 @layer components {
   .modal-overlay,
   .scanner-overlay {
-    background-color: rgb(17 24 39 / 0.32);
+    background-color: var(--surface-overlay);
     backdrop-filter: blur(8px);
   }
 
@@ -229,7 +278,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container .bg-zinc-950,
 #app-container .bg-zinc-900,
 #app-container .bg-gray-900 {
-  background-color: var(--brand-dark) !important;
+  background-color: var(--action-primary) !important;
 }
 
 #app-container .bg-black\/60 {
@@ -256,7 +305,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container .text-zinc-950,
 #app-container .text-zinc-900,
 #app-container .text-gray-900 {
-  color: var(--ink) !important;
+  color: var(--text-primary) !important;
 }
 
 #app-container .text-emerald-500,
@@ -300,7 +349,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 }
 
 #app-container.dark .bg-white {
-  background-color: rgb(16 17 19 / 0.97) !important;
+  background-color: var(--surface-panel) !important;
 }
 
 #app-container.dark .text-black,
@@ -308,7 +357,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .text-zinc-900,
 #app-container.dark .text-gray-900,
 #app-container.dark .text-gray-800 {
-  color: var(--dark-text) !important;
+  color: var(--text-primary) !important;
 }
 
 #app-container.dark .text-emerald-950,
@@ -387,7 +436,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .text-gray-500,
 #app-container.dark .text-gray-400,
 #app-container.dark .text-gray-300 {
-  color: var(--dark-muted) !important;
+  color: var(--text-muted) !important;
 }
 
 #app-container.dark .border-zinc-100,
@@ -438,18 +487,18 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .bg-gray-50\/40,
 #app-container.dark .bg-gray-50\/50,
 #app-container.dark .bg-gray-100 {
-  background-color: rgb(24 24 27 / 0.94) !important;
+  background-color: var(--surface-raised) !important;
 }
 
 #app-container.dark .bg-zinc-100 {
-  background-color: rgb(32 32 35 / 0.96) !important;
+  background-color: var(--surface-input) !important;
 }
 
 #app-container.dark .bg-black,
 #app-container.dark .bg-zinc-950,
 #app-container.dark .bg-zinc-900,
 #app-container.dark .bg-gray-900 {
-  background-color: rgb(14 14 16 / 0.98) !important;
+  background-color: var(--action-primary) !important;
 }
 
 #app-container.dark .bg-emerald-50,
@@ -458,7 +507,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .bg-emerald-50\/50,
 #app-container.dark .bg-emerald-50\/60,
 #app-container.dark .bg-emerald-50\/70 {
-  background-color: rgb(39 39 42 / 0.78) !important;
+  background-color: var(--status-success-bg) !important;
 }
 
 #app-container.dark .bg-rose-50,
@@ -469,7 +518,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .bg-rose-50\/50,
 #app-container.dark .bg-rose-50\/70,
 #app-container.dark .bg-rose-50\/60 {
-  background-color: rgb(244 63 94 / 0.22) !important;
+  background-color: var(--status-danger-bg) !important;
 }
 
 #app-container.dark .bg-amber-50,
@@ -477,7 +526,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .bg-amber-50\/40,
 #app-container.dark .bg-amber-50\/60,
 #app-container.dark .bg-amber-50\/70 {
-  background-color: rgb(245 158 11 / 0.23) !important;
+  background-color: var(--status-warning-bg) !important;
 }
 
 #app-container.dark .bg-blue-50,
@@ -491,7 +540,7 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 #app-container.dark .bg-indigo-50\/40,
 #app-container.dark .bg-indigo-50\/60,
 #app-container.dark .bg-indigo-50\/70 {
-  background-color: rgb(59 130 246 / 0.22) !important;
+  background-color: var(--status-info-bg) !important;
 }
 
 #app-container.dark .bg-orange-50,

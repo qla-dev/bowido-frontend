@@ -17,16 +17,16 @@ export const Badge: React.FC<BadgeProps> = ({
   ...props 
 }) => {
   const styles = {
-    default: 'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-white/[0.07] dark:text-zinc-100 dark:border-white/10',
-    info: 'bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-sky-400/10 dark:text-sky-100 dark:border-sky-300/20',
-    warning: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-400/10 dark:text-amber-100 dark:border-amber-300/20',
-    success: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-white/[0.08] dark:text-zinc-100 dark:border-white/10',
-    danger: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-400/10 dark:text-rose-100 dark:border-rose-300/20',
+    default: 'bg-[var(--surface-raised)] text-[var(--text-secondary)] border-[color:var(--border-subtle)]',
+    info: 'bg-[var(--status-info-bg)] text-[var(--status-info-text)] border-[color:var(--status-info-border)]',
+    warning: 'bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] border-[color:var(--status-warning-border)]',
+    success: 'bg-[var(--status-success-bg)] text-[var(--status-success-text)] border-[color:var(--status-success-border)]',
+    danger: 'bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] border-[color:var(--status-danger-border)]',
   };
 
   return (
     <div className={cn(
-      "px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-widest inline-flex items-center justify-center whitespace-nowrap border",
+      "max-w-full rounded px-2.5 py-1 text-center text-[10px] font-bold leading-4 tracking-[0.08em] inline-flex items-center justify-center whitespace-nowrap border",
       styles[variant],
       className
     )} {...props}>
@@ -48,18 +48,18 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const variants = {
-    primary: 'bg-[#00A655] text-white hover:bg-[#008f49] border-[#00A655] shadow-md shadow-emerald-900/10 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:border-zinc-600 dark:shadow-black/30',
-    secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border-zinc-200 dark:bg-white/[0.08] dark:text-zinc-100 dark:border-white/10 dark:hover:bg-white/[0.13]',
-    outline: 'bg-transparent border-zinc-200 text-zinc-900 hover:border-[#00A655] hover:bg-emerald-50 dark:border-white/12 dark:text-zinc-100 dark:hover:bg-white/[0.09] dark:hover:border-white/20',
-    ghost: 'bg-transparent text-zinc-500 hover:bg-zinc-50 border-transparent dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-white',
-    danger: 'bg-rose-600 text-white hover:bg-rose-700 border-rose-600 shadow-md shadow-rose-900/10',
+    primary: 'border-[color:var(--action-primary)] bg-[var(--action-primary)] text-white shadow-md shadow-emerald-900/10 hover:bg-[var(--action-primary-hover)]',
+    secondary: 'border-[color:var(--border-subtle)] bg-[var(--surface-raised)] text-[var(--text-primary)] hover:bg-[var(--surface-input)]',
+    outline: 'border-[color:var(--border-subtle)] bg-transparent text-[var(--text-primary)] hover:border-[color:var(--action-primary)] hover:bg-[var(--status-success-bg)]',
+    ghost: 'border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text-primary)]',
+    danger: 'border-[color:var(--status-danger-text)] bg-[var(--status-danger-text)] text-white shadow-md shadow-rose-900/10 hover:brightness-90',
   };
 
   const sizes = {
-    xs: 'px-3 py-1.5 text-[9px]',
-    sm: 'px-4 py-2 text-[10px]',
-    md: 'px-5 py-2.5 text-[11px]',
-    lg: 'px-7 py-3.5 text-[12px]',
+    xs: 'px-3 py-1.5 text-[10px]',
+    sm: 'px-4 py-2 text-[11px]',
+    md: 'px-5 py-2.5 text-[12px]',
+    lg: 'px-7 py-3.5 text-[13px]',
   };
 
   return (
@@ -93,14 +93,14 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   return (
     <div className={cn(
-      "bg-white border border-zinc-200 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] rounded-2xl flex flex-col dark:bg-[#101715] dark:border-white/10 dark:shadow-[0_24px_70px_-24px_rgba(0,0,0,0.78)]",
+      "flex flex-col rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] dark:shadow-[0_24px_70px_-24px_rgba(0,0,0,0.78)]",
       className
     )} {...props}>
       {(title || action) && (
         <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/10 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-1.5 h-1.5 bg-[#00A655] rounded-sm dark:bg-zinc-500" />
-            <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-zinc-950 dark:text-white font-display">{title}</h3>
+            <h3 className="font-display text-[12px] font-black uppercase tracking-[0.1em] text-[var(--text-primary)]">{title}</h3>
           </div>
           {action && <div className="flex items-center">{action}</div>}
         </div>
@@ -121,7 +121,7 @@ export const Input: React.FC<InputProps> = ({ className, ...props }) => {
   return (
     <input 
       className={cn(
-        "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all placeholder:text-zinc-300 uppercase tracking-tight dark:bg-[#151d1a] dark:border-white/10 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:bg-[#1b2622] dark:focus:border-white/25",
+        "w-full rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)] focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)]",
         className
       )}
       {...props}
@@ -136,7 +136,7 @@ export const Select: React.FC<SelectProps> = ({ children, className, ...props })
     <div className="relative w-full">
       <select 
         className={cn(
-          "w-full px-4 py-3 bg-zinc-50 border border-zinc-200 focus:border-[#00A655] focus:bg-white rounded-xl font-black text-[12px] outline-none transition-all uppercase tracking-tight appearance-none cursor-pointer pr-10 dark:bg-[#151d1a] dark:border-white/10 dark:text-zinc-50 dark:focus:bg-[#1b2622] dark:focus:border-white/25",
+          "w-full cursor-pointer appearance-none rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 pr-10 text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)]",
           className
         )}
         {...props}
@@ -160,11 +160,11 @@ export const StatCard: React.FC<{
   trendUp?: boolean;
 }> = ({ label, value, variant = 'default', trend, trendUp }) => {
   const styles = {
-    default: 'border-zinc-200 bg-white text-zinc-950 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-50',
-    info: 'border-indigo-100 bg-indigo-50/40 text-indigo-900 dark:border-sky-300/20 dark:bg-sky-400/10 dark:text-sky-100',
-    warning: 'border-amber-100 bg-amber-50/40 text-amber-900 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100',
-    success: 'border-emerald-100 bg-emerald-50/40 text-emerald-900 dark:border-white/10 dark:bg-white/[0.08] dark:text-zinc-100',
-    danger: 'border-rose-100 bg-rose-50/40 text-rose-900 dark:border-rose-300/20 dark:bg-rose-400/10 dark:text-rose-100',
+    default: 'border-[color:var(--border-subtle)] bg-[var(--surface-panel)] text-[var(--text-primary)]',
+    info: 'border-[color:var(--status-info-border)] bg-[var(--status-info-bg)] text-[var(--status-info-text)]',
+    warning: 'border-[color:var(--status-warning-border)] bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]',
+    success: 'border-[color:var(--status-success-border)] bg-[var(--status-success-bg)] text-[var(--status-success-text)]',
+    danger: 'border-[color:var(--status-danger-border)] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]',
   };
 
   return (
@@ -173,13 +173,13 @@ export const StatCard: React.FC<{
       styles[variant]
     )}>
       <div className="flex justify-between items-start mb-2">
-        <p className="text-[9px] font-black uppercase tracking-[0.1em] opacity-60 group-hover:translate-x-1 transition-transform">{label}</p>
+        <p className="text-[11px] font-bold tracking-[0.04em] opacity-70 transition-transform group-hover:translate-x-1">{label}</p>
         {trend && (
           <span className={cn(
-            "text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded border",
+            "rounded border px-2.5 py-1 text-[10px] font-bold tracking-[0.08em]",
             trendUp
-              ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-white/[0.1] dark:text-zinc-100 dark:border-white/10"
-              : "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-400/20 dark:text-rose-100 dark:border-rose-300/20"
+              ? "border-[color:var(--status-success-border)] bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+              : "border-[color:var(--status-danger-border)] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
           )}>
             {trend}
           </span>

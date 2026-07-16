@@ -48,7 +48,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   <div
     id={containerId}
     className={cn(
-      'bg-white text-emerald-900 font-sans selection:bg-[#00A655] selection:text-white transition-colors dark:bg-[#070b0a] dark:text-white',
+      'bg-[var(--surface-page)] text-[var(--text-primary)] font-sans selection:bg-[var(--action-primary)] selection:text-white transition-colors',
       isNightMode && 'dark',
       'fixed inset-0 flex flex-col overflow-hidden'
     )}
@@ -60,7 +60,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
 
         <div className="flex items-center gap-2">
           {onToggleNightMode && (
-            <button type="button" title="Theme" onClick={onToggleNightMode} className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-white text-zinc-700 transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100">
+            <button type="button" title="Theme" onClick={onToggleNightMode} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] text-[var(--text-secondary)] transition-colors">
               {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           )}
@@ -69,7 +69,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
               type="button"
               onClick={onPalletIconClick}
               className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100 dark:hover:bg-white/[0.07]',
+                'flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-raised)]',
                 palletActive
                   ? 'border-[#00A655] bg-[#00A655] text-white'
                   : 'border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700'
@@ -79,7 +79,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
             </button>
           )}
           {showDetailsIcon && (
-            <button type="button" title="Complete details" onClick={onDetailsIconClick} className={cn('flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715]', detailsActive ? 'border-[#00A655] bg-[#00A655] text-white' : 'border-emerald-100 bg-white text-zinc-700')}>
+            <button type="button" title="Complete details" onClick={onDetailsIconClick} className={cn('flex h-10 w-10 items-center justify-center rounded-xl border transition-colors', detailsActive ? 'border-[color:var(--action-primary)] bg-[var(--action-primary)] text-white' : 'border-[color:var(--border-subtle)] bg-[var(--surface-panel)] text-[var(--text-secondary)]')}>
               <Building2 size={18}/>
             </button>
           )}
@@ -88,7 +88,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
             title={settingsTitle}
             onClick={onToggleSettings}
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100 dark:hover:bg-white/[0.07]',
+              'flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-raised)]',
               settingsActive
                 ? 'border-[#00A655] bg-[#00A655] text-white'
                 : 'border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700'
