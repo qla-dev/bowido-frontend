@@ -10,6 +10,17 @@ export interface Role {
   name: string;
   description: string;
   permissions: number[]; // IDs of permissions
+  role_permissions?: RolePermissionGrant[];
+}
+
+export interface RolePermissionGrant {
+  module_id: number;
+  can_list: boolean;
+  can_view: boolean;
+  can_create: boolean;
+  can_update: boolean;
+  can_delete: boolean;
+  scope?: 'all' | 'warehouse_nl' | 'warehouse_bih';
 }
 
 export enum RoleType {
@@ -29,13 +40,20 @@ export interface User {
   email: string;
   role_id: number;
   role_name: RoleType;
+  backend_role_name?: string;
   phone_number?: string;
   customer_detail?: {
     name?: string;
     company_name?: string;
     kvk?: string;
     kvk_number?: string;
+    fixed_phone?: string;
+    billing_email?: string;
+    street?: string;
+    postal_code?: string;
+    warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
   };
+  permission_codes?: string[];
 }
 
 export interface ManagedUser extends User {
@@ -49,6 +67,7 @@ export interface PalletStatus {
   is_billable: boolean; // Naplaćuje se
   grace_period_days: number;
   price_per_day: number;
+  slug: string;
 }
 
 export interface Pallet {
@@ -58,6 +77,7 @@ export interface Pallet {
   pallet_name?: string;
   current_status_id: number;
   current_status_name: string;
+  current_status_slug?: string;
   user_id?: number; // Klijent ID
   client_name?: string;
   type: string;
@@ -118,13 +138,16 @@ export interface PalletPhoto {
   new_status_id?: number;
   client_id?: number;
   service_report_id?: number;
-  type: 'scan' | 'damage_report';
+  type: 'scan' | 'status_change' | 'damage_report' | 'service_report';
+  warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
   original_name?: string;
   mime_type: string;
   size_bytes: number;
   expires_at: string;
   url?: string;
   created_at: string;
+  pallet?: { id: number; qr_code: string; name: string; customer?: string; status?: string };
+  uploader?: { id: number; name: string; role?: string };
 }
 
 export interface ClientDetail {
@@ -141,6 +164,9 @@ export interface ClientDetail {
   grace_period_days: number;
   price_per_day: number;
   is_active: boolean;
+  street?: string;
+  postal_code?: string;
+  warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
 }
 
 export interface GhostPalletReportEntry {

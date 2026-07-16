@@ -9,6 +9,9 @@ import {
   Plus,
   RotateCcw,
   FileSpreadsheet,
+  Check,
+  ChevronDown,
+  CalendarClock,
   X,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
@@ -54,6 +57,8 @@ type FilterSelections = Record<SortKey, string[]>;
 type FilterSearch = Record<SortKey, string>;
 type ColumnWidths = Record<ColumnKey, number>;
 type DeadlineTone = 'muted' | 'success' | 'warning' | 'danger';
+type QuickFilterKey = 'status' | 'deadline';
+type DeadlineFilter = 'overdue' | 'dueSoon' | 'withinTerm' | 'withoutTerm';
 type PalletTimelineInfo = {
   dateLabel: string;
   dateFilterValue: string;
@@ -127,6 +132,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const { pallets: cachedPallets, statuses, clients, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  const quickFilterRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<ColumnKey, HTMLTableCellElement | null>>>({});
   const [pallets, setPagedPallets] = useState<Pallet[]>([]);
   const [pageOffset, setPageOffset] = useState(0);
@@ -166,6 +172,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
+  const [openQuickFilter, setOpenQuickFilter] = useState<QuickFilterKey | null>(null);
+  const [selectedDeadlineFilters, setSelectedDeadlineFilters] = useState<DeadlineFilter[]>([]);
   const [showReportExportModal, setShowReportExportModal] = useState(false);
   const [selectedReportClientId, setSelectedReportClientId] = useState<string>('all');
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
@@ -244,9 +252,14 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       const target = event.target as Node;
       const isInsideTable = tableRef.current?.contains(target);
       const isInsideMenu = filterMenuRef.current?.contains(target);
+      const isInsideQuickFilter = quickFilterRef.current?.contains(target);
 
       if (!isInsideTable && !isInsideMenu) {
         setOpenFilterKey(null);
+      }
+
+      if (!isInsideQuickFilter) {
+        setOpenQuickFilter(null);
       }
     };
 
@@ -329,6 +342,28 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const addPalletLabel =
     language === 'bs' ? 'Dodaj paletu' : language === 'nl' ? 'Bok toevoegen' : 'Add pallet';
+  const statusFilterLabel = language === 'bs' ? 'Status' : language === 'nl' ? 'Status' : 'Status';
+  const deadlineFilterLabel = language === 'bs' ? 'Rok' : language === 'nl' ? 'Termijn' : 'Due status';
+  const deadlineFilterOptions: Array<{ value: DeadlineFilter; label: string }> = language === 'bs'
+    ? [
+        { value: 'overdue', label: 'Kasni' },
+        { value: 'dueSoon', label: 'Ističe za najviše 2 dana' },
+        { value: 'withinTerm', label: 'U roku' },
+        { value: 'withoutTerm', label: 'Bez termina' },
+      ]
+    : language === 'nl'
+      ? [
+          { value: 'overdue', label: 'Te laat' },
+          { value: 'dueSoon', label: 'Verloopt binnen 2 dagen' },
+          { value: 'withinTerm', label: 'Binnen termijn' },
+          { value: 'withoutTerm', label: 'Geen termijn' },
+        ]
+      : [
+          { value: 'overdue', label: 'Overdue' },
+          { value: 'dueSoon', label: 'Due within 2 days' },
+          { value: 'withinTerm', label: 'Within term' },
+          { value: 'withoutTerm', label: 'No due date' },
+        ];
   const reportCopy: CustomerPalletReportText & {
     fabLabel: string;
     modalTitle: string;
@@ -814,9 +849,17 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     [clients, dateFormatter, language, pallets, t, timelineCopy.emptyValue]
   );
 
+  const quickStatusOptions = useMemo(
+    () => statuses
+      .filter((status) => status.is_active)
+      .map((status) => ({ value: getStatusLabel(status.name, language), label: getStatusLabel(status.name, language) }))
+      .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: 'base' })),
+    [language, statuses]
+  );
+
   const filteredPallets = useMemo(() => {
-    return pallets.filter((pallet) =>
-      (Object.keys(selectedFilters) as SortKey[]).every((key) => {
+    return pallets.filter((pallet) => {
+      const matchesColumnFilters = (Object.keys(selectedFilters) as SortKey[]).every((key) => {
         const selectedValues = selectedFilters[key];
 
         if (selectedValues.length === 0) {
@@ -824,9 +867,20 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         }
 
         return selectedValues.includes(getFilterValue(pallet, key));
-      })
-    );
-  }, [clients, language, pallets, selectedFilters, palletTimelineMap]);
+      });
+      const timelineInfo = getTimelineInfo(pallet);
+      const matchesDeadlineFilters = selectedDeadlineFilters.length === 0 || selectedDeadlineFilters.some((filter) => {
+        switch (filter) {
+          case 'overdue': return timelineInfo.tone === 'danger';
+          case 'dueSoon': return timelineInfo.tone === 'warning';
+          case 'withinTerm': return timelineInfo.tone === 'success';
+          case 'withoutTerm': return timelineInfo.tone === 'muted';
+        }
+      });
+
+      return matchesColumnFilters && matchesDeadlineFilters;
+    });
+  }, [clients, language, pallets, selectedDeadlineFilters, selectedFilters, palletTimelineMap]);
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -894,7 +948,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       key: 'lastUpdate',
       direction: 'desc',
     });
+    setSelectedDeadlineFilters([]);
     setOpenFilterKey(null);
+    setOpenQuickFilter(null);
   };
   const reportCurrencyFormatter = new Intl.NumberFormat(
     language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
@@ -999,6 +1055,65 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     }
   };
 
+  const toggleDeadlineFilter = (filter: DeadlineFilter) => {
+    setSelectedDeadlineFilters((current) => current.includes(filter)
+      ? current.filter((item) => item !== filter)
+      : [...current, filter]);
+  };
+
+  const renderQuickFilterOption = (label: string, checked: boolean, onClick: () => void) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-[11px] font-bold normal-case tracking-normal transition-colors',
+        checked
+          ? 'bg-emerald-50 text-emerald-800 dark:bg-white/[0.1] dark:text-zinc-50'
+          : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/[0.07]'
+      )}
+    >
+      <span className={cn(
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+        checked ? 'border-[#00A655] bg-[#00A655] text-white' : 'border-zinc-300 bg-white dark:border-white/30 dark:bg-transparent'
+      )}>
+        {checked && <Check size={12} strokeWidth={3} />}
+      </span>
+      <span className="min-w-0 flex-1">{label}</span>
+    </button>
+  );
+
+  const renderQuickFilterMenu = (key: QuickFilterKey) => {
+    if (openQuickFilter !== key) return null;
+
+    const isStatus = key === 'status';
+    const options = isStatus ? quickStatusOptions : deadlineFilterOptions;
+    const selectedCount = isStatus ? selectedFilters.status.length : selectedDeadlineFilters.length;
+    const clear = isStatus
+      ? () => clearColumnFilter('status')
+      : () => setSelectedDeadlineFilters([]);
+
+    return (
+      <div className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white p-2 shadow-[0_18px_40px_-22px_rgba(0,0,0,0.28)] dark:border-white/15 dark:bg-[#101113] dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]">
+        <button type="button" onClick={clear} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-50">
+          <span>{showAllLabel}</span><RotateCcw size={12} />
+        </button>
+        <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-zinc-100 bg-zinc-50/50 p-1 dark:border-white/15 dark:bg-[#18181b]">
+          {options.length > 0 ? options.map((option) => {
+            const value = option.value;
+            const checked = isStatus
+              ? selectedFilters.status.includes(value)
+              : selectedDeadlineFilters.includes(value as DeadlineFilter);
+            return renderQuickFilterOption(option.label, checked, () => isStatus
+              ? toggleFilterSelection('status', value)
+              : toggleDeadlineFilter(value as DeadlineFilter));
+          }) : <p className="px-3 py-4 text-center text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">{noResultsLabel}</p>}
+        </div>
+        {selectedCount > 0 && <p className="px-3 pt-2 text-[10px] font-bold text-emerald-700 dark:text-emerald-200">{selectedCount}</p>}
+      </div>
+    );
+  };
+
   const renderFilterMenu = (key: SortKey) => {
     if (openFilterKey !== key || !filterMenuStyle) {
       return null;
@@ -1092,14 +1207,28 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           </span>
           {t('pallets')}
         </h2>
-        <div className="relative w-full sm:max-w-sm">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder={searchPlaceholder}
-            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
-          />
+        <div ref={quickFilterRef} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="relative">
+            <button type="button" onClick={() => setOpenQuickFilter((current) => current === 'status' ? null : 'status')} className={cn('flex h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 text-[10px] font-black uppercase tracking-[0.12em] transition-colors sm:w-36', selectedFilters.status.length > 0 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-300/40 dark:bg-emerald-400/10 dark:text-emerald-100' : 'border-zinc-200 bg-white text-zinc-600 hover:border-emerald-200 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200')}>
+              <span className="truncate">{statusFilterLabel}{selectedFilters.status.length > 0 ? ` (${selectedFilters.status.length})` : ''}</span><ChevronDown size={14} className={cn('shrink-0 transition-transform', openQuickFilter === 'status' && 'rotate-180')} />
+            </button>
+            {renderQuickFilterMenu('status')}
+          </div>
+          <div className="relative">
+            <button type="button" onClick={() => setOpenQuickFilter((current) => current === 'deadline' ? null : 'deadline')} className={cn('flex h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 text-[10px] font-black uppercase tracking-[0.12em] transition-colors sm:w-40', selectedDeadlineFilters.length > 0 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-300/40 dark:bg-emerald-400/10 dark:text-emerald-100' : 'border-zinc-200 bg-white text-zinc-600 hover:border-emerald-200 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200')}>
+              <span className="flex min-w-0 items-center gap-1.5 truncate"><CalendarClock size={14} className="shrink-0" />{deadlineFilterLabel}{selectedDeadlineFilters.length > 0 ? ` (${selectedDeadlineFilters.length})` : ''}</span><ChevronDown size={14} className={cn('shrink-0 transition-transform', openQuickFilter === 'deadline' && 'rotate-180')} />
+            </button>
+            {renderQuickFilterMenu('deadline')}
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
+            />
+          </div>
         </div>
       </div>
 

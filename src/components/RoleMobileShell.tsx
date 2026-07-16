@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from 'react';
-import { LogOut, Settings, Boxes } from 'lucide-react';
+import { LogOut, Settings, Boxes, Moon, Sun, Building2 } from 'lucide-react';
 import { cn } from './ui';
 
 interface RoleMobileShellProps {
@@ -12,12 +12,16 @@ interface RoleMobileShellProps {
   palletActive?: boolean;
   onToggleSettings: () => void;
   onLogout: () => void;
+  onToggleNightMode?: () => void;
   logoSrc: string;
   bodyClassName?: string;
   children: ReactNode;
   bottomSlot?: ReactNode;
   showPalletIcon?: boolean;
   onPalletIconClick?: () => void;
+  showDetailsIcon?: boolean;
+  detailsActive?: boolean;
+  onDetailsIconClick?: () => void;
 }
 
 export const RoleMobileShell: FC<RoleMobileShellProps> = ({
@@ -30,12 +34,16 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   palletActive = false,
   onToggleSettings,
   onLogout,
+  onToggleNightMode,
   logoSrc,
   bodyClassName,
   children,
   bottomSlot,
   showPalletIcon = false,
   onPalletIconClick,
+  showDetailsIcon = false,
+  detailsActive = false,
+  onDetailsIconClick,
 }) => (
   <div
     id={containerId}
@@ -51,6 +59,11 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
         <img src={logoSrc} alt="Trackpal logo" className="h-6 w-auto" />
 
         <div className="flex items-center gap-2">
+          {onToggleNightMode && (
+            <button type="button" title="Theme" onClick={onToggleNightMode} className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-white text-zinc-700 transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100">
+              {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          )}
           {showPalletIcon && (
             <button
               type="button"
@@ -63,6 +76,11 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
               )}
             >
               <Boxes size={18} />
+            </button>
+          )}
+          {showDetailsIcon && (
+            <button type="button" title="Complete details" onClick={onDetailsIconClick} className={cn('flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715]', detailsActive ? 'border-[#00A655] bg-[#00A655] text-white' : 'border-emerald-100 bg-white text-zinc-700')}>
+              <Building2 size={18}/>
             </button>
           )}
           <button

@@ -192,6 +192,18 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiE
 
 const apiData = async <T>(path: string, options: RequestInit = {}) => (await request<T>(path, options)).data;
 
+const requestBlob = async (path: string, options: RequestInit = {}) => {
+  const headers = new Headers(options.headers);
+  const token = getStoredToken();
+  headers.set(TOKEN_ONLY_HEADER, 'true');
+  headers.set(LOCALE_HEADER, getRequestLocale());
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const target = /^https?:\/\//i.test(path) ? path : `${API_BASE_URL}${path}`;
+  const response = await fetch(target, { credentials: 'include', ...options, headers });
+  if (!response.ok) throw new ApiError(`Request failed with status ${response.status}`, response.status);
+  return response.blob();
+};
+
 const jsonBody = (body: unknown) => JSON.stringify(body);
 
 const buildQuery = (params: ListParams) => {
@@ -256,6 +268,14 @@ const listAll = async <T>(path: string, params: ListParams = {}) => {
 };
 
 const statusUiBySlug: Record<string, { id: number; name: string }> = {
+  'bowido-bih': { id: 1, name: 'Bowido BIH' },
+  'bowido-nl': { id: 3, name: 'Bowido(NL)' },
+  'bih-nl-transport': { id: 2, name: 'Transport BiH/NL' },
+  'bij-de-klant': { id: 4, name: 'Bij de klant' },
+  'ophalen-klant': { id: 5, name: 'Ophalen klant' },
+  'nl-bih-transport': { id: 6, name: 'Transport (NL/BiH)' },
+  onbekend: { id: 8, name: 'Onbekend' },
+  'bih-drugo': { id: 9, name: 'BiH - drugo' },
   bowido_warehouse: { id: 1, name: 'Bowido BIH' },
   bowido_nl: { id: 3, name: 'Bowido(NL)' },
   transport: { id: 2, name: 'Transport BiH/NL' },
@@ -315,6 +335,7 @@ const normalizeStatus = (status: ApiRecord): PalletStatus => {
     is_billable: Boolean(status.is_billable),
     grace_period_days: Number(status.grace_period_days ?? 0),
     price_per_day: Number(status.price_per_day ?? 0),
+    slug: status.slug || '',
   };
 };
 
@@ -376,6 +397,15 @@ const normalizeRole = (role: ApiRecord): Role => {
     name: role.name || roleType,
     description: role.description || '',
     permissions: (role.permissions || role.module_ids || []).map(Number),
+    role_permissions: Array.isArray(role.role_permissions) ? role.role_permissions.map((permission: ApiRecord) => ({
+      module_id: Number(permission.module_id),
+      can_list: Boolean(permission.can_list),
+      can_view: Boolean(permission.can_view),
+      can_create: Boolean(permission.can_create),
+      can_update: Boolean(permission.can_update),
+      can_delete: Boolean(permission.can_delete),
+      scope: permission.scope || undefined,
+    })) : [],
   };
 };
 
@@ -397,13 +427,20 @@ const normalizeUser = (user: ApiRecord): ManagedUser => {
     password: DEMO_PASSWORD,
     role_id: Number(user.role_id || role?.id || 0),
     role_name: roleType,
+    backend_role_name: String(role?.name || user.role_name || ''),
     phone_number: user.phone_number || undefined,
+    permission_codes: Array.isArray(user.permission_codes) ? user.permission_codes : [],
     customer_detail: user.customer_detail
       ? {
           name: user.customer_detail.name || user.customer_detail.company_name || undefined,
           company_name: user.customer_detail.company_name || user.customer_detail.name || undefined,
           kvk: user.customer_detail.kvk || user.customer_detail.kvk_number || undefined,
           kvk_number: user.customer_detail.kvk_number || user.customer_detail.kvk || undefined,
+          fixed_phone: user.customer_detail.fixed_phone || undefined,
+          billing_email: user.customer_detail.billing_email || undefined,
+          street: user.customer_detail.street || undefined,
+          postal_code: user.customer_detail.postal_code || undefined,
+          warehouse_scope: user.customer_detail.warehouse_scope || undefined,
         }
       : undefined,
   };
@@ -425,6 +462,9 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     warehouse_addresses: addresses.filter(Boolean),
     country: client.country || 'NL',
     province: client.province || undefined,
+    street: client.street || undefined,
+    postal_code: client.postal_code || undefined,
+    warehouse_scope: client.warehouse_scope || undefined,
     grace_period_days: Number(client.grace_period_days ?? 0),
     price_per_day: Number(client.price_per_day ?? client.default_price_per_day ?? 0),
     is_active: Boolean(client.is_active),
@@ -449,6 +489,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     pallet_name: palletDisplayName || undefined,
     current_status_id: currentStatusId,
     current_status_name: currentStatusName,
+    current_status_slug: pallet.current_status_slug || pallet.current_status?.slug || status?.slug,
     user_id: pallet.user_id ? Number(pallet.user_id) : undefined,
     client_name: clientName,
     type: pallet.type || pallet.asset_type || 'pallet',
@@ -562,12 +603,15 @@ const normalizePalletPhoto = (photo: ApiRecord): PalletPhoto => ({
   client_id: photo.client_id ? Number(photo.client_id) : undefined,
   service_report_id: photo.service_report_id ? Number(photo.service_report_id) : undefined,
   type: photo.type,
+  warehouse_scope: photo.warehouse_scope || undefined,
   original_name: photo.original_name || undefined,
   mime_type: photo.mime_type || 'application/octet-stream',
   size_bytes: Number(photo.size_bytes ?? 0),
   expires_at: photo.expires_at,
   url: photo.url || undefined,
   created_at: photo.created_at,
+  pallet: photo.pallet || undefined,
+  uploader: photo.uploader || undefined,
 });
 
 const formatUserName = (email: string) => {
@@ -619,6 +663,9 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
     kvk: client.kvk_number || null,
     billing_email: client.billing_email || null,
     fixed_phone: client.fixed_phone || null,
+    street: client.street || null,
+    postal_code: client.postal_code || null,
+    warehouse_scope: client.warehouse_scope || null,
     billing_address: addresses[1] || addresses[0] || null,
     delivery_address: addresses[0] || null,
     tax_number: client.kvk_number || null,
@@ -706,7 +753,9 @@ export const apiService = {
             name: data.name,
             description: data.description,
             is_active: true,
-            module_ids: data.permissions || [],
+            role_permissions: (data.permissions || []).map(moduleId => data.role_permissions?.find(grant => grant.module_id === moduleId) || {
+              module_id: moduleId, can_list: true, can_view: true, can_create: true, can_update: true, can_delete: true,
+            }),
           }),
         })
       ),
@@ -718,7 +767,9 @@ export const apiService = {
             name: data.name,
             description: data.description,
             is_active: true,
-            module_ids: data.permissions || [],
+            role_permissions: (data.permissions || []).map(moduleId => data.role_permissions?.find(grant => grant.module_id === moduleId) || {
+              module_id: moduleId, can_list: true, can_view: true, can_create: true, can_update: true, can_delete: true,
+            }),
           }),
         })
       ),
@@ -781,6 +832,8 @@ export const apiService = {
           body: jsonBody(toPalletPayload(data)),
         })
       ),
+    sendOverdueInvoice: async (id: number): Promise<{ invoice_id: number; recipient: string }> =>
+      apiData<{ invoice_id: number; recipient: string }>(`/pallets/${id}/overdue-invoice/send`, { method: 'POST' }),
     delete: async (id: number): Promise<void> => {
       await apiData<null>(`/pallets/${id}`, { method: 'DELETE' });
     },
@@ -817,6 +870,22 @@ export const apiService = {
   },
 
   clients: {
+    me: async (): Promise<ClientDetail | null> => {
+      const detail = await apiData<ApiRecord | null>('/customer-details/me');
+      return detail ? normalizeClient(detail) : null;
+    },
+    updateMe: async (data: {
+      company_name: string;
+      kvk: string;
+      fixed_phone: string;
+      billing_email: string;
+      street: string;
+      postal_code: string;
+      warehouse_scope: 'warehouse_nl' | 'warehouse_bih';
+    }): Promise<ClientDetail> => normalizeClient(await apiData<ApiRecord>('/customer-details/me', {
+      method: 'PUT',
+      body: jsonBody(data),
+    })),
     page: (params: ListParams = {}) => listPage<ClientDetail>('/customer_details', params, normalizeClient),
     list: async (params: ListParams = {}): Promise<ClientDetail[]> =>
       (await listAll<ApiRecord>('/customer_details', params)).map(normalizeClient),
@@ -977,6 +1046,16 @@ export const apiService = {
       (await listAll<ApiRecord>('/invoices', params)).map(normalizeInvoice),
     getItems: async (invoiceId: number): Promise<InvoiceItem[]> =>
       (await listAll<ApiRecord>('/invoice_items', { invoice_id: invoiceId })).map(normalizeInvoiceItem),
+    create: async (data: { user_id: number; period_start: string; period_end: string; due_at?: string }): Promise<Invoice> =>
+      normalizeInvoice(await apiData<ApiRecord>('/invoices', { method: 'POST', body: jsonBody(data) })),
+    preview: async (invoiceId: number) => requestBlob(`/invoices/${invoiceId}/preview`),
+    download: async (invoiceId: number) => requestBlob(`/invoices/${invoiceId}/download`),
+    send: async (invoiceId: number) => apiData<{ recipient: string }>(`/invoices/${invoiceId}/send`, { method: 'POST' }),
+  },
+
+  gallery: {
+    page: (params: ListParams = {}) => listPage<PalletPhoto>('/gallery', params, normalizePalletPhoto),
+    image: (url: string) => requestBlob(url),
   },
 
   calendarNotes: {

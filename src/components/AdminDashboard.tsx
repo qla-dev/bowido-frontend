@@ -33,6 +33,7 @@ import {
   palletTypeValues,
 } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 
 interface AdminDashboardProps {
   initialView?:
@@ -132,6 +133,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
+  const [sendingInvoicePalletIds, setSendingInvoicePalletIds] = useState<number[]>([]);
   const [dashboardStats, setDashboardStats] = useState<PalletDashboardStats | null>(null);
   const [palletAuditLogsById, setPalletAuditLogsById] = useState<Record<number, AuditLog[]>>({});
 
@@ -372,11 +374,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       })()
     : null;
 
-  const handleSendInvoice = (pallet: Pallet) => {
-    setSentInvoiceTimestamps(prev => ({
-      ...prev,
-      [pallet.id]: formatDateTime(new Date()),
-    }));
+  const handleSendInvoice = async (pallet: Pallet) => {
+    const client = clients.find((item) => item.user_id === pallet.user_id);
+    console.info('[TrackPal] Dashboard invoice button clicked', {
+      palletId: pallet.id,
+      pallet: getPalletDisplayName(pallet),
+      recipient: client?.billing_email || null,
+      action: 'request_overdue_invoice_delivery',
+    });
+
+    setSendingInvoicePalletIds((current) => [...current, pallet.id]);
+
+    try {
+      const result = await apiService.pallets.sendOverdueInvoice(pallet.id);
+      console.info('[TrackPal] Dashboard invoice delivered', {
+        palletId: pallet.id,
+        invoiceId: result.invoice_id,
+        recipient: result.recipient,
+      });
+      setSentInvoiceTimestamps(prev => ({ ...prev, [pallet.id]: formatDateTime(new Date()) }));
+    } catch (error) {
+      console.error('[TrackPal] Dashboard invoice delivery failed', { palletId: pallet.id, error });
+      window.alert('Faktura nije poslana. Provjerite podatke za naplatu i Laravel log.');
+    } finally {
+      setSendingInvoicePalletIds((current) => current.filter((id) => id !== pallet.id));
+    }
   };
 
   const handleEditPallet = (pallet: Pallet) => {
@@ -693,6 +715,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {topOverduePallets.map(p => {
                            const client = clients.find(c => c.user_id === p.user_id);
                            const invoiceWasSent = Boolean(sentInvoiceTimestamps[p.id]);
+                           const invoiceIsSending = sendingInvoicePalletIds.includes(p.id);
                            return (
                             <tr key={p.id} className="hover:bg-rose-50/30 transition-colors">
                               <td className="px-4 py-2.5 text-center align-middle">
@@ -727,8 +750,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <Button
                                     variant={invoiceWasSent ? 'secondary' : 'primary'}
                                     size="xs"
-                                    onClick={() => handleSendInvoice(p)}
-                                    disabled={invoiceWasSent}
+                                    onClick={() => void handleSendInvoice(p)}
+                                    disabled={invoiceWasSent || invoiceIsSending}
                                     className="w-full justify-center"
                                   >
                                     <Send size={13} className="mr-1.5" />
@@ -1131,7 +1154,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Modals for CRUD operations */}
       <AnimatePresence>
         {selectedPallet && (
-          <div className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div key={`selected-pallet-${selectedPallet.id}`} className="modal-overlay fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white p-8 rounded-[3rem] w-full max-w-xl shadow-2xl relative overflow-hidden">
                <div className="absolute top-0 left-0 right-0 h-2 bg-black"></div>
                <div className="flex justify-between items-start mb-8">
@@ -1225,7 +1248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         )}
 
         {editingPallet && (
-          <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div key={`editing-pallet-${editingPallet.id}`} className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1344,6 +1367,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
+                                  user_id: statusIdAllowsCustomer(statuses, sid) ? editingPallet.user_id : undefined,
+                                  client_name: statusIdAllowsCustomer(statuses, sid) ? editingPallet.client_name : undefined,
                                   current_status_name: sname,
                                   current_location: getFixedWarehouseLocation(sid, sname) || editingPallet.current_location,
                                 });
@@ -1357,6 +1382,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('assignedClient')}</label>
                             <select
                               value={editingPallet.user_id || ''}
+                              disabled={!statusIdAllowsCustomer(statuses, editingPallet.current_status_id)}
                               onChange={e => {
                                 const uid = e.target.value ? parseInt(e.target.value) : undefined;
                                 const cname = clients.find(c => c.user_id === uid)?.name || '';

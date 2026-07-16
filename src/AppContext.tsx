@@ -19,6 +19,7 @@ import {
   translate,
 } from './i18n';
 import { normalizeQrCodeForStorage } from './lib/palletQrMatching';
+import { statusAllowsCustomer } from './lib/palletCustomerAssignment';
 
 interface AppContextType {
   pallets: Pallet[];
@@ -230,10 +231,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         return await loader();
       } catch (error) {
-        console.error('Failed to load API data', error);
+        const status = (error as { status?: number }).status;
+        if (!status || status >= 500) {
+          console.error('Failed to load API data', error);
+        }
         return fallback;
       }
     };
+
+    const storedUser = typeof window === 'undefined'
+      ? null
+      : (() => {
+          try { return JSON.parse(window.localStorage.getItem('trackpal_current_user') || 'null') as { permission_codes?: string[] } | null; }
+          catch { return null; }
+        })();
+    const accessCodes = storedUser?.permission_codes || [];
+    const canLoadAccessSettings = accessCodes.includes('*') || (
+      accessCodes.includes('roles') && accessCodes.includes('modules')
+    );
+    const emptyRolesPage = { items: [], meta: { total: 0, limit: 100, offset: 0, count: 0 } };
 
     const [statusesData, palletsData, clientsData, auditLogsData, serviceReportsData, invoicesData, rolesPage, permissionsData] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
@@ -242,11 +258,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
       safeLoad(() => apiService.invoices.list(), []),
-      safeLoad(() => apiService.roles.page({ limit: 100 }), {
-        items: [],
-        meta: { total: 0, limit: 100, offset: 0, count: 0 },
-      }),
-      safeLoad(() => apiService.permissions.list(), []),
+      canLoadAccessSettings ? safeLoad(() => apiService.roles.page({ limit: 100 }), emptyRolesPage) : Promise.resolve(emptyRolesPage),
+      canLoadAccessSettings ? safeLoad(() => apiService.permissions.list(), []) : Promise.resolve([]),
     ]);
     const rolesData = rolesPage.items;
 
@@ -379,7 +392,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const pallet = pallets.find((item) => item.id === palletId);
     const status = statuses.find((item) => item.id === statusId);
-    const preserveClientAssignment = [4, 5].includes(statusId);
+    const preserveClientAssignment = statusAllowsCustomer(status);
 
     if (!pallet || !status) {
       return;
