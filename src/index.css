@@ -162,7 +162,13 @@ body:has([data-lock-scroll-modal="true"]) {
 #root:has([data-lock-scroll-modal="true"]) #app-container main,
 #root:has(.modal-overlay) #driver-app-container main,
 #root:has(.scanner-overlay) #driver-app-container main,
-#root:has([data-lock-scroll-modal="true"]) #driver-app-container main {
+#root:has([data-lock-scroll-modal="true"]) #driver-app-container main,
+body:has(.modal-overlay) #app-container main,
+body:has(.scanner-overlay) #app-container main,
+body:has([data-lock-scroll-modal="true"]) #app-container main,
+body:has(.modal-overlay) #driver-app-container main,
+body:has(.scanner-overlay) #driver-app-container main,
+body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
   overflow: hidden !important;
 }
 
