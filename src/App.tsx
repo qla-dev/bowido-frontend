@@ -31,7 +31,16 @@ import { languageOptions } from './i18n';
 const CURRENT_USER_STORAGE_KEY = 'trackpal_current_user';
 const LOGIN_PROFILES_STORAGE_KEY = 'trackpal_login_profiles';
 const ACTIVE_TAB_STORAGE_KEY = 'trackpal_active_tab';
+const THEME_STORAGE_KEY = 'trackpal_theme';
 const RECENT_LOGIN_LIMIT = 6;
+
+const readStoredTheme = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark';
+};
 
 type LoginMode = 'user' | 'customer';
 
@@ -372,7 +381,7 @@ export default function App() {
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
   const [activeTab, setActiveTab] = useState(() => readStoredActiveTab(currentUser));
-  const [isNightMode, setIsNightMode] = useState(false);
+  const [isNightMode, setIsNightMode] = useState(readStoredTheme);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<number | null>(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() => {
     if (typeof window === 'undefined') {
@@ -1021,7 +1030,6 @@ export default function App() {
 
   const renderDashboard = () => {
     if (activeTab === 'gallery') return <ImageGallery />;
-    if (activeTab === 'audit-logs') return <AdminAuditLogs />;
     if (activeTab === 'client-manager') return <AdminClientManagerView />;
     if (activeTab === 'roles') return <RoleManager />;
     if (activeTab === 'korisnici') return <UserManager currentUser={currentUser} />;
