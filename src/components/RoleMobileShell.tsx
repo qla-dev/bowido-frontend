@@ -1,5 +1,5 @@
-import type { FC, ReactNode } from 'react';
-import { LogOut, Settings, Boxes, Moon, Sun, Building2 } from 'lucide-react';
+import { useState, type FC, type ReactNode } from 'react';
+import { LogOut, Settings, Boxes, Moon, Sun, Building2, ChevronDown } from 'lucide-react';
 import { cn } from './ui';
 
 interface RoleMobileShellProps {
@@ -22,6 +22,7 @@ interface RoleMobileShellProps {
   showDetailsIcon?: boolean;
   detailsActive?: boolean;
   onDetailsIconClick?: () => void;
+  showClientMenu?: boolean;
 }
 
 export const RoleMobileShell: FC<RoleMobileShellProps> = ({
@@ -44,7 +45,11 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   showDetailsIcon = false,
   detailsActive = false,
   onDetailsIconClick,
-}) => (
+  showClientMenu = false,
+}) => {
+  const [isClientMenuOpen, setIsClientMenuOpen] = useState(false);
+
+  return (
   <div
     id={containerId}
     className={cn(
@@ -64,7 +69,14 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
               {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           )}
-          {showPalletIcon && (
+          {showClientMenu ? (
+            <div className="relative">
+              <button type="button" title="Client options" onClick={() => setIsClientMenuOpen((isOpen) => !isOpen)} className={cn('flex h-10 items-center gap-1.5 rounded-xl border px-3 transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100', (palletActive || detailsActive) ? 'border-[#00A655] bg-[#00A655] text-white' : 'border-emerald-100 bg-white text-zinc-700')}>
+                <Boxes size={18} /><ChevronDown size={14} />
+              </button>
+              {isClientMenuOpen && <div className="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-xl border border-emerald-100 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-[#101715]"><button type="button" onClick={() => { onPalletIconClick?.(); setIsClientMenuOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold text-zinc-700 hover:bg-emerald-50 dark:text-zinc-100 dark:hover:bg-white/10"><Boxes size={16} />Praćenje paleta</button><button type="button" onClick={() => { onDetailsIconClick?.(); setIsClientMenuOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-bold text-zinc-700 hover:bg-emerald-50 dark:text-zinc-100 dark:hover:bg-white/10"><Building2 size={16} />Dopuni detalje</button></div>}
+            </div>
+          ) : showPalletIcon && (
             <button
               type="button"
               onClick={onPalletIconClick}
@@ -78,7 +90,7 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
               <Boxes size={18} />
             </button>
           )}
-          {showDetailsIcon && (
+          {!showClientMenu && showDetailsIcon && (
             <button type="button" title="Complete details" onClick={onDetailsIconClick} className={cn('flex h-10 w-10 items-center justify-center rounded-xl border transition-colors dark:border-white/10 dark:bg-[#101715]', detailsActive ? 'border-[#00A655] bg-[#00A655] text-white' : 'border-emerald-100 bg-white text-zinc-700')}>
               <Building2 size={18}/>
             </button>
@@ -117,4 +129,5 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
 
     {bottomSlot}
   </div>
-);
+  );
+};

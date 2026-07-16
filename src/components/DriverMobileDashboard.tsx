@@ -9,6 +9,7 @@ import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
 import { NoQrReturnFormModal, getNoQrReturnButtonCopy } from './NoQrReturnFormModal';
 import { getPalletTypeLabel } from '../i18n';
 import { findPalletByScannedQr } from '../lib/palletQrMatching';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
@@ -208,7 +209,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     scanImageFallbackTitle: 'Test scan',
     scanImageFallbackDetail: 'Upload a QR image to match database pallets.',
     scanImageNotRecognizedTitle: 'QR not recognized',
-    scanImageNotRecognizedDetail: 'Use a clearer QR image or a seeded QR code such as BOWNL-0001.',
+    scanImageNotRecognizedDetail: 'This QR code is not linked to a pallet in the database.',
     warehouseDefault: 'Warehouse 1',
     warehouseSecondary: 'Warehouse 2',
     thirdAddress: 'Third address',
@@ -264,7 +265,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     scanImageFallbackTitle: 'Testscan',
     scanImageFallbackDetail: 'Upload een QR-afbeelding om databasebokken te vinden.',
     scanImageNotRecognizedTitle: 'QR niet herkend',
-    scanImageNotRecognizedDetail: 'Gebruik een duidelijkere QR-afbeelding of een QR-code zoals BOWNL-0001.',
+    scanImageNotRecognizedDetail: 'Deze QR-code is niet gekoppeld aan een bok in de database.',
     warehouseDefault: 'Magazijn 1',
     warehouseSecondary: 'Magazijn 2',
     thirdAddress: 'Derde adres',
@@ -320,7 +321,7 @@ const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
     scanImageFallbackTitle: 'Test skeniranje',
     scanImageFallbackDetail: 'Ucitaj QR sliku za pretragu paleta iz baze.',
     scanImageNotRecognizedTitle: 'QR nije prepoznat',
-    scanImageNotRecognizedDetail: 'Koristi QR kod sa BOWNL-0001 do BOWNL-0005.',
+    scanImageNotRecognizedDetail: 'Ovaj QR kod nije povezan s paletom u bazi.',
     warehouseDefault: 'Magacin 1',
     warehouseSecondary: 'Magacin 2',
     thirdAddress: 'Treća adresa',
@@ -882,11 +883,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const isLocationChangeDisabled = isTransportStatus || Boolean(fixedWarehouseLocationMeta);
   const isWarehouseStatus = [1, 3].includes(selectedPallet?.current_status_id ?? -1);
   const isCheckInStatus = [1, 3, 7].includes(selectedPallet?.current_status_id ?? -1);
-  const shouldShowPalletPhotoAction =
-    user.role_name !== RoleType.KLIJENT &&
-    !isTransportStatus &&
-    !isWarehouseStatus &&
-    !isRepairStatus;
+  const shouldShowPalletPhotoAction = user.role_name !== RoleType.KLIJENT;
   const shouldTopAlignSummaryCard = [1, 3, 5, 7].includes(draftStatusId);
   const transportLocationLabel =
     language === 'nl' ? 'Onderweg' : language === 'bs' ? 'Na putu' : 'On the way';
@@ -898,19 +895,30 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         year: 'numeric',
       }).format(new Date(selectedPallet.last_status_changed_at))
     : '';
-  const filteredClients = clients.filter((client) => {
-    const query = clientSearchTerm.trim().toLowerCase();
+  const filteredClients = (() => {
+    const query = clientSearchTerm.trim().toLocaleLowerCase();
 
     if (!query) {
-      return true;
+      return clients;
     }
 
-    return (
-      client.name.toLowerCase().includes(query) ||
-      client.country.toLowerCase().includes(query) ||
-      client.user_id.toString().includes(query)
-    );
-  });
+    return clients
+      .filter((client) =>
+        client.name.toLocaleLowerCase().includes(query) ||
+        client.country.toLocaleLowerCase().includes(query) ||
+        client.user_id.toString().includes(query)
+      )
+      .sort((left, right) => {
+        const leftStartsWith = left.name.toLocaleLowerCase().startsWith(query);
+        const rightStartsWith = right.name.toLocaleLowerCase().startsWith(query);
+
+        if (leftStartsWith !== rightStartsWith) {
+          return leftStartsWith ? -1 : 1;
+        }
+
+        return left.name.localeCompare(right.name, driverDateLocales[language] || 'en-GB', { sensitivity: 'base' });
+      });
+  })();
   const changeModalTitle =
     openChangeMenu === 'status'
       ? text.changeStatus
@@ -1333,7 +1341,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     palletPhotoUploadedRef.current = false;
   };
 
-  const uploadPalletPhoto = (pallet: Pallet, nextStatusId: number, nextClientId?: number) => {
+  const uploadPalletPhoto = async (pallet: Pallet, nextStatusId: number, nextClientId?: number) => {
     if (!palletPhoto || palletPhotoUploadedRef.current) {
       return;
     }
@@ -1347,17 +1355,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     palletPhotoUploadedRef.current = true;
 
-    void apiService.palletPhotos
-      .uploadScan(pallet.id, palletPhoto, {
+    try {
+      await apiService.palletPhotos.uploadScan(pallet.id, palletPhoto, {
         old_status_id: pallet.current_status_id,
         new_status_id: nextStatusId,
         client_id: photoClientId,
-      })
-      .catch((error) => {
-        palletPhotoUploadedRef.current = false;
-        console.error('Failed to upload driver pallet photo', error);
-        showFlash(text.capturePalletPhoto, text.scanImageFallbackDetail, 'warning');
       });
+    } catch (error) {
+      palletPhotoUploadedRef.current = false;
+      console.error('Failed to upload driver pallet photo', error);
+      showFlash(text.capturePalletPhoto, text.scanImageFallbackDetail, 'warning');
+    }
   };
 
   const clearDamageDraft = () => {
@@ -1401,7 +1409,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     lastScanAtRef.current = 0;
   };
 
-  const persistDriverStatus = (
+  const persistDriverStatus = async (
     nextStatusId: number,
     clientId?: number,
     nextLocation = selectedLocationMeta.address
@@ -1416,7 +1424,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     const preserveClientAssignment = statusIdAllowsCustomer(statuses, nextStatusId);
     const nextClientId = preserveClientAssignment ? clientId ?? selectedPallet.user_id : undefined;
 
-    uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
+    await uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
 
     updatePalletStatus(
       selectedPallet.id,
@@ -2043,7 +2051,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               <div className="flex flex-col px-0 pb-3 pt-1">
                 <DriverPalletSummaryCard
                   nameLabel={text.palletNameLabel}
-                  code={selectedPallet.qr_code}
+                  code={getPalletDisplayName(selectedPallet)}
                   typeLabel={text.palletTypeLabel}
                   typeValue={getDriverPalletTypeLabel(selectedPallet.type, language)}
                   theme={selectedPalletTheme}
@@ -2767,7 +2775,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               ) : undefined
             }
             title={openChangeMenu === 'client' ? undefined : changeModalTitle}
-            subtitle={openChangeMenu === 'client' ? undefined : selectedPallet.qr_code}
+            subtitle={openChangeMenu === 'client' ? undefined : getPalletDisplayName(selectedPallet)}
             width="lg"
             contentClassName="min-h-[24rem] justify-center"
             bodyClassName="p-0"
@@ -2941,7 +2949,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           <DriverModalShell
             onClose={closeDamageModal}
             title={text.damageModalTitle}
-            subtitle={damageTargetPallet.qr_code}
+            subtitle={getPalletDisplayName(damageTargetPallet)}
             width="sm"
             bodyClassName="p-0"
           >

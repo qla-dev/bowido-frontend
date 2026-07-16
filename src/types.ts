@@ -87,6 +87,7 @@ export interface Pallet {
   last_status_changed_at: string;
   created_at: string;
   note?: string;
+  status_change_photo_url?: string;
   metadata?: Record<string, unknown> | null;
 }
 

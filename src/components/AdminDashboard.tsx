@@ -671,6 +671,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const latestInventoryPallets = [...pallets]
       .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
       .slice(0, 5);
+    const activePallets = pallets.filter((pallet) => pallet.is_active && !pallet.is_ghost);
+    const deployedPallets = activePallets.filter((pallet) =>
+      statusIdAllowsCustomer(statuses, pallet.current_status_id) || [2, 6].includes(pallet.current_status_id)
+    );
+    const utilizationRate = activePallets.length > 0 ? (deployedPallets.length / activePallets.length) * 100 : 0;
+    const activeClientCount = new Set(deployedPallets.map((pallet) => pallet.user_id).filter(Boolean)).size;
+    const quickAnalysisCopy = language === 'bs'
+      ? {
+          logistics: `${deployedPallets.length} od ${activePallets.length} aktivnih paleta je kod klijenata ili u transportu, kod ${activeClientCount} klijenata.`,
+          overdue: overduePallets.length > 0
+            ? `${overduePallets.length} paleta je u kašnjenju i zahtijeva akciju (€${totalDebt.toFixed(2)} dugovanja).`
+            : 'Nema paleta u kašnjenju koje zahtijevaju akciju.',
+        }
+      : language === 'nl'
+        ? {
+            logistics: `${deployedPallets.length} van ${activePallets.length} actieve bokken zijn bij klanten of onderweg, verdeeld over ${activeClientCount} klanten.`,
+            overdue: overduePallets.length > 0
+              ? `${overduePallets.length} bokken zijn te laat en vereisen actie (€${totalDebt.toFixed(2)} openstaand).`
+              : 'Er zijn geen achterstallige bokken die actie vereisen.',
+          }
+        : {
+            logistics: `${deployedPallets.length} of ${activePallets.length} active pallets are deployed or in transport across ${activeClientCount} clients.`,
+            overdue: overduePallets.length > 0
+              ? `${overduePallets.length} overdue pallets require action (€${totalDebt.toFixed(2)} outstanding).`
+              : 'No overdue pallets require action.',
+          };
     const overviewStats = dashboardStats ?? {
       total_pallets: pallets.length,
       in_transport: pallets.filter(p => [2, 6].includes(p.current_status_id)).length,
@@ -864,10 +890,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <TrendingUp size={14} className="text-emerald-500" />
                         <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{t('utilizationRate')}</span>
                      </div>
-                     <span className="text-xs font-black">84.2%</span>
+                     <span className="text-xs font-black">{utilizationRate.toFixed(1)}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
-                     <div style={{ width: '84.2%' }} className="h-full bg-black rounded-full" />
+                     <div style={{ width: `${utilizationRate}%` }} className="h-full bg-black rounded-full" />
                   </div>
                   
                   <div className="space-y-2.5">
@@ -875,7 +901,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
                        <div className="min-w-0">
                           <p className="text-[9px] font-black uppercase tracking-widest text-blue-800 mb-1">{t('logisticsNote')}</p>
-                          <p className="text-[11px] font-bold text-blue-700 leading-tight">{t('logisticsNoteText')}</p>
+                          <p className="text-[11px] font-bold text-blue-700 leading-tight">{quickAnalysisCopy.logistics}</p>
                        </div>
                     </div>
 
@@ -883,7 +909,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                        <div className="min-w-0">
                           <p className="text-[9px] font-black uppercase tracking-widest text-amber-800 mb-1">{t('overdueWarning')}</p>
-                          <p className="text-[11px] font-bold text-amber-700 leading-tight">{t('overdueWarningText')}</p>
+                          <p className="text-[11px] font-bold text-amber-700 leading-tight">{quickAnalysisCopy.overdue}</p>
                        </div>
                     </div>
                   </div>

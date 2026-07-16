@@ -533,6 +533,7 @@ const normalizeAuditLog = (log: ApiRecord): AuditLog => {
     old_qr_code: log.old_qr_code || undefined,
     new_qr_code: log.new_qr_code || undefined,
     note: log.note || undefined,
+    status_change_photo_url: log.status_change_photo_url || undefined,
     created_at: log.created_at || new Date().toISOString(),
   };
 };
@@ -711,6 +712,8 @@ export const apiService = {
   clearToken: () => setStoredToken(null),
 
   auth: {
+    kvkLookup: (kvk: string) => apiData<{ company_name: string; kvk: string; email?: string; phone_number?: string; fixed_phone?: string; billing_address?: string; delivery_address?: string }>('/auth/kvk-lookup', { method: 'POST', body: jsonBody({ kvk }) }),
+    kvkRegister: (data: { kvk: string; name: string; email: string; billing_address: string; delivery_address?: string; phone_number?: string; fixed_phone?: string; password: string; password_confirmation: string }) => apiData<ApiRecord>('/auth/kvk-register', { method: 'POST', body: jsonBody(data) }),
     login: async (credentials: LoginCredentials) => {
       const loginType = credentials.loginType || (credentials.kvk ? 'customer' : 'user');
       const result = await apiData<ApiRecord>('/auth/login', {
@@ -881,7 +884,7 @@ export const apiService = {
       billing_email: string;
       street: string;
       postal_code: string;
-      warehouse_scope: 'warehouse_nl' | 'warehouse_bih';
+      warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
     }): Promise<ClientDetail> => normalizeClient(await apiData<ApiRecord>('/customer-details/me', {
       method: 'PUT',
       body: jsonBody(data),

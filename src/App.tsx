@@ -380,6 +380,10 @@ export default function App() {
   const [isCredentialLoginSubmitting, setIsCredentialLoginSubmitting] = useState(false);
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
+  const [isKvkRegistrationOpen, setIsKvkRegistrationOpen] = useState(false);
+  const [kvkRegistration, setKvkRegistration] = useState({ kvk: '', name: '', email: '', billing_address: '', delivery_address: '', phone_number: '', fixed_phone: '', password: '', password_confirmation: '' });
+  const [kvkRegistrationError, setKvkRegistrationError] = useState<string | null>(null);
+  const [isKvkRegistrationSubmitting, setIsKvkRegistrationSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(() => readStoredActiveTab(currentUser));
   const [isNightMode, setIsNightMode] = useState(readStoredTheme);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<number | null>(null);
@@ -666,6 +670,23 @@ export default function App() {
     setLoginProfiles(readLoginProfiles());
   };
 
+  const lookupKvkRegistration = async () => {
+    if (!kvkRegistration.kvk.trim()) return;
+    setIsKvkRegistrationSubmitting(true); setKvkRegistrationError(null);
+    try {
+      const customer = await apiService.auth.kvkLookup(kvkRegistration.kvk);
+      setKvkRegistration((form) => ({ ...form, kvk: customer.kvk, name: customer.company_name || form.name, email: customer.email || form.email, phone_number: customer.phone_number || form.phone_number, fixed_phone: customer.fixed_phone || form.fixed_phone, billing_address: customer.billing_address || form.billing_address, delivery_address: customer.delivery_address || form.delivery_address }));
+    } catch (error) { setKvkRegistrationError(error instanceof Error ? error.message : 'KVK was not found.'); }
+    finally { setIsKvkRegistrationSubmitting(false); }
+  };
+
+  const submitKvkRegistration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setIsKvkRegistrationSubmitting(true); setKvkRegistrationError(null);
+    try { await apiService.auth.kvkRegister(kvkRegistration); setIsKvkRegistrationOpen(false); setCredentialLoginMode('customer'); setCredentialLoginForm({ email: '', kvk: kvkRegistration.kvk, password: '' }); setIsCredentialLoginOpen(true); }
+    catch (error) { setKvkRegistrationError(error instanceof Error ? error.message : 'Registration could not be completed.'); }
+    finally { setIsKvkRegistrationSubmitting(false); }
+  };
+
  if (isRestoringSession && !currentUser) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-white text-emerald-900">
@@ -827,18 +848,23 @@ export default function App() {
         </motion.div>
       </div>
 
-      <div className="flex justify-center px-6 pb-5">
-        <Button
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[150] flex justify-center px-4 py-3">
+        <div className="pointer-events-auto flex w-full max-w-md flex-col gap-2 rounded-2xl bg-white/95 p-3 shadow-[0_-12px_28px_rgba(0,0,0,0.10)] backdrop-blur dark:bg-[#070b0a]/95">
+          <Button
           type="button"
           title={t('loginButton')}
           aria-label={t('loginButton')}
           onClick={() => openCredentialLogin()}
-          className="w-full max-w-sm gap-2 shadow-2xl shadow-emerald-900/20"
+          className="w-full gap-2 shadow-2xl shadow-emerald-900/20"
           size="lg"
         >
           <LogIn size={16} />
           {t('loginButton')}
-        </Button>
+          </Button>
+          <Button type="button" variant="outline" onClick={() => { setKvkRegistrationError(null); setIsKvkRegistrationOpen(true); }} className="w-full">
+            KVK registracija
+          </Button>
+        </div>
       </div>
 
       <AppFooter />
@@ -1023,6 +1049,22 @@ export default function App() {
             </motion.div>
           </motion.div>
         )}
+        {isKvkRegistrationOpen && (
+          <motion.div className="modal-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isKvkRegistrationSubmitting && setIsKvkRegistrationOpen(false)}>
+            <motion.form onSubmit={(event) => void submitKvkRegistration(event)} onClick={(event) => event.stopPropagation()} className="w-full max-w-lg space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-[#101715]">
+              <div><h2 className="font-display text-sm font-black uppercase tracking-[0.12em] dark:text-white">KVK registracija</h2><p className="mt-1 text-xs text-zinc-500">Enter your KVK number to load the registered customer details. Billing address fields are marked below.</p></div>
+              <div className="flex gap-2"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>Find KVK</Button></div>
+              <label className="block text-xs font-bold dark:text-zinc-200">Company / name<Input required className="mt-1" value={kvkRegistration.name} onChange={(event) => setKvkRegistration({ ...kvkRegistration, name: event.target.value })} /></label>
+              <label className="block text-xs font-bold dark:text-zinc-200">Email<Input required type="email" className="mt-1" value={kvkRegistration.email} onChange={(event) => setKvkRegistration({ ...kvkRegistration, email: event.target.value })} /></label>
+              <label className="block text-xs font-bold dark:text-zinc-200">Billing address <span className="font-normal text-zinc-500">(street, number, postal code, city)</span><Input required className="mt-1" value={kvkRegistration.billing_address} onChange={(event) => setKvkRegistration({ ...kvkRegistration, billing_address: event.target.value })} /></label>
+              <label className="block text-xs font-bold dark:text-zinc-200">Delivery address <span className="font-normal text-zinc-500">(street, number, postal code, city)</span><Input className="mt-1" value={kvkRegistration.delivery_address} onChange={(event) => setKvkRegistration({ ...kvkRegistration, delivery_address: event.target.value })} /></label>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">Phone number<Input className="mt-1" value={kvkRegistration.phone_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, phone_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">Fixed phone<Input className="mt-1" value={kvkRegistration.fixed_phone} onChange={(event) => setKvkRegistration({ ...kvkRegistration, fixed_phone: event.target.value })} /></label></div>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">Password<Input required minLength={8} type="password" className="mt-1" value={kvkRegistration.password} onChange={(event) => setKvkRegistration({ ...kvkRegistration, password: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">Confirm password<Input required minLength={8} type="password" className="mt-1" value={kvkRegistration.password_confirmation} onChange={(event) => setKvkRegistration({ ...kvkRegistration, password_confirmation: event.target.value })} /></label></div>
+              {kvkRegistrationError && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{kvkRegistrationError}</p>}
+              <div className="flex gap-3"><Button type="button" variant="outline" className="flex-1" onClick={() => setIsKvkRegistrationOpen(false)} disabled={isKvkRegistrationSubmitting}>Cancel</Button><Button type="submit" className="flex-1" disabled={isKvkRegistrationSubmitting}>Register</Button></div>
+            </motion.form>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -1040,14 +1082,8 @@ export default function App() {
     }
     if (activeTab === 'settings' && (currentUser.role_name !== RoleType.ADMIN || usesRoleMobileShell)) {
       return (
-        <Card title={t('settings')} className="w-full">
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-2xl font-black uppercase tracking-tight text-emerald-900 font-display dark:text-white">{currentUser.name}</h2>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{currentUser.email}</p>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 text-left dark:bg-emerald-900/20 dark:border-emerald-500/20">
+        <Card title={t('language')} className="w-full">
+          <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 text-left dark:bg-emerald-900/20 dark:border-emerald-500/20">
                 <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
                   {t('language')}
                 </span>
@@ -1059,22 +1095,11 @@ export default function App() {
                       </option>
                     ))}
                   </Select>
-                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsNightMode(!isNightMode)}
-                className="p-4 rounded-2xl border border-emerald-100 bg-white text-left hover:border-emerald-300 transition-colors dark:bg-[#101715] dark:border-white/10"
-              >
-                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
-                  {t('nightMode')}
-                </span>
-                <p className="text-lg font-black uppercase text-emerald-900 font-display dark:text-white">
-                  {isNightMode ? t('on') : t('off')}
-                </p>
-              </button>
-            </div>
           </div>
+          <Button type="button" variant="outline" onClick={handleLogout} className="mt-5 w-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-500/30 dark:text-rose-200">
+            {t('logout')}
+          </Button>
         </Card>
       );
     }
@@ -1168,6 +1193,7 @@ export default function App() {
           showDetailsIcon={currentUser.role_name === RoleType.KLIJENT}
           detailsActive={activeTab === 'customer-details'}
           onDetailsIconClick={() => setActiveTab('customer-details')}
+          showClientMenu={currentUser.role_name === RoleType.KLIJENT}
         >
           <AnimatePresence mode="wait">
             <motion.div

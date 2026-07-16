@@ -535,13 +535,14 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                         )}
                       </div>
                     </td>
-                    <td className={bodyCellClass}>
-                      <div className={bodyCellInnerClass}>
-                        <p className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>
-                          {log.note || '-'}
-                        </p>
-                      </div>
-                    </td>
+                      <td className={bodyCellClass}>
+                        <div className={bodyCellInnerClass}>
+                          <div className="space-y-2 text-center">
+                            {log.status_change_photo_url && <img src={log.status_change_photo_url} alt="Status change pallet" className="mx-auto h-14 w-20 rounded-lg object-cover" />}
+                            <p className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>{log.note || '-'}</p>
+                          </div>
+                        </div>
+                      </td>
                   </tr>
                 );
               })}
