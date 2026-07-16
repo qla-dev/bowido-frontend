@@ -242,13 +242,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const storedUser = typeof window === 'undefined'
       ? null
       : (() => {
-          try { return JSON.parse(window.localStorage.getItem('trackpal_current_user') || 'null') as { permission_codes?: string[] } | null; }
+          try { return JSON.parse(window.localStorage.getItem('trackpal_current_user') || 'null') as { permission_codes?: string[]; role_name?: string } | null; }
           catch { return null; }
         })();
     const accessCodes = storedUser?.permission_codes || [];
     const canLoadAccessSettings = accessCodes.includes('*') || (
       accessCodes.includes('roles') && accessCodes.includes('modules')
     );
+    const canLoadInvoices = storedUser?.role_name === 'Admin' || storedUser?.role_name === 'Klijent';
     const emptyRolesPage = { items: [], meta: { total: 0, limit: 100, offset: 0, count: 0 } };
 
     const [statusesData, palletsData, clientsData, auditLogsData, serviceReportsData, invoicesData, rolesPage, permissionsData] = await Promise.all([
@@ -257,7 +258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       safeLoad(() => apiService.clients.list(), []),
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
-      safeLoad(() => apiService.invoices.list(), []),
+      canLoadInvoices ? safeLoad(() => apiService.invoices.list(), []) : Promise.resolve([]),
       canLoadAccessSettings ? safeLoad(() => apiService.roles.page({ limit: 100 }), emptyRolesPage) : Promise.resolve(emptyRolesPage),
       canLoadAccessSettings ? safeLoad(() => apiService.permissions.list(), []) : Promise.resolve([]),
     ]);
