@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileText, Download, X, Printer, CheckCircle2, AlertCircle } from 'lucide-react';
+import { FileText, Download, X, Printer, CheckCircle2, AlertCircle, Send } from 'lucide-react';
 import { Invoice, InvoiceItem } from '../types';
 import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
@@ -15,6 +15,8 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
   const { t } = useApp();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<'preview' | 'download' | 'send' | null>(null);
+  const [actionMessage, setActionMessage] = useState('');
   const customerTaxLabel = invoice.customer_vat || invoice.customer_kvk || '-';
   const customerAddress = invoice.billing_address || invoice.delivery_address || '-';
   const customerEmail = invoice.customer_email || '';
@@ -33,6 +35,22 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
     };
     loadItems();
   }, [invoice.id]);
+
+  const openPreview = async () => {
+    setActionLoading('preview'); setActionMessage('');
+    try { const blob = await apiService.invoices.preview(invoice.id); const url = URL.createObjectURL(blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); }
+    catch { setActionMessage('PDF preview could not be opened.'); } finally { setActionLoading(null); }
+  };
+  const downloadPdf = async () => {
+    setActionLoading('download'); setActionMessage('');
+    try { const blob = await apiService.invoices.download(invoice.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `Bowido-${invoice.invoice_number}.pdf`; anchor.click(); URL.revokeObjectURL(url); }
+    catch { setActionMessage('PDF download failed.'); } finally { setActionLoading(null); }
+  };
+  const sendInvoice = async () => {
+    setActionLoading('send'); setActionMessage('');
+    try { const result = await apiService.invoices.send(invoice.id); setActionMessage(`Invoice sent to ${result.recipient}.`); }
+    catch { setActionMessage('Invoice email could not be sent.'); } finally { setActionLoading(null); }
+  };
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -149,12 +167,16 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
           </div>
 
           {/* Footer Actions */}
-          <div className="p-8 bg-zinc-50/20 border-t border-zinc-100 flex gap-4">
-             <Button variant="outline" className="flex-1 rounded-full">
-                <Printer size={16} className="mr-2" /> Print PDF
+          {actionMessage && <p className="px-8 pt-4 text-sm font-bold text-emerald-700">{actionMessage}</p>}
+          <div className="p-8 bg-zinc-50/20 border-t border-zinc-100 flex flex-wrap gap-4">
+             <Button variant="outline" className="flex-1 rounded-full" onClick={openPreview} disabled={Boolean(actionLoading)}>
+                <Printer size={16} className="mr-2" /> {t('previewInvoice')}
              </Button>
-             <Button className="flex-1 shadow-lg shadow-black/10 rounded-full">
-                <Download size={16} className="mr-2" /> {t('download')}
+             <Button variant="outline" className="flex-1 rounded-full" onClick={sendInvoice} disabled={Boolean(actionLoading)}>
+                <Send size={16} className="mr-2" /> {t('sendInvoice')}
+             </Button>
+             <Button className="flex-1 shadow-lg shadow-black/10 rounded-full" onClick={downloadPdf} disabled={Boolean(actionLoading)}>
+                <Download size={16} className="mr-2" /> {t('exportInvoice')}
              </Button>
           </div>
         </Card>

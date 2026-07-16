@@ -11,6 +11,7 @@ import { getPalletTypeLabel } from '../i18n';
 import { findPalletByScannedQr } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 import { apiService } from '../services/api';
+import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -415,7 +416,6 @@ const driverTransportWindowCopy = {
   },
 } as const;
 
-const clientLinkedStatusIds = [4, 5];
 const transportStatusIds = [2, 6];
 
 const getPalletColorTheme = () => {
@@ -669,7 +669,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const changeTriggerClass =
     'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
   const getVisibleClientName = (statusId: number, clientName?: string) =>
-    clientLinkedStatusIds.includes(statusId) ? clientName || text.clientEmpty : null;
+    statusIdAllowsCustomer(statuses, statusId) ? clientName || text.clientEmpty : null;
   const shouldShowLocationForStatus = (statusId?: number) =>
     !transportStatusIds.includes(statusId ?? -1);
   const getDriverStatusLabel = (statusName?: string) => {
@@ -752,8 +752,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         return { label: text.warehouseDefault, address: directory.warehouse1 };
     }
   };
-  const activeLocationClientId = clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined;
-  const isClientChangeDisabled = draftStatusId === 5;
+  const activeLocationClientId = statusIdAllowsCustomer(statuses, draftStatusId) ? draftClientId : undefined;
+  const isClientChangeDisabled = !statusIdAllowsCustomer(statuses, draftStatusId);
   const selectedLocationMeta = getLocationMeta(draftLocationMode, activeLocationClientId);
   const fixedWarehouseLocationMeta =
     draftStatusId === 3
@@ -768,7 +768,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           }
         : null;
   const selectedClientName =
-    clientLinkedStatusIds.includes(draftStatusId)
+    statusIdAllowsCustomer(statuses, draftStatusId)
       ? clients.find((client) => client.user_id === draftClientId)?.name ||
         selectedPallet?.client_name ||
         text.clientEmpty
@@ -872,7 +872,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     };
   };
   const clientStatusInfo =
-    clientLinkedStatusIds.includes(selectedPallet?.current_status_id ?? -1)
+    statusIdAllowsCustomer(statuses, selectedPallet?.current_status_id)
       ? getClientStatusInfo(selectedPallet, selectedPallet.user_id)
       : null;
   const transportWindowInfo = getTransportWindowInfo(selectedPallet);
@@ -1408,12 +1408,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   ) => {
     if (
       !selectedPallet ||
-      (clientLinkedStatusIds.includes(nextStatusId) && !clientId && !selectedPallet.user_id)
+      (statusIdAllowsCustomer(statuses, nextStatusId) && !clientId && !selectedPallet.user_id)
     ) {
       return;
     }
 
-    const preserveClientAssignment = clientLinkedStatusIds.includes(nextStatusId);
+    const preserveClientAssignment = statusIdAllowsCustomer(statuses, nextStatusId);
     const nextClientId = preserveClientAssignment ? clientId ?? selectedPallet.user_id : undefined;
 
     uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
@@ -1455,10 +1455,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const handleStatusSelection = (statusId: number) => {
     setOpenChangeMenu(null);
     setDraftStatusId(statusId);
-    const nextClientId = clientLinkedStatusIds.includes(statusId)
+    const nextClientId = statusIdAllowsCustomer(statuses, statusId)
       ? draftClientId ?? selectedPallet?.user_id
       : undefined;
-    const nextLocationClientId = clientLinkedStatusIds.includes(statusId) ? nextClientId : undefined;
+    const nextLocationClientId = statusIdAllowsCustomer(statuses, statusId) ? nextClientId : undefined;
     const nextLocation =
       statusId === 3
         ? defaultWarehouseDirectory.warehouse1
@@ -1493,7 +1493,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setOpenChangeMenu(null);
     setDraftClientId(nextClientId);
 
-    if (clientLinkedStatusIds.includes(draftStatusId) && nextClientId) {
+    if (statusIdAllowsCustomer(statuses, draftStatusId) && nextClientId) {
       const nextLocation = getLocationMeta(draftLocationMode, nextClientId, manualLocationInput).address;
       persistDriverStatus(draftStatusId, nextClientId, nextLocation);
     }
@@ -1509,7 +1509,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     if (selectedPallet) {
       persistDriverStatus(
         draftStatusId,
-        clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined,
+        statusIdAllowsCustomer(statuses, draftStatusId) ? draftClientId : undefined,
         nextLocation
       );
     }
@@ -1531,7 +1531,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     if (selectedPallet) {
       persistDriverStatus(
         draftStatusId,
-        clientLinkedStatusIds.includes(draftStatusId) ? draftClientId : undefined,
+        statusIdAllowsCustomer(statuses, draftStatusId) ? draftClientId : undefined,
         nextLocation
       );
     }
@@ -2794,7 +2794,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </div>
             )}
 
-            {openChangeMenu === 'client' && draftStatusId === 4 && (
+            {openChangeMenu === 'client' && statusIdAllowsCustomer(statuses, draftStatusId) && (
               <div className="px-5 pb-5">
                 <div className="max-h-80 space-y-2.5 overflow-y-auto">
                   {filteredClients.map((client) => (

@@ -15,6 +15,7 @@ import {
   Package,
   Plus,
   Search,
+  Save,
   Trash2,
   UserRound,
   X,
@@ -28,6 +29,7 @@ import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 
 type SortKey =
   | 'client'
@@ -298,7 +300,9 @@ export const AdminClientManagerView: React.FC = () => {
   const rows = useMemo<ClientManagerRow[]>(
     () =>
       clients.map((client, index) => {
-        const clientPallets = pallets.filter((pallet) => pallet.user_id === client.user_id);
+        const clientPallets = pallets.filter((pallet) =>
+          pallet.user_id === client.user_id && statusIdAllowsCustomer(statuses, pallet.current_status_id)
+        );
         const overdueData = clientPallets.reduce(
           (total, pallet) => {
             const status = statuses.find((item) => item.id === pallet.current_status_id);
@@ -401,6 +405,26 @@ export const AdminClientManagerView: React.FC = () => {
       status: invoice.status,
     }));
   }, [currencyFormatter, dateFormatter, invoices, selectedRow]);
+
+  const saveInvoicePdf = async (invoiceId: number, invoiceNumber: string) => {
+    const blob = await apiService.invoices.download(invoiceId);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `Bowido-${invoiceNumber}.pdf`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const generateAndExportSelectedInvoice = async () => {
+    if (!selectedRow) return;
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const periodEnd = now.toISOString().slice(0, 10);
+    const due = new Date(now); due.setDate(due.getDate() + 14);
+    const invoice = await apiService.invoices.create({ user_id: selectedRow.client.user_id, period_start: periodStart, period_end: periodEnd, due_at: due.toISOString().slice(0, 10) });
+    await saveInvoicePdf(invoice.id, invoice.invoice_number);
+  };
 
   const clientPhotosByPallet = useMemo(() => {
     const photosByPallet = new Map<number, PalletPhoto[]>();
@@ -961,7 +985,8 @@ export const AdminClientManagerView: React.FC = () => {
                     <Plus size={14} />
                     {language === 'bs' ? 'Dodaj magacin' : language === 'nl' ? 'Magazijn toevoegen' : 'Add warehouse'}
                   </button>
-                  <Button type="button" className="h-12 w-full justify-center" onClick={saveClientDraft}>
+                  <Button type="button" className="h-12 w-full justify-center gap-2" onClick={saveClientDraft}>
+                    <Save size={15} />
                     {labels.save}
                   </Button>
                 </div>
@@ -994,7 +1019,7 @@ export const AdminClientManagerView: React.FC = () => {
                             </span>
                             <Badge
                               variant={pallet.current_status_id === 4 ? 'success' : pallet.current_status_id === 7 ? 'danger' : 'info'}
-                              className="justify-self-end rounded-lg text-[8px]"
+                              className="justify-self-end rounded-lg text-[8px] leading-3 whitespace-normal break-words max-w-[10.5rem]"
                             >
                               {getStatusLabel(pallet.current_status_name, language)}
                             </Badge>
@@ -1053,7 +1078,7 @@ export const AdminClientManagerView: React.FC = () => {
                               type="button"
                               size="xs"
                               variant="outline"
-                              onClick={() => alert(`${labels.invoiceExported} ${invoice.number}`)}
+                              onClick={() => void saveInvoicePdf(invoice.id, invoice.number)}
                               className="h-9 px-3"
                               title={labels.exportInvoice}
                               aria-label={labels.exportInvoice}
@@ -1072,8 +1097,8 @@ export const AdminClientManagerView: React.FC = () => {
                   <Button
                     type="button"
                     variant="outline"
-                    className="mt-4 w-full"
-                    onClick={() => alert(`${labels.invoiceExported} ${selectedRow.clientName}`)}
+                    className="mt-4 w-full gap-2"
+                    onClick={() => void generateAndExportSelectedInvoice()}
                   >
                     <Download size={15} />
                     {labels.exportInvoice}

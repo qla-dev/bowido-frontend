@@ -107,7 +107,8 @@ export const RoleManager: React.FC = () => {
         await addRole({
           name: currentRole.name || '',
           description: currentRole.description || '',
-          permissions: currentRole.permissions || []
+          permissions: currentRole.permissions || [],
+          role_permissions: currentRole.role_permissions || [],
         });
       }
 
@@ -157,7 +158,33 @@ export const RoleManager: React.FC = () => {
       ? currentPerms.filter(id => id !== permId)
       : [...currentPerms, permId];
     
-    setCurrentRole(prev => ({ ...prev, permissions: newPerms }));
+    setCurrentRole(prev => ({
+      ...prev,
+      permissions: newPerms,
+      role_permissions: newPerms.includes(permId)
+        ? [
+            ...(prev?.role_permissions || []).filter(grant => grant.module_id !== permId),
+            prev?.role_permissions?.find(grant => grant.module_id === permId) || {
+              module_id: permId, can_list: true, can_view: true, can_create: true, can_update: true, can_delete: true,
+              scope: permissions.find(permission => permission.id === permId)?.code === 'image_gallery' ? 'all' : undefined,
+            },
+          ]
+        : (prev?.role_permissions || []).filter(grant => grant.module_id !== permId),
+    }));
+  };
+
+  const setGalleryScope = (moduleId: number, scope: 'all' | 'warehouse_nl' | 'warehouse_bih') => {
+    setCurrentRole(previous => ({
+      ...previous,
+      role_permissions: (previous?.role_permissions || []).map(grant => grant.module_id === moduleId ? {...grant, scope} : grant),
+    }));
+  };
+
+  const toggleAbility = (moduleId: number, ability: 'can_list' | 'can_view' | 'can_create' | 'can_update' | 'can_delete') => {
+    setCurrentRole(previous => ({
+      ...previous,
+      role_permissions: (previous?.role_permissions || []).map(grant => grant.module_id === moduleId ? {...grant, [ability]: !grant[ability]} : grant),
+    }));
   };
 
   return (
@@ -393,8 +420,8 @@ export const RoleManager: React.FC = () => {
                     <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-2 block">{t('permissionList')}</label>
                     <div className="grid grid-cols-1 gap-2">
                       {permissions.map((perm) => (
+                        <React.Fragment key={perm.id}>
                         <div 
-                          key={perm.id}
                           onClick={() => togglePermission(perm.id)}
                           className={cn(
                             "flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all",
@@ -414,6 +441,21 @@ export const RoleManager: React.FC = () => {
                           </div>
                           {currentRole?.permissions?.includes(perm.id) && <Check size={16} />}
                         </div>
+                        {currentRole?.permissions?.includes(perm.id) && (
+                          <div className="mx-2 grid grid-cols-5 gap-1">
+                            {(['can_list','can_view','can_create','can_update','can_delete'] as const).map(ability => {
+                              const enabled = currentRole.role_permissions?.find(grant => grant.module_id === perm.id)?.[ability] ?? true;
+                              return <button key={ability} type="button" onClick={() => toggleAbility(perm.id, ability)} className={cn('rounded-lg px-1 py-2 text-[8px] font-black uppercase', enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-400')}>{ability.replace('can_','')}</button>;
+                            })}
+                          </div>
+                        )}
+                        {perm.code === 'image_gallery' && currentRole?.permissions?.includes(perm.id) && (
+                          <select value={currentRole.role_permissions?.find(grant => grant.module_id === perm.id)?.scope || 'all'} onChange={event => setGalleryScope(perm.id, event.target.value as 'all' | 'warehouse_nl' | 'warehouse_bih')} className="mx-2 mb-2 h-11 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-bold">
+                            <option value="all">{language === 'bs' ? 'Admin / sve slike' : language === 'nl' ? 'Admin / alle afbeeldingen' : 'Admin / all images'}</option>
+                            <option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option>
+                          </select>
+                        )}
+                        </React.Fragment>
                       ))}
                     </div>
                   </div>

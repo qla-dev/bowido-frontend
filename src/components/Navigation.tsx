@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Users, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, UserCircle, Ghost, History, Boxes, Building2, Wrench, Warehouse, Banknote,
+  Bell, UserCircle, Ghost, History, Boxes, Building2, Wrench, Warehouse, Banknote, Images,
   Moon, Sun
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -100,6 +100,8 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   role: RoleType;
   onLogout: () => void;
+  permissionCodes?: string[];
+  backendRoleName?: string;
 }
 
 interface TopNavbarProps extends SidebarProps {
@@ -125,7 +127,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const hasGhostAccess = [RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role);
   const highlightGhostAction = role === RoleType.VOZAC || role === RoleType.KLIJENT;
   const showTopbarQrAction = role !== RoleType.ADMIN;
-  const showAdminNightModeToggle = role === RoleType.ADMIN && Boolean(onToggleNightMode);
+  const showAdminNightModeToggle = Boolean(onToggleNightMode);
   const currentLanguageOption = languageOptions.find((option) => option.code === language) || languageOptions[0];
 
   const openSettings = () => {
@@ -511,7 +513,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role, permissionCodes = [], backendRoleName = '' }) => {
   const { t, language, setIsScannerOpen } = useApp();
   const [isSidebarPinned, setIsSidebarPinned] = useState(readStoredSidebarPinned);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
@@ -573,10 +575,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role 
         { id: 'korisnici', label: t('systemUsers'), icon: <UserCircle /> },
         { id: 'roles', label: t('roles'), icon: <Shield /> },
         { id: 'invoices', label: t('billing'), icon: <ClipboardList /> }
+        ,{ id: 'gallery', label: t('imageGallery'), icon: <Images /> }
       );
     } else if (role === RoleType.VOZAC || role === RoleType.MAGACINER) {
     } else if (role === RoleType.SERVISER) {
     } else if (role === RoleType.KLIJENT) {
+      items.push({ id: 'customer-details', label: t('completeDetails'), icon: <Building2 /> });
+    }
+
+    const knownBackendRoles = ['admin','warehouse_operator','customer','driver','technician','user','operator','admin_service','admin_warehouse','finance_administration'];
+    if (!knownBackendRoles.includes(backendRoleName.toLowerCase())) {
+      if (permissionCodes.includes('customers')) items.push({ id: 'client-manager', label: t('clientManager'), icon: <Building2 /> });
+      if (permissionCodes.includes('audit_logs')) items.push({ id: 'audit-logs', label: t('auditLogs'), icon: <History /> });
+      if (permissionCodes.includes('services')) items.push({ id: 'admin-service', label: t('adminService'), icon: <Wrench /> });
+      if (permissionCodes.includes('users')) items.push({ id: 'korisnici', label: t('systemUsers'), icon: <UserCircle /> });
+      if (permissionCodes.includes('roles')) items.push({ id: 'roles', label: t('roles'), icon: <Shield /> });
+      if (permissionCodes.includes('invoices')) items.push({ id: 'invoices', label: t('billing'), icon: <ClipboardList /> });
+    }
+
+    if (role !== RoleType.ADMIN && permissionCodes.includes('image_gallery')) {
+      items.push({ id: 'gallery', label: t('imageGallery'), icon: <Images /> });
     }
 
     return items;

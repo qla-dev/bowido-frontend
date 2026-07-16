@@ -7,6 +7,7 @@ import { Pallet, User } from '../types';
 import { findPalletByScannedQr } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 import { apiService } from '../services/api';
+import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
@@ -290,7 +291,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           currentUser.name,
           location,
           '',
-          selectedClientId
+          statusIdAllowsCustomer(statuses, selectedStatusId) ? selectedClientId : undefined
         );
       }
     });
@@ -356,12 +357,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     try {
       if (scanPhoto) {
         const nextStatusId = isDetailScan ? detectedPallet.current_status_id : selectedStatusId;
-        const clientId =
-          nextStatusId === 4
-            ? selectedClientId ?? detectedPallet.user_id
-            : detectedPallet.current_status_id === 4
-              ? detectedPallet.user_id
-              : undefined;
+        const clientId = statusIdAllowsCustomer(statuses, nextStatusId)
+          ? selectedClientId ?? detectedPallet.user_id
+          : undefined;
 
         await apiService.palletPhotos.uploadScan(detectedPallet.id, scanPhoto, {
           old_status_id: detectedPallet.current_status_id,
@@ -539,7 +537,10 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                       {filteredStatuses.map((status) => (
                         <button
                           key={status.id}
-                          onClick={() => setSelectedStatusId(status.id)}
+                          onClick={() => {
+                            setSelectedStatusId(status.id);
+                            if (!statusIdAllowsCustomer(statuses, status.id)) setSelectedClientId(undefined);
+                          }}
                           className={cn(
                             'p-3 rounded-2xl border-2 transition-all text-left group',
                             selectedStatusId === status.id
@@ -553,7 +554,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                     </div>
                   </div>
 
-                  {selectedStatusId === 4 && (
+                  {statusIdAllowsCustomer(statuses, selectedStatusId) && (
                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
                       <div className="flex items-center justify-between px-1">
                         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">2. {t('selectClient')}</h3>
@@ -730,7 +731,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                 className="flex-[2]"
                 disabled={
                   scannedCodes.length === 0 ||
-                  (selectedStatusId === 4 && !selectedClientId) ||
+                  (statusIdAllowsCustomer(statuses, selectedStatusId) && !selectedClientId) ||
                   (scanMode === 'singular' && scannedCodes.length > 1)
                 }
                 onClick={handleComplete}

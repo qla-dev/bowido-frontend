@@ -17,6 +17,7 @@ import { Pallet } from '../types';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
+import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 
 type NoQrColumnKey =
   | 'serial'
@@ -870,6 +871,7 @@ export const NoQrPalletTableView: React.FC = () => {
                 </label>
                 <select
                   value={editingPallet.user_id || ''}
+                  disabled={!statusIdAllowsCustomer(statuses, editingPallet.current_status_id)}
                   onChange={(event) => {
                     const userId = event.target.value ? Number(event.target.value) : undefined;
                     const clientName = clients.find((client) => client.user_id === userId)?.name;
@@ -905,6 +907,8 @@ export const NoQrPalletTableView: React.FC = () => {
                       ...editingPallet,
                       current_status_id: statusId,
                       current_status_name: statusName,
+                      user_id: statusIdAllowsCustomer(statuses, statusId) ? editingPallet.user_id : undefined,
+                      client_name: statusIdAllowsCustomer(statuses, statusId) ? editingPallet.client_name : undefined,
                     });
                   }}
                   className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"

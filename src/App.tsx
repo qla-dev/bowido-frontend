@@ -12,6 +12,13 @@ import { GhostPalletCenter } from './components/GhostPalletCenter';
 import { DriverMobileDashboard } from './components/DriverMobileDashboard';
 import { RoleMobileShell } from './components/RoleMobileShell';
 import { AdminRoleOperationsView } from './components/AdminRoleOperationsView';
+import { CustomerDetailsPage } from './components/CustomerDetailsPage';
+import { ImageGallery } from './components/ImageGallery';
+import { AdminAuditLogs } from './components/AdminAuditLogs';
+import { AdminClientManagerView } from './components/AdminClientManagerView';
+import { RoleManager } from './components/RoleManager';
+import { UserManager } from './components/UserManager';
+import { BillingList } from './components/BillingList';
 import { RoleType, User } from './types';
 import { Eye, EyeOff, LogIn, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -377,6 +384,10 @@ export default function App() {
   const [showLoginLanguageMenu, setShowLoginLanguageMenu] = useState(false);
 
   useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, isNightMode ? 'dark' : 'light');
+  }, [isNightMode]);
+
+  useEffect(() => {
     if (!apiService.hasToken()) {
       storeCurrentUser(null);
       setIsRestoringSession(false);
@@ -384,12 +395,6 @@ export default function App() {
     }
 
     let isMounted = true;
-    const hadStoredUser = Boolean(currentUser);
-
-    if (hadStoredUser) {
-      void refreshData();
-    }
-
     const restoreSession = async () => {
       try {
         const restoredUser = await apiService.auth.me();
@@ -401,12 +406,8 @@ export default function App() {
         setCurrentUser(restoredUser);
         storeCurrentUser(restoredUser);
 
-        if (!hadStoredUser) {
-          void refreshData();
-        }
+        void refreshData();
       } catch (error) {
-        console.error('Failed to restore session', error);
-
         if (!isMounted) {
           return;
         }
@@ -639,7 +640,6 @@ export default function App() {
       setRememberLogin(false);
       void refreshData();
     } catch (error) {
-      console.error('Failed to login with credentials', error);
       setCredentialLoginError(getCredentialLoginErrorMessage(error, credentialLoginCopy.invalid));
     } finally {
       setIsCredentialLoginSubmitting(false);
@@ -1020,6 +1020,16 @@ export default function App() {
 }
 
   const renderDashboard = () => {
+    if (activeTab === 'gallery') return <ImageGallery />;
+    if (activeTab === 'audit-logs') return <AdminAuditLogs />;
+    if (activeTab === 'client-manager') return <AdminClientManagerView />;
+    if (activeTab === 'roles') return <RoleManager />;
+    if (activeTab === 'korisnici') return <UserManager currentUser={currentUser} />;
+    if (activeTab === 'invoices') return <BillingList />;
+    if (activeTab === 'admin-service') return <AdminRoleOperationsView mode="service" />;
+    if (activeTab === 'customer-details' && currentUser.role_name === RoleType.KLIJENT) {
+      return <CustomerDetailsPage />;
+    }
     if (activeTab === 'settings' && (currentUser.role_name !== RoleType.ADMIN || usesRoleMobileShell)) {
       return (
         <Card title={t('settings')} className="w-full">
@@ -1142,10 +1152,14 @@ export default function App() {
           palletActive={activeTab === 'client-table'}
           onToggleSettings={() => setActiveTab(activeTab === 'settings' ? 'dashboard' : 'settings')}
           onLogout={handleLogout}
+          onToggleNightMode={() => setIsNightMode(!isNightMode)}
           logoSrc={logoImage}
           bodyClassName={(activeTab === 'settings' || activeTab === 'client-table') ? 'px-4' : 'px-0'}
           showPalletIcon={currentUser.role_name === RoleType.KLIJENT}
           onPalletIconClick={() => setActiveTab(activeTab === 'client-table' ? 'dashboard' : 'client-table')}
+          showDetailsIcon={currentUser.role_name === RoleType.KLIJENT}
+          detailsActive={activeTab === 'customer-details'}
+          onDetailsIconClick={() => setActiveTab('customer-details')}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -1219,6 +1233,8 @@ export default function App() {
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 
           role={currentUser.role_name} 
+          permissionCodes={currentUser.permission_codes}
+          backendRoleName={currentUser.backend_role_name}
           onLogout={handleLogout} 
         />
       
