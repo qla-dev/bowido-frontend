@@ -31,6 +31,7 @@ import { languageOptions } from './i18n';
 const CURRENT_USER_STORAGE_KEY = 'trackpal_current_user';
 const LOGIN_PROFILES_STORAGE_KEY = 'trackpal_login_profiles';
 const ACTIVE_TAB_STORAGE_KEY = 'trackpal_active_tab';
+const THEME_STORAGE_KEY = 'trackpal_theme';
 const RECENT_LOGIN_LIMIT = 6;
 
 type LoginMode = 'user' | 'customer';
