@@ -134,6 +134,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<number | null>(null);
   const [sentInvoiceTimestamps, setSentInvoiceTimestamps] = useState<Record<number, string>>({});
   const [sendingInvoicePalletIds, setSendingInvoicePalletIds] = useState<number[]>([]);
+  const [invoiceDeliveryError, setInvoiceDeliveryError] = useState<Pallet | null>(null);
   const [dashboardStats, setDashboardStats] = useState<PalletDashboardStats | null>(null);
   const [palletAuditLogsById, setPalletAuditLogsById] = useState<Record<number, AuditLog[]>>({});
 
@@ -255,16 +256,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   };
 
-  const addPalletModeLabel = language === 'bs' ? 'Nacin unosa' : language === 'nl' ? 'Invoermodus' : 'Entry mode';
-  const singlePalletLabel = language === 'bs' ? 'Jedna paleta' : language === 'nl' ? 'Eén bok' : 'Single pallet';
-  const bulkPalletLabel = language === 'bs' ? 'Bulk unos' : language === 'nl' ? 'Bulk invoer' : 'Bulk entry';
-  const qrPrefixLabel = language === 'bs' ? 'QR prefiks' : language === 'nl' ? 'QR prefix' : 'QR prefix';
-  const rangeFromLabel = language === 'bs' ? 'Od broja' : language === 'nl' ? 'Vanaf nummer' : 'From number';
-  const rangeToLabel = language === 'bs' ? 'Do broja' : language === 'nl' ? 'Tot nummer' : 'To number';
-  const totalCreateLabel = language === 'bs' ? 'Za kreiranje' : language === 'nl' ? 'Te maken' : 'To create';
-  const invalidRangeLabel = language === 'bs' ? 'Unesi ispravan raspon.' : language === 'nl' ? 'Vul een geldig bereik in.' : 'Enter a valid range.';
-  const bulkHintLabel = language === 'bs' ? 'Status novih paleta' : language === 'nl' ? 'Status van nieuwe bokken' : 'Status for new pallets';
-  const createBulkLabel = language === 'bs' ? 'Kreiraj palete' : language === 'nl' ? 'Bokken aanmaken' : 'Create pallets';
+  const addPalletModeLabel = t('entryMode');
+  const singlePalletLabel = t('singlePallet');
+  const bulkPalletLabel = t('bulkEntry');
+  const qrPrefixLabel = t('qrPrefix');
+  const rangeFromLabel = t('rangeFrom');
+  const rangeToLabel = t('rangeTo');
+  const totalCreateLabel = t('totalToCreate');
+  const invalidRangeLabel = t('invalidRange');
+  const bulkHintLabel = t('newPalletStatus');
+  const createBulkLabel = t('createPallets');
 
   const parseBulkNumber = (value: string) => {
     const trimmedValue = value.trim();
@@ -395,7 +396,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setSentInvoiceTimestamps(prev => ({ ...prev, [pallet.id]: formatDateTime(new Date()) }));
     } catch (error) {
       console.error('[TrackPal] Dashboard invoice delivery failed', { palletId: pallet.id, error });
-      window.alert('Faktura nije poslana. Provjerite podatke za naplatu i Laravel log.');
+      setInvoiceDeliveryError(pallet);
     } finally {
       setSendingInvoicePalletIds((current) => current.filter((id) => id !== pallet.id));
     }
@@ -439,21 +440,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         password: clientPasswordDraft.trim(),
       });
       setClientPasswordDraft('');
-      setClientPasswordMessage(
-        language === 'bs'
-          ? 'Lozinka je promijenjena.'
-          : language === 'nl'
-            ? 'Wachtwoord is gewijzigd.'
-            : 'Password has been updated.'
-      );
+      setClientPasswordMessage(t('passwordUpdated'));
     } catch {
-      setClientPasswordMessage(
-        language === 'bs'
-          ? 'Nije pronadjen povezani korisnicki nalog.'
-          : language === 'nl'
-            ? 'Geen gekoppeld gebruikersaccount gevonden.'
-            : 'No linked user account was found.'
-      );
+      setClientPasswordMessage(t('linkedUserNotFound'));
     }
   };
 
@@ -511,20 +500,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  const hideDetailLabel =
-    language === 'bs' ? 'Sakrij detalje' : language === 'nl' ? 'Details verbergen' : 'Hide details';
-  const showDetailLabel =
-    language === 'bs' ? 'Prikaz detalja' : language === 'nl' ? 'Details tonen' : 'Show details';
-  const daysOutsideLabel =
-    language === 'bs' ? 'Dana vani' : language === 'nl' ? 'Dagen buiten' : 'Days out';
-  const detailsSectionLabel = language === 'bs' ? 'Detalji' : 'Details';
-  const noMovementHistoryLabel =
-    language === 'bs'
-      ? 'Nema zabiljezene historije kretanja.'
-      : language === 'nl'
-        ? 'Geen bewegingshistoriek beschikbaar.'
-        : 'No movement history available.';
-  const notAvailableLabel = language === 'bs' ? 'Nije dostupno' : language === 'nl' ? 'Niet beschikbaar' : 'Not available';
+  const hideDetailLabel = t('hideDetails');
+  const showDetailLabel = t('showDetails');
+  const daysOutsideLabel = t('daysOut');
+  const detailsSectionLabel = t('details');
+  const noMovementHistoryLabel = t('noMovementHistory');
+  const notAvailableLabel = t('valueUnavailable');
   const getAssignedClient = (pallet: Pallet) =>
     pallet.user_id ? clients.find((client) => client.user_id === pallet.user_id) : undefined;
   const getPrimaryClientAddress = (client?: ClientDetail) =>
@@ -554,7 +535,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     pallet.pallet_name?.trim() || pallet.qr_code?.trim() || notAvailableLabel;
   const renderPalletInfoTile = (label: string, value: React.ReactNode, className?: string) => (
     <div className={cn('min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-white/[0.06]', className)}>
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-500">
+      <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
         {label}
       </p>
       <div className="mt-2 break-words text-[15px] font-black leading-5 text-zinc-950 dark:text-white">
@@ -563,15 +544,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     </div>
   );
   const formatDaysOutsideValue = (days: number) => {
-    if (language === 'bs') {
-      return `${days} ${days === 1 ? 'dan' : 'dana'}`;
-    }
-
-    if (language === 'nl') {
-      return `${days} ${days === 1 ? 'dag' : 'dagen'}`;
-    }
-
-    return `${days} ${days === 1 ? 'day' : 'days'}`;
+    return `${days} ${days === 1 ? t('daySingular') : t('dayPlural')}`;
   };
   const detailDateFormatter = new Intl.DateTimeFormat(
     language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
@@ -718,7 +691,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex items-center justify-between border-b border-rose-100 bg-rose-50 px-4 py-2.5">
                 <div className="flex items-center gap-2 text-rose-700">
                   <AlertTriangle size={14} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">
+                  <span className="text-[11px] font-bold tracking-[0.08em]">
                     {overduePallets.length > 0 ? `${t('actionRequired')} (${overduePallets.length})` : t('allGood')}
                   </span>
                 </div>
@@ -757,7 +730,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
                               <td className="px-4 py-2.5 text-center align-middle">
                                 <p className="font-bold text-zinc-900 leading-none mb-1">{client?.name || t('inWarehouse')}</p>
-                                <p className="text-[9px] text-zinc-400 uppercase tracking-tighter leading-none">{p.current_location}</p>
+                                <p className="text-[11px] leading-4 text-zinc-500">{p.current_location}</p>
                               </td>
                               <td className="px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
                                  {"\u20AC"}{calculateDebt(p).toFixed(2)}
@@ -888,7 +861,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex items-center justify-between">
                      <div className="flex items-center gap-2">
                         <TrendingUp size={14} className="text-emerald-500" />
-                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{t('utilizationRate')}</span>
+                        <span className="text-[11px] font-bold tracking-[0.08em] text-zinc-500">{t('utilizationRate')}</span>
                      </div>
                      <span className="text-xs font-black">{utilizationRate.toFixed(1)}%</span>
                   </div>
@@ -900,16 +873,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
                        <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
                        <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-blue-800 mb-1">{t('logisticsNote')}</p>
-                          <p className="text-[11px] font-bold text-blue-700 leading-tight">{quickAnalysisCopy.logistics}</p>
+                          <p className="mb-1 text-[11px] font-bold tracking-[0.06em] text-blue-800">{t('logisticsNote')}</p>
+                          <p className="text-[12px] font-medium leading-5 text-blue-700">{t('logisticsNoteText')}</p>
                        </div>
                     </div>
 
                     <div className="flex gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
                        <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
                        <div className="min-w-0">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-800 mb-1">{t('overdueWarning')}</p>
-                          <p className="text-[11px] font-bold text-amber-700 leading-tight">{quickAnalysisCopy.overdue}</p>
+                          <p className="mb-1 text-[11px] font-bold tracking-[0.06em] text-amber-800">{t('overdueWarning')}</p>
+                          <p className="text-[12px] font-medium leading-5 text-amber-700">{t('overdueWarningText')}</p>
                        </div>
                     </div>
                   </div>
@@ -917,12 +890,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </Card>
 
             <Card
-              title="Ghost Reports"
+              title={t('ghostReport')}
               noPadding
               className="h-full overflow-hidden"
               action={
                 <Button variant="ghost" size="xs" onClick={() => setIsGhostReportOpen(true)}>
-                  Otvori
+                  {t('open')}
                 </Button>
               }
             >
@@ -933,12 +906,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Ghost size={18} />
                     </div>
                     <div>
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-rose-500">Otvorene prijave</p>
+                      <p className="text-[11px] font-bold tracking-[0.08em] text-rose-600">{t('openReports')}</p>
                       <p className="text-base font-black uppercase tracking-tight text-rose-700">{ghostPallets.length}</p>
                     </div>
                   </div>
                   <Badge variant={ghostPallets.length > 0 ? 'warning' : 'success'}>
-                    {ghostPallets.length > 0 ? 'Akcija' : 'Čisto'}
+                    {ghostPallets.length > 0 ? t('actionRequired') : t('allGood')}
                   </Badge>
                 </div>
 
@@ -948,8 +921,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div key={`admin-ghost-${ghostPallet.id}`} className="rounded-2xl border border-zinc-100 bg-white p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">
-                              {ghostPallet.client_name || 'Nepoznat klijent'}
+                            <p className="text-[11px] font-bold tracking-[0.06em] text-zinc-500">
+                              {ghostPallet.client_name || t('unknownClient')}
                             </p>
                             <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 mt-1 truncate">
                               {ghostPallet.current_location}
@@ -957,15 +930,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                           <Badge variant="warning">Ghost</Badge>
                         </div>
-                        <p className="text-[10px] font-bold text-zinc-500 mt-3 leading-relaxed">
-                          {ghostPallet.note || 'Prijavljena paleta bez QR koda.'}
+                        <p className="mt-3 text-[12px] font-medium leading-5 text-zinc-600">
+                          {ghostPallet.note || t('ghostReportCardText')}
                         </p>
                       </div>
                     ))
                   ) : (
                     <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-3 text-center">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                        Trenutno nema otvorenih ghost prijava.
+                      <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500">
+                        {t('noOpenGhostReports')}
                       </p>
                     </div>
                   )}
@@ -1824,15 +1797,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  </div>
                  <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                       {language === 'bs' ? 'Adresa magacina 1' : language === 'nl' ? 'Magazijnadres 1' : 'Warehouse Address 1'}
+                       {t('warehouseAddressOne')}
                     </label>
-                    <input id="new-client-address1" placeholder={language === 'bs' ? 'npr. Veldhovenweg 18, Eindhoven' : 'e.g. Veldhovenweg 18, Eindhoven'} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
+                    <input id="new-client-address1" placeholder={t('warehouseAddressOnePlaceholder')} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
                  </div>
                  <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                       {language === 'bs' ? 'Adresa magacina 2' : language === 'nl' ? 'Magazijnadres 2' : 'Warehouse Address 2'}
+                       {t('warehouseAddressTwo')}
                     </label>
-                    <input id="new-client-address2" placeholder={language === 'bs' ? 'npr. Waalhaven Zuidzijde 19, Rotterdam' : 'e.g. Waalhaven Zuidzijde 19, Rotterdam'} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
+                    <input id="new-client-address2" placeholder={t('warehouseAddressTwoPlaceholder')} className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold" />
                  </div>
               </div>
               <div className="flex gap-4 mt-8">
@@ -1901,7 +1874,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  </div>
                  <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                       {language === 'bs' ? 'Adresa magacina 1' : language === 'nl' ? 'Magazijnadres 1' : 'Warehouse Address 1'}
+                       {t('warehouseAddressOne')}
                     </label>
                     <input 
                       type="text" 
@@ -1920,7 +1893,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  </div>
                  <div className="col-span-2 space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                       {language === 'bs' ? 'Adresa magacina 2' : language === 'nl' ? 'Magazijnadres 2' : 'Warehouse Address 2'}
+                       {t('warehouseAddressTwo')}
                     </label>
                     <input 
                       type="text" 
@@ -1981,6 +1954,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onClose={() => setDeleteConfirm(null)}
           onConfirm={confirmDeleteAction}
         />
+
+        {invoiceDeliveryError && (
+          <div className="fixed bottom-5 right-5 z-[150] w-[calc(100%-2.5rem)] max-w-md rounded-2xl border border-[var(--status-danger-border)] bg-[var(--status-danger-bg)] p-4 shadow-xl sm:w-full">
+            <p className="text-sm font-bold text-[var(--status-danger-text)]">{t('invoiceDeliveryFailed')}</p>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="danger" onClick={() => void handleSendInvoice(invoiceDeliveryError)}>
+                {t('retry')}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setInvoiceDeliveryError(null)}>
+                {t('close')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {showScanner && (
           <PalletScanner 

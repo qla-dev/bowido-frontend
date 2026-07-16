@@ -269,64 +269,31 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     maxHeight: number;
   } | null>(null);
 
-  const searchPlaceholder =
-    language === 'bs' ? 'Pretraži' : language === 'nl' ? 'Zoeken' : 'Search';
-  const showAllLabel =
-    language === 'bs' ? 'Prikaži sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
-  const noResultsLabel =
-    language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
-  const warehousesHeaderLabel =
-    language === 'bs' ? 'Adrese magacina' : language === 'nl' ? 'Magazijnadressen' : 'Warehouse addresses';
-  const overdueTotalHeaderLabel =
-    language === 'bs' ? 'Dug' : language === 'nl' ? 'Achterstand' : 'Overdue total';
-  const atClientHeaderLabel =
-    language === 'bs' ? 'Kod kupca' : language === 'nl' ? 'Bij klant' : 'At client';
-  const returnReportsHeaderLabel =
-    language === 'bs' ? 'Prijave povrata' : language === 'nl' ? 'Retourmeldingen' : 'Return reports';
-  const mobileProfileLabel =
-    language === 'bs' ? 'Profil klijenta' : language === 'nl' ? 'Klantprofiel' : 'Client profile';
-  const mobileOverviewLabel =
-    language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Bokkenoverzicht' : 'Pallet overview';
-  const mobileReportedPalletsLabel =
-    language === 'bs' ? 'Prijavljene palete' : language === 'nl' ? 'Gemelde bokken' : 'Reported pallets';
-  const mobileWithQrLabel =
-    language === 'bs' ? 'Sa QR kodom' : language === 'nl' ? 'Met QR code' : 'With QR code';
-  const mobileWithoutQrLabel =
-    language === 'bs' ? 'Bez QR koda' : language === 'nl' ? 'Zonder QR code' : 'Without QR code';
-  const mobilePalletsAtClientLabel =
-    language === 'bs' ? 'Palete kod klijenta' : language === 'nl' ? 'Bokken bij klant' : 'Pallets at client';
-  const mobileOverdueDaysLabel =
-    language === 'bs' ? 'Ukupno dana kašnjenja' : language === 'nl' ? 'Totale overduedagen' : 'Total overdue days';
-  const mobileTotalDebtLabel =
-    language === 'bs' ? 'Ukupan dug' : language === 'nl' ? 'Totale schuld' : 'Total debt';
-  const reportReturnLabel =
-    language === 'bs'
-      ? 'Prijavi povrat'
-      : language === 'nl'
-        ? 'Retour melden'
-        : 'Report return';
-  const mobileNoClientPalletsLabel =
-    language === 'bs' ? 'Klijent nema prijavljenih paleta.' : language === 'nl' ? 'De klant heeft geen gemelde bokken.' : 'This client has no reported pallets.';
-  const mobileNoQrListEmptyLabel =
-    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen bokken zonder QR-code.' : 'No pallets without a QR code.';
-  const mobileWithQrListEmptyLabel =
-    language === 'bs' ? 'Nema paleta sa QR kodom.' : language === 'nl' ? 'Geen bokken met QR-code.' : 'No pallets with a QR code.';
-  const mobileNoQrEmptyLabel =
-    language === 'bs' ? 'Nema prijavljenih paleta bez QR koda.' : language === 'nl' ? 'Geen gemelde bokken zonder QR-code.' : 'No pallets reported without a QR code.';
-  const mobilePalletNumberLabel =
-    language === 'bs' ? 'Redni broj palete' : language === 'nl' ? 'Volgnummer bok' : 'Pallet number';
-  const mobileReturnDateLabel =
-    language === 'bs' ? 'Datum retour' : language === 'nl' ? 'Datum retour' : 'Return date';
-  const mobileCommentLabel =
-    language === 'bs' ? 'Komentar' : language === 'nl' ? 'Commentaar' : 'Comment';
-  const mobileStatusVoorRetourLabel =
-    language === 'bs' ? 'Voor retour' : language === 'nl' ? 'Voor retour' : 'For return';
-  const resizeAriaLabel =
-    language === 'bs'
-      ? 'Promijeni sirinu kolone'
-      : language === 'nl'
-        ? 'Kolombreedte aanpassen'
-        : 'Resize column';
+  const searchPlaceholder = t('search');
+  const showAllLabel = t('showAll');
+  const noResultsLabel = t('noResults');
+  const warehousesHeaderLabel = t('warehouseAddresses');
+  const overdueTotalHeaderLabel = t('overdueTotal');
+  const atClientHeaderLabel = t('atClientLabel');
+  const returnReportsHeaderLabel = t('returnReports');
+  const mobileProfileLabel = t('clientProfile');
+  const mobileOverviewLabel = t('palletOverview');
+  const mobileReportedPalletsLabel = t('reportedPallets');
+  const mobileWithQrLabel = t('withQr');
+  const mobileWithoutQrLabel = t('withoutQrCode');
+  const mobilePalletsAtClientLabel = t('palletsAtClient');
+  const mobileOverdueDaysLabel = t('totalOverdueDays');
+  const mobileTotalDebtLabel = t('totalDebt');
+  const reportReturnLabel = t('reportReturn');
+  const mobileNoClientPalletsLabel = t('noClientPallets');
+  const mobileNoQrListEmptyLabel = t('noQrPallets');
+  const mobileWithQrListEmptyLabel = t('noPalletsWithQr');
+  const mobileNoQrEmptyLabel = t('noQrReportedPallets');
+  const mobilePalletNumberLabel = t('palletNumber');
+  const mobileReturnDateLabel = t('returnDate');
+  const mobileCommentLabel = t('comment');
+  const mobileStatusVoorRetourLabel = t('forReturn');
+  const resizeAriaLabel = t('resizeColumn');
   const stickyActionsHeaderClass =
     'sticky right-0 z-20 border-l border-zinc-200 bg-zinc-50/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur';
   const stickyActionsCellClass =
@@ -853,7 +820,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     <span>{t('qrCode')}</span>
                     <span>{t('status')}</span>
                     <span>{t('daysOut')}</span>
-                    <span>{language === 'bs' ? 'Kasni' : language === 'nl' ? 'Te laat' : 'Late'}</span>
+                    <span>{t('overdueShort')}</span>
                     <span>EUR</span>
                   </div>
                   <ul className="divide-y divide-zinc-100 dark:divide-white/10">
@@ -955,7 +922,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                           <span>{t('qrCode')}</span>
                           <span>{t('status')}</span>
                           <span className="text-right">{t('daysOut')}</span>
-                          <span className="text-right">{language === 'bs' ? 'Kasni' : language === 'nl' ? 'Te laat' : 'Late'}</span>
+                          <span className="text-right">{t('overdueShort')}</span>
                           <span className="text-right">EUR</span>
                         </div>
 

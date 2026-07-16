@@ -85,8 +85,7 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
     if (status === 'sent') return t('sentLabel');
     return status;
   };
-  const searchPlaceholder =
-    language === 'bs' ? 'Pretrazi fakture' : language === 'nl' ? 'Zoek facturen' : 'Search invoices';
+  const searchPlaceholder = t('searchInvoices');
 
   return (
     <div className="space-y-6">

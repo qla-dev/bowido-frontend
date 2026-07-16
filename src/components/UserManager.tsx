@@ -16,6 +16,7 @@ import { getPermissionLabel, getRoleLabel, getRolePermissions } from '../i18n';
 import { ManagedUser, RoleType, User } from '../types';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
+import { DeleteConfirmModal } from './DeleteConfirmModal';
 import {
   CheckCircle2,
   ChevronDown,
@@ -370,6 +371,9 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [userPendingDeletion, setUserPendingDeletion] = useState<ManagedUser | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [pageOffset, setPageOffset] = useState(0);
   const [pageLimit, setPageLimit] = useState(USER_PAGE_SIZE);
   const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
@@ -427,7 +431,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
     setErrorMessage(null);
   };
 
-  const handleDelete = async (user: ManagedUser) => {
+  const handleDelete = (user: ManagedUser) => {
     if (user.id === currentUser.id) {
       setErrorMessage(t('activeSessionCannotDelete'));
       return;
@@ -438,22 +442,36 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
       return;
     }
 
-    const shouldDelete = window.confirm(`${t('deleteUserConfirm')} ${user.email}?`);
+    setUserPendingDeletion(user);
+  };
 
-    if (!shouldDelete) {
+  const confirmDeleteUser = async () => {
+    if (!userPendingDeletion) {
       return;
     }
 
-    await apiService.users.delete(user.id);
+    setIsDeleting(true);
+    setErrorMessage(null);
 
-    if (users.length === 1 && pageOffset > 0) {
-      setPageOffset(Math.max(0, pageOffset - pageLimit));
-    } else {
-      await loadUsers();
-    }
+    try {
+      await apiService.users.delete(userPendingDeletion.id);
 
-    if (editingUserId === user.id) {
-      resetForm();
+      if (users.length === 1 && pageOffset > 0) {
+        setPageOffset(Math.max(0, pageOffset - pageLimit));
+      } else {
+        await loadUsers();
+      }
+
+      if (editingUserId === userPendingDeletion.id) {
+        resetForm();
+      }
+      setSuccessMessage(t('userDeleted'));
+      setUserPendingDeletion(null);
+    } catch {
+      setErrorMessage(t('changesNotSaved'));
+      setUserPendingDeletion(null);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -846,6 +864,28 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           </Card>
         </div>
       </div>
+      <DeleteConfirmModal
+        open={Boolean(userPendingDeletion)}
+        title={`${t('deleteUserConfirm')}?`}
+        subject={userPendingDeletion?.email}
+        message={t('confirmDeleteUser')}
+        confirmLabel={isDeleting ? t('deleting') : t('remove')}
+        cancelLabel={t('cancel')}
+        onClose={() => !isDeleting && setUserPendingDeletion(null)}
+        onConfirm={() => void confirmDeleteUser()}
+      />
+      {successMessage && (
+        <div className="fixed bottom-5 right-5 z-[150] flex max-w-sm items-center gap-3 rounded-2xl border border-[var(--status-success-border)] bg-[var(--status-success-bg)] px-4 py-3 shadow-xl">
+          <p className="text-sm font-bold text-[var(--status-success-text)]">{successMessage}</p>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage(null)}
+            className="text-xs font-bold text-[var(--status-success-text)] underline"
+          >
+            {t('close')}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
