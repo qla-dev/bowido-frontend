@@ -882,6 +882,7 @@ export const apiService = {
       kvk: string;
       fixed_phone: string;
       billing_email: string;
+      billing_address: string;
       street: string;
       postal_code: string;
       warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
