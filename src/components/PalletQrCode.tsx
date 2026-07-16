@@ -45,7 +45,8 @@ export const PalletQrCode: React.FC<PalletQrCodeProps> = ({ value, className }) 
       shapeRendering="crispEdges"
     >
       <rect width={viewBoxSize} height={viewBoxSize} fill="white" />
-      <path d={darkPath} fill="currentColor" />
+      {/* QR modules must remain dark regardless of the surrounding UI theme. */}
+      <path d={darkPath} fill="#09090b" />
     </svg>
   );
 };
