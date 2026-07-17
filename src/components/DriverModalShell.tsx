@@ -45,6 +45,15 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
   showFooterDivider = true,
 }) => {
   const hasHeaderContent = header !== undefined || Boolean(title) || Boolean(subtitle);
+
+  React.useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
   const resolvedHeader =
     header !== undefined ? (
       header

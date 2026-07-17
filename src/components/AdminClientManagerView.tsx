@@ -151,6 +151,19 @@ export const AdminClientManagerView: React.FC = () => {
   } = adminTableStyles;
 
   useEffect(() => {
+    if (!selectedRow && !photoViewer) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (photoViewer) setPhotoViewer(null);
+      else closeClientModal();
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [photoViewer, selectedRow]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadPage = async () => {
