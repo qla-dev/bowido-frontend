@@ -125,8 +125,8 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [selectedPallet, setSelectedPallet] = useState<PalletRow | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
-    key: 'debt',
-    direction: 'desc',
+    key: 'pallet',
+    direction: 'asc',
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');

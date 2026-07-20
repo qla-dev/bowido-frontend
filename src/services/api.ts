@@ -283,7 +283,7 @@ const statusUiBySlug: Record<string, { id: number; name: string }> = {
   at_customer: { id: 4, name: 'Bij de klant' },
   pending_return: { id: 5, name: 'Voor retour' },
   transport_nl_bih: { id: 6, name: 'Transport (NL/BiH)' },
-  service: { id: 7, name: 'Servis' },
+  service: { id: 7, name: 'Voor reparatie' },
   unknown: { id: 8, name: 'Onbekend' },
 };
 
@@ -299,6 +299,7 @@ const statusUiByName: Record<string, { id: number; name: string }> = {
   'Voor retour': statusUiBySlug.pending_return,
   Service: statusUiBySlug.service,
   Servis: statusUiBySlug.service,
+  'Voor reparatie': statusUiBySlug.service,
   Unknown: statusUiBySlug.unknown,
   Onbekend: statusUiBySlug.unknown,
 };
@@ -463,7 +464,17 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     country: client.country || 'NL',
     province: client.province || undefined,
     street: client.street || undefined,
+    house_number: client.house_number || undefined,
     postal_code: client.postal_code || undefined,
+    city: client.city || undefined,
+    warehouse1_street: client.warehouse1_street || undefined,
+    warehouse1_house_number: client.warehouse1_house_number || undefined,
+    warehouse1_postal_code: client.warehouse1_postal_code || undefined,
+    warehouse1_city: client.warehouse1_city || undefined,
+    warehouse2_street: client.warehouse2_street || undefined,
+    warehouse2_house_number: client.warehouse2_house_number || undefined,
+    warehouse2_postal_code: client.warehouse2_postal_code || undefined,
+    warehouse2_city: client.warehouse2_city || undefined,
     warehouse_scope: client.warehouse_scope || undefined,
     grace_period_days: Number(client.grace_period_days ?? 0),
     price_per_day: Number(client.price_per_day ?? client.default_price_per_day ?? 0),
@@ -665,11 +676,18 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
     billing_email: client.billing_email || null,
     fixed_phone: client.fixed_phone || null,
     street: client.street || null,
+    house_number: client.house_number || null,
     postal_code: client.postal_code || null,
+    city: client.city || null,
     warehouse_scope: client.warehouse_scope || null,
-    billing_address: addresses[1] || addresses[0] || null,
-    delivery_address: addresses[0] || null,
-    tax_number: client.kvk_number || null,
+    warehouse1_street: client.warehouse1_street || addresses[0] || null,
+    warehouse1_house_number: client.warehouse1_house_number || null,
+    warehouse1_postal_code: client.warehouse1_postal_code || null,
+    warehouse1_city: client.warehouse1_city || null,
+    warehouse2_street: client.warehouse2_street || addresses[1] || null,
+    warehouse2_house_number: client.warehouse2_house_number || null,
+    warehouse2_postal_code: client.warehouse2_postal_code || null,
+    warehouse2_city: client.warehouse2_city || null,
     vat_number: null,
     default_price_per_day: Number(client.price_per_day ?? 0),
     grace_period_days: Number(client.grace_period_days ?? 0),
@@ -712,8 +730,8 @@ export const apiService = {
   clearToken: () => setStoredToken(null),
 
   auth: {
-    kvkLookup: (kvk: string) => apiData<{ company_name: string; kvk: string; email?: string; phone_number?: string; fixed_phone?: string; billing_address?: string; delivery_address?: string }>('/auth/kvk-lookup', { method: 'POST', body: jsonBody({ kvk }) }),
-    kvkRegister: (data: { kvk: string; name: string; email: string; billing_address: string; delivery_address?: string; phone_number?: string; fixed_phone?: string; password: string; password_confirmation: string }) => apiData<ApiRecord>('/auth/kvk-register', { method: 'POST', body: jsonBody(data) }),
+    kvkLookup: (kvk: string) => apiData<{ company_name: string; kvk: string; email?: string; phone_number?: string; fixed_phone?: string; street?: string; house_number?: string; postal_code?: string; city?: string; warehouse1_street?: string; warehouse1_house_number?: string; warehouse1_postal_code?: string; warehouse1_city?: string; warehouse2_street?: string; warehouse2_house_number?: string; warehouse2_postal_code?: string; warehouse2_city?: string }>('/auth/kvk-lookup', { method: 'POST', body: jsonBody({ kvk }) }),
+    kvkRegister: (data: { kvk: string; name: string; email: string; phone_number?: string; fixed_phone?: string; street?: string; house_number?: string; postal_code?: string; city?: string; warehouse1_street?: string; warehouse1_house_number?: string; warehouse1_postal_code?: string; warehouse1_city?: string; warehouse2_street?: string; warehouse2_house_number?: string; warehouse2_postal_code?: string; warehouse2_city?: string; password: string; password_confirmation: string }) => apiData<ApiRecord>('/auth/kvk-register', { method: 'POST', body: jsonBody(data) }),
     login: async (credentials: LoginCredentials) => {
       const loginType = credentials.loginType || (credentials.kvk ? 'customer' : 'user');
       const result = await apiData<ApiRecord>('/auth/login', {
@@ -913,6 +931,7 @@ export const apiService = {
           role_id: roleId,
           name,
           email: data.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
+          phone_number: data.phone_number || undefined,
           password: DEMO_PASSWORD,
           is_active: true,
           customer_details: toCustomerPayload(data),
@@ -933,6 +952,9 @@ export const apiService = {
           body: jsonBody(toCustomerPayload(data)),
         })
       ),
+    delete: async (id: number): Promise<void> => {
+      await apiData<null>(`/customer_details/${id}`, { method: 'DELETE' });
+    },
   },
 
   users: {

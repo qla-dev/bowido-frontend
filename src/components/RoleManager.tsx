@@ -246,7 +246,7 @@ export const RoleManager: React.FC = () => {
                       variant="ghost"
                       size="xs"
                       onClick={() => setPendingDeleteRole(role)}
-                      className="text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                      className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700 dark:hover:text-white"
                       title={t('deleteRole')}
                       aria-label={t('deleteRole')}
                     >

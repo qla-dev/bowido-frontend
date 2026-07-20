@@ -101,8 +101,8 @@ export const NoQrPalletTableView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: NoQrColumnKey; direction: SortDirection }>({
-    key: 'reportedAt',
-    direction: 'desc',
+    key: 'serial',
+    direction: 'asc',
   });
   const {
     headerCellClass,
@@ -954,7 +954,7 @@ export const NoQrPalletTableView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPalletPendingDeletion(editingPallet)}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-rose-600 transition-colors hover:bg-rose-50 sm:w-auto"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 px-5 text-[10px] font-black uppercase tracking-[0.14em] text-rose-600 transition-colors hover:bg-rose-50 sm:w-auto dark:border-rose-600 dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700"
               >
                 <Trash2 size={15} />
                 {deleteLabel}
