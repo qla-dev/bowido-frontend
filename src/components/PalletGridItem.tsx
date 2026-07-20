@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { useApp } from '../AppContext';
 import { Badge, cn } from './ui';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 
 interface PalletGridItemProps {
   pallet: Pallet;
@@ -43,7 +44,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-mono font-black text-lg tracking-tighter text-zinc-950 uppercase">
-              {pallet.qr_code}
+              {getPalletDisplayName(pallet)}
             </span>
             {isOverdue && <Badge variant="danger">{t('overdue')}</Badge>}
           </div>

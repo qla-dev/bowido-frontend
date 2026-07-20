@@ -33,6 +33,7 @@ const LOGIN_PROFILES_STORAGE_KEY = 'trackpal_login_profiles';
 const ACTIVE_TAB_STORAGE_KEY = 'trackpal_active_tab';
 const THEME_STORAGE_KEY = 'trackpal_theme';
 const RECENT_LOGIN_LIMIT = 6;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const readStoredTheme = () => {
   if (typeof window === 'undefined') {
@@ -319,6 +320,30 @@ const getCredentialLoginCopy = (language: string) => {
   };
 };
 
+const getKvkRegistrationCopy = (language: string) => {
+  if (language === 'nl') {
+    return {
+      title: 'KVK-registratie',
+      subtitle: 'Voer je KVK-nummer in om de geregistreerde klantgegevens te laden.',
+      find: 'KVK zoeken',
+    };
+  }
+
+  if (language === 'bs') {
+    return {
+      title: 'KVK registracija',
+      subtitle: 'Unesite KVK broj da učitate registrovane podatke kupca.',
+      find: 'Pronađi KVK',
+    };
+  }
+
+  return {
+    title: 'KVK registration',
+    subtitle: 'Enter your KVK number to load the registered customer details.',
+    find: 'Find KVK',
+  };
+};
+
 const getCredentialLoginErrorMessage = (error: unknown, fallback: string) => {
   const errors = error && typeof error === 'object'
     ? (error as { errors?: Record<string, string[]> }).errors
@@ -369,6 +394,12 @@ const AppFooter = ({ className }: { className?: string }) => {
 
 export default function App() {
   const { t, language, setLanguage, isScannerOpen, setIsScannerOpen, isGhostReportOpen, setIsGhostReportOpen, refreshData, resetData } = useApp();
+  const kvkRegistrationCopy = getKvkRegistrationCopy(language);
+  const kvkFormLabels = language === 'bs'
+    ? { company: 'Naziv firme', email: 'E-mail', phone: 'Broj telefona', fixed: 'Fiksni telefon', address: 'Adresa', warehouse1: 'Magacin 1', warehouse2: 'Magacin 2', street: 'Ulica', house: 'Kućni broj', postal: 'Poštanski broj', city: 'Grad', invalidEmail: 'Unesite ispravnu e-mail adresu.' }
+    : language === 'nl'
+      ? { company: 'Bedrijfsnaam', email: 'E-mail', phone: 'Telefoonnummer', fixed: 'Vaste telefoon', address: 'Adres', warehouse1: 'Magazijn 1', warehouse2: 'Magazijn 2', street: 'Straat', house: 'Huisnummer', postal: 'Postcode', city: 'Plaats', invalidEmail: 'Vul een geldig e-mailadres in.' }
+      : { company: 'Company name', email: 'Email', phone: 'Phone number', fixed: 'Fixed phone', address: 'Address', warehouse1: 'Warehouse 1', warehouse2: 'Warehouse 2', street: 'Street', house: 'House number', postal: 'Postal code', city: 'City', invalidEmail: 'Enter a valid email address.' };
   const [currentUser, setCurrentUser] = useState<User | null>(() => readStoredCurrentUser());
   const [isRestoringSession, setIsRestoringSession] = useState(() => apiService.hasToken() && !readStoredCurrentUser());
   const [loginProfiles, setLoginProfiles] = useState<StoredLoginProfile[]>(() => readLoginProfiles());
@@ -381,7 +412,7 @@ export default function App() {
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
   const [isKvkRegistrationOpen, setIsKvkRegistrationOpen] = useState(false);
-  const [kvkRegistration, setKvkRegistration] = useState({ kvk: '', name: '', email: '', billing_address: '', delivery_address: '', phone_number: '', fixed_phone: '', password: '', password_confirmation: '' });
+  const [kvkRegistration, setKvkRegistration] = useState({ kvk: '', name: '', email: '', phone_number: '', fixed_phone: '', street: '', house_number: '', postal_code: '', city: '', warehouse1_street: '', warehouse1_house_number: '', warehouse1_postal_code: '', warehouse1_city: '', warehouse2_street: '', warehouse2_house_number: '', warehouse2_postal_code: '', warehouse2_city: '', password: '', password_confirmation: '' });
   const [kvkRegistrationError, setKvkRegistrationError] = useState<string | null>(null);
   const [isKvkRegistrationSubmitting, setIsKvkRegistrationSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(() => readStoredActiveTab(currentUser));
@@ -675,13 +706,18 @@ export default function App() {
     setIsKvkRegistrationSubmitting(true); setKvkRegistrationError(null);
     try {
       const customer = await apiService.auth.kvkLookup(kvkRegistration.kvk);
-      setKvkRegistration((form) => ({ ...form, kvk: customer.kvk, name: customer.company_name || form.name, email: customer.email || form.email, phone_number: customer.phone_number || form.phone_number, fixed_phone: customer.fixed_phone || form.fixed_phone, billing_address: customer.billing_address || form.billing_address, delivery_address: customer.delivery_address || form.delivery_address }));
+      setKvkRegistration((form) => ({ ...form, kvk: customer.kvk, name: customer.company_name || form.name, email: customer.email || form.email, phone_number: customer.phone_number || form.phone_number, fixed_phone: customer.fixed_phone || form.fixed_phone, street: customer.street || form.street, house_number: customer.house_number || form.house_number, postal_code: customer.postal_code || form.postal_code, city: customer.city || form.city, warehouse1_street: customer.warehouse1_street || form.warehouse1_street, warehouse1_house_number: customer.warehouse1_house_number || form.warehouse1_house_number, warehouse1_postal_code: customer.warehouse1_postal_code || form.warehouse1_postal_code, warehouse1_city: customer.warehouse1_city || form.warehouse1_city, warehouse2_street: customer.warehouse2_street || form.warehouse2_street, warehouse2_house_number: customer.warehouse2_house_number || form.warehouse2_house_number, warehouse2_postal_code: customer.warehouse2_postal_code || form.warehouse2_postal_code, warehouse2_city: customer.warehouse2_city || form.warehouse2_city }));
     } catch (error) { setKvkRegistrationError(error instanceof Error ? error.message : 'KVK was not found.'); }
     finally { setIsKvkRegistrationSubmitting(false); }
   };
 
   const submitKvkRegistration = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setIsKvkRegistrationSubmitting(true); setKvkRegistrationError(null);
+    event.preventDefault();
+    if (!EMAIL_PATTERN.test(kvkRegistration.email.trim())) {
+      setKvkRegistrationError(kvkFormLabels.invalidEmail);
+      return;
+    }
+    setIsKvkRegistrationSubmitting(true); setKvkRegistrationError(null);
     try { await apiService.auth.kvkRegister(kvkRegistration); setIsKvkRegistrationOpen(false); setCredentialLoginMode('customer'); setCredentialLoginForm({ email: '', kvk: kvkRegistration.kvk, password: '' }); setIsCredentialLoginOpen(true); }
     catch (error) { setKvkRegistrationError(error instanceof Error ? error.message : 'Registration could not be completed.'); }
     finally { setIsKvkRegistrationSubmitting(false); }
@@ -862,7 +898,7 @@ export default function App() {
           {t('loginButton')}
           </Button>
           <Button type="button" variant="outline" onClick={() => { setKvkRegistrationError(null); setIsKvkRegistrationOpen(true); }} className="w-full">
-            KVK registracija
+            {kvkRegistrationCopy.title}
           </Button>
         </div>
       </div>
@@ -1052,13 +1088,14 @@ export default function App() {
         {isKvkRegistrationOpen && (
           <motion.div className="modal-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isKvkRegistrationSubmitting && setIsKvkRegistrationOpen(false)}>
             <motion.form onSubmit={(event) => void submitKvkRegistration(event)} onClick={(event) => event.stopPropagation()} className="w-full max-w-lg space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-[#101715]">
-              <div><h2 className="font-display text-sm font-black uppercase tracking-[0.12em] dark:text-white">KVK registracija</h2><p className="mt-1 text-xs text-zinc-500">Enter your KVK number to load the registered customer details. Billing address fields are marked below.</p></div>
-              <div className="flex gap-2"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>Find KVK</Button></div>
-              <label className="block text-xs font-bold dark:text-zinc-200">Company / name<Input required className="mt-1" value={kvkRegistration.name} onChange={(event) => setKvkRegistration({ ...kvkRegistration, name: event.target.value })} /></label>
-              <label className="block text-xs font-bold dark:text-zinc-200">Email<Input required type="email" className="mt-1" value={kvkRegistration.email} onChange={(event) => setKvkRegistration({ ...kvkRegistration, email: event.target.value })} /></label>
-              <label className="block text-xs font-bold dark:text-zinc-200">Billing address <span className="font-normal text-zinc-500">(street, number, postal code, city)</span><Input required className="mt-1" value={kvkRegistration.billing_address} onChange={(event) => setKvkRegistration({ ...kvkRegistration, billing_address: event.target.value })} /></label>
-              <label className="block text-xs font-bold dark:text-zinc-200">Delivery address <span className="font-normal text-zinc-500">(street, number, postal code, city)</span><Input className="mt-1" value={kvkRegistration.delivery_address} onChange={(event) => setKvkRegistration({ ...kvkRegistration, delivery_address: event.target.value })} /></label>
-              <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">Phone number<Input className="mt-1" value={kvkRegistration.phone_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, phone_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">Fixed phone<Input className="mt-1" value={kvkRegistration.fixed_phone} onChange={(event) => setKvkRegistration({ ...kvkRegistration, fixed_phone: event.target.value })} /></label></div>
+              <div><h2 className="font-display text-sm font-black uppercase tracking-[0.12em] dark:text-white">{kvkRegistrationCopy.title}</h2><p className="mt-1 text-xs text-zinc-500">{kvkRegistrationCopy.subtitle}</p></div>
+              <div className="flex gap-2"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>{kvkRegistrationCopy.find}</Button></div>
+              <label className="block text-xs font-bold dark:text-zinc-200">{kvkFormLabels.company}<Input required className="mt-1" value={kvkRegistration.name} onChange={(event) => setKvkRegistration({ ...kvkRegistration, name: event.target.value })} /></label>
+              <label className="block text-xs font-bold dark:text-zinc-200">{kvkFormLabels.email}<Input required type="email" className={cn('mt-1', kvkRegistration.email && !EMAIL_PATTERN.test(kvkRegistration.email) && 'border-rose-500 focus:border-rose-500')} value={kvkRegistration.email} onChange={(event) => setKvkRegistration({ ...kvkRegistration, email: event.target.value })} />{kvkRegistration.email && !EMAIL_PATTERN.test(kvkRegistration.email) && <p className="mt-1 text-xs font-semibold text-rose-600">{kvkFormLabels.invalidEmail}</p>}</label>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.phone}<Input className="mt-1" value={kvkRegistration.phone_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, phone_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.fixed}<Input className="mt-1" value={kvkRegistration.fixed_phone} onChange={(event) => setKvkRegistration({ ...kvkRegistration, fixed_phone: event.target.value })} /></label></div>
+              <details className="rounded-xl border border-zinc-200 p-3 dark:border-white/10"><summary className="cursor-pointer text-xs font-black uppercase tracking-widest dark:text-white">{kvkFormLabels.address}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.street}<Input className="mt-1" value={kvkRegistration.street} onChange={(event) => setKvkRegistration({ ...kvkRegistration, street: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.house}<Input className="mt-1" value={kvkRegistration.house_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, house_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.postal}<Input className="mt-1" value={kvkRegistration.postal_code} onChange={(event) => setKvkRegistration({ ...kvkRegistration, postal_code: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.city}<Input className="mt-1" value={kvkRegistration.city} onChange={(event) => setKvkRegistration({ ...kvkRegistration, city: event.target.value })} /></label></div></details>
+              <details className="rounded-xl border border-zinc-200 p-3 dark:border-white/10"><summary className="cursor-pointer text-xs font-black uppercase tracking-widest dark:text-white">{kvkFormLabels.warehouse1}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.street}<Input className="mt-1" value={kvkRegistration.warehouse1_street} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse1_street: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.house}<Input className="mt-1" value={kvkRegistration.warehouse1_house_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse1_house_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.postal}<Input className="mt-1" value={kvkRegistration.warehouse1_postal_code} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse1_postal_code: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.city}<Input className="mt-1" value={kvkRegistration.warehouse1_city} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse1_city: event.target.value })} /></label></div></details>
+              <details className="rounded-xl border border-zinc-200 p-3 dark:border-white/10"><summary className="cursor-pointer text-xs font-black uppercase tracking-widest dark:text-white">{kvkFormLabels.warehouse2}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.street}<Input className="mt-1" value={kvkRegistration.warehouse2_street} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse2_street: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.house}<Input className="mt-1" value={kvkRegistration.warehouse2_house_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse2_house_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.postal}<Input className="mt-1" value={kvkRegistration.warehouse2_postal_code} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse2_postal_code: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.city}<Input className="mt-1" value={kvkRegistration.warehouse2_city} onChange={(event) => setKvkRegistration({ ...kvkRegistration, warehouse2_city: event.target.value })} /></label></div></details>
               <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">Password<Input required minLength={8} type="password" className="mt-1" value={kvkRegistration.password} onChange={(event) => setKvkRegistration({ ...kvkRegistration, password: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">Confirm password<Input required minLength={8} type="password" className="mt-1" value={kvkRegistration.password_confirmation} onChange={(event) => setKvkRegistration({ ...kvkRegistration, password_confirmation: event.target.value })} /></label></div>
               {kvkRegistrationError && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{kvkRegistrationError}</p>}
               <div className="flex gap-3"><Button type="button" variant="outline" className="flex-1" onClick={() => setIsKvkRegistrationOpen(false)} disabled={isKvkRegistrationSubmitting}>Cancel</Button><Button type="submit" className="flex-1" disabled={isKvkRegistrationSubmitting}>Register</Button></div>

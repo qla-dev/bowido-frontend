@@ -330,6 +330,7 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     'Voor retour': 'Ready for Return',
     'Transport (NL/BiH)': 'Transport (NL/BiH)',
     Servis: 'Service',
+    'Voor reparatie': 'For repair',
     Onbekend: 'Unassigned',
     'Bij klijent': 'At Client',
     'Kod klijenta': 'At Client',
@@ -351,6 +352,7 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     'Voor retour': 'Voor retour',
     'Transport (NL/BiH)': 'Transport (NL/BiH)',
     Servis: 'Service',
+    'Voor reparatie': 'Voor reparatie',
     Onbekend: 'Ongemerkt',
     'Bij klijent': 'Bij de klant',
     'Kod klijenta': 'Bij de klant',
@@ -372,6 +374,7 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     'Voor retour': 'Za povrat',
     'Transport (NL/BiH)': 'Transport (NL/BiH)',
     Servis: 'Servis',
+    'Voor reparatie': 'Za popravku',
     Onbekend: 'Neoznačene',
     'Bij klijent': 'Kod klijenta',
     'Kod klijenta': 'Kod klijenta',
@@ -927,10 +930,10 @@ export const translations = {
     movementHistory: 'Movement History',
     editData: 'Edit Data',
     editUnit: 'Edit Unit',
-    globalStatus: 'Global Status',
+    globalStatus: 'Status',
     assignedClient: 'Assigned Client',
     noClient: 'No Client',
-    physicalLocation: 'Physical Location',
+    physicalLocation: 'Location',
     customOperationalNotes: 'Custom Operational Notes',
     addOperationalNotes: 'Add operational notes...',
     confirmDeleteUnit: 'Are you sure you want to delete this unit? All history will be lost.',
@@ -1461,10 +1464,10 @@ export const translations = {
     movementHistory: 'Bewegingshistoriek',
     editData: 'Gegevens bewerken',
     editUnit: 'Eenheid bewerken',
-    globalStatus: 'Globale status',
+    globalStatus: 'Status',
     assignedClient: 'Toegewezen klant',
     noClient: 'Geen klant',
-    physicalLocation: 'Fysieke locatie',
+    physicalLocation: 'Locatie',
     customOperationalNotes: 'Aangepaste operationele notities',
     addOperationalNotes: 'Voeg operationele notities toe...',
     confirmDeleteUnit: 'Weet je zeker dat je deze eenheid wilt verwijderen? Alle historiek gaat verloren.',
@@ -1993,10 +1996,10 @@ export const translations = {
     movementHistory: 'Historija kretanja',
     editData: 'Uredi podatke',
     editUnit: 'Uredi jedinicu',
-    globalStatus: 'Globalni status',
+    globalStatus: 'Status',
     assignedClient: 'Dodijeljeni klijent',
     noClient: 'Bez klijenta',
-    physicalLocation: 'Fizička lokacija',
+    physicalLocation: 'Lokacija',
     customOperationalNotes: 'Prilagođene operativne napomene',
     addOperationalNotes: 'Dodaj operativne napomene...',
     confirmDeleteUnit: 'Jeste li sigurni da želite obrisati ovu jedinicu? Sva historija će biti izgubljena.',
@@ -2096,6 +2099,14 @@ export const getPalletTypeLabel = (type: string, language: AppLanguage) => {
 
 export const getStatusLabel = (status: string, language: AppLanguage) =>
   statusLabels[language][status] || statusLabels.en[status] || status;
+
+export const getLocationLabel = (location: string | null | undefined, language: AppLanguage) => {
+  if (location?.trim().toLocaleLowerCase() === 'na putu') {
+    return language === 'nl' ? 'Onderweg' : language === 'bs' ? 'Na putu' : 'On the way';
+  }
+
+  return location || '';
+};
 
 export const getRoleDescription = (description: string, language: AppLanguage) =>
   roleDescriptionCatalog[language][description] || roleDescriptionCatalog.en[description] || description;

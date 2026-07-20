@@ -64,14 +64,41 @@ export const ListPagination: React.FC<ListPaginationProps> = ({
   const totalPages = Math.max(Math.ceil(total / safeLimit), 1);
   const canGoPrevious = offset > 0 && !isLoading;
   const canGoNext = offset + count < total && !isLoading;
-  const firstItem = total === 0 ? 0 : offset + 1;
-  const lastItem = total === 0 ? 0 : Math.min(offset + count, total);
+  const pageRanges = Array.from({ length: totalPages }, (_, index) => {
+    const pageOffset = index * safeLimit;
+    const first = total === 0 ? 0 : pageOffset + 1;
+    const last = total === 0 ? 0 : Math.min(pageOffset + safeLimit, total);
+
+    return {
+      page: index + 1,
+      label: `${first}-${last}`,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3 text-zinc-500 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-[10px] font-black uppercase tracking-[0.14em]">
-        {copy.shown} {firstItem}-{lastItem} {copy.of} {total}
-      </div>
+      <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em]">
+        <span>{copy.shown}</span>
+        <select
+          value={currentPage}
+          onChange={(event) => onPageChange((Number(event.target.value) - 1) * safeLimit)}
+          disabled={isLoading || total === 0}
+          className={cn(
+            'h-9 rounded-xl border bg-white px-3 pr-8 text-[10px] font-black tracking-[0.12em] outline-none transition-colors',
+            isLoading || total === 0
+              ? 'cursor-not-allowed border-zinc-100 bg-zinc-50 text-zinc-300'
+              : 'cursor-pointer border-zinc-200 text-zinc-700 hover:border-emerald-200 focus:border-[#00A655]'
+          )}
+          aria-label={copy.page}
+        >
+          {pageRanges.map((pageRange) => (
+            <option key={pageRange.page} value={pageRange.page}>
+              {pageRange.label}
+            </option>
+          ))}
+        </select>
+        <span>{copy.of} {total}</span>
+      </label>
       <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
         {onLimitChange && (
           <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
@@ -96,9 +123,6 @@ export const ListPagination: React.FC<ListPaginationProps> = ({
             </select>
           </label>
         )}
-        <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
-          {copy.page} {currentPage} {copy.of} {totalPages}
-        </span>
         <div className="flex items-center gap-2">
           <button
             type="button"

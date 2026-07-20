@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import {
   ArrowUpDown,
   Building2,
   CalendarClock,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -36,6 +39,8 @@ type SortKey =
   | 'kvk'
   | 'phone'
   | 'address'
+  | 'warehouse1'
+  | 'warehouse2'
   | 'totalPallets'
   | 'overduePallets'
   | 'rate'
@@ -50,6 +55,8 @@ type ClientManagerRow = {
   kvkLabel: string;
   phoneLabel: string;
   addressLabel: string;
+  warehouse1Label: string;
+  warehouse2Label: string;
   warehouses: string[];
   totalPallets: number;
   overduePallets: number;
@@ -74,6 +81,8 @@ const COLUMN_ORDER = [
   'kvk',
   'phone',
   'address',
+  'warehouse1',
+  'warehouse2',
   'totalPallets',
   'overduePallets',
   'rate',
@@ -87,6 +96,8 @@ const INITIAL_COLUMN_WIDTHS: Record<SortKey, number> = {
   kvk: 145,
   phone: 160,
   address: 240,
+  warehouse1: 240,
+  warehouse2: 240,
   totalPallets: 145,
   overduePallets: 145,
   rate: 155,
@@ -100,6 +111,8 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   kvk: 120,
   phone: 135,
   address: 190,
+  warehouse1: 190,
+  warehouse2: 190,
   totalPallets: 125,
   overduePallets: 125,
   rate: 125,
@@ -109,17 +122,26 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
 };
 
 const CLIENT_MANAGER_PAGE_SIZE = 25;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const formatAddress = (street?: string, houseNumber?: string, postalCode?: string, city?: string) => {
+  const streetLine = [street, houseNumber].filter(Boolean).join(' ');
+  const localityLine = [postalCode, city].filter(Boolean).join(' ');
+
+  return [streetLine, localityLine].filter(Boolean).join(', ') || '-';
+};
 const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
   client: 'client',
   kvk: 'kvk',
   phone: 'phone',
   address: 'address',
+  warehouse1: 'warehouse1',
+  warehouse2: 'warehouse2',
   rate: 'rate',
   gracePeriod: 'gracePeriod',
 };
 
 export const AdminClientManagerView: React.FC = () => {
-  const { clients: cachedClients, pallets, statuses, invoices, updateClient, t, language } = useApp();
+  const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
   const [clients, setPagedClients] = useState<ClientDetail[]>([]);
@@ -142,6 +164,27 @@ export const AdminClientManagerView: React.FC = () => {
   const [clientDraft, setClientDraft] = useState<ClientDetail | null>(null);
   const [clientPhotos, setClientPhotos] = useState<PalletPhoto[]>([]);
   const [photoViewer, setPhotoViewer] = useState<PhotoViewerState | null>(null);
+  const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [clientPendingDeletion, setClientPendingDeletion] = useState<ClientManagerRow | null>(null);
+  const [newClientDraft, setNewClientDraft] = useState<Omit<ClientDetail, 'id' | 'user_id'>>({
+    name: '',
+    kvk_number: '',
+    billing_email: '',
+    phone_number: '',
+    fixed_phone: '',
+    street: '',
+    house_number: '',
+    postal_code: '',
+    city: '',
+    warehouse1_street: '', warehouse1_house_number: '', warehouse1_postal_code: '', warehouse1_city: '',
+    warehouse2_street: '', warehouse2_house_number: '', warehouse2_postal_code: '', warehouse2_city: '',
+    warehouse_addresses: [],
+    country: 'NL',
+    grace_period_days: 14,
+    price_per_day: 2,
+    is_active: true,
+  });
   const {
     headerCellClass,
     headerContentClass,
@@ -305,10 +348,59 @@ export const AdminClientManagerView: React.FC = () => {
         : language === 'nl'
           ? 'Kolombreedte aanpassen'
           : 'Resize column',
+    addClient: language === 'bs' ? 'Dodaj klijenta' : language === 'nl' ? 'Klant toevoegen' : 'Add client',
+    newClient: language === 'bs' ? 'Novi klijent' : language === 'nl' ? 'Nieuwe klant' : 'New client',
+    newClientHint:
+      language === 'bs'
+        ? 'Unesite podatke za registraciju novog klijenta.'
+        : language === 'nl'
+          ? 'Vul de gegevens in om een nieuwe klant te registreren.'
+          : 'Enter the details to register a new client.',
+    email: language === 'bs' ? 'E-mail' : language === 'nl' ? 'E-mail' : 'Email',
+    fixedPhone: language === 'bs' ? 'Fiksni telefon' : language === 'nl' ? 'Vaste telefoon' : 'Fixed phone',
+    postalCode: language === 'bs' ? 'Poštanski broj' : language === 'nl' ? 'Postcode' : 'Postal code',
+    street: language === 'bs' ? 'Ulica' : language === 'nl' ? 'Straat' : 'Street',
+    houseNumber: language === 'bs' ? 'Kućni broj' : language === 'nl' ? 'Huisnummer' : 'House number',
+    city: language === 'bs' ? 'Grad' : language === 'nl' ? 'Plaats' : 'City',
+    deleteClient: language === 'bs' ? 'Obriši klijenta' : language === 'nl' ? 'Klant verwijderen' : 'Delete client',
+    deleteClientQuestion:
+      language === 'bs'
+        ? 'Da li zaista želite obrisati ovog klijenta?'
+        : language === 'nl'
+          ? 'Weet je zeker dat je deze klant wilt verwijderen?'
+          : 'Do you really want to delete this client?',
+    confirmDelete: language === 'bs' ? 'Da, obriši' : language === 'nl' ? 'Ja, verwijderen' : 'Yes, delete',
+    deletedTitle: language === 'bs' ? 'Klijent je obrisan' : language === 'nl' ? 'Klant verwijderd' : 'Client deleted',
+    deletedText: language === 'bs' ? 'Klijent je uspješno obrisan.' : language === 'nl' ? 'De klant is succesvol verwijderd.' : 'The client was deleted successfully.',
+    deleteFailed: language === 'bs' ? 'Brisanje klijenta nije uspjelo' : language === 'nl' ? 'Klant verwijderen mislukt' : 'Could not delete client',
+    createdTitle: language === 'bs' ? 'Klijent je kreiran' : language === 'nl' ? 'Klant aangemaakt' : 'Client created',
+    createdText:
+      language === 'bs'
+        ? 'Korisnik i podaci o klijentu su uspješno povezani.'
+        : language === 'nl'
+          ? 'De gebruiker en klantgegevens zijn succesvol gekoppeld.'
+          : 'The user and customer details were created and linked successfully.',
+    createFailed: language === 'bs' ? 'Kreiranje klijenta nije uspjelo' : language === 'nl' ? 'Klant aanmaken mislukt' : 'Could not create client',
+    savedTitle: language === 'bs' ? 'Izmjene su sačuvane' : language === 'nl' ? 'Wijzigingen opgeslagen' : 'Changes saved',
+    savedText: language === 'bs' ? 'Podaci o klijentu su uspješno ažurirani.' : language === 'nl' ? 'De klantgegevens zijn succesvol bijgewerkt.' : 'The client details were updated successfully.',
+    requiredClientFields:
+      language === 'bs'
+        ? 'KVK, naziv firme i e-mail su obavezni.'
+        : language === 'nl'
+          ? 'KVK, bedrijfsnaam en e-mail zijn verplicht.'
+          : 'KVK, company name, and email are required.',
+    invalidClientEmail:
+      language === 'bs'
+        ? 'Unesite ispravnu e-mail adresu.'
+        : language === 'nl'
+          ? 'Vul een geldig e-mailadres in.'
+          : 'Enter a valid email address.',
   };
 
   const getDaysSince = (date: string) =>
     Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
+  const hasInvalidClientEmail = Boolean(newClientDraft.billing_email?.trim()) &&
+    !EMAIL_PATTERN.test(newClientDraft.billing_email!.trim());
 
   const rows = useMemo<ClientManagerRow[]>(
     () =>
@@ -330,7 +422,19 @@ export const AdminClientManagerView: React.FC = () => {
           },
           { overdueDays: 0, overduePallets: 0 }
         );
-        const warehouses = client.warehouse_addresses?.filter(Boolean) || [];
+        const warehouse1Label = formatAddress(
+          client.warehouse1_street,
+          client.warehouse1_house_number,
+          client.warehouse1_postal_code,
+          client.warehouse1_city
+        );
+        const warehouse2Label = formatAddress(
+          client.warehouse2_street,
+          client.warehouse2_house_number,
+          client.warehouse2_postal_code,
+          client.warehouse2_city
+        );
+        const warehouses = [warehouse1Label, warehouse2Label].filter((address) => address !== '-');
         const overdueTotal = overdueData.overdueDays * client.price_per_day;
 
         return {
@@ -338,7 +442,9 @@ export const AdminClientManagerView: React.FC = () => {
           clientName: client.name,
           kvkLabel: client.kvk_number || '-',
           phoneLabel: client.phone_number || '-',
-          addressLabel: warehouses[0] || '-',
+          addressLabel: formatAddress(client.street, client.house_number, client.postal_code, client.city),
+          warehouse1Label,
+          warehouse2Label,
           warehouses,
           totalPallets: clientPallets.length,
           overduePallets: overdueData.overduePallets,
@@ -374,6 +480,10 @@ export const AdminClientManagerView: React.FC = () => {
         return row.phoneLabel;
       case 'address':
         return row.addressLabel;
+      case 'warehouse1':
+        return row.warehouse1Label;
+      case 'warehouse2':
+        return row.warehouse2Label;
       default:
         return row.clientName;
     }
@@ -556,7 +666,7 @@ export const AdminClientManagerView: React.FC = () => {
     });
   };
 
-  const saveClientDraft = () => {
+  const saveClientDraft = async () => {
     if (!clientDraft) {
       return;
     }
@@ -569,7 +679,96 @@ export const AdminClientManagerView: React.FC = () => {
       phone_number: clientDraft.phone_number?.trim() || undefined,
     });
     closeClientModal();
+    await Swal.fire({ icon: 'success', title: labels.savedTitle, text: labels.savedText, confirmButtonColor: '#00A655' });
   };
+
+  const createClient = async () => {
+    const name = newClientDraft.name.trim();
+    const kvk = newClientDraft.kvk_number?.trim() || '';
+    const email = newClientDraft.billing_email?.trim() || '';
+
+    if (!name || !kvk || !email) {
+      await Swal.fire({ icon: 'warning', title: labels.createFailed, text: labels.requiredClientFields, confirmButtonColor: '#00A655' });
+      return;
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
+      await Swal.fire({ icon: 'warning', title: labels.createFailed, text: labels.invalidClientEmail, confirmButtonColor: '#00A655' });
+      return;
+    }
+
+    setIsCreatingClient(true);
+    try {
+      await addClient({
+        ...newClientDraft,
+        name,
+        kvk_number: kvk,
+        billing_email: email,
+        phone_number: newClientDraft.phone_number?.trim() || undefined,
+        fixed_phone: newClientDraft.fixed_phone?.trim() || undefined,
+        street: newClientDraft.street?.trim() || undefined,
+        house_number: newClientDraft.house_number?.trim() || undefined,
+        postal_code: newClientDraft.postal_code?.trim() || undefined,
+        city: newClientDraft.city?.trim() || undefined,
+        warehouse1_street: newClientDraft.warehouse1_street?.trim() || undefined,
+        warehouse1_house_number: newClientDraft.warehouse1_house_number?.trim() || undefined,
+        warehouse1_postal_code: newClientDraft.warehouse1_postal_code?.trim() || undefined,
+        warehouse1_city: newClientDraft.warehouse1_city?.trim() || undefined,
+        warehouse2_street: newClientDraft.warehouse2_street?.trim() || undefined,
+        warehouse2_house_number: newClientDraft.warehouse2_house_number?.trim() || undefined,
+        warehouse2_postal_code: newClientDraft.warehouse2_postal_code?.trim() || undefined,
+        warehouse2_city: newClientDraft.warehouse2_city?.trim() || undefined,
+      });
+      setIsAddClientOpen(false);
+      setNewClientDraft({
+        name: '', kvk_number: '', billing_email: '', phone_number: '', fixed_phone: '', street: '', house_number: '', postal_code: '', city: '',
+        warehouse1_street: '', warehouse1_house_number: '', warehouse1_postal_code: '', warehouse1_city: '',
+        warehouse2_street: '', warehouse2_house_number: '', warehouse2_postal_code: '', warehouse2_city: '',
+        warehouse_addresses: [], country: 'NL', grace_period_days: 14, price_per_day: 2, is_active: true,
+      });
+      await Swal.fire({ icon: 'success', title: labels.createdTitle, text: labels.createdText, confirmButtonColor: '#00A655' });
+    } catch (error) {
+      await Swal.fire({
+        icon: 'error',
+        title: labels.createFailed,
+        text: error instanceof Error ? error.message : labels.createFailed,
+        confirmButtonColor: '#e11d48',
+      });
+    } finally {
+      setIsCreatingClient(false);
+    }
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!clientPendingDeletion) return;
+    try {
+      await deleteClient(clientPendingDeletion.client.id);
+      setClientPendingDeletion(null);
+      closeClientModal();
+      await Swal.fire({ icon: 'success', title: labels.deletedTitle, text: labels.deletedText, confirmButtonColor: '#00A655' });
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: labels.deleteFailed, text: error instanceof Error ? error.message : labels.deleteFailed, confirmButtonColor: '#e11d48' });
+    }
+  };
+
+  const renderAddressSection = (
+    title: string,
+    fields: Array<[keyof Omit<ClientDetail, 'id' | 'user_id'>, string]>
+  ) => (
+    <details className="sm:col-span-2 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 open:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:open:bg-[#101715]">
+      <summary className="flex cursor-pointer list-none items-center justify-between text-[10px] font-black uppercase tracking-widest text-emerald-800 marker:content-none dark:text-emerald-100">
+        {title}
+        <ChevronDown size={16} className="transition-transform [[open]_&]:rotate-180" />
+      </summary>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {fields.map(([field, label]) => (
+          <label key={field} className="text-xs font-bold dark:text-zinc-200">{label}
+            <Input className="mt-1" value={String(newClientDraft[field] || '')} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, [field]: event.target.value }))} />
+          </label>
+        ))}
+      </div>
+    </details>
+  );
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) =>
@@ -608,6 +807,8 @@ export const AdminClientManagerView: React.FC = () => {
     kvk: { label: 'KVK' },
     phone: { label: labels.phone },
     address: { label: labels.address },
+    warehouse1: { label: labels.warehouse1 },
+    warehouse2: { label: labels.warehouse2 },
     totalPallets: { label: labels.totalPallets },
     overduePallets: { label: labels.overduePallets },
     rate: { label: labels.rate },
@@ -649,14 +850,14 @@ export const AdminClientManagerView: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="relative w-full sm:max-w-md">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder={labels.search}
-            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
-          />
+        <div className="relative w-full sm:w-80">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={labels.search}
+              className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
+            />
         </div>
       </div>
 
@@ -742,6 +943,16 @@ export const AdminClientManagerView: React.FC = () => {
                   </td>
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
+                      <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.warehouse1Label}</span>
+                    </div>
+                  </td>
+                  <td className={bodyCellClass}>
+                    <div className={bodyCellInnerClass}>
+                      <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.warehouse2Label}</span>
+                    </div>
+                  </td>
+                  <td className={bodyCellClass}>
+                    <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-white')}>{row.totalPallets}</span>
                     </div>
                   </td>
@@ -798,6 +1009,85 @@ export const AdminClientManagerView: React.FC = () => {
           setPageLimit(limit);
         }}
       />
+
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
+        <button
+          type="button"
+          onClick={() => setIsAddClientOpen(true)}
+          className="inline-flex h-14 items-center gap-2 rounded-full bg-[#00A655] px-5 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform hover:scale-[1.02]"
+        >
+          <Plus size={16} />
+          {labels.addClient}
+        </button>
+      </div>
+
+      {isAddClientOpen && (
+        <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setIsAddClientOpen(false)}>
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-8 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="absolute left-0 right-0 top-0 h-2 bg-black dark:bg-[#00A655]" />
+            <div className="mb-7 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-2xl font-black uppercase tracking-tighter text-emerald-950 dark:text-white">{labels.newClient}</h3>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">{labels.newClientHint}</p>
+              </div>
+              <button type="button" onClick={() => setIsAddClientOpen(false)} className="rounded-xl p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-white" aria-label={labels.close}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">KVK
+                <Input required className="mt-1" value={newClientDraft.kvk_number || ''} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, kvk_number: event.target.value }))} />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.companyName}
+                <Input required className="mt-1" value={newClientDraft.name} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, name: event.target.value }))} />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.email}
+                <Input
+                  required
+                  type="email"
+                  className={cn('mt-1', hasInvalidClientEmail && 'border-rose-500 focus:border-rose-500 focus:ring-rose-200')}
+                  value={newClientDraft.billing_email || ''}
+                  onChange={(event) => setNewClientDraft((draft) => ({ ...draft, billing_email: event.target.value }))}
+                  aria-invalid={hasInvalidClientEmail}
+                />
+                {hasInvalidClientEmail && <p className="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-300">{labels.invalidClientEmail}</p>}
+              </label>
+              <label className="text-xs font-bold dark:text-zinc-200">{labels.phone}
+                <Input className="mt-1" value={newClientDraft.phone_number || ''} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, phone_number: event.target.value }))} />
+              </label>
+              <label className="text-xs font-bold dark:text-zinc-200">{labels.fixedPhone}
+                <Input className="mt-1" value={newClientDraft.fixed_phone || ''} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, fixed_phone: event.target.value }))} />
+              </label>
+              {renderAddressSection(labels.address, [
+                ['street', labels.street], ['house_number', labels.houseNumber], ['postal_code', labels.postalCode], ['city', labels.city],
+              ])}
+              {renderAddressSection(labels.warehouse1, [
+                ['warehouse1_street', labels.street], ['warehouse1_house_number', labels.houseNumber], ['warehouse1_postal_code', labels.postalCode], ['warehouse1_city', labels.city],
+              ])}
+              {renderAddressSection(labels.warehouse2, [
+                ['warehouse2_street', labels.street], ['warehouse2_house_number', labels.houseNumber], ['warehouse2_postal_code', labels.postalCode], ['warehouse2_city', labels.city],
+              ])}
+              <label className="text-xs font-bold dark:text-zinc-200">{labels.rate} (€)
+                <Input type="number" min="0" step="0.01" className="mt-1" value={newClientDraft.price_per_day} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, price_per_day: Number(event.target.value) }))} />
+              </label>
+              <label className="text-xs font-bold dark:text-zinc-200">{labels.gracePeriod}
+                <Input type="number" min="0" className="mt-1" value={newClientDraft.grace_period_days} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, grace_period_days: Number(event.target.value) }))} />
+              </label>
+            </div>
+            <div className="mt-8 flex gap-4">
+              <Button type="button" variant="ghost" className="flex-1 justify-center" onClick={() => setIsAddClientOpen(false)}>{t('cancel')}</Button>
+              <Button type="button" className="flex-1 justify-center" onClick={() => void createClient()} disabled={!newClientDraft.name.trim() || !newClientDraft.kvk_number?.trim() || !EMAIL_PATTERN.test(newClientDraft.billing_email?.trim() || '') || isCreatingClient}>
+                {isCreatingClient ? '...' : labels.addClient}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {selectedRow && clientDraft && (
         <div
@@ -926,7 +1216,7 @@ export const AdminClientManagerView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => removeDraftWarehouse(index)}
-                              className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+                              className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 hover:text-rose-700 dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700"
                               aria-label={
                                 language === 'bs'
                                   ? 'Ukloni magacin'
@@ -991,14 +1281,13 @@ export const AdminClientManagerView: React.FC = () => {
                 <div className="mt-auto grid gap-3 pt-5 sm:grid-cols-2">
                   <button
                     type="button"
-                    onClick={addDraftWarehouse}
-                    disabled={(clientDraft.warehouse_addresses || []).length >= 2}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-white px-4 text-[10px] font-black uppercase tracking-widest text-emerald-700 transition-colors hover:border-emerald-300 hover:text-emerald-900 disabled:cursor-not-allowed disabled:border-zinc-100 disabled:text-zinc-300 dark:border-white/10 dark:bg-[#101715] dark:text-emerald-100 dark:hover:bg-white/[0.07] dark:disabled:text-zinc-500"
+                    onClick={() => setClientPendingDeletion(selectedRow)}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-rose-600 bg-rose-600 px-4 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:border-rose-700 hover:bg-rose-700 dark:border-rose-600 dark:bg-rose-600 dark:text-white dark:hover:border-rose-700 dark:hover:bg-rose-700"
                   >
-                    <Plus size={14} />
-                    {language === 'bs' ? 'Dodaj magacin' : language === 'nl' ? 'Magazijn toevoegen' : 'Add warehouse'}
+                    <Trash2 size={14} />
+                    {labels.deleteClient}
                   </button>
-                  <Button type="button" className="h-12 w-full justify-center gap-2" onClick={saveClientDraft}>
+                  <Button type="button" className="h-12 w-full justify-center gap-2" onClick={() => void saveClientDraft()}>
                     <Save size={15} />
                     {labels.save}
                   </Button>
@@ -1118,6 +1407,28 @@ export const AdminClientManagerView: React.FC = () => {
                   </Button>
                 </div>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {clientPendingDeletion && (
+        <div className="modal-overlay fixed inset-0 z-[130] flex items-center justify-center p-4" onClick={() => setClientPendingDeletion(null)}>
+          <motion.div
+            initial={{ scale: 0.94, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-md rounded-[2rem] bg-white p-7 shadow-2xl dark:bg-[#0f1513]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-700 dark:bg-rose-600 dark:text-white">
+              <Trash2 size={20} />
+            </div>
+            <h3 className="text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white">{labels.deleteClient}</h3>
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-300">{labels.deleteClientQuestion}</p>
+            <p className="mt-1 text-sm font-bold text-zinc-800 dark:text-white">{clientPendingDeletion.clientName}</p>
+            <div className="mt-7 grid grid-cols-2 gap-3">
+              <Button type="button" variant="outline" className="justify-center" onClick={() => setClientPendingDeletion(null)}>{t('cancel')}</Button>
+              <Button type="button" variant="danger" className="justify-center" onClick={() => void confirmDeleteClient()}>{labels.confirmDelete}</Button>
             </div>
           </motion.div>
         </div>

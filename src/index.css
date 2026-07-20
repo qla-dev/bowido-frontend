@@ -124,6 +124,11 @@
     z-index: 2001 !important;
   }
 
+  /* SweetAlert messages must remain above TrackPal's modal overlay. */
+  body > .swal2-container {
+    z-index: 2100 !important;
+  }
+
   .trackpal-scan-line {
     position: absolute;
     top: 12%;

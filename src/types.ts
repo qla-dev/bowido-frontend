@@ -166,7 +166,17 @@ export interface ClientDetail {
   price_per_day: number;
   is_active: boolean;
   street?: string;
+  house_number?: string;
   postal_code?: string;
+  city?: string;
+  warehouse1_street?: string;
+  warehouse1_house_number?: string;
+  warehouse1_postal_code?: string;
+  warehouse1_city?: string;
+  warehouse2_street?: string;
+  warehouse2_house_number?: string;
+  warehouse2_postal_code?: string;
+  warehouse2_city?: string;
   warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
 }
 

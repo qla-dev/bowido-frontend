@@ -52,7 +52,8 @@ interface AppContextType {
   addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
   updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => void;
   deletePallet: (id: number) => void;
-  addClient: (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => void;
+  addClient: (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => Promise<ClientDetail>;
+  deleteClient: (id: number) => Promise<void>;
   updateClient: (client: ClientDetail) => void;
   updateStatusSettings: (status: PalletStatus) => void;
   addStatus: (status: Omit<PalletStatus, 'id'>) => void;
@@ -564,7 +565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const normalizedPallet: Pallet = {
       ...pallet,
       qr_code: normalizedQrCode,
-      pallet_name: normalizedQrCode,
+      pallet_name: pallet.pallet_name?.trim() || previousPallet?.pallet_name?.trim() || normalizedQrCode,
       reference_code: pallet.reference_code ? normalizeQrCodeForStorage(pallet.reference_code) : undefined,
     };
     const hasOperationalChange = Boolean(
@@ -872,23 +873,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addClient = (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => {
-    const nextId = clients.length > 0 ? Math.max(...clients.map((item) => item.id)) + 1 : 1;
-    const newClient: ClientDetail = {
-      ...client,
-      id: nextId,
-      user_id: client.user_id ?? 100 + nextId,
-      is_active: client.is_active ?? true,
-    };
+  const addClient = async (client: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }) => {
+    const createdClient = await apiService.clients.create(client);
+    setClients((current) => [
+      ...current.filter((existingClient) => existingClient.id !== createdClient.id),
+      createdClient,
+    ]);
 
-    setClients((prev) => [...prev, newClient]);
-
-    void apiService.clients
-      .create(client)
-      .then((createdClient) => {
-        setClients((prev) => prev.map((item) => (item.id === newClient.id ? createdClient : item)));
-      })
-      .catch((error) => console.error('Failed to create client', error));
+    return createdClient;
   };
 
   const updateClient = (client: ClientDetail) => {
@@ -899,6 +891,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setClients((prev) => prev.map((item) => (item.id === updatedClient.id ? updatedClient : item)));
       })
       .catch((error) => console.error('Failed to update client', error));
+  };
+
+  const deleteClient = async (id: number) => {
+    await apiService.clients.delete(id);
+    setClients((current) => current.filter((client) => client.id !== id));
   };
 
   const updateStatusSettings = (status: PalletStatus) => {
@@ -959,6 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePallet,
         deletePallet,
         addClient,
+        deleteClient,
         updateClient,
         updateStatusSettings,
         addStatus,

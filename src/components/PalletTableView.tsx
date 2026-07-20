@@ -17,7 +17,7 @@ import {
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
 import { Pallet } from '../types';
-import { getPalletTypeLabel, getStatusLabel, palletTypeValues } from '../i18n';
+import { getLocationLabel as getLocalizedLocationLabel, getPalletTypeLabel, getStatusLabel, palletTypeValues } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -166,8 +166,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     location: '',
   });
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
-    key: 'lastUpdate',
-    direction: 'desc',
+    key: 'qr',
+    direction: 'asc',
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -528,7 +528,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   const getLocationLabel = (pallet: Pallet) =>
     FIXED_WAREHOUSE_LOCATION_BY_STATUS_ID[pallet.current_status_id] ||
-    pallet.current_location ||
+    getLocalizedLocationLabel(pallet.current_location, language) ||
     t('notAvailable');
 
   const palletTimelineMap = useMemo<Record<number, PalletTimelineInfo>>(
@@ -651,16 +651,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     pallets.forEach((pallet) => {
       const status = statuses.find((item) => item.id === pallet.current_status_id);
 
-      if (!status?.is_billable || !pallet.user_id) {
+      if (!status?.is_billable) {
         return;
       }
 
-      const client = clients.find((item) => item.user_id === pallet.user_id);
-      const clientName = client?.name || pallet.client_name?.trim();
-
-      if (!clientName) {
-        return;
-      }
+      const client = pallet.user_id
+        ? clients.find((item) => item.user_id === pallet.user_id)
+        : undefined;
+      const clientId = pallet.user_id ?? 0;
+      const clientName = client?.name || pallet.client_name?.trim() || '';
 
       const daysAtClient = getDaysSinceStatusChange(pallet.last_status_changed_at);
       const graceDays = client?.grace_period_days ?? status.grace_period_days ?? 0;
@@ -678,7 +677,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         debt,
         location: getLocationLabel(pallet),
       };
-      const existingGroup = groupedReports.get(pallet.user_id);
+      const existingGroup = groupedReports.get(clientId);
 
       if (existingGroup) {
         existingGroup.rows.push(row);
@@ -688,8 +687,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         return;
       }
 
-      groupedReports.set(pallet.user_id, {
-        clientId: pallet.user_id,
+      groupedReports.set(clientId, {
+        clientId,
         clientName,
         rows: [row],
         totalDebt: debt,
@@ -945,8 +944,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       location: '',
     });
     setSortConfig({
-      key: 'lastUpdate',
-      direction: 'desc',
+      key: 'qr',
+      direction: 'asc',
     });
     setSelectedDeadlineFilters([]);
     setOpenFilterKey(null);

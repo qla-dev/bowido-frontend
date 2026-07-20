@@ -52,7 +52,7 @@ export const Button: React.FC<ButtonProps> = ({
     secondary: 'border-[color:var(--border-subtle)] bg-[var(--surface-raised)] text-[var(--text-primary)] hover:bg-[var(--surface-input)]',
     outline: 'border-[color:var(--border-subtle)] bg-transparent text-[var(--text-primary)] hover:border-[color:var(--action-primary)] hover:bg-[var(--status-success-bg)]',
     ghost: 'border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text-primary)]',
-    danger: 'border-[color:var(--status-danger-text)] bg-[var(--status-danger-text)] text-white shadow-md shadow-rose-900/10 hover:brightness-90',
+    danger: 'border-[color:var(--status-danger-text)] bg-[var(--status-danger-text)] text-white shadow-md shadow-rose-900/10 hover:brightness-90 dark:border-rose-600 dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700',
   };
 
   const sizes = {

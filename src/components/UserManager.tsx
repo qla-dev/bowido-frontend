@@ -1,6 +1,8 @@
 import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import {
   Badge,
   Button,
@@ -17,6 +19,7 @@ import { ManagedUser, RoleType, User } from '../types';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { getPalletDisplayName } from '../lib/palletDisplay';
 import {
   CheckCircle2,
   ChevronDown,
@@ -361,7 +364,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
 };
 
 export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
-  const { t, language } = useApp();
+  const { t, language, pallets } = useApp();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -467,6 +470,12 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
       }
       setSuccessMessage(t('userDeleted'));
       setUserPendingDeletion(null);
+      await Swal.fire({
+        icon: 'success',
+        title: t('deleteUserConfirm'),
+        text: t('userDeleted'),
+        confirmButtonColor: '#00A655',
+      });
     } catch {
       setErrorMessage(t('changesNotSaved'));
       setUserPendingDeletion(null);
@@ -534,6 +543,19 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
 
   const adminCount = users.filter((user) => user.role_name === RoleType.ADMIN).length;
   const activeRoles = new Set(users.map((user) => user.role_name)).size;
+  const linkedPalletNames = userPendingDeletion
+    ? pallets
+        .filter((pallet) => pallet.user_id === userPendingDeletion.id)
+        .map((pallet) => getPalletDisplayName(pallet))
+        .filter(Boolean)
+    : [];
+  const deleteUserMessage = linkedPalletNames.length > 0
+    ? language === 'bs'
+      ? `Ovaj klijent ima povezanu paletu: ${linkedPalletNames.join(', ')}. Paleta će ostati u sistemu, ali više neće biti povezana s korisnikom.`
+      : language === 'nl'
+        ? `Deze klant heeft gekoppelde bok: ${linkedPalletNames.join(', ')}. De bok blijft in het systeem, maar wordt losgekoppeld van de gebruiker.`
+        : `This client has linked pallet: ${linkedPalletNames.join(', ')}. The pallet will remain in the system but be unlinked from the user.`
+    : t('confirmDeleteUser');
 
   return (
     <div className="space-y-6 pb-12">
@@ -650,7 +672,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                             size="xs"
                             onClick={() => void handleDelete(user)}
                             disabled={isCurrentSession}
-                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700 dark:hover:text-white"
                           >
                             <Trash2 size={14} className="mr-1.5" />
                             {t('remove')}
@@ -711,7 +733,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                         size="xs"
                         onClick={() => void handleDelete(user)}
                         disabled={isCurrentSession}
-                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700 dark:hover:text-white"
                       >
                         <Trash2 size={14} />
                       </Button>
@@ -868,8 +890,8 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
         open={Boolean(userPendingDeletion)}
         title={`${t('deleteUserConfirm')}?`}
         subject={userPendingDeletion?.email}
-        message={t('confirmDeleteUser')}
-        confirmLabel={isDeleting ? t('deleting') : t('remove')}
+        message={deleteUserMessage}
+        confirmLabel={isDeleting ? t('deleting') : t('deleteUserConfirm')}
         cancelLabel={t('cancel')}
         onClose={() => !isDeleting && setUserPendingDeletion(null)}
         onConfirm={() => void confirmDeleteUser()}

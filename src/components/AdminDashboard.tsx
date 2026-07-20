@@ -23,10 +23,13 @@ import { AdminRoleOperationsView } from './AdminRoleOperationsView';
 import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { motion, AnimatePresence } from 'motion/react';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 import { RoleType, Pallet, PalletDashboardStats, PalletStatus, ClientDetail, User, AuditLog } from '../types';
 import { CreditCard, Shield, Calendar as CalendarIcon, Eye, Send, Ghost, QrCode } from 'lucide-react';
 import {
   getCountryLabel,
+  getLocationLabel,
   getPalletTypeLabel,
   getStatusLabel,
   normalizePalletTypeCode,
@@ -527,12 +530,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return clientAddress;
     }
 
-    return pallet.current_location?.trim() || clientAddress || notAvailableLabel;
+    return getLocationLabel(pallet.current_location?.trim(), language) || clientAddress || notAvailableLabel;
   };
   const getAssignedClientLabel = (pallet: Pallet) =>
     getAssignedClient(pallet)?.name || pallet.client_name || t('noClient');
   const getPalletTitleLabel = (pallet: Pallet) =>
-    pallet.pallet_name?.trim() || pallet.qr_code?.trim() || notAvailableLabel;
+    getPalletDisplayName(pallet) || notAvailableLabel;
+  const getAuditPalletDisplayName = (log: AuditLog) =>
+    getPalletDisplayName(pallets.find((pallet) => pallet.id === log.pallet_id)) || log.pallet_qr;
   const renderPalletInfoTile = (label: string, value: React.ReactNode, className?: string) => (
     <div className={cn('min-w-0 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-white/10 dark:bg-white/[0.06]', className)}>
       <p className="text-[11px] font-bold tracking-[0.08em] text-zinc-500 dark:text-zinc-400">
@@ -704,10 +709,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <table className="w-full">
                     <thead className="border-b border-zinc-200 bg-zinc-50/95 text-center text-[9px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                         <tr>
-                          <th className="px-4 py-2.5 align-middle">{t('qrCode')}</th>
+                          <th className="px-4 py-2.5 align-middle">{t('palletLabel')}</th>
                           <th className="px-4 py-2.5 align-middle">{t('client')}</th>
                           <th className="px-4 py-2.5 align-middle">{t('owed')}</th>
-                          <th className="px-4 py-2.5 align-middle">{t('invoiceLabel')}</th>
+                          <th className="px-4 py-2.5 align-middle">
+                            <div className="ml-auto min-w-[15rem] max-w-sm text-center">{t('invoiceLabel')}</div>
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="text-[11px] divide-y divide-zinc-50">
@@ -725,7 +732,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   aria-label={`${t('showQrCode')}: ${getPalletDisplayName(p)}`}
                                   className="rounded-lg px-2 py-1 font-mono font-black text-emerald-700 underline decoration-emerald-300 underline-offset-4 transition-colors hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                                 >
-                                  {p.qr_code}
+                                  {getPalletDisplayName(p)}
                                 </button>
                               </td>
                               <td className="px-4 py-2.5 text-center align-middle">
@@ -735,8 +742,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <td className="px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
                                  {"\u20AC"}{calculateDebt(p).toFixed(2)}
                               </td>
-                              <td className="px-4 py-2.5 align-middle">
-                                <div className="mx-auto grid min-w-[15rem] max-w-sm grid-cols-1 gap-1.5 sm:grid-cols-2">
+                              <td className="px-4 py-2.5 text-right align-middle">
+                                <div className="ml-auto grid min-w-[15rem] max-w-sm grid-cols-1 gap-1.5 sm:grid-cols-2">
                                   <Button
                                     variant="outline"
                                     size="xs"
@@ -793,14 +800,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <table className="w-full table-fixed text-left">
                       <thead className="border-b border-zinc-200 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                         <tr>
-                          <th className="w-[48%] px-5 py-3.5 align-middle">{t('qrCode')}</th>
+                          <th className="w-[48%] px-5 py-3.5 align-middle">{t('palletLabel')}</th>
                           <th className="px-5 py-3.5 align-middle">{t('status')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-50 text-[13px]">
                         {latestActivityLogs.map(log => (
                           <tr key={`audit-log-${log.id}`} className="hover:bg-zinc-50/50">
-                            <td className="px-5 py-4 align-middle font-mono font-black underline underline-offset-2">{log.pallet_qr}</td>
+                            <td className="px-5 py-4 align-middle font-mono font-black underline underline-offset-2">{getAuditPalletDisplayName(log)}</td>
                             <td className="px-5 py-4 align-middle">
                               <span className="mb-1.5 block truncate font-black leading-tight text-zinc-900">{getStatusLabel(log.new_status_name, language)}</span>
                               <span className="block text-[10px] font-black uppercase leading-none tracking-wider text-zinc-400">{new Date(log.created_at).toLocaleTimeString()}</span>
@@ -830,7 +837,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <table className="w-full table-fixed text-left">
                     <thead className="border-b border-zinc-200 bg-zinc-50/95 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                       <tr>
-                        <th className="w-[58%] px-5 py-3.5 align-middle">{t('qrCode')}</th>
+                        <th className="w-[58%] px-5 py-3.5 align-middle">{t('palletLabel')}</th>
                         <th className="px-5 py-3.5 text-right align-middle">{t('owed')}</th>
                       </tr>
                     </thead>
@@ -1029,7 +1036,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex gap-2">
                   <button 
                     onClick={() => handleDeleteStatus(status)}
-                    className="p-2 opacity-0 group-hover:opacity-100 transition-opacity text-rose-500 hover:bg-rose-50 rounded-lg"
+                    className="p-2 opacity-0 group-hover:opacity-100 transition-opacity text-rose-500 hover:bg-rose-50 rounded-lg dark:bg-rose-600 dark:text-white dark:hover:bg-rose-700"
                   >
                      <AlertTriangle size={14} />
                   </button>
@@ -1158,7 +1165,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                <div className="absolute top-0 left-0 right-0 h-2 bg-black"></div>
                <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h3 className="text-3xl font-black tracking-tighter uppercase mb-1">{selectedPallet.qr_code}</h3>
+                    <h3 className="text-3xl font-black tracking-tighter uppercase mb-1">{getPalletTitleLabel(selectedPallet)}</h3>
                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{getPalletTypeLabel(selectedPallet.type, language)}</span>
                   </div>
                   <div className="flex gap-2">
@@ -1521,6 +1528,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     setEditingPallet(null);
                     setShowEditingPalletDetails(false);
                     setSelectedPallet(null);
+                    void Swal.fire({ icon: 'success', title: t('saveChanges'), text: language === 'bs' ? 'Paleta je uspješno ažurirana.' : language === 'nl' ? 'De bok is succesvol bijgewerkt.' : 'The pallet was updated successfully.', confirmButtonColor: '#00A655' });
                   }} className="h-14 rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/20 transition-transform hover:scale-[1.02]">{t('saveChanges')}</button>
                </div>
             </motion.div>
