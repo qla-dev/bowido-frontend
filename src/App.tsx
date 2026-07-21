@@ -405,8 +405,12 @@ export default function App() {
   const [isRestoringSession, setIsRestoringSession] = useState(() => apiService.hasToken() && !readStoredCurrentUser());
   const [loginProfiles, setLoginProfiles] = useState<StoredLoginProfile[]>(() => readLoginProfiles());
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [isCredentialLoginOpen, setIsCredentialLoginOpen] = useState(false);
-  const [isLandingLoginOpen, setIsLandingLoginOpen] = useState(false);
+  const [isCredentialLoginOpen, setIsCredentialLoginOpen] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  ));
+  const [isLandingLoginOpen, setIsLandingLoginOpen] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  ));
   const [credentialLoginMode, setCredentialLoginMode] = useState<LoginMode>('user');
   const [credentialLoginForm, setCredentialLoginForm] = useState({ email: '', kvk: '', password: '' });
   const [credentialLoginError, setCredentialLoginError] = useState<string | null>(null);
@@ -503,6 +507,26 @@ export default function App() {
   const usesInternalScrollShell = Boolean(currentUser) && (usesRoleMobileShell || usesFixedMobileShell);
   const chromeTintColor = isNightMode ? '#070b0a' : usesRoleMobileShell ? '#00A655' : '#ffffff';
   const credentialLoginCopy = getCredentialLoginCopy(language);
+  const landingMarketingCopy = language === 'bs'
+    ? {
+      eyebrow: 'Pametno praćenje paleta',
+      title: 'Svaka paleta. Jasan tok.',
+      description: 'Od QR skeniranja i transporta do povrata, servisa i obračuna — sve na jednom mjestu, u stvarnom vremenu.',
+      illustrationLabels: ['Efikasno upravljanje', 'Ažuriranja u stvarnom vremenu', 'Detaljna evidencija', 'Timska saradnja'],
+    }
+    : language === 'nl'
+      ? {
+        eyebrow: 'Slim palletbeheer',
+        title: 'Elke pallet. Eén duidelijk proces.',
+        description: 'Van QR-scans en transport tot retouren, service en facturatie — de hele operatie werkt vanuit één betrouwbare status.',
+        illustrationLabels: ['Efficiënt beheer', 'Realtime updates', 'Gedetailleerde audit', 'Teamsamenwerking'],
+      }
+      : {
+        eyebrow: 'Smart pallet tracking',
+        title: 'Every pallet. One clear flow.',
+        description: 'From QR scans and transport to returns, service and billing — the whole operation works from one reliable status.',
+        illustrationLabels: ['Efficient management', 'Real-time updates', 'Detailed auditing', 'Team collaboration'],
+      };
   const savedLoginProfiles = loginProfiles.filter((profile) => profile.saved);
   const recentLoginProfiles = loginProfiles.filter((profile) => !profile.saved);
 
@@ -744,10 +768,11 @@ export default function App() {
    return (
      <>
        <LandingShell
-         isLoginOpen={isLandingLoginOpen}
+         isLoginOpen={isLandingLoginOpen || isMobileViewport}
          logoSrc={logoImage}
          loginLabel={t('loginButton')}
          onOpenLogin={() => setIsLandingLoginOpen(true)}
+         marketingCopy={landingMarketingCopy}
        >
          <div className="space-y-6">
            <motion.div
@@ -869,7 +894,7 @@ export default function App() {
        </LandingShell>
 
        <AnimatePresence>
-        {isCredentialLoginOpen && (
+         {(isCredentialLoginOpen || isMobileViewport) && (
           <motion.div
             className="fixed inset-y-0 right-0 z-[200] flex w-full items-center justify-center overflow-y-auto bg-[#fbfcfd] p-5 sm:p-10 lg:w-1/2"
             initial={{ opacity: 0 }}
@@ -902,7 +927,7 @@ export default function App() {
                   type="button"
                   onClick={closeCredentialLogin}
                   disabled={isCredentialLoginSubmitting}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 md:flex"
                   aria-label={language === 'bs' ? 'Zatvori' : language === 'nl' ? 'Sluiten' : 'Close'}
                 >
                   <X size={18} />
@@ -1029,30 +1054,40 @@ export default function App() {
                   </p>
                 )}
 
-                <div className="flex gap-3">
-                  <Button
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeCredentialLogin}
+                      disabled={isCredentialLoginSubmitting}
+                      className="hidden flex-1 md:inline-flex"
+                    >
+                      {credentialLoginCopy.cancel}
+                    </Button>
+                    <Button type="submit" disabled={isCredentialLoginSubmitting} className="flex-1 gap-2 md:flex-[1.25]">
+                      <LogIn size={15} className={isCredentialLoginSubmitting ? 'animate-pulse' : ''} />
+                      {credentialLoginCopy.submit}
+                    </Button>
+                  </div>
+                  <button
                     type="button"
-                    variant="outline"
-                    onClick={closeCredentialLogin}
+                    onClick={() => { setKvkRegistrationError(null); setIsKvkRegistrationOpen(true); }}
                     disabled={isCredentialLoginSubmitting}
-                    className="flex-1"
+                    className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 md:hidden"
                   >
-                    {credentialLoginCopy.cancel}
-                  </Button>
-                  <Button type="submit" disabled={isCredentialLoginSubmitting} className="flex-[1.25] gap-2">
-                    <LogIn size={15} className={isCredentialLoginSubmitting ? 'animate-pulse' : ''} />
-                    {credentialLoginCopy.submit}
-                  </Button>
+                    {kvkRegistrationCopy.title}
+                  </button>
                 </div>
               </form>
             </motion.div>
           </motion.div>
         )}
         {isKvkRegistrationOpen && (
-          <motion.div className="modal-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isKvkRegistrationSubmitting && setIsKvkRegistrationOpen(false)}>
-            <motion.form onSubmit={(event) => void submitKvkRegistration(event)} onClick={(event) => event.stopPropagation()} className="w-full max-w-lg space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-[#101715]">
+          <motion.div className="modal-overlay fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto p-0 sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isKvkRegistrationSubmitting && setIsKvkRegistrationOpen(false)}>
+            <motion.form onSubmit={(event) => void submitKvkRegistration(event)} onClick={(event) => event.stopPropagation()} className="min-h-[100dvh] w-full max-w-lg space-y-4 bg-white p-5 shadow-2xl dark:bg-[#101715] sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:overflow-y-auto sm:rounded-2xl sm:border sm:border-zinc-200 sm:p-6 sm:dark:border-white/10">
               <div><h2 className="font-display text-sm font-black uppercase tracking-[0.12em] dark:text-white">{kvkRegistrationCopy.title}</h2><p className="mt-1 text-xs text-zinc-500">{kvkRegistrationCopy.subtitle}</p></div>
-              <div className="flex gap-2"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>{kvkRegistrationCopy.find}</Button></div>
+              <div className="flex flex-col gap-2 sm:flex-row"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" className="w-full sm:w-auto" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>{kvkRegistrationCopy.find}</Button></div>
               <label className="block text-xs font-bold dark:text-zinc-200">{kvkFormLabels.company}<Input required className="mt-1" value={kvkRegistration.name} onChange={(event) => setKvkRegistration({ ...kvkRegistration, name: event.target.value })} /></label>
               <label className="block text-xs font-bold dark:text-zinc-200">{kvkFormLabels.email}<Input required type="email" className={cn('mt-1', kvkRegistration.email && !EMAIL_PATTERN.test(kvkRegistration.email) && 'border-rose-500 focus:border-rose-500')} value={kvkRegistration.email} onChange={(event) => setKvkRegistration({ ...kvkRegistration, email: event.target.value })} />{kvkRegistration.email && !EMAIL_PATTERN.test(kvkRegistration.email) && <p className="mt-1 text-xs font-semibold text-rose-600">{kvkFormLabels.invalidEmail}</p>}</label>
               <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.phone}<Input className="mt-1" value={kvkRegistration.phone_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, phone_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.fixed}<Input className="mt-1" value={kvkRegistration.fixed_phone} onChange={(event) => setKvkRegistration({ ...kvkRegistration, fixed_phone: event.target.value })} /></label></div>

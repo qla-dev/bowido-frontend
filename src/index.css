@@ -219,6 +219,12 @@
   }
 }
 
+@media (max-width: 767px) {
+  #login-screen .landing-visual-pane {
+    display: none;
+  }
+}
+
 html:has(.modal-overlay),
 html:has(.scanner-overlay),
 html:has([data-lock-scroll-modal="true"]),
