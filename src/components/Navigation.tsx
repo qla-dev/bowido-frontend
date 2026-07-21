@@ -12,6 +12,7 @@ import { KnowledgeBase } from './KnowledgeBase';
 import { useApp } from '../AppContext';
 import { getRoleLabel, languageOptions } from '../i18n';
 import logoImage from '../assets/logo.png';
+import logoNightImage from '../assets/logo-night.png';
 
 const SIDEBAR_PINNED_STORAGE_KEY = 'trackpal.sidebarPinnedState';
 const SIDEBAR_RECENT_TOGGLE_STORAGE_KEY = 'trackpal.sidebarHoverEnabled';
@@ -151,7 +152,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       <div className="flex flex-col gap-2 px-4 py-2 md:h-full md:flex-row md:items-center md:justify-end md:gap-3 md:px-5 md:py-0">
         <div className="flex items-center justify-center md:hidden">
           <div className="flex min-w-[118px] shrink-0 items-center sm:min-w-[132px]">
-            <img src={logoImage} alt="Logo" className="h-6 w-auto max-w-[118px] shrink-0 object-contain object-left sm:h-7 sm:max-w-[132px]" />
+            <img src={logoImage} alt="Logo" className="h-6 w-auto max-w-[118px] shrink-0 object-contain object-left dark:hidden sm:h-7 sm:max-w-[132px]" />
+            <img src={logoNightImage} alt="Logo" className="hidden h-6 w-auto max-w-[118px] shrink-0 object-contain object-left dark:block sm:h-7 sm:max-w-[132px]" />
           </div>
         </div>
 
@@ -660,7 +662,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
                 <img
                   src={logoImage}
                   alt="Trackpal app"
-                  className="h-7 w-auto max-w-none shrink-0 object-contain object-left"
+                  className="h-7 w-auto max-w-none shrink-0 object-contain object-left dark:hidden"
+                />
+                <img
+                  src={logoNightImage}
+                  alt="Trackpal app"
+                  className="hidden h-7 w-auto max-w-none shrink-0 object-contain object-left dark:block"
                 />
               </span>
             </div>
@@ -683,8 +690,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
                 className={cn(
                   "flex h-10 w-full items-center overflow-hidden rounded-xl border transition-colors",
                   isSidebarPinned
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-white/15 dark:bg-white/[0.08] dark:text-zinc-100"
-                    : "border-transparent text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-400 dark:hover:bg-white/[0.07] dark:hover:text-zinc-100"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-300/25 dark:bg-emerald-400/[0.13] dark:text-emerald-100"
+                    : "border-transparent text-zinc-500 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:border-emerald-300/20 dark:hover:bg-emerald-400/[0.10] dark:hover:text-emerald-100"
                 )}
               >
                 <span className={SIDEBAR_ICON_SLOT_CLASS}>
@@ -697,7 +704,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
                   className={cn(
                     "relative z-10 ml-auto mr-3 flex h-5 w-9 shrink-0 items-center overflow-hidden rounded-full p-0.5 transition-[max-width,margin,opacity,background-color] duration-300 ease-[cubic-bezier(0.25,0.8,0.25,1)]",
                     isCollapsed ? "pointer-events-none max-w-0 opacity-0 mr-0" : "max-w-9 opacity-100",
-                    isSidebarPinned ? "bg-[#00A655]" : "bg-zinc-200 dark:bg-white/15"
+                    isSidebarPinned ? "bg-[#00A655]" : "bg-zinc-200 dark:bg-emerald-100/25"
                   )}
                   aria-hidden="true"
                 >
