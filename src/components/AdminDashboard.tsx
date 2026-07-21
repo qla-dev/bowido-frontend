@@ -1369,14 +1369,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               value={editingPallet.current_status_id}
                               onChange={e => {
                                 const sid = parseInt(e.target.value);
-                                const sname = statuses.find(s => s.id === sid)?.name || '';
+                                const selectedStatus = statuses.find(s => s.id === sid);
+                                const sname = selectedStatus?.name || '';
+                                const isTransportStatus = [2, 6].includes(sid) || ['bih-nl-transport', 'nl-bih-transport'].includes(selectedStatus?.slug || '');
+                                const allowsCustomer = statusIdAllowsCustomer(statuses, sid);
+                                const selectedClient = allowsCustomer ? clients.find((client) => client.user_id === editingPallet.user_id) : undefined;
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
-                                  user_id: statusIdAllowsCustomer(statuses, sid) ? editingPallet.user_id : undefined,
-                                  client_name: statusIdAllowsCustomer(statuses, sid) ? editingPallet.client_name : undefined,
+                                  user_id: allowsCustomer ? editingPallet.user_id : undefined,
+                                  client_name: allowsCustomer ? editingPallet.client_name : undefined,
                                   current_status_name: sname,
-                                  current_location: getFixedWarehouseLocation(sid, sname) || editingPallet.current_location,
+                                  current_location: isTransportStatus ? 'Na putu' : allowsCustomer ? selectedClient?.warehouse_addresses?.[0] || '' : getFixedWarehouseLocation(sid, sname) || editingPallet.current_location,
                                 });
                               }}
                               className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
@@ -1391,8 +1395,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               disabled={!statusIdAllowsCustomer(statuses, editingPallet.current_status_id)}
                               onChange={e => {
                                 const uid = e.target.value ? parseInt(e.target.value) : undefined;
-                                const cname = clients.find(c => c.user_id === uid)?.name || '';
-                                setEditingPallet({...editingPallet, user_id: uid, client_name: cname});
+                                const selectedClient = clients.find(c => c.user_id === uid);
+                                const cname = selectedClient?.name || '';
+                                setEditingPallet({...editingPallet, user_id: uid, client_name: cname, current_location: selectedClient?.warehouse_addresses?.[0] || ''});
                               }}
                               className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
                             >
@@ -1407,10 +1412,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <input
                             className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold disabled:text-gray-500"
                             value={
-                              getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name) ||
+                              ([2, 6].includes(editingPallet.current_status_id) || ['bih-nl-transport', 'nl-bih-transport'].includes(statuses.find((status) => status.id === editingPallet.current_status_id)?.slug || ''))
+                                ? 'Na putu'
+                                : getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name) ||
                               editingPallet.current_location
                             }
-                            disabled={Boolean(getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name))}
+                            disabled={Boolean(getFixedWarehouseLocation(editingPallet.current_status_id, editingPallet.current_status_name)) || [2, 6].includes(editingPallet.current_status_id) || ['bih-nl-transport', 'nl-bih-transport'].includes(statuses.find((status) => status.id === editingPallet.current_status_id)?.slug || '')}
                             onChange={e => setEditingPallet({...editingPallet, current_location: e.target.value})}
                           />
                         </div>
