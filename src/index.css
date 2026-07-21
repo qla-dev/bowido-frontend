@@ -223,6 +223,25 @@
   }
 }
 
+@media (max-width: 1023px) {
+  #login-screen .landing-visual-pane,
+  #login-screen .landing-login-pane {
+    width: 100% !important;
+  }
+
+  #login-screen .landing-login-pane {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+  }
+}
+
+@media (max-width: 767px) {
+  #login-screen .landing-visual-pane {
+    display: none;
+  }
+}
+
 html:has(.modal-overlay),
 html:has(.scanner-overlay),
 html:has([data-lock-scroll-modal="true"]),

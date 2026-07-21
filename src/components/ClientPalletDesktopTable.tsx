@@ -106,9 +106,10 @@ const createEmptySearch = (): FilterSearch => ({
 
 interface ClientPalletDesktopTableProps {
   client: ClientDetail;
+  summaryCards?: React.ReactNode;
 }
 
-export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> = ({ client }) => {
+export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> = ({ client, summaryCards }) => {
   const { pallets: cachedPallets, statuses, auditLogs, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +184,14 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     language === 'bs' ? 'Zadnja izmjena' : language === 'nl' ? 'Laatste wijziging' : 'Last update';
   const palletLabel =
     language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet';
+  const pageTitle =
+    language === 'bs' ? 'Moje palete' : language === 'nl' ? 'Mijn bokken' : 'My pallets';
+  const pageSubtitle =
+    language === 'bs'
+      ? 'Pregled statusa, lokacije i obračuna vaših paleta.'
+      : language === 'nl'
+        ? 'Overzicht van status, locatie en kosten van uw bokken.'
+        : 'Overview of your pallets, their status, location and charges.';
   const movementHistoryLabel =
     language === 'bs' ? 'Historija kretanja' : language === 'nl' ? 'Bewegingsgeschiedenis' : 'Movement history';
   const changedByLabel =
@@ -560,14 +569,31 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
 
   return (
     <>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-4 grid items-stretch gap-3 xl:grid-cols-12 [&>.client-summary-card]:xl:col-span-3">
+        {summaryCards}
+      </div>
+
+      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-200">
+            <Package size={18} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-zinc-950 dark:text-white">
+              {pageTitle}
+            </h2>
+            <p className="mt-1 line-clamp-2 text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-400">
+              {pageSubtitle}
+            </p>
+          </div>
+        </div>
         <div className="relative w-full sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder={searchPlaceholder}
-            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
+            className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
           />
         </div>
       </div>

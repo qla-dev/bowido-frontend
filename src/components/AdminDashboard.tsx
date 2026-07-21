@@ -1309,20 +1309,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex rounded-[1.5rem] border border-zinc-200 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-white/[0.06]">
-                    <div className="flex w-full items-center justify-center">
-                      {editingPallet.qr_code.trim() ? (
-                        <PalletQrCode
-                          value={editingPallet.qr_code.trim()}
-                          className="aspect-square w-full rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-950 dark:border-white/10"
-                        />
-                      ) : (
-                        <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-white px-4 text-center text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300 dark:border-white/10 dark:bg-[#101715]">
-                          {t('notAvailable')}
-                        </div>
-                      )}
+                  {editingPallet.qr_code.trim() ? (
+                    <PalletQrCode
+                      value={editingPallet.qr_code.trim()}
+                      className="block aspect-square w-full self-start text-zinc-950"
+                    />
+                  ) : (
+                    <div className="flex aspect-square w-full items-center justify-center border border-dashed border-zinc-200 px-4 text-center text-[10px] font-black uppercase tracking-[0.16em] text-zinc-300 dark:border-white/10 dark:bg-[#101715]">
+                      {t('notAvailable')}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <AnimatePresence initial={false}>

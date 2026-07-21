@@ -13,7 +13,6 @@ import {
   Download,
   FileText,
   Hash,
-  Image as ImageIcon,
   MapPin,
   Package,
   Plus,
@@ -24,10 +23,10 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
-import { Badge, Button, cn, Input } from './ui';
+import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, PalletPhoto } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { getStatusLabel } from '../i18n';
 import { ListPagination } from './ListPagination';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService, PaginationMeta } from '../services/api';
@@ -140,7 +139,15 @@ const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
   gracePeriod: 'gracePeriod',
 };
 
-export const AdminClientManagerView: React.FC = () => {
+interface AdminClientManagerViewProps {
+  clientIdFilter?: number;
+  readOnly?: boolean;
+}
+
+export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
+  clientIdFilter,
+  readOnly = false,
+}) => {
   const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
@@ -214,10 +221,11 @@ export const AdminClientManagerView: React.FC = () => {
 
       try {
         const page = await apiService.clients.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          search: debouncedSearchQuery || undefined,
-          sort_by: SERVER_SORT_BY_KEY[sortConfig.key],
+          limit: clientIdFilter === undefined ? pageLimit : 1,
+          offset: clientIdFilter === undefined ? pageOffset : 0,
+          user_id: clientIdFilter,
+          search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
+          sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
           sort_direction: sortConfig.direction,
         });
 
@@ -241,7 +249,11 @@ export const AdminClientManagerView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+  }, [clientIdFilter, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [clientIdFilter]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -422,18 +434,24 @@ export const AdminClientManagerView: React.FC = () => {
           },
           { overdueDays: 0, overduePallets: 0 }
         );
-        const warehouse1Label = formatAddress(
+        const structuredWarehouse1Label = formatAddress(
           client.warehouse1_street,
           client.warehouse1_house_number,
           client.warehouse1_postal_code,
           client.warehouse1_city
         );
-        const warehouse2Label = formatAddress(
+        const structuredWarehouse2Label = formatAddress(
           client.warehouse2_street,
           client.warehouse2_house_number,
           client.warehouse2_postal_code,
           client.warehouse2_city
         );
+        const warehouse1Label = structuredWarehouse1Label !== '-'
+          ? structuredWarehouse1Label
+          : client.warehouse_addresses?.[0] || '-';
+        const warehouse2Label = structuredWarehouse2Label !== '-'
+          ? structuredWarehouse2Label
+          : client.warehouse_addresses?.[1] || '-';
         const warehouses = [warehouse1Label, warehouse2Label].filter((address) => address !== '-');
         const overdueTotal = overdueData.overdueDays * client.price_per_day;
 
@@ -520,7 +538,7 @@ export const AdminClientManagerView: React.FC = () => {
         invoice.customer_name.toLowerCase() === selectedRow.clientName.toLowerCase()
     );
 
-    return realInvoices.slice(0, 3).map((invoice) => ({
+    return realInvoices.map((invoice) => ({
       id: invoice.id,
       number: invoice.invoice_number,
       amount: `EUR ${currencyFormatter.format(invoice.total_amount)}`,
@@ -667,10 +685,13 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const saveClientDraft = async () => {
-    if (!clientDraft) {
+    if (!clientDraft || readOnly) {
       return;
     }
 
+    await apiService.users.update(clientDraft.user_id, {
+      phone_number: clientDraft.phone_number?.trim() || '',
+    });
     updateClient({
       ...clientDraft,
       warehouse_addresses: (clientDraft.warehouse_addresses || [])
@@ -683,6 +704,8 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const createClient = async () => {
+    if (readOnly) return;
+
     const name = newClientDraft.name.trim();
     const kvk = newClientDraft.kvk_number?.trim() || '';
     const email = newClientDraft.billing_email?.trim() || '';
@@ -740,7 +763,7 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const confirmDeleteClient = async () => {
-    if (!clientPendingDeletion) return;
+    if (!clientPendingDeletion || readOnly) return;
     try {
       await deleteClient(clientPendingDeletion.client.id);
       setClientPendingDeletion(null);
@@ -818,8 +841,8 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const renderMetricCard = (label: string, value: React.ReactNode, danger = false) => (
-    <div className="flex min-h-[5.75rem] flex-col items-center justify-center rounded-2xl bg-gray-50 p-4 text-center dark:bg-[#151d1a]">
-      <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-gray-400 dark:text-zinc-400">
+    <div className="flex min-h-[4.5rem] flex-col items-center justify-center rounded-xl border border-zinc-100 bg-zinc-50/80 p-2.5 text-center dark:border-white/10 dark:bg-[#151d1a]">
+      <span className="mb-1.5 block text-[8px] font-black uppercase tracking-[0.12em] text-gray-400 dark:text-zinc-400">
         {label}
       </span>
       <p className={cn('w-full truncate text-xs font-black uppercase text-zinc-900 dark:text-white', danger && 'text-rose-600 dark:text-rose-200')}>
@@ -842,15 +865,21 @@ export const AdminClientManagerView: React.FC = () => {
               {t('clientManager')}
             </p>
             <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-              {language === 'bs'
-                ? 'Admin pregled i kontrola kupaca'
-                : language === 'nl'
-                  ? 'Admin overzicht en beheer van klanten'
-                  : 'Admin overview and client control'}
+              {readOnly
+                ? language === 'bs'
+                  ? 'Pregled podataka, paleta i obračuna'
+                  : language === 'nl'
+                    ? 'Overzicht van gegevens, bokken en kosten'
+                    : 'Overview of details, pallets and charges'
+                : language === 'bs'
+                  ? 'Admin pregled i kontrola kupaca'
+                  : language === 'nl'
+                    ? 'Admin overzicht en beheer van klanten'
+                    : 'Admin overview and client control'}
             </p>
           </div>
         </div>
-        <div className="relative w-full sm:w-80">
+        {clientIdFilter === undefined && <div className="relative w-full sm:w-80">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
             <Input
               value={searchQuery}
@@ -858,7 +887,7 @@ export const AdminClientManagerView: React.FC = () => {
               placeholder={labels.search}
               className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
             />
-        </div>
+        </div>}
       </div>
 
       <AdminDataTable<SortKey>
@@ -996,7 +1025,7 @@ export const AdminClientManagerView: React.FC = () => {
 
       <PageLoadingModal isOpen={isPageLoading} language={language} />
 
-      <ListPagination
+      {clientIdFilter === undefined && <ListPagination
         total={paginationMeta.total}
         limit={paginationMeta.limit}
         offset={paginationMeta.offset}
@@ -1008,9 +1037,9 @@ export const AdminClientManagerView: React.FC = () => {
           setPageOffset(0);
           setPageLimit(limit);
         }}
-      />
+      />}
 
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
+      {!readOnly && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
         <button
           type="button"
           onClick={() => setIsAddClientOpen(true)}
@@ -1019,9 +1048,9 @@ export const AdminClientManagerView: React.FC = () => {
           <Plus size={16} />
           {labels.addClient}
         </button>
-      </div>
+      </div>}
 
-      {isAddClientOpen && (
+      {!readOnly && isAddClientOpen && (
         <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setIsAddClientOpen(false)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -1097,14 +1126,14 @@ export const AdminClientManagerView: React.FC = () => {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-[3rem] bg-white p-8 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
+            className="relative max-h-[92vh] w-full max-w-[92rem] overflow-y-auto rounded-[2rem] bg-white p-5 shadow-2xl no-scrollbar dark:bg-[#0f1513] sm:p-6"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="absolute left-0 right-0 top-0 h-2 bg-black dark:bg-[#00A655]" />
 
-            <div className="mb-8 flex items-center justify-between gap-4">
+            <div className="mb-4 flex items-center justify-between gap-4 border-b border-zinc-100 pb-4 dark:border-white/10">
               <div className="min-w-0">
-                <h3 className="mb-1 text-3xl font-black uppercase tracking-tighter text-emerald-950 dark:text-white">
+                <h3 className="mb-1 truncate text-2xl font-black uppercase tracking-tighter text-emerald-950 dark:text-white">
                   {selectedRow.clientName}
                 </h3>
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -1121,7 +1150,7 @@ export const AdminClientManagerView: React.FC = () => {
               </button>
             </div>
 
-            <div className="mb-6 grid auto-rows-fr grid-cols-2 gap-4 md:grid-cols-5">
+            <div className="mb-4 grid auto-rows-fr grid-cols-2 gap-2.5 md:grid-cols-5">
               {renderMetricCard(labels.totalPallets, selectedRow.totalPallets)}
               {renderMetricCard(labels.overduePallets, selectedRow.overduePallets, selectedRow.overduePallets > 0)}
               {renderMetricCard(labels.rate, selectedRow.rateLabel)}
@@ -1129,69 +1158,99 @@ export const AdminClientManagerView: React.FC = () => {
               {renderMetricCard(labels.overdueTotal, selectedRow.overdueTotalLabel, selectedRow.overdueTotal > 0)}
             </div>
 
-            <div className="grid items-stretch gap-6 lg:grid-cols-2">
-              <div className="flex h-full flex-col rounded-[2rem] border border-zinc-100 bg-zinc-50/70 p-5 dark:border-white/10 dark:bg-[#151d1a]">
-                <div className="mb-4 rounded-[1.5rem] border border-emerald-100 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#101715]">
-                  <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
-                    <Hash size={13} />
-                    KVK
+            <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(24rem,0.65fr)]">
+              <div className="flex h-full flex-col rounded-[1.5rem] border border-zinc-100 bg-zinc-50/70 p-4 dark:border-white/10 dark:bg-[#151d1a]">
+                <div className="rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 dark:border-white/10 dark:bg-[#101715]">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Hash size={14} className="text-emerald-700 dark:text-emerald-200" />
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-800 dark:text-emerald-100">
+                      {language === 'bs' ? 'Registracijski podaci' : language === 'nl' ? 'Registratiegegevens' : 'Registration details'}
+                    </h4>
                   </div>
-                  <p className="mt-1 text-base font-black uppercase tracking-tight text-emerald-950 dark:text-white">
-                    {selectedRow.kvkLabel}
-                  </p>
-                </div>
-
-                <div className="grid auto-rows-fr gap-4 md:grid-cols-3">
-                  <div className="flex min-w-0 flex-col justify-end space-y-1 md:col-span-3">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {labels.companyName}
+                  <div className="grid gap-2.5 sm:grid-cols-6 xl:grid-cols-12">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-2 xl:col-span-3">KVK
+                      <Input disabled={readOnly} value={clientDraft.kvk_number || ''} onChange={(event) => setClientDraft({ ...clientDraft, kvk_number: event.target.value })} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
                     </label>
-                    <Input
-                      value={clientDraft.name}
-                      onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })}
-                      className="bg-white normal-case tracking-normal"
-                    />
-                  </div>
-                  <div className="flex min-w-0 flex-col justify-end space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {labels.phone}
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-4 xl:col-span-9">{labels.companyName}
+                      <Input disabled={readOnly} value={clientDraft.name} onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
                     </label>
-                    <Input
-                      value={clientDraft.phone_number || ''}
-                      onChange={(event) => setClientDraft({ ...clientDraft, phone_number: event.target.value })}
-                      className="bg-white normal-case tracking-normal"
-                    />
-                  </div>
-                  <div className="flex min-w-0 flex-col justify-end space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {labels.rate}
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-3 xl:col-span-6">{labels.email}
+                      <Input disabled={readOnly} type="email" value={clientDraft.billing_email || ''} onChange={(event) => setClientDraft({ ...clientDraft, billing_email: event.target.value })} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
                     </label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={clientDraft.price_per_day}
-                      onChange={(event) =>
-                        setClientDraft({ ...clientDraft, price_per_day: Number(event.target.value) })
-                      }
-                      className="bg-white"
-                    />
-                  </div>
-                  <div className="flex min-w-0 flex-col justify-end space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {labels.gracePeriod}
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-3 xl:col-span-3">{labels.phone}
+                      <Input disabled={readOnly} value={clientDraft.phone_number || ''} onChange={(event) => setClientDraft({ ...clientDraft, phone_number: event.target.value })} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
                     </label>
-                    <Input
-                      type="number"
-                      value={clientDraft.grace_period_days}
-                      onChange={(event) =>
-                        setClientDraft({ ...clientDraft, grace_period_days: Number(event.target.value) })
-                      }
-                      className="bg-white"
-                    />
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-3 xl:col-span-3">{labels.fixedPhone}
+                      <Input disabled={readOnly} value={clientDraft.fixed_phone || ''} onChange={(event) => setClientDraft({ ...clientDraft, fixed_phone: event.target.value })} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
+                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-2 xl:col-span-3">{language === 'bs' ? 'Država' : language === 'nl' ? 'Land' : 'Country'}
+                      <Input disabled={readOnly} value={clientDraft.country || ''} onChange={(event) => setClientDraft({ ...clientDraft, country: event.target.value })} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
+                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-2 xl:col-span-3">{language === 'bs' ? 'Status klijenta' : language === 'nl' ? 'Klantstatus' : 'Client status'}
+                      <select
+                        disabled={readOnly}
+                        value={clientDraft.is_active ? 'active' : 'inactive'}
+                        onChange={(event) => setClientDraft({ ...clientDraft, is_active: event.target.value === 'active' })}
+                        className="mt-1 h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-[11px] font-bold text-zinc-800 outline-none transition-colors focus:border-emerald-400 dark:border-white/10 dark:bg-[#151d1a] dark:text-white"
+                      >
+                        <option value="active">{language === 'bs' ? 'Aktivan' : language === 'nl' ? 'Actief' : 'Active'}</option>
+                        <option value="inactive">{language === 'bs' ? 'Neaktivan' : language === 'nl' ? 'Inactief' : 'Inactive'}</option>
+                      </select>
+                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-1 xl:col-span-3">{labels.rate} (€)
+                      <Input disabled={readOnly} type="number" min="0" step="0.01" value={clientDraft.price_per_day} onChange={(event) => setClientDraft({ ...clientDraft, price_per_day: Number(event.target.value) })} className="mt-1 h-10 bg-zinc-50 dark:bg-[#151d1a]" />
+                    </label>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-1 xl:col-span-3">{labels.gracePeriod}
+                      <Input disabled={readOnly} type="number" min="0" value={clientDraft.grace_period_days} onChange={(event) => setClientDraft({ ...clientDraft, grace_period_days: Number(event.target.value) })} className="mt-1 h-10 bg-zinc-50 dark:bg-[#151d1a]" />
+                    </label>
                   </div>
                 </div>
 
-                <div className="mt-5 border-t border-zinc-100 pt-5 dark:border-white/10">
+                <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                  {([
+                    {
+                      title: language === 'bs' ? 'Adresa firme' : language === 'nl' ? 'Bedrijfsadres' : 'Company address',
+                      preview: selectedRow.addressLabel,
+                      fields: [['street', labels.street], ['house_number', labels.houseNumber], ['postal_code', labels.postalCode], ['city', labels.city]],
+                    },
+                    {
+                      title: labels.warehouse1,
+                      preview: selectedRow.warehouse1Label,
+                      fields: [['warehouse1_street', labels.street], ['warehouse1_house_number', labels.houseNumber], ['warehouse1_postal_code', labels.postalCode], ['warehouse1_city', labels.city]],
+                    },
+                    {
+                      title: labels.warehouse2,
+                      preview: selectedRow.warehouse2Label,
+                      fields: [['warehouse2_street', labels.street], ['warehouse2_house_number', labels.houseNumber], ['warehouse2_postal_code', labels.postalCode], ['warehouse2_city', labels.city]],
+                    },
+                  ] as const).map((section) => (
+                    <div key={section.title} className="rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 dark:border-white/10 dark:bg-[#101715]">
+                      <div className="mb-3 min-w-0">
+                        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-800 dark:text-emerald-100">
+                          <MapPin size={13} className="shrink-0" />
+                          {section.title}
+                        </div>
+                        <p className="mt-2 min-h-8 rounded-lg bg-emerald-50/70 px-2.5 py-1.5 text-[9px] font-bold leading-4 text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-100" title={section.preview}>
+                          {section.preview}
+                        </p>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {section.fields.map(([field, label]) => (
+                          <label key={field} className="text-[8px] font-black uppercase tracking-wider text-zinc-500">{label}
+                            <Input
+                              disabled={readOnly}
+                              value={String(clientDraft[field] || '')}
+                              onChange={(event) => setClientDraft({ ...clientDraft, [field]: event.target.value })}
+                              className="mt-1 h-9 bg-zinc-50 px-3 text-[11px] normal-case tracking-normal dark:bg-[#151d1a]"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {language === 'bs' ? 'Magacini' : language === 'nl' ? 'Magazijnen' : 'Warehouses'}
@@ -1212,7 +1271,7 @@ export const AdminClientManagerView: React.FC = () => {
                             <MapPin size={13} className="shrink-0" />
                             <span className="truncate">{index === 0 ? labels.warehouse1 : labels.warehouse2}</span>
                           </label>
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          {!readOnly && <div className="flex shrink-0 items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => removeDraftWarehouse(index)}
@@ -1227,7 +1286,7 @@ export const AdminClientManagerView: React.FC = () => {
                             >
                               <Trash2 size={13} />
                             </button>
-                          </div>
+                          </div>}
                         </div>
                         <div
                           className="group relative"
@@ -1240,6 +1299,7 @@ export const AdminClientManagerView: React.FC = () => {
                           }
                         >
                           <Input
+                            disabled={readOnly}
                             value={clientDraft.warehouse_addresses?.[index] || ''}
                             onChange={(event) => updateDraftWarehouse(index, event.target.value)}
                             placeholder={
@@ -1263,7 +1323,7 @@ export const AdminClientManagerView: React.FC = () => {
                         </div>
                       </div>
                     ))}
-                    {(clientDraft.warehouse_addresses || []).length === 1 && (
+                    {!readOnly && (clientDraft.warehouse_addresses || []).length === 1 && (
                       <button
                         type="button"
                         onClick={addDraftWarehouse}
@@ -1278,7 +1338,7 @@ export const AdminClientManagerView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-auto grid gap-3 pt-5 sm:grid-cols-2">
+                {!readOnly && <div className="mt-auto grid gap-3 pt-3 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => setClientPendingDeletion(selectedRow)}
@@ -1291,57 +1351,47 @@ export const AdminClientManagerView: React.FC = () => {
                     <Save size={15} />
                     {labels.save}
                   </Button>
-                </div>
+                </div>}
               </div>
 
-              <div className="grid h-full gap-4">
-                <div className="flex min-h-[17rem] flex-col rounded-[2rem] border border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#151d1a]">
-                  <div className="mb-4 flex items-center justify-between">
+              <div className="grid h-full grid-rows-2 gap-3">
+                <div className="flex min-h-[15rem] flex-col rounded-[1.5rem] border border-zinc-100 bg-white p-4 dark:border-white/10 dark:bg-[#151d1a]">
+                  <div className="mb-3 flex items-center justify-between">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.palletsAtClient}
                     </h4>
                     <Package size={17} className="text-gray-300" />
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-zinc-100 no-scrollbar dark:border-white/10">
+                  <div className="grid grid-cols-2 items-center border-y border-zinc-100 bg-zinc-50/70 px-3 py-2 text-center text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:border-white/10 dark:bg-white/[0.04]">
+                    <span>{language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet'}</span>
+                    <span>{language === 'bs' ? 'Trenutni status' : language === 'nl' ? 'Huidige status' : 'Current status'}</span>
+                  </div>
+                  <div className="max-h-48 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
                     {selectedRow.clientPallets.length > 0 ? (
-                      selectedRow.clientPallets.map((pallet) => {
-                        const palletPhotos = clientPhotosByPallet.get(pallet.id) || [];
-                        const hasPalletPhotos = palletPhotos.length > 0;
-
-                        return (
-                          <div
-                            key={`admin-client-modal-pallet-${pallet.id}`}
-                            className="grid min-h-14 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_2rem] items-center gap-2 border-b border-zinc-100 px-4 py-3 text-center last:border-b-0 dark:border-white/10"
+                      selectedRow.clientPallets.map((pallet) => (
+                        <div
+                          key={`admin-client-modal-pallet-${pallet.id}`}
+                          className="grid min-h-12 grid-cols-2 items-center border-b border-zinc-100 px-3 py-2 text-center last:border-b-0 dark:border-white/10"
+                        >
+                          <span className="truncate px-2 text-[11px] font-black uppercase text-emerald-950 dark:text-white">
+                            {getPalletDisplayName(pallet)}
+                          </span>
+                          <span
+                            className={cn(
+                              'px-2 text-[10px] font-black uppercase tracking-[0.08em]',
+                              pallet.current_status_id === 4
+                                ? 'text-emerald-600 dark:text-emerald-300'
+                                : pallet.current_status_id === 7
+                                  ? 'text-rose-600 dark:text-rose-300'
+                                  : pallet.current_status_id === 5
+                                    ? 'text-amber-600 dark:text-amber-300'
+                                    : 'text-sky-600 dark:text-sky-300'
+                            )}
                           >
-                            <span className="truncate text-[11px] font-black uppercase text-emerald-950 dark:text-white">
-                              {getPalletDisplayName(pallet)}
-                            </span>
-                            <span className="truncate text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-300">
-                              {getPalletTypeLabel(pallet.type, language)}
-                            </span>
-                            <Badge
-                              variant={pallet.current_status_id === 4 ? 'success' : pallet.current_status_id === 7 ? 'danger' : 'info'}
-                              className="justify-self-end rounded-lg text-[8px] leading-3 whitespace-normal break-words max-w-[10.5rem]"
-                            >
-                              {getStatusLabel(pallet.current_status_name, language)}
-                            </Badge>
-                            <button
-                              type="button"
-                              onClick={() => setPhotoViewer({
-                                palletId: pallet.id,
-                                palletName: getPalletDisplayName(pallet),
-                                photos: palletPhotos,
-                                index: 0,
-                              })}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-200 dark:hover:bg-white/10"
-                              title={hasPalletPhotos ? labels.viewPhotos : labels.noPhotos}
-                              aria-label={hasPalletPhotos ? labels.viewPhotos : labels.noPhotos}
-                            >
-                              <ImageIcon size={16} />
-                            </button>
-                          </div>
-                        );
-                      })
+                            {getStatusLabel(pallet.current_status_name, language)}
+                          </span>
+                        </div>
+                      ))
                     ) : (
                       <p className="px-4 py-8 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">
                         {labels.noPallets}
@@ -1350,19 +1400,19 @@ export const AdminClientManagerView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex min-h-[17rem] flex-col rounded-[2rem] border border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#151d1a]">
-                  <div className="mb-4 flex items-center justify-between">
+                <div className="flex min-h-[15rem] flex-col rounded-[1.5rem] border border-zinc-100 bg-white p-4 dark:border-white/10 dark:bg-[#151d1a]">
+                  <div className="mb-3 flex items-center justify-between">
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                       {labels.lastInvoices}
                     </h4>
                     <FileText size={17} className="text-gray-300" />
                   </div>
-                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto no-scrollbar">
+                  <div className="max-h-[10.5rem] min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
                     {selectedInvoices.length > 0 ? (
                       selectedInvoices.map((invoice) => (
                         <div
                           key={`admin-client-invoice-${invoice.id}`}
-                          className="flex min-h-16 items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-4 py-3 dark:bg-[#101715]"
+                          className="flex min-h-14 items-center justify-between gap-3 border-b border-zinc-100 px-3 py-2.5 last:border-b-0 dark:border-white/10"
                         >
                           <div className="min-w-0">
                             <p className="truncate text-[11px] font-black uppercase text-zinc-950 dark:text-white">
@@ -1396,15 +1446,15 @@ export const AdminClientManagerView: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <Button
+                  {!readOnly && <Button
                     type="button"
                     variant="outline"
-                    className="mt-4 w-full gap-2"
+                    className="mt-3 h-12 w-full justify-center gap-2"
                     onClick={() => void generateAndExportSelectedInvoice()}
                   >
                     <Download size={15} />
                     {labels.exportInvoice}
-                  </Button>
+                  </Button>}
                 </div>
               </div>
             </div>
@@ -1412,7 +1462,7 @@ export const AdminClientManagerView: React.FC = () => {
         </div>
       )}
 
-      {clientPendingDeletion && (
+      {!readOnly && clientPendingDeletion && (
         <div className="modal-overlay fixed inset-0 z-[130] flex items-center justify-center p-4" onClick={() => setClientPendingDeletion(null)}>
           <motion.div
             initial={{ scale: 0.94, opacity: 0 }}
