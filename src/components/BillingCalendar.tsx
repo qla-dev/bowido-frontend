@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Badge, Input, Select, StatCard, cn } from './ui';
 import { useApp } from '../AppContext';
 import {
@@ -9,57 +9,15 @@ import {
   MessageSquare,
   X,
   FileText,
-  Clock3,
   CircleAlert,
   BadgeCheck,
-  Pencil,
-  Search,
   Trash2,
-  Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarNote, Invoice, ManagedUser } from '../types';
 import { localeMap } from '../i18n';
 import { apiService } from '../services/api';
-
-type MarkerKind = 'review' | 'collection' | 'followup' | 'ops';
-
-interface CalendarMarker {
-  kind: MarkerKind;
-  titleKey: string;
-  detailKey: string;
-  time: string;
-}
-
-const markerTheme: Record<
-  MarkerKind,
-  { dot: string; badge: string; soft: string; labelKey: string }
-> = {
-  review: {
-    dot: 'bg-amber-500',
-    badge: 'bg-amber-50 text-amber-700 border-amber-100',
-    soft: 'bg-amber-50/70 border-amber-100',
-    labelKey: 'calendarMarkerReview',
-  },
-  collection: {
-    dot: 'bg-emerald-500',
-    badge: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    soft: 'bg-emerald-50/70 border-emerald-100',
-    labelKey: 'calendarMarkerCollection',
-  },
-  followup: {
-    dot: 'bg-blue-500',
-    badge: 'bg-blue-50 text-blue-700 border-blue-100',
-    soft: 'bg-blue-50/70 border-blue-100',
-    labelKey: 'calendarMarkerFollowup',
-  },
-  ops: {
-    dot: 'bg-zinc-400',
-    badge: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-    soft: 'bg-zinc-50 border-zinc-100',
-    labelKey: 'calendarMarkerOps',
-  },
-};
+import { InvoiceViewer } from './InvoiceViewer';
 
 const formatCurrency = (amount: number) => `EUR ${amount.toFixed(0)}`;
 
@@ -174,6 +132,7 @@ export const BillingCalendar: React.FC = () => {
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
   const [showNoteEditor, setShowNoteEditor] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingNote, setEditingNote] = useState<CalendarNote | null>(null);
   const [noteDateDraft, setNoteDateDraft] = useState('');
   const [noteTitleDraft, setNoteTitleDraft] = useState('');
@@ -185,10 +144,27 @@ export const BillingCalendar: React.FC = () => {
   const [isNotesLoading, setIsNotesLoading] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
-  const [userSearch, setUserSearch] = useState('');
-  const [notifyCandidates, setNotifyCandidates] = useState<ManagedUser[]>([]);
-  const [isUserSearchLoading, setIsUserSearchLoading] = useState(false);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const calendarColumnRef = useRef<HTMLDivElement | null>(null);
+  const [calendarColumnHeight, setCalendarColumnHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const calendarColumn = calendarColumnRef.current;
+
+    if (!calendarColumn) {
+      return undefined;
+    }
+
+    const updateHeight = () => {
+      setCalendarColumnHeight(Math.ceil(calendarColumn.getBoundingClientRect().height));
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(calendarColumn);
+
+    return () => observer.disconnect();
+  }, []);
 
   const weekDays = useMemo(() => {
     const start = new Date(2024, 0, 7);
@@ -271,29 +247,6 @@ export const BillingCalendar: React.FC = () => {
     };
   }, [month, year]);
 
-  useEffect(() => {
-    if (!showNotifyModal || !apiService.hasToken()) {
-      return undefined;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setIsUserSearchLoading(true);
-      void apiService.calendarNotes
-        .notifyCandidates({
-          search: userSearch.trim() || undefined,
-          limit: 20,
-        })
-        .then(setNotifyCandidates)
-        .catch((error) => {
-          console.error('Failed to search users for calendar notification', error);
-          setNotifyCandidates([]);
-        })
-        .finally(() => setIsUserSearchLoading(false));
-    }, 250);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [showNotifyModal, userSearch]);
-
   const invoicesByDay = useMemo(() => {
     const map: Record<number, Invoice[]> = {};
     invoices.forEach((invoice) => {
@@ -306,60 +259,6 @@ export const BillingCalendar: React.FC = () => {
     });
     return map;
   }, [invoices, month, year]);
-
-  const monthMarkers = useMemo(() => {
-    const schedule: Array<CalendarMarker & { day: number }> = [
-      {
-        day: 4,
-        kind: 'review',
-        titleKey: 'calendarTitleWeeklyReconciliation',
-        detailKey: 'calendarDetailWeeklyReconciliation',
-        time: '08:30',
-      },
-      {
-        day: 8,
-        kind: 'collection',
-        titleKey: 'calendarTitleExpectedInboundPayment',
-        detailKey: 'calendarDetailExpectedInboundPayment',
-        time: '11:00',
-      },
-      {
-        day: 13,
-        kind: 'followup',
-        titleKey: 'calendarTitleClientFollowupRound',
-        detailKey: 'calendarDetailClientFollowupRound',
-        time: '13:30',
-      },
-      {
-        day: 19,
-        kind: 'ops',
-        titleKey: 'calendarTitleBillingHandoff',
-        detailKey: 'calendarDetailBillingHandoff',
-        time: '10:15',
-      },
-      {
-        day: 25,
-        kind: 'review',
-        titleKey: 'calendarTitleMonthEndReview',
-        detailKey: 'calendarDetailMonthEndReview',
-        time: '16:00',
-      },
-    ];
-
-    return schedule.reduce<Record<string, CalendarMarker[]>>((acc, marker) => {
-      if (marker.day <= monthDays.length) {
-        const key = toDateKey(year, month, marker.day);
-        if (!acc[key]) acc[key] = [];
-        acc[key].push({
-          kind: marker.kind,
-          titleKey: marker.titleKey,
-          detailKey: marker.detailKey,
-          time: marker.time,
-        });
-      }
-      return acc;
-    }, {});
-  }, [month, monthDays.length, year]);
 
   const selectedDateKey = selectedDay ? toDateKey(year, month, selectedDay) : null;
   const selectedDayInvoices = selectedDay ? invoicesByDay[selectedDay] || [] : [];
@@ -378,7 +277,6 @@ export const BillingCalendar: React.FC = () => {
     }, {});
   }, [calendarNotes]);
   const selectedNotes = selectedDateKey ? calendarNotesByDay[selectedDateKey] || [] : [];
-  const selectedMarkers = selectedDateKey ? monthMarkers[selectedDateKey] || [] : [];
   const monthlyInvoices: Invoice[] = (Object.values(invoicesByDay) as Invoice[][]).reduce<Invoice[]>(
     (allInvoices, dayInvoices) => allInvoices.concat(dayInvoices),
     []
@@ -399,7 +297,7 @@ export const BillingCalendar: React.FC = () => {
     const parsedDate = parseDateKey(dateKey);
     return parsedDate?.year === year && parsedDate.month === month;
   });
-  const markedDayCount = new Set([...Object.keys(monthMarkers), ...visibleNoteDayKeys]).size;
+  const markedDayCount = visibleNoteDayKeys.length;
   const normalizedNoteTimeDraft = normalizeTimeInput(noteTimeDraft);
   const hasNoteTimeDraft = Boolean(normalizedNoteTimeDraft);
   const noteTimeParts = getTimeParts(noteTimeDraft);
@@ -434,15 +332,15 @@ export const BillingCalendar: React.FC = () => {
   };
 
   const upcomingAgenda = useMemo(() => {
-    return Object.entries(monthMarkers)
+    return Object.entries(calendarNotesByDay)
       .map(([key, markers]) => ({
         key,
         day: Number(key.slice(-2)),
-        markers,
+        notes: markers,
       }))
       .sort((a, b) => a.day - b.day)
       .slice(0, 4);
-  }, [monthMarkers]);
+  }, [calendarNotesByDay]);
 
   const openNoteEditor = (note?: CalendarNote) => {
     const draftDate = note?.note_date || selectedDateKey || toDateInputValue(new Date());
@@ -535,24 +433,6 @@ export const BillingCalendar: React.FC = () => {
     }
   };
 
-  const toggleNotifyUser = (user: ManagedUser) => {
-    setNotifiedUserIds((prev) => {
-      if (prev.includes(user.id)) {
-        return prev.filter((id) => id !== user.id);
-      }
-
-      return [...prev, user.id];
-    });
-
-    setNotifiedUsersDraft((prev) => {
-      if (prev.some((item) => item.id === user.id)) {
-        return prev.filter((item) => item.id !== user.id);
-      }
-
-      return [...prev, user];
-    });
-  };
-
   const formatDayMonthLabel = (day: number, monthIndex = month) =>
     language === 'en' ? `${monthNames[monthIndex]} ${day}` : `${day}. ${monthNames[monthIndex]}`;
 
@@ -607,7 +487,7 @@ export const BillingCalendar: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <div className="xl:col-span-8">
+        <div ref={calendarColumnRef} className="xl:col-span-8 xl:self-start">
           <Card noPadding className="overflow-hidden">
             <div className="px-6 py-5 border-b border-zinc-100 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
@@ -652,7 +532,6 @@ export const BillingCalendar: React.FC = () => {
               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">{t('calendarInvoiceDue')}</Badge>
               <Badge className="bg-rose-50 text-rose-600 border-rose-100">{t('unpaid')}</Badge>
               <Badge className="bg-blue-50 text-blue-700 border-blue-100">{t('note')}</Badge>
-              <Badge className="bg-amber-50 text-amber-700 border-amber-100">{t('calendarReviewTask')}</Badge>
             </div>
 
             <div className="p-4 md:p-6">
@@ -677,7 +556,6 @@ export const BillingCalendar: React.FC = () => {
                   const hasUnpaid = dayInvoices.some((invoice) => invoice.status !== 'paid');
                   const dayKey = toDateKey(year, month, day);
                   const dayNotes = calendarNotesByDay[dayKey] || [];
-                  const dayMarkers = monthMarkers[dayKey] || [];
                   const isToday =
                     day === new Date().getDate() &&
                     month === new Date().getMonth() &&
@@ -723,16 +601,6 @@ export const BillingCalendar: React.FC = () => {
                               )}
                             />
                           )}
-                          {dayMarkers.slice(0, 2).map((marker, index) => (
-                            <span
-                              key={`${dayKey}-${marker.kind}-${index}`}
-                              className={cn(
-                                'w-2 h-2 rounded-full',
-                                markerTheme[marker.kind].dot,
-                                selectedDay === day && 'ring-2 ring-white/20'
-                              )}
-                            />
-                          ))}
                         </div>
                       </div>
 
@@ -748,18 +616,7 @@ export const BillingCalendar: React.FC = () => {
                           </p>
                         )}
 
-                        {dayMarkers.length > 0 && (
-                          <p
-                            className={cn(
-                              'text-[9px] font-black uppercase tracking-tight leading-none',
-                              selectedDay === day ? 'text-white/75' : 'text-zinc-300'
-                            )}
-                          >
-                            {dayMarkers.length} {dayMarkers.length > 1 ? t('markerPlural') : t('markerSingular')}
-                          </p>
-                        )}
-
-                        {!dayInvoices.length && !dayMarkers.length && dayNotes.length > 0 && (
+                        {!dayInvoices.length && dayNotes.length > 0 && (
                           <p
                             className={cn(
                               'truncate text-[9px] font-black uppercase tracking-tight leading-none',
@@ -778,7 +635,10 @@ export const BillingCalendar: React.FC = () => {
           </Card>
         </div>
 
-        <div className="xl:col-span-4 space-y-6">
+        <div
+          className="xl:col-span-4 flex min-h-0 flex-col gap-6 xl:h-[var(--calendar-panel-height)]"
+          style={calendarColumnHeight ? ({ '--calendar-panel-height': `${calendarColumnHeight}px` } as React.CSSProperties) : undefined}
+        >
           <Card>
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
@@ -808,7 +668,7 @@ export const BillingCalendar: React.FC = () => {
                   {t('itemsLabel')}
                 </p>
                 <p className="text-xl font-black tracking-tight">
-                  {selectedDayInvoices.length + selectedMarkers.length + selectedNotes.length}
+                  {selectedDayInvoices.length + selectedNotes.length}
                 </p>
               </div>
               <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/60">
@@ -826,18 +686,22 @@ export const BillingCalendar: React.FC = () => {
             </div>
           </Card>
 
+          <div className="flex min-h-0 flex-1 flex-col gap-6">
           <Card
+            className="calendar-panel-scroll-card min-h-0 flex-1 overflow-hidden"
+            contentClassName="calendar-panel-scroll min-h-0 overflow-y-auto pr-2"
             title={t('dayActivity')}
             action={
               <Button
                 variant="primary"
                 size="xs"
                 onClick={() => openNoteEditor()}
-                className="h-8 w-8 rounded-xl p-0"
-                aria-label={t('addCalendarNote')}
-                title={t('addCalendarNote')}
+                className="h-8 rounded-xl px-3"
+                aria-label={t('addActivity')}
+                title={t('addActivity')}
               >
-                <Plus size={14} />
+                <Plus size={14} className="mr-1.5" />
+                {t('addActivity')}
               </Button>
             }
           >
@@ -851,7 +715,13 @@ export const BillingCalendar: React.FC = () => {
               )}
 
               {selectedNotes.map((note) => (
-                <div key={note.id} className="p-4 rounded-2xl border border-blue-100 bg-blue-50/60">
+                <button
+                  key={note.id}
+                  type="button"
+                  onClick={() => openNoteEditor(note)}
+                  className="w-full rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
+                  aria-label={t('editCalendarNote')}
+                >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <MessageSquare size={14} className="text-blue-600 shrink-0" />
@@ -859,16 +729,9 @@ export const BillingCalendar: React.FC = () => {
                         {note.title || t('savedNote')}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => openNoteEditor(note)}
-                      className="h-7 w-7 rounded-lg p-0 text-blue-700"
-                      aria-label={t('editCalendarNote')}
-                      title={t('editCalendarNote')}
-                    >
-                      <Pencil size={13} />
-                    </Button>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">
+                      {t('editCalendarNote')}
+                    </span>
                   </div>
                   <p className="text-sm font-bold text-zinc-700 leading-relaxed">{note.note}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -888,38 +751,16 @@ export const BillingCalendar: React.FC = () => {
                       </Badge>
                     )}
                   </div>
-                </div>
-              ))}
-
-              {selectedMarkers.map((marker, index) => (
-                <div
-                  key={`${selectedDateKey}-${marker.kind}-${index}`}
-                  className={cn(
-                    'p-4 rounded-2xl border space-y-2',
-                    markerTheme[marker.kind].soft
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className={cn('w-2.5 h-2.5 rounded-full', markerTheme[marker.kind].dot)} />
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-700">
-                        {t(marker.titleKey)}
-                      </p>
-                    </div>
-                    <Badge className={markerTheme[marker.kind].badge}>{t(markerTheme[marker.kind].labelKey)}</Badge>
-                  </div>
-                  <p className="text-sm font-bold text-zinc-600 leading-relaxed">{t(marker.detailKey)}</p>
-                  <div className="flex items-center gap-2 text-zinc-400">
-                    <Clock3 size={14} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">{marker.time}</span>
-                  </div>
-                </div>
+                </button>
               ))}
 
               {selectedDayInvoices.map((invoice) => (
-                <div
+                <button
                   key={invoice.id}
-                  className="p-4 rounded-2xl border border-zinc-100 bg-white flex items-center justify-between gap-3"
+                  type="button"
+                  onClick={() => setSelectedInvoice(invoice)}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-zinc-100 bg-white p-4 text-left transition-colors hover:border-emerald-200 hover:bg-emerald-50/30"
+                  aria-label={`${t('viewInvoice')}: ${invoice.invoice_number}`}
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -940,10 +781,10 @@ export const BillingCalendar: React.FC = () => {
                       {getInvoiceStatusLabel(invoice.status)}
                     </Badge>
                   </div>
-                </div>
+                </button>
               ))}
 
-              {!selectedNotes.length && !selectedMarkers.length && !selectedDayInvoices.length && (
+              {!selectedNotes.length && !selectedDayInvoices.length && (
                 <div className="p-8 rounded-2xl border-2 border-dashed border-zinc-100 bg-zinc-50/50 text-center">
                   <CircleAlert size={18} className="mx-auto mb-3 text-zinc-300" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
@@ -954,9 +795,13 @@ export const BillingCalendar: React.FC = () => {
             </div>
           </Card>
 
-          <Card title={t('monthMarkersTitle')}>
+          <Card
+            className="calendar-panel-scroll-card min-h-0 flex-1 overflow-hidden"
+            contentClassName="calendar-panel-scroll min-h-0 overflow-y-auto pr-2"
+            title={t('calendarNotesTitle')}
+          >
             <div className="space-y-3">
-              {upcomingAgenda.map(({ key, day, markers }) => (
+              {upcomingAgenda.map(({ key, day, notes }) => (
                 <div key={key} className="p-4 rounded-2xl border border-zinc-100 bg-zinc-50/50">
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
@@ -965,27 +810,36 @@ export const BillingCalendar: React.FC = () => {
                       </p>
                     </div>
                     <Badge className="bg-white text-zinc-700 border-zinc-200">
-                      {markers.length} {markers.length > 1 ? t('itemPlural') : t('itemSingular')}
+                      {notes.length} {notes.length > 1 ? t('itemPlural') : t('itemSingular')}
                     </Badge>
                   </div>
 
                   <div className="space-y-2">
-                    {markers.map((marker, index) => (
-                      <div key={`${key}-marker-${index}`} className="flex items-start gap-3">
-                        <span className={cn('w-2 h-2 rounded-full mt-1.5', markerTheme[marker.kind].dot)} />
+                    {notes.map((note) => (
+                      <button
+                        key={note.id}
+                        type="button"
+                        onClick={() => openNoteEditor(note)}
+                        className="flex w-full items-start gap-3 rounded-xl text-left transition-colors hover:bg-zinc-100/70"
+                        aria-label={t('editCalendarNote')}
+                      >
+                        <span className="w-2 h-2 rounded-full mt-1.5 bg-blue-500" />
                         <div className="min-w-0">
                           <p className="text-[10px] font-black uppercase tracking-tight text-zinc-700">
-                            {t(marker.titleKey)}
+                            {note.title || t('savedNote')}
                           </p>
-                          <p className="text-sm font-bold text-zinc-500 leading-relaxed">{marker.time}</p>
+                          <p className="text-sm font-bold text-zinc-500 leading-relaxed">
+                            {note.note_time ? `${note.note_time} · ${note.note}` : note.note}
+                          </p>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
           </Card>
+          </div>
         </div>
       </div>
 
@@ -995,7 +849,7 @@ export const BillingCalendar: React.FC = () => {
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="w-full max-w-md"
+              className="w-full max-w-xl"
             >
               <Card noPadding>
                 <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/40">
@@ -1108,7 +962,7 @@ export const BillingCalendar: React.FC = () => {
                     >
                       <span className="flex items-center gap-2">
                         <Bell size={14} />
-                        {t('notifyMembers')}
+                        {t('notifyUsers')}
                       </span>
                       <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">
                         {notifiedUserIds.length}
@@ -1118,16 +972,13 @@ export const BillingCalendar: React.FC = () => {
                     {notifiedUsersDraft.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {notifiedUsersDraft.map((user) => (
-                          <button
+                          <span
                             key={user.id}
-                            type="button"
-                            onClick={() => toggleNotifyUser(user)}
                             className="inline-flex h-8 max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 text-[10px] font-black uppercase tracking-tight text-blue-700"
-                            disabled={isSavingNote}
                           >
                             <span className="truncate">{user.name}</span>
                             <X size={12} />
-                          </button>
+                          </span>
                         ))}
                       </div>
                     )}
@@ -1140,17 +991,17 @@ export const BillingCalendar: React.FC = () => {
                   )}
                 </div>
 
-                <div className="p-5 bg-zinc-50/40 border-t border-zinc-100 flex flex-wrap gap-3">
+                <div className="flex flex-nowrap gap-3 border-t border-zinc-100 bg-zinc-50/40 p-5">
                   {editingNote && (
-                    <Button variant="danger" onClick={deleteNote} disabled={isSavingNote} className="sm:w-auto">
+                    <Button variant="danger" onClick={deleteNote} disabled={isSavingNote} className="min-w-0 flex-1 whitespace-nowrap">
                       <Trash2 size={14} className="mr-2" />
-                      {t('remove')}
+                      {t('deleteActivity')}
                     </Button>
                   )}
-                  <Button variant="outline" className="flex-1" onClick={() => setShowNoteEditor(false)} disabled={isSavingNote}>
+                  <Button variant="outline" className="min-w-0 flex-1 whitespace-nowrap" onClick={() => setShowNoteEditor(false)} disabled={isSavingNote}>
                     {t('cancel')}
                   </Button>
-                  <Button className="flex-1" onClick={() => void saveNote()} disabled={isSavingNote}>
+                  <Button className="min-w-0 flex-1 whitespace-nowrap" onClick={() => void saveNote()} disabled={isSavingNote}>
                     <BadgeCheck size={14} className="mr-2" />
                     {t('saveNote')}
                   </Button>
@@ -1161,7 +1012,7 @@ export const BillingCalendar: React.FC = () => {
         )}
 
         {showNotifyModal && (
-          <div className="modal-overlay fixed inset-0 z-[140] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[var(--surface-overlay)] p-4 backdrop-blur-[8px]">
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1169,74 +1020,16 @@ export const BillingCalendar: React.FC = () => {
             >
               <Card noPadding>
                 <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/40">
-                  <h3 className="text-sm font-black uppercase tracking-tight">{t('notifyMembers')}</h3>
+                  <h3 className="text-sm font-black uppercase tracking-tight">{t('notifyUsers')}</h3>
                   <Button variant="ghost" size="sm" onClick={() => setShowNotifyModal(false)}>
                     <X size={18} />
                   </Button>
                 </div>
 
-                <div className="p-5 space-y-4">
-                  <div className="relative">
-                    <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-300" />
-                    <Input
-                      placeholder={t('searchMembers')}
-                      value={userSearch}
-                      onChange={(event) => setUserSearch(event.target.value)}
-                      className="h-11 pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
-                    />
-                  </div>
-
-                  <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                    {isUserSearchLoading && (
-                      <p className="px-3 py-4 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                        {t('loadingUsers')}
-                      </p>
-                    )}
-
-                    {!isUserSearchLoading && notifyCandidates.map((user) => {
-                      const selected = notifiedUserIds.includes(user.id);
-
-                      return (
-                        <button
-                          key={user.id}
-                          type="button"
-                          onClick={() => toggleNotifyUser(user)}
-                          className={cn(
-                            'flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-                            selected
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                              : 'border-zinc-100 bg-white text-zinc-700 hover:border-emerald-200'
-                          )}
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-[11px] font-black uppercase tracking-tight">
-                              {user.name}
-                            </span>
-                            <span className="block truncate text-[10px] font-bold text-zinc-400">
-                              {user.email}
-                            </span>
-                          </span>
-                          <span
-                            className={cn(
-                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2',
-                              selected ? 'border-emerald-600 bg-emerald-600' : 'border-zinc-200 bg-white'
-                            )}
-                          >
-                            {selected && <span className="h-2 w-2 rounded-sm bg-white" />}
-                          </span>
-                        </button>
-                      );
-                    })}
-
-                    {!isUserSearchLoading && notifyCandidates.length === 0 && (
-                      <div className="rounded-2xl border border-dashed border-zinc-100 bg-zinc-50/50 p-6 text-center">
-                        <Users size={18} className="mx-auto mb-3 text-zinc-300" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
-                          {t('noMembersFound')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                <div className="p-8 text-center">
+                  <p className="text-sm font-black uppercase tracking-tight text-zinc-700">
+                    {t('comingSoon')}
+                  </p>
                 </div>
 
                 <div className="p-5 bg-zinc-50/40 border-t border-zinc-100">
@@ -1247,6 +1040,10 @@ export const BillingCalendar: React.FC = () => {
               </Card>
             </motion.div>
           </div>
+        )}
+
+        {selectedInvoice && (
+          <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
         )}
       </AnimatePresence>
     </div>

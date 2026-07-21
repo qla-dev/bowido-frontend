@@ -81,6 +81,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
   action?: React.ReactNode;
   noPadding?: boolean;
+  contentClassName?: string;
 }
 
 export const Card: React.FC<CardProps> = ({ 
@@ -89,6 +90,7 @@ export const Card: React.FC<CardProps> = ({
   action, 
   noPadding = false,
   className,
+  contentClassName,
   ...props
 }) => {
   return (
@@ -107,7 +109,8 @@ export const Card: React.FC<CardProps> = ({
       )}
       <div className={cn(
         "flex-1",
-        !noPadding && "p-6"
+        !noPadding && "p-6",
+        contentClassName
       )}>
         {children}
       </div>

@@ -826,6 +826,43 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
   background-color: rgb(161 161 170 / 0.48);
 }
 
+.calendar-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.calendar-panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.calendar-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-panel-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: transparent;
+  background-clip: content-box;
+  transition: background-color 0.18s ease;
+}
+
+.calendar-panel-scroll-card:hover .calendar-panel-scroll {
+  scrollbar-color: rgb(161 161 170 / 0.62) transparent;
+}
+
+.calendar-panel-scroll-card:hover .calendar-panel-scroll::-webkit-scrollbar-thumb {
+  background-color: rgb(161 161 170 / 0.62);
+}
+
+#app-container.dark .calendar-panel-scroll-card:hover .calendar-panel-scroll {
+  scrollbar-color: rgb(161 161 170 / 0.48) transparent;
+}
+
+#app-container.dark .calendar-panel-scroll-card:hover .calendar-panel-scroll::-webkit-scrollbar-thumb {
+  background-color: rgb(161 161 170 / 0.48);
+}
+
 .animate-in {
   animation-duration: 0.5s;
   animation-fill-mode: both;
