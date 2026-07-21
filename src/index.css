@@ -124,6 +124,14 @@
     z-index: 2001 !important;
   }
 
+  .calendar-notify-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2102 !important;
+    width: 100vw;
+    min-height: 100dvh;
+  }
+
   /* SweetAlert messages must remain above TrackPal's modal overlay. */
   body > .swal2-container {
     z-index: 2100 !important;

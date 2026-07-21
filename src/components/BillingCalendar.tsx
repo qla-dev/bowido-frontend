@@ -1012,7 +1012,7 @@ export const BillingCalendar: React.FC = () => {
         )}
 
         {showNotifyModal && (
-          <div className="fixed inset-0 z-[140] flex items-center justify-center bg-[var(--surface-overlay)] p-4 backdrop-blur-[8px]">
+          <div className="calendar-notify-overlay flex items-center justify-center bg-[var(--surface-overlay)] p-4 backdrop-blur-[8px]">
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
