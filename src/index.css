@@ -124,6 +124,23 @@
     z-index: 2001 !important;
   }
 
+  .calendar-notify-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2102 !important;
+    width: 100vw;
+    min-height: 100dvh;
+  }
+
+  /* Keep the brand green while making the black logo artwork white in dark mode. */
+  .dark .sidebar-brand-logo {
+    filter: url('#trackpal-sidebar-dark-logo');
+  }
+
+  #app-container.dark .sidebar-pin-thumb {
+    background-color: #fff !important;
+  }
+
   /* SweetAlert messages must remain above TrackPal's modal overlay. */
   body > .swal2-container {
     z-index: 2100 !important;
@@ -842,6 +859,43 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
 }
 
 #app-container.dark .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(161 161 170 / 0.48);
+}
+
+.calendar-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.calendar-panel-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.calendar-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-panel-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: transparent;
+  background-clip: content-box;
+  transition: background-color 0.18s ease;
+}
+
+.calendar-panel-scroll-card:hover .calendar-panel-scroll {
+  scrollbar-color: rgb(161 161 170 / 0.62) transparent;
+}
+
+.calendar-panel-scroll-card:hover .calendar-panel-scroll::-webkit-scrollbar-thumb {
+  background-color: rgb(161 161 170 / 0.62);
+}
+
+#app-container.dark .calendar-panel-scroll-card:hover .calendar-panel-scroll {
+  scrollbar-color: rgb(161 161 170 / 0.48) transparent;
+}
+
+#app-container.dark .calendar-panel-scroll-card:hover .calendar-panel-scroll::-webkit-scrollbar-thumb {
   background-color: rgb(161 161 170 / 0.48);
 }
 
