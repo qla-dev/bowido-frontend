@@ -602,6 +602,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
 
   return (
     <>
+      <svg className="absolute h-0 w-0 overflow-hidden" aria-hidden="true" focusable="false">
+        <defs>
+          <filter id="trackpal-sidebar-dark-logo" colorInterpolationFilters="sRGB">
+            <feColorMatrix
+              type="matrix"
+              values="0 -1.538 0 0 1 0 -0.538 0 0 1 0 -1.031 0 0 1 0 0 0 1 0"
+            />
+          </filter>
+        </defs>
+      </svg>
       <aside
         id="desktop-sidebar"
         onMouseEnter={() => {
@@ -660,7 +670,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
                 <img
                   src={logoImage}
                   alt="Trackpal app"
-                  className="h-7 w-auto max-w-none shrink-0 object-contain object-left"
+                  className="sidebar-brand-logo h-7 w-auto max-w-none shrink-0 object-contain object-left"
                 />
               </span>
             </div>
@@ -703,7 +713,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
                 >
                   <span
                     className={cn(
-                      "h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                      "sidebar-pin-thumb h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
                       isSidebarPinned && "translate-x-4"
                     )}
                   />

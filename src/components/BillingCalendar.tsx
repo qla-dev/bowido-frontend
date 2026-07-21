@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Card, Badge, Input, Select, StatCard, cn } from './ui';
 import { useApp } from '../AppContext';
 import {
@@ -956,15 +957,15 @@ export const BillingCalendar: React.FC = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-11 w-full justify-between"
+                      className="relative h-11 w-full justify-center"
                       onClick={() => setShowNotifyModal(true)}
                       disabled={isSavingNote}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2 leading-none">
                         <Bell size={14} />
                         {t('notifyUsers')}
                       </span>
-                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">
+                      <Badge className="absolute right-3 top-1/2 -translate-y-1/2 bg-emerald-50 text-emerald-700 border-emerald-100">
                         {notifiedUserIds.length}
                       </Badge>
                     </Button>
@@ -1011,7 +1012,9 @@ export const BillingCalendar: React.FC = () => {
           </div>
         )}
 
-        {showNotifyModal && (
+      </AnimatePresence>
+
+      {showNotifyModal && createPortal(
           <div className="calendar-notify-overlay flex items-center justify-center bg-[var(--surface-overlay)] p-4 backdrop-blur-[8px]">
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }}
@@ -1039,9 +1042,11 @@ export const BillingCalendar: React.FC = () => {
                 </div>
               </Card>
             </motion.div>
-          </div>
+          </div>,
+          document.body,
         )}
 
+      <AnimatePresence>
         {selectedInvoice && (
           <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
         )}

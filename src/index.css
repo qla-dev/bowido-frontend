@@ -132,6 +132,15 @@
     min-height: 100dvh;
   }
 
+  /* Keep the brand green while making the black logo artwork white in dark mode. */
+  .dark .sidebar-brand-logo {
+    filter: url('#trackpal-sidebar-dark-logo');
+  }
+
+  #app-container.dark .sidebar-pin-thumb {
+    background-color: #fff !important;
+  }
+
   /* SweetAlert messages must remain above TrackPal's modal overlay. */
   body > .swal2-container {
     z-index: 2100 !important;
