@@ -21,10 +21,10 @@ type LandingShellProps = {
 };
 
 const illustrations = [
-  { src: efficientManagement, delay: 0.08, drift: -5 },
-  { src: realTimeUpdates, delay: 0.16, drift: 5 },
-  { src: detailedAuditing, delay: 0.24, drift: -4 },
-  { src: teamCollaboration, delay: 0.32, drift: 4 },
+  { src: efficientManagement, delay: 0.08 },
+  { src: realTimeUpdates, delay: 0.16 },
+  { src: detailedAuditing, delay: 0.24 },
+  { src: teamCollaboration, delay: 0.32 },
 ];
 
 export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, marketingCopy, children }: LandingShellProps) {
@@ -106,22 +106,19 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
 
             <div className="flex w-full max-w-[530px] shrink-0 flex-col items-center gap-10">
               <motion.div
-              layout
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="grid w-full grid-cols-2 gap-x-7 gap-y-12 sm:gap-x-12 sm:gap-y-16"
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+                className="grid w-full grid-cols-2 items-start gap-x-7 gap-y-12 sm:gap-x-12 sm:gap-y-16"
               >
-                {illustrations.map(({ src, delay, drift }, index) => {
+                {illustrations.map(({ src, delay }, index) => {
                   const label = marketingCopy.illustrationLabels[index];
 
                   return (
                   <motion.figure
                     key={label}
-                    initial={{ opacity: 0, y: 22 }}
-                    animate={{ opacity: 1, y: [0, drift, 0] }}
-                    transition={{
-                      opacity: { duration: 0.55, delay },
-                      y: { duration: 6 + delay, repeat: Infinity, ease: 'easeInOut' },
-                    }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.55, delay }}
                     className="flex min-w-0 flex-col items-center gap-5 text-center"
                   >
                     <div className="aspect-square w-full max-w-[225px] overflow-hidden rounded-[24px] bg-slate-50 shadow-[0_20px_42px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/[0.04]">
