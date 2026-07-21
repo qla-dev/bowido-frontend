@@ -980,7 +980,7 @@ export const apiService = {
     },
     update: async (
       id: number,
-      data: Partial<Pick<ManagedUser, 'email' | 'password' | 'role_name'>>
+      data: Partial<Pick<ManagedUser, 'email' | 'password' | 'role_name' | 'phone_number'>>
     ): Promise<ManagedUser> => {
       const payload: ApiRecord = {};
 
@@ -995,6 +995,10 @@ export const apiService = {
 
       if (data.role_name) {
         payload.role_id = await resolveRoleId(data.role_name);
+      }
+
+      if (data.phone_number !== undefined) {
+        payload.phone_number = data.phone_number.trim() || null;
       }
 
       return normalizeUser(
