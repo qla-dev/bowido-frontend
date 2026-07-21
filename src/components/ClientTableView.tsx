@@ -1065,47 +1065,50 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           </div>
         ) : (
           <>
-            <div className="grid gap-4 lg:grid-cols-4">
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
+            <ClientPalletDesktopTable
+              client={mobileClientRow.client}
+              summaryCards={
+                <>
+              <div className="client-summary-card h-[5.75rem] overflow-hidden rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   {t('companyName')}
                 </p>
-                <p className="mt-3 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                <p className="mt-1.5 truncate text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                   {mobileClientRow.clientName}
                 </p>
               </div>
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
+              <div className="client-summary-card h-[5.75rem] overflow-hidden rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   KVK
                 </p>
-                <p className="mt-3 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                <p className="mt-1.5 truncate text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                   {mobileClientRow.kvkLabel}
                 </p>
               </div>
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
+              <div className="client-summary-card h-[5.75rem] overflow-hidden rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   {t('ratePerDayLabel')}
                 </p>
-                <p className="mt-3 text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                <p className="mt-1.5 truncate text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                   {mobileClientRow.rateLabel}
                 </p>
               </div>
-              <div className="rounded-[1.75rem] border border-zinc-200 bg-white p-5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
+              <div className="client-summary-card h-[5.75rem] overflow-hidden rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 shadow-[0_12px_32px_-20px_rgba(15,23,42,0.18)] dark:border-white/10 dark:bg-[#101715]">
                 <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400 dark:text-[#9fcbb3]">
                   {mobileTotalDebtLabel}
                 </p>
                 <p
                   className={cn(
-                    'mt-3 text-lg font-black uppercase tracking-tight dark:text-white',
+                    'mt-1.5 truncate text-lg font-black uppercase tracking-tight dark:text-white',
                     mobileClientRow.overdueTotalValue > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
                   )}
                 >
                   {mobileClientRow.overdueTotalLabel}
                 </p>
               </div>
-            </div>
-
-            <ClientPalletDesktopTable client={mobileClientRow.client} />
+                </>
+              }
+            />
 
             <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
               <button

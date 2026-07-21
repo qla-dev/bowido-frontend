@@ -140,7 +140,15 @@ const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
   gracePeriod: 'gracePeriod',
 };
 
-export const AdminClientManagerView: React.FC = () => {
+interface AdminClientManagerViewProps {
+  clientIdFilter?: number;
+  readOnly?: boolean;
+}
+
+export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
+  clientIdFilter,
+  readOnly = false,
+}) => {
   const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
@@ -214,10 +222,11 @@ export const AdminClientManagerView: React.FC = () => {
 
       try {
         const page = await apiService.clients.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          search: debouncedSearchQuery || undefined,
-          sort_by: SERVER_SORT_BY_KEY[sortConfig.key],
+          limit: clientIdFilter === undefined ? pageLimit : 1,
+          offset: clientIdFilter === undefined ? pageOffset : 0,
+          user_id: clientIdFilter,
+          search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
+          sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
           sort_direction: sortConfig.direction,
         });
 
@@ -241,7 +250,11 @@ export const AdminClientManagerView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+  }, [clientIdFilter, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
+
+  useEffect(() => {
+    setPageOffset(0);
+  }, [clientIdFilter]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -667,7 +680,7 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const saveClientDraft = async () => {
-    if (!clientDraft) {
+    if (!clientDraft || readOnly) {
       return;
     }
 
@@ -683,6 +696,8 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const createClient = async () => {
+    if (readOnly) return;
+
     const name = newClientDraft.name.trim();
     const kvk = newClientDraft.kvk_number?.trim() || '';
     const email = newClientDraft.billing_email?.trim() || '';
@@ -740,7 +755,7 @@ export const AdminClientManagerView: React.FC = () => {
   };
 
   const confirmDeleteClient = async () => {
-    if (!clientPendingDeletion) return;
+    if (!clientPendingDeletion || readOnly) return;
     try {
       await deleteClient(clientPendingDeletion.client.id);
       setClientPendingDeletion(null);
@@ -842,15 +857,21 @@ export const AdminClientManagerView: React.FC = () => {
               {t('clientManager')}
             </p>
             <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-              {language === 'bs'
-                ? 'Admin pregled i kontrola kupaca'
-                : language === 'nl'
-                  ? 'Admin overzicht en beheer van klanten'
-                  : 'Admin overview and client control'}
+              {readOnly
+                ? language === 'bs'
+                  ? 'Pregled podataka, paleta i obračuna'
+                  : language === 'nl'
+                    ? 'Overzicht van gegevens, bokken en kosten'
+                    : 'Overview of details, pallets and charges'
+                : language === 'bs'
+                  ? 'Admin pregled i kontrola kupaca'
+                  : language === 'nl'
+                    ? 'Admin overzicht en beheer van klanten'
+                    : 'Admin overview and client control'}
             </p>
           </div>
         </div>
-        <div className="relative w-full sm:w-80">
+        {clientIdFilter === undefined && <div className="relative w-full sm:w-80">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
             <Input
               value={searchQuery}
@@ -858,7 +879,7 @@ export const AdminClientManagerView: React.FC = () => {
               placeholder={labels.search}
               className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
             />
-        </div>
+        </div>}
       </div>
 
       <AdminDataTable<SortKey>
@@ -996,7 +1017,7 @@ export const AdminClientManagerView: React.FC = () => {
 
       <PageLoadingModal isOpen={isPageLoading} language={language} />
 
-      <ListPagination
+      {clientIdFilter === undefined && <ListPagination
         total={paginationMeta.total}
         limit={paginationMeta.limit}
         offset={paginationMeta.offset}
@@ -1008,9 +1029,9 @@ export const AdminClientManagerView: React.FC = () => {
           setPageOffset(0);
           setPageLimit(limit);
         }}
-      />
+      />}
 
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
+      {!readOnly && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
         <button
           type="button"
           onClick={() => setIsAddClientOpen(true)}
@@ -1019,9 +1040,9 @@ export const AdminClientManagerView: React.FC = () => {
           <Plus size={16} />
           {labels.addClient}
         </button>
-      </div>
+      </div>}
 
-      {isAddClientOpen && (
+      {!readOnly && isAddClientOpen && (
         <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setIsAddClientOpen(false)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -1147,6 +1168,7 @@ export const AdminClientManagerView: React.FC = () => {
                       {labels.companyName}
                     </label>
                     <Input
+                      disabled={readOnly}
                       value={clientDraft.name}
                       onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })}
                       className="bg-white normal-case tracking-normal"
@@ -1157,6 +1179,7 @@ export const AdminClientManagerView: React.FC = () => {
                       {labels.phone}
                     </label>
                     <Input
+                      disabled={readOnly}
                       value={clientDraft.phone_number || ''}
                       onChange={(event) => setClientDraft({ ...clientDraft, phone_number: event.target.value })}
                       className="bg-white normal-case tracking-normal"
@@ -1167,6 +1190,7 @@ export const AdminClientManagerView: React.FC = () => {
                       {labels.rate}
                     </label>
                     <Input
+                      disabled={readOnly}
                       type="number"
                       step="0.1"
                       value={clientDraft.price_per_day}
@@ -1181,6 +1205,7 @@ export const AdminClientManagerView: React.FC = () => {
                       {labels.gracePeriod}
                     </label>
                     <Input
+                      disabled={readOnly}
                       type="number"
                       value={clientDraft.grace_period_days}
                       onChange={(event) =>
@@ -1212,7 +1237,7 @@ export const AdminClientManagerView: React.FC = () => {
                             <MapPin size={13} className="shrink-0" />
                             <span className="truncate">{index === 0 ? labels.warehouse1 : labels.warehouse2}</span>
                           </label>
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          {!readOnly && <div className="flex shrink-0 items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => removeDraftWarehouse(index)}
@@ -1227,7 +1252,7 @@ export const AdminClientManagerView: React.FC = () => {
                             >
                               <Trash2 size={13} />
                             </button>
-                          </div>
+                          </div>}
                         </div>
                         <div
                           className="group relative"
@@ -1240,6 +1265,7 @@ export const AdminClientManagerView: React.FC = () => {
                           }
                         >
                           <Input
+                            disabled={readOnly}
                             value={clientDraft.warehouse_addresses?.[index] || ''}
                             onChange={(event) => updateDraftWarehouse(index, event.target.value)}
                             placeholder={
@@ -1263,7 +1289,7 @@ export const AdminClientManagerView: React.FC = () => {
                         </div>
                       </div>
                     ))}
-                    {(clientDraft.warehouse_addresses || []).length === 1 && (
+                    {!readOnly && (clientDraft.warehouse_addresses || []).length === 1 && (
                       <button
                         type="button"
                         onClick={addDraftWarehouse}
@@ -1278,7 +1304,7 @@ export const AdminClientManagerView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-auto grid gap-3 pt-5 sm:grid-cols-2">
+                {!readOnly && <div className="mt-auto grid gap-3 pt-5 sm:grid-cols-2">
                   <button
                     type="button"
                     onClick={() => setClientPendingDeletion(selectedRow)}
@@ -1291,7 +1317,7 @@ export const AdminClientManagerView: React.FC = () => {
                     <Save size={15} />
                     {labels.save}
                   </Button>
-                </div>
+                </div>}
               </div>
 
               <div className="grid h-full gap-4">
@@ -1396,7 +1422,7 @@ export const AdminClientManagerView: React.FC = () => {
                       </p>
                     )}
                   </div>
-                  <Button
+                  {!readOnly && <Button
                     type="button"
                     variant="outline"
                     className="mt-4 w-full gap-2"
@@ -1404,7 +1430,7 @@ export const AdminClientManagerView: React.FC = () => {
                   >
                     <Download size={15} />
                     {labels.exportInvoice}
-                  </Button>
+                  </Button>}
                 </div>
               </div>
             </div>
@@ -1412,7 +1438,7 @@ export const AdminClientManagerView: React.FC = () => {
         </div>
       )}
 
-      {clientPendingDeletion && (
+      {!readOnly && clientPendingDeletion && (
         <div className="modal-overlay fixed inset-0 z-[130] flex items-center justify-center p-4" onClick={() => setClientPendingDeletion(null)}>
           <motion.div
             initial={{ scale: 0.94, opacity: 0 }}
