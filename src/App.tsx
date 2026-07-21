@@ -19,6 +19,7 @@ import { AdminClientManagerView } from './components/AdminClientManagerView';
 import { RoleManager } from './components/RoleManager';
 import { UserManager } from './components/UserManager';
 import { BillingList } from './components/BillingList';
+import { LandingShell } from './components/LandingShell';
 import { RoleType, User } from './types';
 import { Eye, EyeOff, LogIn, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -404,7 +405,12 @@ export default function App() {
   const [isRestoringSession, setIsRestoringSession] = useState(() => apiService.hasToken() && !readStoredCurrentUser());
   const [loginProfiles, setLoginProfiles] = useState<StoredLoginProfile[]>(() => readLoginProfiles());
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [isCredentialLoginOpen, setIsCredentialLoginOpen] = useState(false);
+  const [isCredentialLoginOpen, setIsCredentialLoginOpen] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  ));
+  const [isLandingLoginOpen, setIsLandingLoginOpen] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  ));
   const [credentialLoginMode, setCredentialLoginMode] = useState<LoginMode>('user');
   const [credentialLoginForm, setCredentialLoginForm] = useState({ email: '', kvk: '', password: '' });
   const [credentialLoginError, setCredentialLoginError] = useState<string | null>(null);
@@ -501,6 +507,26 @@ export default function App() {
   const usesInternalScrollShell = Boolean(currentUser) && (usesRoleMobileShell || usesFixedMobileShell);
   const chromeTintColor = isNightMode ? '#070b0a' : usesRoleMobileShell ? '#00A655' : '#ffffff';
   const credentialLoginCopy = getCredentialLoginCopy(language);
+  const landingMarketingCopy = language === 'bs'
+    ? {
+      eyebrow: 'Pametno praćenje paleta',
+      title: 'Svaka paleta. Jasan tok.',
+      description: 'Od QR skeniranja i transporta do povrata, servisa i obračuna — sve na jednom mjestu, u stvarnom vremenu.',
+      illustrationLabels: ['Efikasno upravljanje', 'Ažuriranja u stvarnom vremenu', 'Detaljna evidencija', 'Timska saradnja'],
+    }
+    : language === 'nl'
+      ? {
+        eyebrow: 'Slim palletbeheer',
+        title: 'Elke pallet. Eén duidelijk proces.',
+        description: 'Van QR-scans en transport tot retouren, service en facturatie — de hele operatie werkt vanuit één betrouwbare status.',
+        illustrationLabels: ['Efficiënt beheer', 'Realtime updates', 'Gedetailleerde audit', 'Teamsamenwerking'],
+      }
+      : {
+        eyebrow: 'Smart pallet tracking',
+        title: 'Every pallet. One clear flow.',
+        description: 'From QR scans and transport to returns, service and billing — the whole operation works from one reliable status.',
+        illustrationLabels: ['Efficient management', 'Real-time updates', 'Detailed auditing', 'Team collaboration'],
+      };
   const savedLoginProfiles = loginProfiles.filter((profile) => profile.saved);
   const recentLoginProfiles = loginProfiles.filter((profile) => !profile.saved);
 
@@ -740,175 +766,137 @@ export default function App() {
    const currentLanguageOption = languageOptions.find((option) => option.code === language) || languageOptions[0];
 
    return (
-     <div
-       id="login-screen"
-       className="min-h-screen bg-white flex flex-col text-emerald-900 font-sans"
-     >
-       <div className="flex-1 flex items-center justify-center p-6">
-         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="w-full max-w-md space-y-12"
-         >
-           <div className="flex flex-col items-center gap-6">
-             <div className="relative">
-               <div className="flex items-center justify-center">
-                 <img src={logoImage} alt="Logo" className="h-12 w-auto" />
+     <>
+       <LandingShell
+         isLoginOpen={isLandingLoginOpen || isMobileViewport}
+         logoSrc={logoImage}
+         loginLabel={t('loginButton')}
+         onOpenLogin={() => setIsLandingLoginOpen(true)}
+         marketingCopy={landingMarketingCopy}
+       >
+         <div className="space-y-6">
+           <motion.div
+             layout
+             className="rounded-[34px] border border-slate-200/80 bg-white p-7 shadow-[0_30px_70px_rgba(15,23,42,0.10)] sm:p-10"
+           >
+             <div className="mb-9 flex items-center justify-between border-b border-slate-100 pb-8">
+               <div className="flex items-center gap-3">
+                 <span className="h-3 w-3 rounded-full bg-[#00ae60]" />
+                 <h1 className="text-[14px] font-black uppercase tracking-[0.22em] text-slate-900 sm:text-[16px]">
+                   {credentialLoginCopy.title}
+                 </h1>
+               </div>
+
+               <div className="flex items-center gap-3">
+                 <div className="relative">
+                   <button
+                     type="button"
+                     title={t('language')}
+                     onClick={() => setShowLoginLanguageMenu(!showLoginLanguageMenu)}
+                     className="flex h-10 min-w-12 items-center justify-center rounded-xl border border-slate-100 px-3 text-[11px] font-black uppercase text-slate-400 transition-colors hover:border-emerald-200 hover:text-emerald-700"
+                   >
+                     {currentLanguageOption.shortLabel}
+                   </button>
+                   <AnimatePresence>
+                     {showLoginLanguageMenu && (
+                       <motion.div
+                         initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                         className="absolute right-0 top-full z-30 mt-2 w-40 overflow-hidden rounded-2xl border border-slate-100 bg-white p-2 shadow-2xl"
+                       >
+                         {languageOptions.map((option) => (
+                           <button
+                             key={option.code}
+                             type="button"
+                             onClick={() => { setLanguage(option.code); setShowLoginLanguageMenu(false); }}
+                             className={cn(
+                               'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-colors',
+                               option.code === language ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:bg-slate-50'
+                             )}
+                           >
+                             <span className="text-[10px] font-black uppercase">{option.shortLabel}</span>
+                             <span className="text-[9px] font-bold text-slate-400">{option.nativeLabel}</span>
+                           </button>
+                         ))}
+                       </motion.div>
+                     )}
+                   </AnimatePresence>
+                 </div>
+                 <button
+                   type="button"
+                   onClick={() => { setIsLandingLoginOpen(false); setShowLoginLanguageMenu(false); }}
+                   className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                   aria-label={language === 'bs' ? 'Zatvori' : language === 'nl' ? 'Sluiten' : 'Close'}
+                 >
+                   <X size={19} />
+                 </button>
                </div>
              </div>
-           </div>
 
-           <Card title={t('welcome') || 'System Login'} noPadding action={
-             <div className="relative">
+             <div className="space-y-5">
+               <p className="text-[9px] font-black uppercase tracking-[0.21em] text-slate-400">
+                 {credentialLoginCopy.recentLogins}
+               </p>
+
+               {[...savedLoginProfiles, ...recentLoginProfiles].map((profile, index) => (
+                 <button
+                   key={profile.id}
+                   type="button"
+                   onClick={() => openCredentialLogin(profile)}
+                   className={cn(
+                     'group flex w-full items-center justify-between rounded-[23px] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg sm:p-6',
+                     index === 0
+                       ? 'border-[#00ae60]/25 bg-[#00ae60]/[0.055]'
+                       : 'border-slate-200 bg-slate-50/70'
+                   )}
+                 >
+                   <div className="min-w-0">
+                     <p className="truncate text-[12px] font-black uppercase text-[#00a95a]">{profile.name}</p>
+                     <p className="truncate text-[11px] font-semibold text-slate-400">{loginProfileSubtitle(profile)}</p>
+                   </div>
+                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-[#00ae60] text-white shadow-[0_10px_20px_rgba(0,174,96,0.22)] transition-transform group-hover:scale-105">
+                     <LogIn size={20} />
+                   </span>
+                 </button>
+               ))}
+
+               {savedLoginProfiles.length === 0 && recentLoginProfiles.length === 0 && (
+                 <div className="rounded-[23px] border border-dashed border-slate-200 bg-slate-50/60 px-5 py-8 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                   {credentialLoginCopy.noLogins}
+                 </div>
+               )}
+
+               {loginError && <p className="text-[10px] font-black uppercase text-rose-500">{loginError}</p>}
+             </div>
+           </motion.div>
+
+           <div className="rounded-[30px] border border-slate-200/80 bg-white p-5 shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
+             <div className="flex flex-col gap-3">
                <button
                  type="button"
-                 title={t('language')}
-                 onClick={() => setShowLoginLanguageMenu(!showLoginLanguageMenu)}
-                 className="h-10 w-10 border-2 border-emerald-100 rounded-xl flex items-center justify-center transition-all text-[10px] font-black uppercase tracking-[0.08em] bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
+                 onClick={() => openCredentialLogin()}
+                 className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#00ae60] py-5 text-[13px] font-black uppercase tracking-[0.08em] text-white shadow-[0_10px_22px_rgba(0,174,96,0.18)] transition-all hover:bg-[#009d56] active:scale-[0.99]"
                >
-                 {currentLanguageOption.shortLabel}
+                 <LogIn size={19} />
+                 {t('loginButton')}
                </button>
-
-               <AnimatePresence>
-                 {showLoginLanguageMenu && (
-                   <motion.div
-                     initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                     className="absolute right-0 top-full mt-3 w-36 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#101715]"
-                   >
-                     <div className="border-b border-emerald-50 bg-emerald-50/60 px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
-                         {t('language')}
-                       </span>
-                     </div>
-                     <div className="p-2">
-                       {languageOptions.map((option) => (
-                         <button
-                           key={option.code}
-                           type="button"
-                           onClick={() => {
-                             setLanguage(option.code);
-                             setShowLoginLanguageMenu(false);
-                           }}
-                           className={cn(
-                             "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition-all",
-                             option.code === language
-                               ? "bg-emerald-50 text-emerald-700 dark:bg-white/5 dark:text-emerald-200"
-                               : "text-zinc-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-zinc-300 dark:hover:bg-white/5 dark:hover:text-emerald-200"
-                           )}
-                         >
-                           <span className="text-[10px] font-black uppercase tracking-[0.14em]">{option.shortLabel}</span>
-                           <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">{option.nativeLabel}</span>
-                         </button>
-                       ))}
-                     </div>
-                   </motion.div>
-                 )}
-               </AnimatePresence>
+               <button
+                 type="button"
+                 onClick={() => { setKvkRegistrationError(null); setIsKvkRegistrationOpen(true); }}
+                 className="w-full rounded-2xl bg-slate-50 py-5 text-[12px] font-black uppercase tracking-[0.11em] text-slate-500 transition-colors hover:bg-slate-100"
+               >
+                 {kvkRegistrationCopy.title}
+               </button>
              </div>
-           }>
-            <div className="p-8 space-y-6 text-center">
-              {savedLoginProfiles.length > 0 && (
-                <div className="space-y-3 text-left">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                    {credentialLoginCopy.savedLogins}
-                  </p>
-                  {savedLoginProfiles.map((profile) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      onClick={() => openCredentialLogin(profile)}
-                      className="w-full group flex items-center justify-between rounded-2xl border border-[#00A655] bg-emerald-50 p-5 text-left transition-all duration-300 hover:bg-white hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:border-white/10 dark:bg-[#101715] dark:hover:border-[#00A655]"
-                    >
-                      <div className="flex min-w-0 flex-col items-start">
-                        <span className="font-display max-w-full truncate text-xs font-black uppercase tracking-tight text-emerald-900 dark:text-white">
-                          {profile.name}
-                        </span>
-                        <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                          {loginProfileSubtitle(profile)}
-                        </span>
-                      </div>
+           </div>
+         </div>
+       </LandingShell>
 
-                      <div className="rounded-xl border border-[#00A655] bg-white p-2.5 text-[#00A655] shadow-sm transition-all group-hover:bg-[#00A655] group-hover:text-white dark:border-white/10 dark:bg-[#151d1a]">
-                        <LogIn size={18} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {recentLoginProfiles.length > 0 && (
-                <div className="space-y-3 text-left">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                    {credentialLoginCopy.recentLogins}
-                  </p>
-                  {recentLoginProfiles.map((profile) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      onClick={() => openCredentialLogin(profile)}
-                      className="w-full group flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-left transition-all duration-300 hover:border-[#00A655] hover:shadow-2xl hover:shadow-emerald-900/5 active:scale-95 dark:border-white/10 dark:bg-[#101715] dark:hover:border-[#00A655]"
-                    >
-                      <div className="flex min-w-0 flex-col items-start">
-                        <span className="font-display max-w-full truncate text-xs font-black uppercase tracking-tight text-emerald-900 dark:text-white">
-                          {profile.name}
-                        </span>
-                        <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                          {loginProfileSubtitle(profile)}
-                        </span>
-                      </div>
-
-                      <div className="rounded-xl border border-zinc-200 bg-white p-2.5 shadow-sm transition-all group-hover:border-[#00A655] group-hover:bg-[#00A655] group-hover:text-white dark:border-white/10 dark:bg-[#151d1a]">
-                        <LogIn size={18} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {savedLoginProfiles.length === 0 && recentLoginProfiles.length === 0 && (
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                  {credentialLoginCopy.noLogins}
-                </p>
-              )}
-
-              {loginError && (
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-500">
-                  {loginError}
-                </p>
-              )}
-            </div>
-          </Card>
-
-        </motion.div>
-      </div>
-
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[150] flex justify-center px-4 py-3">
-        <div className="pointer-events-auto flex w-full max-w-md flex-col gap-2 rounded-2xl bg-white/95 p-3 shadow-[0_-12px_28px_rgba(0,0,0,0.10)] backdrop-blur dark:bg-[#070b0a]/95">
-          <Button
-          type="button"
-          title={t('loginButton')}
-          aria-label={t('loginButton')}
-          onClick={() => openCredentialLogin()}
-          className="w-full gap-2 shadow-2xl shadow-emerald-900/20"
-          size="lg"
-        >
-          <LogIn size={16} />
-          {t('loginButton')}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => { setKvkRegistrationError(null); setIsKvkRegistrationOpen(true); }} className="w-full">
-            {kvkRegistrationCopy.title}
-          </Button>
-        </div>
-      </div>
-
-      <AppFooter />
-
-      <AnimatePresence>
-        {isCredentialLoginOpen && (
+       <AnimatePresence>
+         {(isCredentialLoginOpen || isMobileViewport) && (
           <motion.div
-            className="modal-overlay fixed inset-0 z-[200] flex items-center justify-center p-4"
+            className="fixed inset-y-0 right-0 z-[200] flex w-full items-center justify-center overflow-y-auto bg-[#fbfcfd] p-5 sm:p-10 lg:w-1/2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -918,19 +906,19 @@ export default function App() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="credential-login-title"
-              className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-emerald-950/10 dark:border-white/10 dark:bg-[#101715]"
+              className="w-full max-w-md overflow-hidden rounded-[34px] border border-slate-200/80 bg-white shadow-[0_30px_70px_rgba(15,23,42,0.12)]"
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.2 }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4 dark:border-white/10">
+              <div className="flex items-center justify-between border-b border-slate-100 px-7 py-6 sm:px-9">
                 <div className="flex items-center gap-3">
-                  <div className="h-2 w-2 rounded-sm bg-[#00A655]" />
+                  <div className="h-3 w-3 rounded-full bg-[#00ae60]" />
                   <h2
                     id="credential-login-title"
-                    className="font-display text-[12px] font-black uppercase tracking-[0.15em] text-zinc-950 dark:text-white"
+                    className="text-[14px] font-black uppercase tracking-[0.2em] text-slate-950"
                   >
                     {credentialLoginCopy.title}
                   </h2>
@@ -939,14 +927,14 @@ export default function App() {
                   type="button"
                   onClick={closeCredentialLogin}
                   disabled={isCredentialLoginSubmitting}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 md:flex"
                   aria-label={language === 'bs' ? 'Zatvori' : language === 'nl' ? 'Sluiten' : 'Close'}
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 border-b border-zinc-100 p-4 dark:border-white/10">
+              <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-6 sm:px-9">
                 {(['user', 'customer'] as LoginMode[]).map((mode) => {
                   const isActive = credentialLoginMode === mode;
 
@@ -957,10 +945,10 @@ export default function App() {
                       onClick={() => selectCredentialLoginMode(mode)}
                       disabled={isCredentialLoginSubmitting}
                       className={cn(
-                        'rounded-xl border px-3 py-3 text-[10px] font-black uppercase tracking-[0.12em] transition-all disabled:opacity-50',
+                        'rounded-2xl border px-3 py-4 text-[10px] font-black uppercase tracking-[0.12em] transition-all disabled:opacity-50',
                         isActive
-                          ? 'border-[#00A655] bg-[#00A655] text-white shadow-md shadow-emerald-900/10'
-                          : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-emerald-200 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300'
+                          ? 'border-[#00ae60] bg-[#00ae60] text-white shadow-[0_10px_20px_rgba(0,174,96,0.18)]'
+                          : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-emerald-200 hover:text-emerald-700'
                       )}
                     >
                       {mode === 'user' ? credentialLoginCopy.userMode : credentialLoginCopy.customerMode}
@@ -969,11 +957,11 @@ export default function App() {
                 })}
               </div>
 
-              <form className="space-y-5 p-6" onSubmit={(event) => void handleCredentialLoginSubmit(event)}>
+              <form className="space-y-6 p-7 sm:p-9" onSubmit={(event) => void handleCredentialLoginSubmit(event)}>
                 <div className="space-y-2">
                   <label
                     htmlFor={credentialLoginMode === 'customer' ? 'credential-login-kvk' : 'credential-login-email'}
-                    className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400"
+                    className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400"
                   >
                     {credentialLoginMode === 'customer' ? credentialLoginCopy.kvk : credentialLoginCopy.email}
                   </label>
@@ -990,7 +978,7 @@ export default function App() {
                       }));
                       setCredentialLoginError(null);
                     }}
-                    className="normal-case tracking-normal"
+                    className="h-14 rounded-2xl border-slate-100 bg-slate-50 px-5 normal-case tracking-normal focus:bg-white"
                     placeholder={credentialLoginMode === 'customer' ? '12345678' : 'korisnik@trackpal.app'}
                     disabled={isCredentialLoginSubmitting}
                   />
@@ -999,7 +987,7 @@ export default function App() {
                 <div className="space-y-2">
                   <label
                     htmlFor="credential-login-password"
-                    className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400"
+                    className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400"
                   >
                     {credentialLoginCopy.password}
                   </label>
@@ -1016,13 +1004,13 @@ export default function App() {
                         }));
                         setCredentialLoginError(null);
                       }}
-                      className="pr-12 normal-case tracking-normal"
+                      className="h-14 rounded-2xl border-slate-100 bg-slate-50 px-5 pr-12 normal-case tracking-normal focus:bg-white"
                       disabled={isCredentialLoginSubmitting}
                     />
                     <button
                       type="button"
                       onClick={() => setShowCredentialPassword((isShown) => !isShown)}
-                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-emerald-700 disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white"
+                      className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-emerald-700 disabled:opacity-50"
                       aria-label={showCredentialPassword ? credentialLoginCopy.hidePassword : credentialLoginCopy.showPassword}
                       title={showCredentialPassword ? credentialLoginCopy.hidePassword : credentialLoginCopy.showPassword}
                       disabled={isCredentialLoginSubmitting}
@@ -1037,10 +1025,10 @@ export default function App() {
                   onClick={() => setRememberLogin((isRemembered) => !isRemembered)}
                   disabled={isCredentialLoginSubmitting}
                   className={cn(
-                    'flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-all disabled:opacity-50',
+                    'flex w-full items-center justify-between rounded-2xl border px-5 py-4 text-left transition-all disabled:opacity-50',
                     rememberLogin
-                      ? 'border-[#00A655] bg-emerald-50 text-emerald-900 dark:border-white/10 dark:bg-white/[0.08] dark:text-white'
-                      : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-emerald-200 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300'
+                      ? 'border-[#00ae60]/30 bg-emerald-50 text-emerald-900'
+                      : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-emerald-200 hover:text-emerald-700'
                   )}
                 >
                   <span className="text-[10px] font-black uppercase tracking-[0.16em]">
@@ -1066,30 +1054,40 @@ export default function App() {
                   </p>
                 )}
 
-                <div className="flex gap-3">
-                  <Button
+                <div className="space-y-3">
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={closeCredentialLogin}
+                      disabled={isCredentialLoginSubmitting}
+                      className="hidden flex-1 md:inline-flex"
+                    >
+                      {credentialLoginCopy.cancel}
+                    </Button>
+                    <Button type="submit" disabled={isCredentialLoginSubmitting} className="flex-1 gap-2 md:flex-[1.25]">
+                      <LogIn size={15} className={isCredentialLoginSubmitting ? 'animate-pulse' : ''} />
+                      {credentialLoginCopy.submit}
+                    </Button>
+                  </div>
+                  <button
                     type="button"
-                    variant="outline"
-                    onClick={closeCredentialLogin}
+                    onClick={() => { setKvkRegistrationError(null); setIsKvkRegistrationOpen(true); }}
                     disabled={isCredentialLoginSubmitting}
-                    className="flex-1"
+                    className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 md:hidden"
                   >
-                    {credentialLoginCopy.cancel}
-                  </Button>
-                  <Button type="submit" disabled={isCredentialLoginSubmitting} className="flex-[1.25] gap-2">
-                    <LogIn size={15} className={isCredentialLoginSubmitting ? 'animate-pulse' : ''} />
-                    {credentialLoginCopy.submit}
-                  </Button>
+                    {kvkRegistrationCopy.title}
+                  </button>
                 </div>
               </form>
             </motion.div>
           </motion.div>
         )}
         {isKvkRegistrationOpen && (
-          <motion.div className="modal-overlay fixed inset-0 z-[210] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isKvkRegistrationSubmitting && setIsKvkRegistrationOpen(false)}>
-            <motion.form onSubmit={(event) => void submitKvkRegistration(event)} onClick={(event) => event.stopPropagation()} className="w-full max-w-lg space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-[#101715]">
+          <motion.div className="modal-overlay fixed inset-0 z-[210] flex items-start justify-center overflow-y-auto p-0 sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isKvkRegistrationSubmitting && setIsKvkRegistrationOpen(false)}>
+            <motion.form onSubmit={(event) => void submitKvkRegistration(event)} onClick={(event) => event.stopPropagation()} className="min-h-[100dvh] w-full max-w-lg space-y-4 bg-white p-5 shadow-2xl dark:bg-[#101715] sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:overflow-y-auto sm:rounded-2xl sm:border sm:border-zinc-200 sm:p-6 sm:dark:border-white/10">
               <div><h2 className="font-display text-sm font-black uppercase tracking-[0.12em] dark:text-white">{kvkRegistrationCopy.title}</h2><p className="mt-1 text-xs text-zinc-500">{kvkRegistrationCopy.subtitle}</p></div>
-              <div className="flex gap-2"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>{kvkRegistrationCopy.find}</Button></div>
+              <div className="flex flex-col gap-2 sm:flex-row"><Input required inputMode="numeric" placeholder="KVK number" value={kvkRegistration.kvk} onChange={(event) => setKvkRegistration({ ...kvkRegistration, kvk: event.target.value })} /><Button type="button" className="w-full sm:w-auto" onClick={() => void lookupKvkRegistration()} disabled={isKvkRegistrationSubmitting}>{kvkRegistrationCopy.find}</Button></div>
               <label className="block text-xs font-bold dark:text-zinc-200">{kvkFormLabels.company}<Input required className="mt-1" value={kvkRegistration.name} onChange={(event) => setKvkRegistration({ ...kvkRegistration, name: event.target.value })} /></label>
               <label className="block text-xs font-bold dark:text-zinc-200">{kvkFormLabels.email}<Input required type="email" className={cn('mt-1', kvkRegistration.email && !EMAIL_PATTERN.test(kvkRegistration.email) && 'border-rose-500 focus:border-rose-500')} value={kvkRegistration.email} onChange={(event) => setKvkRegistration({ ...kvkRegistration, email: event.target.value })} />{kvkRegistration.email && !EMAIL_PATTERN.test(kvkRegistration.email) && <p className="mt-1 text-xs font-semibold text-rose-600">{kvkFormLabels.invalidEmail}</p>}</label>
               <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.phone}<Input className="mt-1" value={kvkRegistration.phone_number} onChange={(event) => setKvkRegistration({ ...kvkRegistration, phone_number: event.target.value })} /></label><label className="text-xs font-bold dark:text-zinc-200">{kvkFormLabels.fixed}<Input className="mt-1" value={kvkRegistration.fixed_phone} onChange={(event) => setKvkRegistration({ ...kvkRegistration, fixed_phone: event.target.value })} /></label></div>
@@ -1102,10 +1100,10 @@ export default function App() {
             </motion.form>
           </motion.div>
         )}
-      </AnimatePresence>
-    </div>
-  );
-}
+       </AnimatePresence>
+     </>
+   );
+ }
 
   const renderDashboard = () => {
     if (activeTab === 'gallery') return <ImageGallery />;
