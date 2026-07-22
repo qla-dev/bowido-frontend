@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, PalletPhoto } from '../types';
@@ -812,8 +813,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
-        <div className="flex items-center gap-3">
+      <AdminTableStickyToolbar flushToPageTop className="py-3">
+        <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
+          <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-white/10 dark:text-emerald-100">
             <UserRound size={18} />
           </div>
@@ -835,8 +837,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                     : 'Admin overview and client control'}
             </p>
           </div>
-        </div>
-        {clientIdFilter === undefined && <div className="relative w-full sm:w-80">
+          </div>
+          {clientIdFilter === undefined && <div className="relative w-full sm:w-80">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
             <Input
               value={searchQuery}
@@ -844,8 +846,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
               placeholder={labels.search}
               className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
             />
-        </div>}
-      </div>
+          </div>}
+        </div>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<SortKey>
         columnOrder={COLUMN_ORDER}
