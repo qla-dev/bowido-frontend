@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
 import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Ghost, Truck, Route } from 'lucide-react';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatAppDate, formatAppTime } from '../lib/dateFormat';
 
 interface WorkerDashboardProps {
   role: RoleType;
@@ -418,7 +419,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{log.pallet_qr}</span>
                                 <span className="text-[9px] font-black uppercase text-zinc-300">
-                                  {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  {formatAppTime(log.created_at)}
                                 </span>
                               </div>
                               <p className="mt-1 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
@@ -564,7 +565,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                 <p className="text-[11px] font-black uppercase">{getStatusLabel(log.new_status_name, language)}</p>
                              </div>
                           </div>
-                          <p className="text-[10px] font-black text-zinc-300 uppercase">{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-[10px] font-black text-zinc-300 uppercase">{formatAppTime(log.created_at)}</p>
                        </div>
                     ))}
                     {todayLogs.length === 0 && (
@@ -724,7 +725,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                     <div className="w-1.5 h-1.5 rounded-full bg-zinc-200 mt-1.5 shrink-0" />
                                     <div>
                                        <p className="text-[11px] font-black uppercase leading-tight">{getStatusLabel(log.new_status_name, language)}</p>
-                                       <p className="text-[9px] font-bold text-zinc-400 uppercase">{new Date(log.created_at).toLocaleDateString()}</p>
+                                       <p className="text-[9px] font-bold text-zinc-400 uppercase">{formatAppDate(log.created_at, language)}</p>
                                     </div>
                                  </div>
                                ))}

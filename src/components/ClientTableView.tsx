@@ -25,6 +25,7 @@ import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDate } from '../lib/dateFormat';
 
 type SortKey =
   | 'client'
@@ -265,14 +266,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const mobileDateFormatter = new Intl.DateTimeFormat(
-    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
-    {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }
-  );
+  const mobileDateFormatter = {
+    format: (value: string | number | Date) => formatAppDate(value, language),
+  };
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {

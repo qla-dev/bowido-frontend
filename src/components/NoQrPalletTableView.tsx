@@ -21,6 +21,7 @@ import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDate } from '../lib/dateFormat';
 
 type NoQrColumnKey =
   | 'serial'
@@ -146,13 +147,11 @@ export const NoQrPalletTableView: React.FC = () => {
         : 'Resize column';
   const textFilterInputClass =
     'h-10 bg-white px-3 text-left text-[12px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal';
-  const dateFormatter = new Intl.DateTimeFormat(
-    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
-    {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }
+  const dateFormatter = useMemo(
+    () => ({
+      format: (value: string | number | Date) => formatAppDate(value, language),
+    }),
+    [language]
   );
   const [selectedFilters, setSelectedFilters] = useState<FilterSelections>({
     serial: [],

@@ -5,6 +5,7 @@ import { Invoice, InvoiceItem } from '../types';
 import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { Button, Card, Badge } from './ui';
+import { formatAppDate } from '../lib/dateFormat';
 
 interface InvoiceViewerProps {
   invoice: Invoice;
@@ -12,7 +13,7 @@ interface InvoiceViewerProps {
 }
 
 export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<'preview' | 'download' | 'send' | null>(null);
@@ -92,11 +93,11 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                 <div className="flex gap-12">
                   <div>
                     <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400 mb-1">{t('issueDate')}</h4>
-                    <p className="text-xs font-black text-black uppercase">{invoice.issue_date}</p>
+                    <p className="text-xs font-black text-black uppercase">{formatAppDate(invoice.issue_date, language)}</p>
                   </div>
                   <div>
                     <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400 mb-1">{t('dueDate')}</h4>
-                    <p className="text-xs font-black text-rose-600 uppercase">{invoice.due_date}</p>
+                    <p className="text-xs font-black text-rose-600 uppercase">{formatAppDate(invoice.due_date, language)}</p>
                   </div>
                 </div>
               </div>
