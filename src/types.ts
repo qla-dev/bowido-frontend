@@ -20,18 +20,18 @@ export interface RolePermissionGrant {
   can_create: boolean;
   can_update: boolean;
   can_delete: boolean;
-  scope?: 'all' | 'warehouse_nl' | 'warehouse_bih';
+  scope?: "all" | "warehouse_nl" | "warehouse_bih";
 }
 
 export enum RoleType {
-  ADMIN = 'Admin',
-  ADMIN_SERVICE = 'Admin Servis',
-  ADMIN_WAREHOUSE = 'Admin Magacin',
-  FINANCE_ADMINISTRATION = 'Finance & Administration',
-  VOZAC = 'Vozač',
-  MAGACINER = 'Magaciner',
-  KLIJENT = 'Klijent/Kupac',
-  SERVISER = 'Serviser',
+  ADMIN = "Admin",
+  ADMIN_SERVICE = "Admin Servis",
+  ADMIN_WAREHOUSE = "Admin Magacin",
+  FINANCE_ADMINISTRATION = "Finance & Administration",
+  VOZAC = "Vozač",
+  MAGACINER = "Magaciner",
+  KLIJENT = "Klijent/Kupac",
+  SERVISER = "Serviser",
 }
 
 export interface User {
@@ -51,7 +51,7 @@ export interface User {
     billing_email?: string;
     street?: string;
     postal_code?: string;
-    warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
+    warehouse_scope?: "warehouse_nl" | "warehouse_bih";
   };
   permission_codes?: string[];
 }
@@ -68,6 +68,42 @@ export interface PalletStatus {
   grace_period_days: number;
   price_per_day: number;
   slug: string;
+}
+
+export interface ReverseGeocodingResult {
+  latitude: number;
+  longitude: number;
+  formatted_address?: string;
+  street?: string;
+  house_number?: string;
+  city?: string;
+  postal_code?: string;
+  country?: string;
+  country_code?: string;
+  provider: string;
+}
+
+export interface DeliveryLocation extends ReverseGeocodingResult {
+  id: number;
+  pallet_id: number;
+  accuracy_meters?: number;
+  source: "device_gps";
+  confirmed_by_user: boolean;
+  created_by_user_id?: number;
+  captured_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryLocationInput {
+  latitude: number;
+  longitude: number;
+  accuracy_meters?: number;
+  captured_at?: string;
+  street?: string;
+  house_number?: string;
+  postal_code?: string;
+  city?: string;
 }
 
 export interface Pallet {
@@ -89,6 +125,7 @@ export interface Pallet {
   note?: string;
   status_change_photo_url?: string;
   metadata?: Record<string, unknown> | null;
+  delivery_location?: DeliveryLocation;
 }
 
 export interface PalletDashboardStats {
@@ -103,7 +140,7 @@ export interface AuditLog {
   pallet_qr: string;
   made_by_user_id: number;
   made_by_user_name: string;
-  type?: 'status' | 'qr_version';
+  type?: "status" | "qr_version";
   old_status_id?: number;
   new_status_id: number;
   old_status_name?: string;
@@ -116,6 +153,7 @@ export interface AuditLog {
   old_qr_code?: string;
   new_qr_code?: string;
   note?: string;
+  status_change_photo_url?: string;
   created_at: string;
 }
 
@@ -139,15 +177,21 @@ export interface PalletPhoto {
   new_status_id?: number;
   client_id?: number;
   service_report_id?: number;
-  type: 'scan' | 'status_change' | 'damage_report' | 'service_report';
-  warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
+  type: "scan" | "status_change" | "damage_report" | "service_report";
+  warehouse_scope?: "warehouse_nl" | "warehouse_bih";
   original_name?: string;
   mime_type: string;
   size_bytes: number;
   expires_at: string;
   url?: string;
   created_at: string;
-  pallet?: { id: number; qr_code: string; name: string; customer?: string; status?: string };
+  pallet?: {
+    id: number;
+    qr_code: string;
+    name: string;
+    customer?: string;
+    status?: string;
+  };
   uploader?: { id: number; name: string; role?: string };
 }
 
@@ -159,6 +203,8 @@ export interface ClientDetail {
   phone_number?: string;
   fixed_phone?: string;
   billing_email?: string;
+  billing_address?: string;
+  delivery_address?: string;
   warehouse_addresses?: string[];
   country: string;
   province?: string;
@@ -177,7 +223,7 @@ export interface ClientDetail {
   warehouse2_house_number?: string;
   warehouse2_postal_code?: string;
   warehouse2_city?: string;
-  warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
+  warehouse_scope?: "warehouse_nl" | "warehouse_bih";
 }
 
 export interface GhostPalletReportEntry {
@@ -204,7 +250,7 @@ export interface Invoice {
   issue_date: string;
   due_date: string;
   total_amount: number;
-  status: 'draft' | 'paid' | 'overdue' | 'sent';
+  status: "draft" | "paid" | "overdue" | "sent";
 }
 
 export interface InvoiceItem {

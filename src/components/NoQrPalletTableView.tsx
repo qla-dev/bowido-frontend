@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowUpDown,
@@ -14,11 +14,12 @@ import { useApp } from '../AppContext';
 import { getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { Pallet } from '../types';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 type NoQrColumnKey =
   | 'serial'
@@ -87,16 +88,6 @@ export const NoQrPalletTableView: React.FC = () => {
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<NoQrColumnKey, HTMLTableCellElement | null>>>({});
-  const [pallets, setPagedPallets] = useState<Pallet[]>([]);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(NO_QR_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: NO_QR_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
   const [palletPendingDeletion, setPalletPendingDeletion] = useState<Pallet | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -191,44 +182,6 @@ export const NoQrPalletTableView: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-
-      try {
-        const page = await apiService.pallets.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          is_ghost: true,
-          search: debouncedSearchQuery || undefined,
-          sort_by: 'created_at',
-          sort_direction: 'desc',
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setPagedPallets(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated no-QR pallets', error);
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [debouncedSearchQuery, pageLimit, pageOffset]);
-
-  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchQuery(searchQuery.trim());
     }, 250);
@@ -236,9 +189,19 @@ export const NoQrPalletTableView: React.FC = () => {
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedSearchQuery]);
+  const fetchPage = useCallback((offset: number) => apiService.pallets.page({
+    limit: NO_QR_PAGE_SIZE,
+    offset,
+    is_ghost: true,
+    search: debouncedSearchQuery || undefined,
+    sort_by: 'created_at',
+    sort_direction: 'desc',
+  }), [debouncedSearchQuery]);
+  const { items: pallets, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedPallets } = useInfinitePagination({
+    queryKey: `${debouncedSearchQuery}|${JSON.stringify(selectedFilters)}`,
+    pageSize: NO_QR_PAGE_SIZE,
+    fetchPage,
+  });
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -620,7 +583,7 @@ export const NoQrPalletTableView: React.FC = () => {
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && sortedRows.length === 0}
+        isEmpty={!isInitialLoading && sortedRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
@@ -781,20 +744,8 @@ export const NoQrPalletTableView: React.FC = () => {
           </table>
         )}
       />
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
-      <ListPagination
-        total={paginationMeta.total}
-        limit={paginationMeta.limit}
-        offset={paginationMeta.offset}
-        count={paginationMeta.count}
-        isLoading={isPageLoading}
-        language={language}
-        onPageChange={setPageOffset}
-        onLimitChange={(limit) => {
-          setPageOffset(0);
-          setPageLimit(limit);
-        }}
-      />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
+      <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
       {openFilterKey && renderFilterMenu(openFilterKey)}
       {activeCommentRow && (
         <div

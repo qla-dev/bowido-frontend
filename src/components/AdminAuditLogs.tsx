@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { Badge, Card, cn, Input, StatCard } from './ui';
 import { AppLanguage, getStatusLabel, localeMap } from '../i18n';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 interface AdminAuditLogsProps {
   auditLogs: AuditLog[];
@@ -61,16 +62,6 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   const [filter, setFilter] = useState<AuditFilter>('all');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(AUDIT_LOG_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: AUDIT_LOG_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<AuditColumnKey, HTMLTableCellElement | null>>>({});
   const {
@@ -82,10 +73,6 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   } = adminTableStyles;
 
   useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedQuery, filter, createdFrom, createdTo]);
-
-  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedQuery(query.trim());
     }, 250);
@@ -93,50 +80,21 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     return () => window.clearTimeout(timeoutId);
   }, [query]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-
-      try {
-        const page = await apiService.auditLogs.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          search: debouncedQuery || undefined,
-          sort_by: 'created_at',
-          sort_direction: 'desc',
-          created_from: createdFrom || undefined,
-          created_to: createdTo || undefined,
-          event_type:
-            filter === 'qr_version'
-              ? 'qr_code_changed'
-              : filter === 'status'
-                ? 'status_changed'
-                : undefined,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setAuditLogs(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated audit logs', error);
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [createdFrom, createdTo, debouncedQuery, filter, pageLimit, pageOffset]);
+  const fetchPage = useCallback((offset: number) => apiService.auditLogs.page({
+    limit: AUDIT_LOG_PAGE_SIZE,
+    offset,
+    search: debouncedQuery || undefined,
+    sort_by: 'created_at',
+    sort_direction: 'desc',
+    created_from: createdFrom || undefined,
+    created_to: createdTo || undefined,
+    event_type: filter === 'qr_version' ? 'qr_code_changed' : filter === 'status' ? 'status_changed' : undefined,
+  }), [createdFrom, createdTo, debouncedQuery, filter]);
+  const { items: auditLogs, meta: paginationMeta, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setAuditLogs } = useInfinitePagination({
+    queryKey: `${debouncedQuery}|${filter}|${createdFrom}|${createdTo}`,
+    pageSize: AUDIT_LOG_PAGE_SIZE,
+    fetchPage,
+  });
 
   useEffect(() => {
     if (cachedAuditLogs.length === 0) {
@@ -158,8 +116,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
 
   const filteredLogs = sortedLogs;
 
-  const statusLogCount = auditLogs.filter((log) => (log.type || 'status') === 'status').length;
-  const qrVersionLogCount = auditLogs.filter((log) => log.type === 'qr_version').length;
+  const statusLogCount = paginationMeta.status_changes ?? 0;
+  const qrVersionLogCount = paginationMeta.qr_version_changes ?? 0;
 
   const getClientName = (clientId?: number) =>
     clientId ? clients.find((client) => client.user_id === clientId)?.name || `#${clientId}` : null;
@@ -375,21 +333,6 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           </table>
         </div>
 
-        <div className="hidden">
-          <ListPagination
-            total={paginationMeta.total}
-            limit={paginationMeta.limit}
-            offset={paginationMeta.offset}
-            count={paginationMeta.count}
-            isLoading={isPageLoading}
-            language={language}
-            onPageChange={setPageOffset}
-            onLimitChange={(limit) => {
-              setPageOffset(0);
-              setPageLimit(limit);
-            }}
-          />
-        </div>
       </Card>
 
       <AdminDataTable<AuditColumnKey>
@@ -399,7 +342,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni sirinu kolone' : 'Resize column'}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && filteredLogs.length === 0}
+        isEmpty={!isInitialLoading && filteredLogs.length === 0}
         emptyState={
           <div className="p-20 text-center text-zinc-400">
             <History size={28} className="mx-auto mb-3 opacity-40" />
@@ -551,22 +494,10 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         )}
       />
 
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
 
       <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.06)] dark:border-white/10 dark:bg-[#101715]">
-        <ListPagination
-          total={paginationMeta.total}
-          limit={paginationMeta.limit}
-          offset={paginationMeta.offset}
-          count={paginationMeta.count}
-          isLoading={isPageLoading}
-          language={language}
-          onPageChange={setPageOffset}
-          onLimitChange={(limit) => {
-            setPageOffset(0);
-            setPageLimit(limit);
-          }}
-        />
+        <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
       </div>
     </div>
   );

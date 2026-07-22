@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet } from '../types';
@@ -62,8 +62,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<string, HTMLTableCellElement | null>>>({});
   const [selectedRow, setSelectedRow] = useState<OperationRow | null>(null);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(ADMIN_ROLE_PAGE_SIZE);
+  const [visibleCount, setVisibleCount] = useState(ADMIN_ROLE_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: SortDirection }>({
     key: 'primary',
     direction: 'asc',
@@ -278,22 +277,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     return nextRows;
   }, [rows, searchQuery, sortConfig]);
 
-  const paginatedRows = useMemo(
-    () => visibleRows.slice(pageOffset, pageOffset + pageLimit),
-    [pageLimit, pageOffset, visibleRows]
-  );
+  const paginatedRows = useMemo(() => visibleRows.slice(0, visibleCount), [visibleCount, visibleRows]);
 
   useEffect(() => {
-    setPageOffset(0);
+    setVisibleCount(ADMIN_ROLE_PAGE_SIZE);
   }, [mode, searchQuery, sortConfig]);
 
   useEffect(() => {
-    if (visibleRows.length === 0 || pageOffset < visibleRows.length) {
-      return;
-    }
-
-    setPageOffset(Math.max(Math.floor((visibleRows.length - 1) / pageLimit) * pageLimit, 0));
-  }, [pageLimit, pageOffset, visibleRows.length]);
+    setVisibleCount((current) => Math.min(current, Math.max(visibleRows.length, ADMIN_ROLE_PAGE_SIZE)));
+  }, [visibleRows.length]);
 
   const toggleSort = (key: string) => {
     setSortConfig((current) =>
@@ -437,17 +429,11 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
           </table>
         )}
       />
-      <ListPagination
-        total={visibleRows.length}
-        limit={pageLimit}
-        offset={pageOffset}
-        count={paginatedRows.length}
+      <InfiniteScrollFooter
+        hasMore={paginatedRows.length < visibleRows.length}
+        isLoading={false}
+        onLoadMore={() => setVisibleCount((current) => Math.min(current + ADMIN_ROLE_PAGE_SIZE, visibleRows.length))}
         language={language}
-        onPageChange={setPageOffset}
-        onLimitChange={(limit) => {
-          setPageOffset(0);
-          setPageLimit(limit);
-        }}
       />
 
       {selectedRow && (

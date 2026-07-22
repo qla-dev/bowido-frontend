@@ -1,32 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, ShieldCheck, Plus, Edit2, X, Check, Trash2, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Button, Card, Input, Badge, cn } from './ui';
 import { Permission, Role } from '../types';
 import { getPermissionDescription, getPermissionLabel, getRoleDescription } from '../i18n';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 const ROLE_PAGE_SIZE = 10;
 
 export const RoleManager: React.FC = () => {
   const { permissions: cachedPermissions, addRole, updateRole, deleteRole, t, language } = useApp();
-  const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>(cachedPermissions);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(ROLE_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: ROLE_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
   const [isEditing, setIsEditing] = useState(false);
   const [currentRole, setCurrentRole] = useState<Partial<Role> | null>(null);
   const [pendingDeleteRole, setPendingDeleteRole] = useState<Role | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,46 +26,12 @@ export const RoleManager: React.FC = () => {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadRoles = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const [rolePage, nextPermissions] = await Promise.all([
-          apiService.roles.page({
-            limit: pageLimit,
-            offset: pageOffset,
-            search: debouncedSearchQuery || undefined,
-          }),
-          permissions.length > 0 ? Promise.resolve(permissions) : apiService.permissions.list(),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setRoles(rolePage.items);
-        setPaginationMeta(rolePage.meta);
-        setPermissions(nextPermissions);
-      } catch {
-        if (isMounted) {
-          setError(t('rolesLoadError'));
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void loadRoles();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [debouncedSearchQuery, pageLimit, pageOffset, reloadKey]);
+    if (cachedPermissions.length > 0) {
+      setPermissions(cachedPermissions);
+      return;
+    }
+    void apiService.permissions.list().then(setPermissions).catch(() => setError(t('rolesLoadError')));
+  }, [cachedPermissions, t]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -84,9 +41,16 @@ export const RoleManager: React.FC = () => {
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedSearchQuery]);
+  const fetchPage = useCallback((offset: number) => apiService.roles.page({
+    limit: ROLE_PAGE_SIZE,
+    offset,
+    search: debouncedSearchQuery || undefined,
+  }), [debouncedSearchQuery]);
+  const { items: roles, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry } = useInfinitePagination({
+    queryKey: `${debouncedSearchQuery}|${reloadKey}`,
+    pageSize: ROLE_PAGE_SIZE,
+    fetchPage,
+  });
 
   const handleSave = async () => {
     if (!currentRole?.name) return;
@@ -106,7 +70,6 @@ export const RoleManager: React.FC = () => {
         });
       }
 
-      setPageOffset(0);
       setReloadKey((current) => current + 1);
       setIsEditing(false);
       setCurrentRole(null);
@@ -205,9 +168,9 @@ export const RoleManager: React.FC = () => {
         </div>
       )}
 
-      <PageLoadingModal isOpen={isLoading} language={language} />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
 
-      {!isLoading && roles.length === 0 && (
+      {!isInitialLoading && roles.length === 0 && (
         <Card>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400">
             {t('noRolesFound')}
@@ -282,19 +245,7 @@ export const RoleManager: React.FC = () => {
         ))}
       </div>
 
-      <ListPagination
-        total={paginationMeta.total}
-        limit={paginationMeta.limit}
-        offset={paginationMeta.offset}
-        count={paginationMeta.count}
-        isLoading={isLoading}
-        language={language}
-        onPageChange={setPageOffset}
-        onLimitChange={(limit) => {
-          setPageOffset(0);
-          setPageLimit(limit);
-        }}
-      />
+      <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
 
       <AnimatePresence>
         {pendingDeleteRole && (

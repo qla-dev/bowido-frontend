@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   AlertTriangle,
@@ -19,10 +19,11 @@ import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, RoleType } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 type SortKey =
   | 'client'
@@ -115,18 +116,9 @@ interface ClientTableViewProps {
 
 export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, onEditClient, clientIdFilter }) => {
   const { clients: cachedClients, pallets, statuses, t, language } = useApp();
-  const [clients, setPagedClients] = useState<ClientDetail[]>([]);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(CLIENT_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: CLIENT_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [filterRevision, setFilterRevision] = useState(0);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'client',
     direction: 'asc',
@@ -149,48 +141,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   }, []);
 
   useEffect(() => {
-    setPageOffset(0);
-  }, [clientIdFilter]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-
-      try {
-        const page = await apiService.clients.page({
-          limit: clientIdFilter === undefined ? pageLimit : 1,
-          offset: clientIdFilter === undefined ? pageOffset : 0,
-          user_id: clientIdFilter,
-          search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
-          sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
-          sort_direction: sortConfig.direction,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setPagedClients(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated clients', error);
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [clientIdFilter, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
-
-  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchQuery(searchQuery.trim());
     }, 250);
@@ -198,9 +148,19 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedSearchQuery, sortConfig]);
+  const fetchPage = useCallback((offset: number) => apiService.clients.page({
+    limit: clientIdFilter === undefined ? CLIENT_PAGE_SIZE : 1,
+    offset: clientIdFilter === undefined ? offset : 0,
+    user_id: clientIdFilter,
+    search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
+    sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
+    sort_direction: sortConfig.direction,
+  }), [clientIdFilter, debouncedSearchQuery, sortConfig]);
+  const { items: clients, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedClients } = useInfinitePagination({
+    queryKey: `${clientIdFilter ?? 'all'}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${filterRevision}`,
+    pageSize: clientIdFilter === undefined ? CLIENT_PAGE_SIZE : 1,
+    fetchPage,
+  });
 
   useEffect(() => {
     if (cachedClients.length === 0) {
@@ -576,6 +536,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   };
 
   const toggleFilterSelection = (key: SortKey, value: string) => {
+    setFilterRevision((current) => current + 1);
     setSelectedFilters((current) => {
       const selectedValues = current[key];
       const hasValue = selectedValues.includes(value);
@@ -590,6 +551,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   };
 
   const clearColumnFilter = (key: SortKey) => {
+    setFilterRevision((current) => current + 1);
     setSelectedFilters((current) => ({ ...current, [key]: [] }));
     setFilterSearch((current) => ({ ...current, [key]: '' }));
   };
@@ -1160,7 +1122,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && filteredRows.length === 0}
+        isEmpty={!isInitialLoading && filteredRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
@@ -1326,26 +1288,10 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         )}
       />
 
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
 
       {clientIdFilter === undefined && (
-        <ListPagination
-          total={paginationMeta.total}
-          limit={paginationMeta.limit}
-          offset={paginationMeta.offset}
-          count={paginationMeta.count}
-          isLoading={isPageLoading}
-          language={language}
-          onPageChange={setPageOffset}
-          onLimitChange={
-            clientIdFilter === undefined
-              ? (limit) => {
-                  setPageOffset(0);
-                  setPageLimit(limit);
-                }
-              : undefined
-          }
-        />
+        <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
       )}
 
       {openFilterKey && renderFilterMenu(openFilterKey)}

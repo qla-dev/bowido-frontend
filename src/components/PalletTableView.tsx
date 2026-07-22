@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input, Badge, Button, Select, cn } from './ui';
 import {
   Search,
@@ -19,9 +19,9 @@ import { motion } from 'motion/react';
 import { Pallet } from '../types';
 import { getLocationLabel as getLocalizedLocationLabel, getPalletTypeLabel, getStatusLabel, palletTypeValues } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import {
   buildCustomerPalletReportWorkbook,
   type CustomerPalletReportGroup,
@@ -29,6 +29,7 @@ import {
   type CustomerPalletReportText,
 } from '../lib/customerPalletReportExport';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 interface PalletTableViewProps {
   onAddPallet?: () => void;
@@ -134,17 +135,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const quickFilterRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<ColumnKey, HTMLTableCellElement | null>>>({});
-  const [pallets, setPagedPallets] = useState<Pallet[]>([]);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(PALLET_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: PALLET_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
-  const [pageError, setPageError] = useState<string | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<FilterSelections>({
     qr: [],
     type: [],
@@ -184,48 +174,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-      setPageError(null);
-
-      try {
-        const page = await apiService.pallets.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          search: debouncedSearchQuery || undefined,
-          sort_by: sortConfig.key,
-          sort_direction: sortConfig.direction,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setPagedPallets(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated pallets', error);
-
-        if (isMounted) {
-          setPageError('load_failed');
-        }
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
-
-  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchQuery(searchQuery.trim());
     }, 250);
@@ -233,9 +181,18 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedSearchQuery, sortConfig]);
+  const fetchPage = useCallback((offset: number) => apiService.pallets.page({
+    limit: PALLET_PAGE_SIZE,
+    offset,
+    search: debouncedSearchQuery || undefined,
+    sort_by: sortConfig.key,
+    sort_direction: sortConfig.direction,
+  }), [debouncedSearchQuery, sortConfig]);
+  const { items: pallets, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedPallets } = useInfinitePagination({
+    queryKey: `${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${JSON.stringify(selectedFilters)}|${selectedDeadlineFilters.join(',')}`,
+    pageSize: PALLET_PAGE_SIZE,
+    fetchPage,
+  });
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -1238,14 +1195,14 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && filteredPallets.length === 0}
+        isEmpty={!isInitialLoading && filteredPallets.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-zinc-100 bg-zinc-50">
               <Search size={20} className="text-zinc-200" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-300">
-              {pageError ? t('noMatchingResults') : t('noMatchingResults')}
+              {paginationError ? t('noMatchingResults') : t('noMatchingResults')}
             </p>
           </div>
         }
@@ -1473,20 +1430,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           </table>
         )}
       />
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
-      <ListPagination
-        total={paginationMeta.total}
-        limit={paginationMeta.limit}
-        offset={paginationMeta.offset}
-        count={paginationMeta.count}
-        isLoading={isPageLoading}
-        language={language}
-        onPageChange={setPageOffset}
-        onLimitChange={(limit) => {
-          setPageOffset(0);
-          setPageLimit(limit);
-        }}
-      />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
+      <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">

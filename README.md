@@ -4,6 +4,8 @@
 
 # Run and deploy your AI Studio app
 
+Pallet delivery-map setup, API routes, Geoapify configuration, HTTPS requirements, and provider replacement instructions are documented in [../DELIVERY_LOCATION.md](../DELIVERY_LOCATION.md).
+
 This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/6e8adc48-5c0b-415c-a505-189fc743b36b

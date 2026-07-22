@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Filter, FileText, ChevronRight, ArrowLeft, Search } from 'lucide-react';
 import { Button, Card, Badge, Input } from './ui';
 import { InvoiceViewer } from './InvoiceViewer';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 interface BillingListProps {
   onBack?: () => void;
@@ -18,54 +19,9 @@ const INVOICE_PAGE_SIZE = 25;
 
 export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = false }) => {
   const { t, language } = useApp();
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(INVOICE_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: INVOICE_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-
-      try {
-        const page = await apiService.invoices.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          search: debouncedSearchQuery || undefined,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setInvoices(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated invoices', error);
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [debouncedSearchQuery, pageLimit, pageOffset]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -75,9 +31,16 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedSearchQuery]);
+  const fetchPage = useCallback((offset: number) => apiService.invoices.page({
+    limit: INVOICE_PAGE_SIZE,
+    offset,
+    search: debouncedSearchQuery || undefined,
+  }), [debouncedSearchQuery]);
+  const { items: invoices, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry } = useInfinitePagination({
+    queryKey: debouncedSearchQuery,
+    pageSize: INVOICE_PAGE_SIZE,
+    fetchPage,
+  });
 
   const getInvoiceStatusLabel = (status: Invoice['status']) => {
     if (status === 'paid') return t('paid');
@@ -162,21 +125,8 @@ export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = fals
         ))}
       </div>
 
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
-
-      <ListPagination
-        total={paginationMeta.total}
-        limit={paginationMeta.limit}
-        offset={paginationMeta.offset}
-        count={paginationMeta.count}
-        isLoading={isPageLoading}
-        language={language}
-        onPageChange={setPageOffset}
-        onLimitChange={(limit) => {
-          setPageOffset(0);
-          setPageLimit(limit);
-        }}
-      />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
+      <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
 
       {selectedInvoice && <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
     </div>

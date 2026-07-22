@@ -1,8 +1,7 @@
-import React, { useDeferredValue, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
+import { appAlert } from './AppAlert';
 import {
   Badge,
   Button,
@@ -12,14 +11,15 @@ import {
   StatCard,
   cn,
 } from './ui';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import { useApp } from '../AppContext';
 import { getPermissionLabel, getRoleLabel, getRolePermissions } from '../i18n';
 import { ManagedUser, RoleType, User } from '../types';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import {
   CheckCircle2,
   ChevronDown,
@@ -365,53 +365,27 @@ const RoleSelect: React.FC<RoleSelectProps> = ({ value, onChange }) => {
 
 export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   const { t, language, pallets } = useApp();
-  const [users, setUsers] = useState<ManagedUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [roleFilter, setRoleFilter] = useState<'all' | RoleType>('all');
   const [formState, setFormState] = useState<UserFormState>(defaultFormState);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [userPendingDeletion, setUserPendingDeletion] = useState<ManagedUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(USER_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
+  const [reloadKey, setReloadKey] = useState(0);
+  const fetchPage = useCallback((offset: number) => apiService.users.page({
     limit: USER_PAGE_SIZE,
-    offset: 0,
-    count: 0,
+    offset,
+    search: deferredSearchTerm.trim() || undefined,
+  }), [deferredSearchTerm]);
+  const { items: users, meta: paginationMeta, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setUsers } = useInfinitePagination({
+    queryKey: `${deferredSearchTerm}|${roleFilter}|${reloadKey}`,
+    pageSize: USER_PAGE_SIZE,
+    fetchPage,
   });
-
-  useEffect(() => {
-    void loadUsers();
-  }, [deferredSearchTerm, pageLimit, pageOffset]);
-
-  useEffect(() => {
-    setPageOffset(0);
-  }, [deferredSearchTerm, roleFilter]);
-
-  const loadUsers = async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
-
-    try {
-      const page = await apiService.users.page({
-        limit: pageLimit,
-        offset: pageOffset,
-        search: deferredSearchTerm.trim() || undefined,
-      });
-      setUsers(page.items);
-      setPaginationMeta(page.meta);
-    } catch {
-      setErrorMessage(t('usersCannotLoad'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const resetForm = () => {
     setFormState(defaultFormState);
@@ -459,22 +433,18 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
     try {
       await apiService.users.delete(userPendingDeletion.id);
 
-      if (users.length === 1 && pageOffset > 0) {
-        setPageOffset(Math.max(0, pageOffset - pageLimit));
-      } else {
-        await loadUsers();
-      }
+      setUsers((current) => current.filter((user) => user.id !== userPendingDeletion.id));
+      setReloadKey((current) => current + 1);
 
       if (editingUserId === userPendingDeletion.id) {
         resetForm();
       }
       setSuccessMessage(t('userDeleted'));
       setUserPendingDeletion(null);
-      await Swal.fire({
+      await appAlert.fire({
         icon: 'success',
         title: t('deleteUserConfirm'),
         text: t('userDeleted'),
-        confirmButtonColor: '#00A655',
       });
     } catch {
       setErrorMessage(t('changesNotSaved'));
@@ -521,10 +491,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           role_name: formState.role_name,
         });
 
-        setPageOffset(0);
-        if (pageOffset === 0) {
-          await loadUsers();
-        }
+        setReloadKey((current) => current + 1);
       }
 
       resetForm();
@@ -570,7 +537,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           title={t('systemUsers')}
           noPadding
           action={
-            <Button variant="ghost" size="xs" onClick={() => void loadUsers()}>
+            <Button variant="ghost" size="xs" onClick={() => setReloadKey((current) => current + 1)}>
               <RefreshCw size={12} className="mr-2" />
               {t('refresh')}
             </Button>
@@ -744,7 +711,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
             })}
           </div>
 
-          {!isLoading && filteredUsers.length === 0 && (
+          {!isInitialLoading && filteredUsers.length === 0 && (
             <div className="p-10 text-center border-t border-zinc-100">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-zinc-100 text-zinc-400 flex items-center justify-center mb-4">
                 <Users size={22} />
@@ -756,22 +723,10 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
             </div>
           )}
 
-          <PageLoadingModal isOpen={isLoading} language={language} />
+          <PageLoadingModal isOpen={isInitialLoading} language={language} />
 
           <div className="border-t border-zinc-100 p-4">
-            <ListPagination
-              total={paginationMeta.total}
-              limit={paginationMeta.limit}
-              offset={paginationMeta.offset}
-              count={paginationMeta.count}
-              isLoading={isLoading}
-              language={language}
-              onPageChange={setPageOffset}
-              onLimitChange={(limit) => {
-                setPageOffset(0);
-                setPageLimit(limit);
-              }}
-            />
+            <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
           </div>
         </Card>
 

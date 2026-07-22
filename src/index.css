@@ -2,6 +2,23 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+.delivery-location-map .leaflet-container {
+  z-index: 0;
+  height: 100%;
+  width: 100%;
+  overscroll-behavior: contain;
+}
+
+.delivery-location-map .leaflet-control-container {
+  font-family: var(--font-sans);
+}
+
+.delivery-location-map .leaflet-control-attribution {
+  max-width: calc(100% - 4.5rem);
+  font-size: 8px;
+  line-height: 1.2;
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", var(--font-sans);
@@ -144,6 +161,82 @@
   /* SweetAlert messages must remain above TrackPal's modal overlay. */
   body > .swal2-container {
     z-index: 2100 !important;
+  }
+
+  .trackpal-alert-popup {
+    max-width: calc(100vw - 2rem) !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 24px 55px rgb(15 23 42 / 0.18) !important;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+  }
+
+  .trackpal-alert-popup .swal2-icon {
+    margin: 0 auto 1.25rem !important;
+  }
+
+  .trackpal-alert-title {
+    margin: 0 !important;
+    color: rgb(24 24 27) !important;
+    font-family: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif !important;
+    font-size: 1.35rem !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.025em !important;
+    text-transform: uppercase !important;
+  }
+
+  .trackpal-alert-message {
+    margin: 0.75rem 0 0 !important;
+    padding: 0 !important;
+    color: rgb(82 82 91) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+    text-transform: uppercase !important;
+  }
+
+  .trackpal-alert-popup .swal2-actions {
+    margin: 1.5rem 0 0 !important;
+    padding: 0 !important;
+  }
+
+  .trackpal-alert-confirm {
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0.75rem !important;
+    background: #00A655 !important;
+    color: white !important;
+    padding: 0.75rem 1.75rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+  }
+
+  .trackpal-alert-confirm:hover {
+    background: #00944b !important;
+  }
+
+  .trackpal-alert-popup .swal2-success {
+    border-color: #a7f3d0 !important;
+  }
+
+  .trackpal-alert-popup .swal2-success [class^="swal2-success-line"] {
+    background-color: #00A655 !important;
+  }
+
+  .trackpal-alert-popup .swal2-error {
+    border-color: #fecdd3 !important;
+    color: #e11d48 !important;
+  }
+
+  .trackpal-alert-popup .swal2-error [class^="swal2-x-mark-line"] {
+    background-color: #e11d48 !important;
+  }
+
+  .trackpal-alert-popup .swal2-warning {
+    border-color: #fde68a !important;
+    color: #d97706 !important;
   }
 
   .trackpal-scan-line {

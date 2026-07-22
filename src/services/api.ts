@@ -2,6 +2,8 @@ import {
   AuditLog,
   CalendarNote,
   ClientDetail,
+  DeliveryLocation,
+  DeliveryLocationInput,
   Invoice,
   InvoiceItem,
   ManagedUser,
@@ -12,6 +14,7 @@ import {
   Permission,
   Role,
   RoleType,
+  ReverseGeocodingResult,
   ServiceReport,
   User,
 } from '../types';
@@ -26,6 +29,8 @@ type ApiEnvelope<T> = {
     limit?: number;
     offset?: number;
     count?: number;
+    status_changes?: number;
+    qr_version_changes?: number;
   };
   errors?: Record<string, string[]>;
 };
@@ -37,6 +42,8 @@ export type PaginationMeta = {
   limit: number;
   offset: number;
   count: number;
+  status_changes?: number;
+  qr_version_changes?: number;
 };
 
 export type PaginatedResult<T> = {
@@ -79,7 +86,7 @@ const DEMO_PASSWORD = 'password123';
 
 let apiLocale: AppLanguage | null = null;
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
@@ -234,6 +241,8 @@ const listPage = async <T>(
       limit: Number(envelope.meta?.limit ?? params.limit ?? envelope.data.length),
       offset: Number(envelope.meta?.offset ?? params.offset ?? 0),
       count: Number(count),
+      status_changes: envelope.meta?.status_changes === undefined ? undefined : Number(envelope.meta.status_changes),
+      qr_version_changes: envelope.meta?.qr_version_changes === undefined ? undefined : Number(envelope.meta.qr_version_changes),
     },
   };
 };
@@ -511,8 +520,39 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     created_at: pallet.created_at || pallet.last_status_changed_at || new Date().toISOString(),
     note: pallet.note || pallet.notes || undefined,
     metadata: pallet.metadata && typeof pallet.metadata === 'object' ? pallet.metadata : undefined,
+    delivery_location: pallet.delivery_location
+      ? normalizeDeliveryLocation(pallet.delivery_location)
+      : undefined,
   };
 };
+
+const normalizeReverseGeocodingResult = (location: ApiRecord): ReverseGeocodingResult => ({
+  latitude: Number(location.latitude),
+  longitude: Number(location.longitude),
+  formatted_address: location.formatted_address || undefined,
+  street: location.street || undefined,
+  house_number: location.house_number || undefined,
+  city: location.city || undefined,
+  postal_code: location.postal_code || undefined,
+  country: location.country || undefined,
+  country_code: location.country_code || undefined,
+  provider: location.provider || 'unknown',
+});
+
+const normalizeDeliveryLocation = (location: ApiRecord): DeliveryLocation => ({
+  ...normalizeReverseGeocodingResult(location),
+  id: Number(location.id),
+  pallet_id: Number(location.pallet_id),
+  accuracy_meters: location.accuracy_meters === null || location.accuracy_meters === undefined
+    ? undefined
+    : Number(location.accuracy_meters),
+  source: 'device_gps',
+  confirmed_by_user: toBoolean(location.confirmed_by_user, true),
+  created_by_user_id: location.created_by_user_id ? Number(location.created_by_user_id) : undefined,
+  captured_at: location.captured_at || undefined,
+  created_at: location.created_at || new Date().toISOString(),
+  updated_at: location.updated_at || location.created_at || new Date().toISOString(),
+});
 
 const normalizePalletDashboardStats = (stats: ApiRecord): PalletDashboardStats => ({
   total_pallets: Number(stats.total_pallets ?? 0),
@@ -853,11 +893,28 @@ export const apiService = {
           body: jsonBody(toPalletPayload(data)),
         })
       ),
+    saveDeliveryLocation: async (id: number, data: DeliveryLocationInput): Promise<DeliveryLocation> =>
+      normalizeDeliveryLocation(
+        await apiData<ApiRecord>(`/pallets/${id}/delivery-location`, {
+          method: 'PUT',
+          body: jsonBody(data),
+        })
+      ),
     sendOverdueInvoice: async (id: number): Promise<{ invoice_id: number; recipient: string }> =>
       apiData<{ invoice_id: number; recipient: string }>(`/pallets/${id}/overdue-invoice/send`, { method: 'POST' }),
     delete: async (id: number): Promise<void> => {
       await apiData<null>(`/pallets/${id}`, { method: 'DELETE' });
     },
+  },
+
+  locations: {
+    reverseGeocode: async (latitude: number, longitude: number): Promise<ReverseGeocodingResult> =>
+      normalizeReverseGeocodingResult(
+        await apiData<ApiRecord>('/location/reverse-geocode', {
+          method: 'POST',
+          body: jsonBody({ latitude, longitude }),
+        })
+      ),
   },
 
   palletPhotos: {
@@ -898,11 +955,22 @@ export const apiService = {
     updateMe: async (data: {
       company_name: string;
       kvk: string;
+      phone_number: string;
       fixed_phone: string;
       billing_email: string;
       billing_address: string;
       street: string;
+      house_number: string;
       postal_code: string;
+      city: string;
+      warehouse1_street: string;
+      warehouse1_house_number: string;
+      warehouse1_postal_code: string;
+      warehouse1_city: string;
+      warehouse2_street: string;
+      warehouse2_house_number: string;
+      warehouse2_postal_code: string;
+      warehouse2_city: string;
       warehouse_scope?: 'warehouse_nl' | 'warehouse_bih';
     }): Promise<ClientDetail> => normalizeClient(await apiData<ApiRecord>('/customer-details/me', {
       method: 'PUT',
