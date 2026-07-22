@@ -64,7 +64,7 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
         </motion.div>
       </motion.header>
 
-      <main className="flex min-h-[100dvh] w-full flex-col lg:flex-row">
+      <main className="flex min-h-[100dvh] w-full flex-col lg:flex-row-reverse">
         <motion.section
           animate={{ width: isLoginOpen ? '50%' : '100%' }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
@@ -74,17 +74,14 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
           <div className="pointer-events-none absolute -bottom-44 -right-40 h-[430px] w-[430px] rounded-full bg-[#00ae60]/[0.025]" />
 
           <motion.div
-            layout
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 flex w-full max-w-[1120px] flex-col items-center justify-center gap-14 xl:flex-row xl:gap-24"
+            className="relative z-10 flex w-full max-w-[1120px] flex-col items-center justify-center gap-14 xl:flex-row-reverse xl:gap-24"
           >
             <AnimatePresence mode="popLayout">
               {!isLoginOpen && (
                 <motion.aside
-                  layout
-                  initial={{ opacity: 0, x: -22 }}
+                  initial={{ opacity: 0, x: 22 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -18 }}
+                  exit={{ opacity: 0, x: 18 }}
                   transition={{ delay: 0.2, duration: 0.55 }}
                   className="hidden w-[330px] shrink-0 xl:block"
                 >
@@ -105,11 +102,7 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
             </AnimatePresence>
 
             <div className="flex w-full max-w-[530px] shrink-0 flex-col items-center gap-10">
-              <motion.div
-                animate={{ y: [0, -6, 0] }}
-                transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-                className="grid w-full grid-cols-2 items-start gap-x-7 gap-y-12 sm:gap-x-12 sm:gap-y-16"
-              >
+              <div className="landing-illustrations-float grid w-full grid-cols-2 items-start gap-x-7 gap-y-12 sm:gap-x-12 sm:gap-y-16">
                 {illustrations.map(({ src, delay }, index) => {
                   const label = marketingCopy.illustrationLabels[index];
 
@@ -130,7 +123,7 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
                   </motion.figure>
                   );
                 })}
-              </motion.div>
+              </div>
 
               <AnimatePresence>
                 {!isLoginOpen && (
@@ -159,10 +152,10 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
               animate={{ width: '50%', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="landing-login-pane relative flex min-h-[100dvh] min-w-0 flex-1 items-center justify-center overflow-y-auto bg-[#fbfcfd] px-5 py-24 sm:px-10 lg:px-12"
+              className="landing-login-pane relative flex min-h-[100dvh] min-w-0 shrink-0 items-center justify-center overflow-y-auto bg-[#fbfcfd] px-5 py-24 sm:px-10 lg:px-12"
             >
               <motion.div
-                initial={{ opacity: 0, x: 36 }}
+                initial={{ opacity: 0, x: -36 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.24, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full max-w-[515px]"

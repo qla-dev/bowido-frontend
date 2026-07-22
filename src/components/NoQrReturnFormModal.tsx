@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, CalendarDays, MapPin, Minus, Plus, Send } from 'lucide-react';
+import { Building2, MapPin, Minus, Plus, Send } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { ClientDetail, RoleType, User } from '../types';
 import { Button, Input, Select, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
+import { formatAppDate } from '../lib/dateFormat';
+import { FlatpickrDateInput } from './FlatpickrDateInput';
 
 interface NoQrReturnFormModalProps {
   currentUser: User;
@@ -112,12 +114,6 @@ const copyByLanguage = {
   },
 } as const;
 
-const dateLocaleByLanguage = {
-  en: 'en-GB',
-  nl: 'nl-NL',
-  bs: 'bs-BA',
-} as const;
-
 export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
   currentUser,
   onClose,
@@ -125,7 +121,6 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
 }) => {
   const { clients, language, reportGhostPallets } = useApp();
   const copy = copyByLanguage[language] || copyByLanguage.en;
-  const dateLocale = dateLocaleByLanguage[language] || dateLocaleByLanguage.en;
   const isClient = currentUser.role_name === RoleType.KLIJENT;
   const roleClients = useMemo(() => {
     if (isClient) {
@@ -188,11 +183,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
       return '';
     }
 
-    return new Intl.DateTimeFormat(dateLocale, {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(new Date(`${value}T00:00:00`));
+    return formatAppDate(new Date(`${value}T00:00:00`), language);
   };
 
   const resolveEntryLocation = (entry: LocationEntryState) => {
@@ -517,13 +508,12 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                 {copy.pickupDateLabel}
               </label>
               <div className="relative">
-                <CalendarDays size={16} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300 dark:text-zinc-500" />
-                <Input
-                  type="date"
+                <FlatpickrDateInput
                   value={pickupDate}
-                  onChange={(event) => setPickupDate(event.target.value)}
+                  onChange={setPickupDate}
+                  language={language}
                   placeholder={copy.pickupDatePlaceholder}
-                  aria-label={copy.pickupDatePlaceholder}
+                  ariaLabel={copy.pickupDatePlaceholder}
                   className="bg-white pr-11 dark:bg-[#151d1a]"
                 />
               </div>

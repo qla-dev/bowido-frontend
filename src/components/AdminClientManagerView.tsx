@@ -33,6 +33,7 @@ import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDate } from '../lib/dateFormat';
 
 type SortKey =
   | 'client'
@@ -242,15 +243,6 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       new Intl.NumberFormat(locale, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }),
-    [locale]
-  );
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
       }),
     [locale]
   );
@@ -501,10 +493,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       id: invoice.id,
       number: invoice.invoice_number,
       amount: `EUR ${currencyFormatter.format(invoice.total_amount)}`,
-      date: dateFormatter.format(new Date(invoice.issue_date)),
+      date: formatAppDate(invoice.issue_date, language),
       status: invoice.status,
     }));
-  }, [currencyFormatter, dateFormatter, invoices, selectedRow]);
+  }, [currencyFormatter, invoices, language, selectedRow]);
 
   const saveInvoicePdf = async (invoiceId: number, invoiceNumber: string) => {
     const blob = await apiService.invoices.download(invoiceId);

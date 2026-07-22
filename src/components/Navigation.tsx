@@ -13,6 +13,7 @@ import { useApp } from '../AppContext';
 import { getRoleLabel, languageOptions } from '../i18n';
 import logoImage from '../assets/logo.png';
 import logoNightImage from '../assets/logo-night.png';
+import { formatAppTime } from '../lib/dateFormat';
 
 const SIDEBAR_PINNED_STORAGE_KEY = 'trackpal.sidebarPinnedState';
 const SIDEBAR_RECENT_TOGGLE_STORAGE_KEY = 'trackpal.sidebarHoverEnabled';
@@ -370,7 +371,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                             <p className="text-[10px] font-black text-zinc-900 dark:text-white uppercase leading-tight mb-0.5">{n.title}</p>
                             <p className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-tight mb-1">{n.message}</p>
                             <span className="text-[8px] font-black text-zinc-300 uppercase tracking-tighter">
-                              {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {formatAppTime(n.created_at)}
                             </span>
                           </button>
                         ))
@@ -409,7 +410,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                             <p className="text-[10px] font-black text-zinc-900 dark:text-white uppercase leading-tight mb-0.5">{n.title}</p>
                             <p className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 leading-tight mb-1">{n.message}</p>
                             <span className="text-[8px] font-black text-zinc-300 uppercase tracking-tighter">
-                              {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {formatAppTime(n.created_at)}
                             </span>
                           </button>
                         ))

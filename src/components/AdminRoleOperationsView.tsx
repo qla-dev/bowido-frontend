@@ -16,6 +16,7 @@ import { useApp } from '../AppContext';
 import { Pallet } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { formatAppDateTime } from '../lib/dateFormat';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
@@ -83,17 +84,6 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       new Intl.NumberFormat(locale, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }),
-    [locale]
-  );
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
       }),
     [locale]
   );
@@ -472,7 +462,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               <div className="mt-5 rounded-2xl border border-zinc-100 bg-white p-4 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t('timestamp')}</p>
                 <p className="mt-2 text-xs font-bold uppercase text-zinc-700 dark:text-zinc-200">
-                  {dateFormatter.format(new Date(selectedRow.pallet.last_status_changed_at))}
+                  {formatAppDateTime(selectedRow.pallet.last_status_changed_at, language)}
                 </p>
                 {selectedRow.pallet.note && (
                   <p className="mt-3 text-xs font-bold leading-5 text-zinc-600 dark:text-zinc-200">{selectedRow.pallet.note}</p>

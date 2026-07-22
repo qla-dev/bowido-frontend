@@ -32,6 +32,7 @@ import {
 } from "../lib/videoQrDecoder";
 import { apiService } from "../services/api";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
+import { formatAppDate } from "../lib/dateFormat";
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -857,14 +858,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
 
     const sentDate = new Date(pallet.last_status_changed_at);
-    const dateFormatter = new Intl.DateTimeFormat(
-      driverDateLocales[language] || "en-GB",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      },
-    );
+    const dateFormatter = {
+      format: (value: string | number | Date) =>
+        formatAppDate(value, language),
+    };
     const clientDetail = clientId
       ? clients.find((client) => client.user_id === clientId)
       : undefined;
@@ -946,14 +943,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     dueDate.setDate(dueDate.getDate() + counterDays);
     const remainingDays = counterDays - daysInTransport;
     const isOverdue = remainingDays < 0;
-    const dateFormatter = new Intl.DateTimeFormat(
-      driverDateLocales[language] || "en-GB",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      },
-    );
+    const dateFormatter = {
+      format: (value: string | number | Date) =>
+        formatAppDate(value, language),
+    };
 
     return {
       laneLabel:
@@ -1006,11 +999,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         : "In transport";
   const showSelectedLocationSummary = Boolean(selectedPallet);
   const warehouseCheckInDateLabel = selectedPallet
-    ? new Intl.DateTimeFormat(driverDateLocales[language] || "en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(new Date(selectedPallet.last_status_changed_at))
+    ? formatAppDate(selectedPallet.last_status_changed_at, language)
     : "";
   const filteredClients = (() => {
     const query = clientSearchTerm.trim().toLocaleLowerCase();

@@ -6,6 +6,8 @@ import type { PalletPhoto } from '../types';
 import { Card, Input, Select } from './ui';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDateTime } from '../lib/dateFormat';
+import { FlatpickrDateInput } from './FlatpickrDateInput';
 
 function SecureGalleryImage({ photo }: { photo: PalletPhoto }) {
   const [source, setSource] = useState('');
@@ -34,25 +36,27 @@ export function ImageGallery() {
     : language === 'nl'
       ? { start: 'Startdatum', end: 'Einddatum' }
       : { start: 'Start date', end: 'End date' };
-
   return <div className="space-y-5">
     <div><h2 className="text-3xl font-black uppercase tracking-tight dark:text-white">{t('imageGallery')}</h2><p className="text-sm text-zinc-400">{t('galleryDescription')}</p></div>
-    <Card className="space-y-3 dark:bg-[#101715]">
+    <Card className="dark:bg-[#101715]" contentClassName="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
-        <Select value={filters.type} onChange={e => update('type', e.target.value)}><option value="">{t('allImageTypes')}</option><option value="scan">{t('statusChangeImage')}</option><option value="damage_report">{t('damageReportImage')}</option><option value="service_report">{t('serviceReportImage')}</option></Select>
-        <Select value={filters.warehouse_scope} onChange={e => update('warehouse_scope', e.target.value)}><option value="">{t('allWarehouses')}</option><option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option></Select>
+        <Select className="h-11 py-0" value={filters.type} onChange={e => update('type', e.target.value)}><option value="">{t('allImageTypes')}</option><option value="scan">{t('statusChangeImage')}</option><option value="damage_report">{t('damageReportImage')}</option><option value="service_report">{t('serviceReportImage')}</option></Select>
+        <Select className="h-11 py-0" value={filters.warehouse_scope} onChange={e => update('warehouse_scope', e.target.value)}><option value="">{t('allWarehouses')}</option><option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option></Select>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1.5"><span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-300">{dateLabels.start}</span><Input type="date" value={filters.date_from} onChange={e => update('date_from', e.target.value)}/></label>
-          <label className="space-y-1.5"><span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-300">{dateLabels.end}</span><Input type="date" min={filters.date_from || undefined} value={filters.date_to} onChange={e => update('date_to', e.target.value)}/></label>
+          <FlatpickrDateInput value={filters.date_from} onChange={value => update('date_from', value)} language={language} ariaLabel={dateLabels.start} placeholder={dateLabels.start} maxDate={filters.date_to || undefined} popupPosition="below left" className="h-11 py-0 text-[9px] font-black text-zinc-950 placeholder:text-zinc-950 placeholder:opacity-100 dark:text-zinc-100 dark:placeholder:text-zinc-100" />
+          <FlatpickrDateInput value={filters.date_to} onChange={value => update('date_to', value)} language={language} ariaLabel={dateLabels.end} placeholder={dateLabels.end} minDate={filters.date_from || undefined} popupPosition="below right" className="h-11 py-0 text-[9px] font-black text-zinc-950 placeholder:text-zinc-950 placeholder:opacity-100 dark:text-zinc-100 dark:placeholder:text-zinc-100" />
         </div>
-        <div className="relative pt-[22px]"><Search className="absolute left-3 top-[34px] text-zinc-400" size={16}/><Input className="pl-9" placeholder="Search creator or client" value={filters.search} onChange={e => update('search', e.target.value)}/></div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16}/>
+          <Input className="h-11 py-0 pl-9" placeholder="Search creator or client" value={filters.search} onChange={e => update('search', e.target.value)}/>
+        </div>
       </div>
     </Card>
     {isInitialLoading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300"/><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map(photo => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
       <div className="aspect-video bg-zinc-100 dark:bg-black/20"><SecureGalleryImage photo={photo}/></div>
-      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '—'} · {photo.type}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '—'} · {photo.uploader?.name || '—'}</p><p className="text-xs text-zinc-400">{new Date(photo.created_at).toLocaleString()}</p></div>
+      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '—'} · {photo.type}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '—'} · {photo.uploader?.name || '—'}</p><p className="text-xs text-zinc-400">{formatAppDateTime(photo.created_at, language)}</p></div>
     </Card>)}</div>}
     <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={error} onLoadMore={loadMore} onRetry={retry} language={language} />
   </div>;

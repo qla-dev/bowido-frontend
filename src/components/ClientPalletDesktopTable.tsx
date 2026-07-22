@@ -20,6 +20,7 @@ import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDateTime } from '../lib/dateFormat';
 
 type SortKey =
   | 'pallet'
@@ -150,15 +151,11 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     [locale]
   );
   const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat(locale, {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    [locale]
+    () => ({
+      format: (value: string | number | Date) =>
+        formatAppDateTime(value, language),
+    }),
+    [language]
   );
   const searchPlaceholder =
     language === 'bs' ? 'Pretraži' : language === 'nl' ? 'Zoeken' : 'Search';

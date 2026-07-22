@@ -30,6 +30,7 @@ import {
   type CustomerPalletReportText,
 } from '../lib/customerPalletReportExport';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { formatAppDate } from '../lib/dateFormat';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 interface PalletTableViewProps {
@@ -468,13 +469,11 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             daysLeft: 'days left',
             daysLate: 'days overdue',
           };
-  const dateFormatter = new Intl.DateTimeFormat(
-    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
-    {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }
+  const dateFormatter = useMemo(
+    () => ({
+      format: (value: string | number | Date) => formatAppDate(value, language),
+    }),
+    [language]
   );
   const getClientLabel = (pallet: Pallet) =>
     clients.find((client) => client.user_id === pallet.user_id)?.name || t('inStock');
