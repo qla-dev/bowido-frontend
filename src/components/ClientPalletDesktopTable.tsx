@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowUpDown,
@@ -14,10 +14,11 @@ import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 type SortKey =
   | 'pallet'
@@ -114,16 +115,6 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
-  const [pallets, setPagedPallets] = useState<Pallet[]>([]);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(CLIENT_PALLET_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: CLIENT_PALLET_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
   const [selectedPallet, setSelectedPallet] = useState<PalletRow | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'pallet',
@@ -206,48 +197,6 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         : 'Resize column';
 
   useEffect(() => {
-    setPageOffset(0);
-  }, [client.user_id]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-
-      try {
-        const page = await apiService.pallets.page({
-          limit: pageLimit,
-          offset: pageOffset,
-          user_id: client.user_id,
-          search: debouncedSearchQuery || undefined,
-          sort_by: sortConfig.key,
-          sort_direction: sortConfig.direction,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setPagedPallets(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated client pallets', error);
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [client.user_id, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
-
-  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchQuery(searchQuery.trim());
     }, 250);
@@ -255,9 +204,19 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [client.user_id, debouncedSearchQuery, sortConfig]);
+  const fetchPage = useCallback((offset: number) => apiService.pallets.page({
+    limit: CLIENT_PALLET_PAGE_SIZE,
+    offset,
+    user_id: client.user_id,
+    search: debouncedSearchQuery || undefined,
+    sort_by: sortConfig.key,
+    sort_direction: sortConfig.direction,
+  }), [client.user_id, debouncedSearchQuery, sortConfig]);
+  const { items: pallets, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedPallets } = useInfinitePagination({
+    queryKey: `${client.user_id}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${JSON.stringify(selectedFilters)}`,
+    pageSize: CLIENT_PALLET_PAGE_SIZE,
+    fetchPage,
+  });
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -605,7 +564,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         resizeAriaLabel={resizeAriaLabel}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && filteredRows.length === 0}
+        isEmpty={!isInitialLoading && filteredRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <Search size={20} className="mx-auto mb-4 text-zinc-200" />
@@ -717,22 +676,10 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         )}
       />
 
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
 
       <div className="mt-3">
-        <ListPagination
-          total={paginationMeta.total}
-          limit={paginationMeta.limit}
-          offset={paginationMeta.offset}
-          count={paginationMeta.count}
-          isLoading={isPageLoading}
-          language={language}
-          onPageChange={setPageOffset}
-          onLimitChange={(limit) => {
-            setPageOffset(0);
-            setPageLimit(limit);
-          }}
-        />
+        <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
       </div>
 
       {openFilterKey && renderFilterMenu(openFilterKey)}

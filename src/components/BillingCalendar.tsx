@@ -12,11 +12,13 @@ import {
   FileText,
   CircleAlert,
   BadgeCheck,
-  Trash2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarNote, Invoice, ManagedUser } from '../types';
-import { localeMap } from '../i18n';
+import { localeMap, type AppLanguage } from '../i18n';
 import { apiService } from '../services/api';
 import { InvoiceViewer } from './InvoiceViewer';
 
@@ -33,6 +35,18 @@ const calendarMonthNames: Record<string, string[]> = {
   en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
   nl: ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'],
   bs: ['januar', 'februar', 'mart', 'april', 'maj', 'juni', 'juli', 'august', 'septembar', 'oktobar', 'novembar', 'decembar'],
+};
+
+const calendarWeekdayLabels: Record<AppLanguage, string[]> = {
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  nl: ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za'],
+  bs: ['Ned', 'Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub'],
+};
+
+const notePickerWeekdayLabels: Record<AppLanguage, string[]> = {
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  nl: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'],
+  bs: ['Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub', 'Ned'],
 };
 
 const parseDateKey = (value: string) => {
@@ -106,23 +120,26 @@ const TimeSelect = ({
   disabled: boolean;
   onSelect: (value: string) => void;
 }) => (
-  <div className="flex min-w-0 flex-1 flex-col justify-end">
-    <label className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+  <div className="flex min-w-0 flex-1 flex-col space-y-1">
+    <label className="mb-1 block text-left text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
       {label}
     </label>
-    <select
-      value={selectedValue || ''}
-      onChange={(event) => onSelect(event.target.value)}
-      disabled={disabled}
-      className="h-12 w-full appearance-none rounded-xl border border-zinc-200 bg-white px-3 py-2.5 font-mono text-sm font-black text-zinc-950 outline-none transition-all hover:border-zinc-300 focus:border-[#00A655] disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <option value="">--</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+    <div className="relative flex min-h-[3.75rem] items-center rounded-2xl border border-zinc-100 bg-zinc-50 p-2 transition-colors hover:border-emerald-200 hover:bg-emerald-50/40">
+      <select
+        value={selectedValue || ''}
+        onChange={(event) => onSelect(event.target.value)}
+        disabled={disabled}
+        className="h-11 w-full appearance-none rounded-xl border border-zinc-100 bg-white px-3 pr-9 text-center font-mono text-sm font-black text-zinc-950 outline-none transition-all hover:border-zinc-300 focus:border-[#00A655] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <option value="">--</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      <ChevronDown size={16} className="pointer-events-none absolute right-7 text-zinc-400" />
+    </div>
   </div>
 );
 
@@ -136,6 +153,8 @@ export const BillingCalendar: React.FC = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingNote, setEditingNote] = useState<CalendarNote | null>(null);
   const [noteDateDraft, setNoteDateDraft] = useState('');
+  const [notePickerDate, setNotePickerDate] = useState(() => new Date());
+  const [isNotePickerOpen, setIsNotePickerOpen] = useState(false);
   const [noteTitleDraft, setNoteTitleDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [noteTimeDraft, setNoteTimeDraft] = useState('');
@@ -145,7 +164,6 @@ export const BillingCalendar: React.FC = () => {
   const [isNotesLoading, setIsNotesLoading] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
-  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const calendarColumnRef = useRef<HTMLDivElement | null>(null);
   const [calendarColumnHeight, setCalendarColumnHeight] = useState<number | null>(null);
 
@@ -167,14 +185,7 @@ export const BillingCalendar: React.FC = () => {
     return () => observer.disconnect();
   }, []);
 
-  const weekDays = useMemo(() => {
-    const start = new Date(2024, 0, 7);
-    return Array.from({ length: 7 }, (_, index) =>
-      new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(
-        new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)
-      )
-    );
-  }, [locale]);
+  const weekDays = calendarWeekdayLabels[language] || calendarWeekdayLabels.en;
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -209,6 +220,11 @@ export const BillingCalendar: React.FC = () => {
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const monthDays = Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1);
   const emptyDays = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+  const notePickerYear = notePickerDate.getFullYear();
+  const notePickerMonth = notePickerDate.getMonth();
+  const notePickerDays = Array.from({ length: daysInMonth(notePickerYear, notePickerMonth) }, (_, index) => index + 1);
+  const notePickerEmptyDays = Array.from({ length: (new Date(notePickerYear, notePickerMonth, 1).getDay() + 6) % 7 }, (_, index) => index);
+  const notePickerWeekDays = notePickerWeekdayLabels[language] || notePickerWeekdayLabels.en;
 
   useEffect(() => {
     let isCurrent = true;
@@ -309,29 +325,10 @@ export const BillingCalendar: React.FC = () => {
 
     setNoteTimeDraft(`${nextHour}:${nextMinute}`);
   };
-  const openDatePicker = () => {
-    if (isSavingNote) {
-      return;
-    }
-
-    const input = dateInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
-
-    if (!input) {
-      return;
-    }
-
-    if (typeof input.showPicker === 'function') {
-      try {
-        input.showPicker();
-        return;
-      } catch {
-      }
-    }
-
-    input.focus();
-    input.click();
+  const removeNotifiedUser = (userId: number) => {
+    setNotifiedUserIds((previousIds) => previousIds.filter((id) => id !== userId));
+    setNotifiedUsersDraft((previousUsers) => previousUsers.filter((user) => user.id !== userId));
   };
-
   const upcomingAgenda = useMemo(() => {
     return Object.entries(calendarNotesByDay)
       .map(([key, markers]) => ({
@@ -345,9 +342,12 @@ export const BillingCalendar: React.FC = () => {
 
   const openNoteEditor = (note?: CalendarNote) => {
     const draftDate = note?.note_date || selectedDateKey || toDateInputValue(new Date());
+    const parsedDraftDate = parseDateKey(draftDate);
 
     setEditingNote(note || null);
     setNoteDateDraft(draftDate);
+    setNotePickerDate(parsedDraftDate ? new Date(parsedDraftDate.year, parsedDraftDate.month, 1) : new Date());
+    setIsNotePickerOpen(false);
     setNoteTitleDraft(note?.title || '');
     setNoteDraft(note?.note || '');
     setNoteTimeDraft(note?.note_time || '');
@@ -448,18 +448,6 @@ export const BillingCalendar: React.FC = () => {
 
     const label = formatDayMonthLabel(parsedDate.day, parsedDate.month);
     return language === 'en' ? `${label}, ${parsedDate.year}` : `${label} ${parsedDate.year}`;
-  };
-
-  const formatNoteDateDayMonth = (dateKey: string) => {
-    const parsedDate = parseDateKey(dateKey);
-    if (!parsedDate) return '--';
-    return formatDayMonthLabel(parsedDate.day, parsedDate.month);
-  };
-
-  const formatNoteDateYear = (dateKey: string) => {
-    const parsedDate = parseDateKey(dateKey);
-    if (!parsedDate) return '----';
-    return String(parsedDate.year);
   };
 
   const handleMonthChange = (nextMonth: number) => {
@@ -863,67 +851,85 @@ export const BillingCalendar: React.FC = () => {
                 </div>
 
                  <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-[minmax(0,1fr)_15rem]">
-                      <div className="flex h-full flex-col justify-end space-y-1">
-                        <label className="mb-1 block text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
-                          {t('noteDate')}
-                        </label>
-                        <div className="flex min-h-[6.75rem] items-center rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
-                          <div className="flex w-full items-center gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-col items-center justify-center py-2 text-center">
-                                <span className="text-sm font-black uppercase tracking-tight text-zinc-900">
-                                  {noteDateDraft ? formatNoteDateDayMonth(noteDateDraft) : '--'}
-                                </span>
-                                <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-400">
-                                  {noteDateDraft ? formatNoteDateYear(noteDateDraft) : '----'}
-                                </span>
-                             </div>
-                           </div>
-                            <button
+                    <div className="grid grid-cols-2 items-start gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                      <div className="relative col-span-2 flex h-full flex-col justify-end space-y-1 sm:col-span-1">
+                        <label className="mb-1 block text-left text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">{t('noteDate')}</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsNotePickerOpen((current) => !current)}
+                          disabled={isSavingNote}
+                          aria-expanded={isNotePickerOpen}
+                          className="flex min-h-[3.75rem] items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50 p-2 text-left transition-colors hover:border-emerald-200 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-sm"><CalendarIcon size={20} /></span>
+                            <span className="min-w-0"><span className="block truncate text-sm font-black uppercase tracking-tight text-zinc-900">{noteDateDraft ? formatDateKeyLabel(noteDateDraft) : t('selectDate')}</span></span>
+                          </span>
+                          <ChevronRight size={18} className={cn('shrink-0 text-zinc-400 transition-transform', isNotePickerOpen && 'rotate-90')} />
+                        </button>
+                        {isNotePickerOpen && <div className="absolute left-0 top-full z-30 mt-2 w-[min(19rem,calc(100vw-3rem))] rounded-2xl border border-emerald-100 bg-white p-3 shadow-[0_20px_45px_rgba(15,23,42,0.18)]">
+                      <div className="rounded-xl bg-emerald-50/30 p-2">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setNotePickerDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                            disabled={isSavingNote}
+                            aria-label={language === 'bs' ? 'Prethodni mjesec' : language === 'nl' ? 'Vorige maand' : 'Previous month'}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <ChevronLeft size={17} />
+                          </button>
+                          <p className="text-center text-[10px] font-black uppercase tracking-[0.14em] text-emerald-900">
+                            {monthNames[notePickerMonth]} {notePickerYear}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setNotePickerDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                            disabled={isSavingNote}
+                            aria-label={language === 'bs' ? 'Sljedeći mjesec' : language === 'nl' ? 'Volgende maand' : 'Next month'}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <ChevronRight size={17} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-7 gap-1 text-center">
+                          {notePickerWeekDays.map((day) => <span key={day} className="py-1 text-[8px] font-black uppercase tracking-wide text-zinc-400">{day}</span>)}
+                          {notePickerEmptyDays.map((index) => <span key={`note-picker-empty-${index}`} className="h-8" />)}
+                          {notePickerDays.map((day) => {
+                            const dayKey = toDateKey(notePickerYear, notePickerMonth, day);
+                            const isSelected = dayKey === noteDateDraft;
+                            const isToday = dayKey === toDateInputValue(new Date());
+                            return <button
+                              key={dayKey}
                               type="button"
-                              onClick={openDatePicker}
+                              onClick={() => { setNoteDateDraft(dayKey); setIsNotePickerOpen(false); }}
                               disabled={isSavingNote}
-                              aria-label={t('selectDate')}
-                              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-white text-zinc-400 transition-colors hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <CalendarIcon size={21} />
-                            </button>
-                           <input
-                             ref={dateInputRef}
-                             type="date"
-                             value={noteDateDraft}
-                             onChange={(event) => setNoteDateDraft(event.target.value)}
-                             className="sr-only"
-                             disabled={isSavingNote}
-                           />
-                         </div>
+                              className={cn(
+                                'h-8 rounded-lg text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                                isSelected ? 'bg-[#00A655] text-white shadow-sm shadow-emerald-900/20' : 'text-zinc-600 hover:bg-white hover:text-emerald-700',
+                                isToday && !isSelected && 'ring-1 ring-emerald-300 text-emerald-800'
+                              )}
+                            >{day}</button>;
+                          })}
                         </div>
                       </div>
+                        </div>}
+                      </div>
 
-                      <div className="flex h-full flex-col justify-end space-y-1">
-                        <label className="mb-1 block text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
-                          {t('reminderTime')}
-                        </label>
-                        <div className="flex min-h-[6.75rem] items-center rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
-                          <div className="flex w-full items-end gap-2">
-                           <TimeSelect
-                             label={t('noteHour')}
-                             options={calendarHourOptions}
-                             selectedValue={hasNoteTimeDraft ? noteTimeParts.hour : null}
-                             disabled={isSavingNote}
-                             onSelect={(value) => setNoteTimePart('hour', value)}
-                           />
-                           <TimeSelect
-                             label={t('noteMinute')}
-                             options={calendarMinuteOptions}
-                             selectedValue={hasNoteTimeDraft ? noteTimeParts.minute : null}
-                             disabled={isSavingNote}
-                             onSelect={(value) => setNoteTimePart('minute', value)}
-                           />
-                         </div>
-                       </div>
-                    </div>
+                      <TimeSelect
+                        label={t('noteHour')}
+                        options={calendarHourOptions}
+                        selectedValue={hasNoteTimeDraft ? noteTimeParts.hour : null}
+                        disabled={isSavingNote}
+                        onSelect={(value) => setNoteTimePart('hour', value)}
+                      />
+                      <TimeSelect
+                        label={t('noteMinute')}
+                        options={calendarMinuteOptions}
+                        selectedValue={hasNoteTimeDraft ? noteTimeParts.minute : null}
+                        disabled={isSavingNote}
+                        onSelect={(value) => setNoteTimePart('minute', value)}
+                      />
                   </div>
 
                   <div className="space-y-1">
@@ -978,7 +984,16 @@ export const BillingCalendar: React.FC = () => {
                             className="inline-flex h-8 max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 text-[10px] font-black uppercase tracking-tight text-blue-700"
                           >
                             <span className="truncate">{user.name}</span>
-                            <X size={12} />
+                            <button
+                              type="button"
+                              onClick={() => removeNotifiedUser(user.id)}
+                              disabled={isSavingNote}
+                              title={t('remove')}
+                              aria-label={`${t('remove')} ${user.name}`}
+                              className="-mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-blue-500 transition-colors hover:bg-blue-100 hover:text-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <X size={13} aria-hidden="true" />
+                            </button>
                           </span>
                         ))}
                       </div>
@@ -995,7 +1010,6 @@ export const BillingCalendar: React.FC = () => {
                 <div className="flex flex-nowrap gap-3 border-t border-zinc-100 bg-zinc-50/40 p-5">
                   {editingNote && (
                     <Button variant="danger" onClick={deleteNote} disabled={isSavingNote} className="min-w-0 flex-1 whitespace-nowrap">
-                      <Trash2 size={14} className="mr-2" />
                       {t('deleteActivity')}
                     </Button>
                   )}

@@ -1,31 +1,58 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle, Camera, Check, CheckCircle2, ChevronDown, ChevronLeft, History, MapPin, PackageSearch, Plus, RefreshCcw, Search } from 'lucide-react';
-import { useApp } from '../AppContext';
-import { Pallet, RoleType, User } from '../types';
-import { Card, cn } from './ui';
-import { DriverModalShell } from './DriverModalShell';
-import { DriverPalletSummaryCard } from './DriverPalletSummaryCard';
-import { NoQrReturnFormModal, getNoQrReturnButtonCopy } from './NoQrReturnFormModal';
-import { getPalletTypeLabel } from '../i18n';
-import { findPalletByScannedQr } from '../lib/palletQrMatching';
-import { getPalletDisplayName } from '../lib/palletDisplay';
-import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
-import { apiService } from '../services/api';
-import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import React, { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  AlertTriangle,
+  Camera,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  History,
+  MapPin,
+  PackageSearch,
+  RefreshCcw,
+  Search,
+} from "lucide-react";
+import { useApp } from "../AppContext";
+import { ClientDetail, Pallet, RoleType, User } from "../types";
+import { Card, cn } from "./ui";
+import { DriverModalShell } from "./DriverModalShell";
+import { DriverPalletSummaryCard } from "./DriverPalletSummaryCard";
+import { DeliveryLocationMap } from "./DeliveryLocationMap";
+import {
+  NoQrReturnFormModal,
+  getNoQrReturnButtonCopy,
+} from "./NoQrReturnFormModal";
+import { getLocationLabel, getPalletTypeLabel, getStatusLabel } from "../i18n";
+import { findPalletByScannedQr } from "../lib/palletQrMatching";
+import { getPalletDisplayName } from "../lib/palletDisplay";
+import {
+  decodeQrFromImageBitmap,
+  decodeQrFromVideo,
+} from "../lib/videoQrDecoder";
+import { apiService } from "../services/api";
+import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 
 interface DriverMobileDashboardProps {
   user: User;
+  selectedPalletId?: number | null;
+  onSelectedPalletIdChange?: (palletId: number | null) => void;
 }
 
-type DriverBadgeVariant = 'default' | 'info' | 'warning' | 'success' | 'danger';
-type CameraState = 'loading' | 'ready' | 'preview' | 'unsupported' | 'denied' | 'error';
+type DriverBadgeVariant = "default" | "info" | "warning" | "success" | "danger";
+type CameraState =
+  | "loading"
+  | "ready"
+  | "preview"
+  | "unsupported"
+  | "denied"
+  | "error";
 type CameraZoomRange = { min: number; max: number; step: number };
 type ConfirmationPrompt = {
   title: string;
   message: string;
   confirmLabel: string;
-  tone?: 'success' | 'warning';
+  tone?: "success" | "warning";
   onConfirm: () => void;
 };
 type CameraZoomCapabilities = MediaTrackCapabilities & {
@@ -41,7 +68,7 @@ type ZoomableMediaTrack = MediaStreamTrack & {
   applyConstraints: (
     constraints: MediaTrackConstraints & {
       advanced?: Array<MediaTrackConstraintSet & { zoom?: number }>;
-    }
+    },
   ) => Promise<void>;
 };
 
@@ -58,13 +85,19 @@ interface BarcodeDetectorConstructorLike {
   getSupportedFormats?: () => Promise<string[]>;
 }
 
-type OpenChangeMenu = 'client' | 'status' | 'location' | null;
-type DriverLocationMode = 'warehouse_1' | 'warehouse_2' | 'driver_current' | 'manual';
+type OpenChangeMenu = "client" | "status" | "location" | "gps" | null;
+type DriverLocationMode = "warehouse_1" | "warehouse_2" | "delivery";
 
-const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = { min: 1, max: 3, step: 0.1 };
+const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
+  min: 1,
+  max: 3,
+  step: 0.1,
+};
 
-const clampDriverCameraZoom = (value: number, range = DEFAULT_CAMERA_ZOOM_RANGE) =>
-  Math.min(range.max, Math.max(range.min, Number(value.toFixed(2))));
+const clampDriverCameraZoom = (
+  value: number,
+  range = DEFAULT_CAMERA_ZOOM_RANGE,
+) => Math.min(range.max, Math.max(range.min, Number(value.toFixed(2))));
 
 const getPinchDistance = (touches: TouchList) => {
   const firstTouch = touches.item(0);
@@ -74,38 +107,75 @@ const getPinchDistance = (touches: TouchList) => {
     return 0;
   }
 
-  return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
+  return Math.hypot(
+    firstTouch.clientX - secondTouch.clientX,
+    firstTouch.clientY - secondTouch.clientY,
+  );
 };
 
-const defaultWarehouseDirectory = {
-  warehouse1: 'Maxwellstraat 2-4, 3316 GP Dordrecht',
-  warehouse2: 'Nikole Tesle 71',
-  driverCurrent: 'Flight Forum 240, Eindhoven',
+const bowidoWarehouseDirectory = {
+  warehouse1: "Maxwellstraat 2-4, 3316 GP Dordrecht",
+  warehouse2: "Nikole Tesle 71",
 };
 
-const clientWarehouseDirectories: Record<
-  number,
-  {
-    warehouse1: string;
-    warehouse2: string;
-    driverCurrent: string;
+const SERVICE_ADDRESS = "Nikole Tesle 71, 74000 Doboj";
+const DRIVER_STATUS_SLUG_ORDER = [
+  "bij-de-klant",
+  "ophalen-klant",
+  "bih-nl-transport",
+  "nl-bih-transport",
+  "bowido-nl",
+  "bowido-bih",
+  "service",
+] as const;
+
+const formatWarehouseAddress = (
+  street?: string,
+  houseNumber?: string,
+  postalCode?: string,
+  city?: string,
+) => {
+  const streetLine = [street, houseNumber].filter(Boolean).join(" ").trim();
+  const localityLine = [postalCode, city].filter(Boolean).join(" ").trim();
+
+  return [streetLine, localityLine].filter(Boolean).join(", ");
+};
+
+const getClientWarehouseAddress = (
+  client: ClientDetail | undefined,
+  warehouse: 1 | 2,
+) =>
+  warehouse === 1
+    ? formatWarehouseAddress(
+        client?.warehouse1_street,
+        client?.warehouse1_house_number,
+        client?.warehouse1_postal_code,
+        client?.warehouse1_city,
+      )
+    : formatWarehouseAddress(
+        client?.warehouse2_street,
+        client?.warehouse2_house_number,
+        client?.warehouse2_postal_code,
+        client?.warehouse2_city,
+      );
+
+const getDeliveryLocationAddress = (pallet?: Pallet | null) => {
+  const location = pallet?.delivery_location;
+
+  if (!location) {
+    return "";
   }
-> = {
-  4: {
-    warehouse1: 'Veldhovenweg 18, Eindhoven',
-    warehouse2: 'Achtseweg Zuid 151, Eindhoven',
-    driverCurrent: 'Leenderweg 210, Eindhoven',
-  },
-  99: {
-    warehouse1: 'Waalhaven Zuidzijde 19, Rotterdam',
-    warehouse2: 'Albert Plesmanweg 65, Rotterdam',
-    driverCurrent: 'Maasvlakte Plaza 4, Rotterdam',
-  },
-  100: {
-    warehouse1: 'Rajlovacka cesta 18, Sarajevo',
-    warehouse2: 'Kurta Schorka 14, Sarajevo',
-    driverCurrent: 'Stupska 42, Sarajevo',
-  },
+
+  return (
+    formatWarehouseAddress(
+      location.street,
+      location.house_number,
+      location.postal_code,
+      location.city,
+    ) ||
+    location.formatted_address ||
+    ""
+  );
 };
 
 type DriverCopy = {
@@ -154,266 +224,232 @@ type DriverCopy = {
   scanImageNotRecognizedDetail: string;
   warehouseDefault: string;
   warehouseSecondary: string;
-  thirdAddress: string;
-  addAddress: string;
-  addAnotherAddress: string;
-  useCurrentLocation: string;
-  manualLocation: string;
-  manualLocationPlaceholder: string;
-  applyLocation: string;
-  selectOnMap: string;
-  comingSoon: string;
+  newLocation: string;
+  noWarehouseSecondary: string;
+  gpsLocation: string;
+  useGpsLocation: string;
+  updateGpsLocation: string;
 };
 
-const driverCopy: Record<'en' | 'nl' | 'bs', DriverCopy> = {
+const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
   en: {
-    title: 'Scan QR code',
-    resultLabel: 'Scanned pallet',
-    palletNameLabel: 'Pallet',
-    palletTypeLabel: 'Type',
-    currentStatus: 'Current status',
-    changeLabel: 'Change',
-    changeStatus: 'Change status',
-    capturePalletPhoto: 'PHOTOGRAPH PALLET',
-    reportDamage: 'REPORT DAMAGE',
-    scanNext: 'Scan next pallet',
-    summaryType: 'Type',
-    summaryClient: 'Client',
-    summaryLocation: 'Location',
-    clientEmpty: 'No client',
-    emptyStatus: 'No status',
-    selectClient: 'Select client',
-    searchClientPlaceholder: 'Search client',
-    noClientsFound: 'No clients found',
-    scannedPallets: 'Scanned pallets',
-    historyPallets: 'Pallet history',
-    showAll: 'View all',
-    back: 'Back',
-    liveDot: 'Live camera',
-    statusUpdatedTitle: 'Status updated',
-    statusSavedDetailAtClient: 'The pallet is marked at the client.',
-    statusSavedDetailReturn: 'The pallet is marked ready for return.',
-    statusSavedDetailTransport: 'The pallet is marked in transport.',
-    statusSavedDetailWarehouse: 'The pallet is marked at Bowido warehouse.',
-    statusSavedDetailRepair: 'The pallet is marked in repair.',
-    damageReportedTitle: 'Damage reported',
-    damageReportedDetail: 'The damage report is saved for this pallet.',
-    damageModalTitle: 'Report damage',
-    damageModalDescription: 'Damage description',
-    damageModalPhoto: 'Attach photo',
-    damageModalPlaceholder: 'Write what is damaged on the pallet',
-    damageModalUpload: 'Add photo',
-    damageModalCancel: 'Cancel',
-    damageModalSubmit: 'Save report',
-    damageModalRemove: 'Remove',
-    scanImageFallbackTitle: 'Test scan',
-    scanImageFallbackDetail: 'Upload a QR image to match database pallets.',
-    scanImageNotRecognizedTitle: 'QR not recognized',
-    scanImageNotRecognizedDetail: 'This QR code is not linked to a pallet in the database.',
-    warehouseDefault: 'Warehouse 1',
-    warehouseSecondary: 'Warehouse 2',
-    thirdAddress: 'Third address',
-    addAddress: 'Add address',
-    addAnotherAddress: 'Add another',
-    useCurrentLocation: 'Current location',
-    manualLocation: 'Manual search',
-    manualLocationPlaceholder: 'Enter new address',
-    applyLocation: 'Select',
-    selectOnMap: 'Select on map',
-    comingSoon: 'Soon',
+    title: "Scan QR code",
+    resultLabel: "Scanned pallet",
+    palletNameLabel: "Pallet",
+    palletTypeLabel: "Type",
+    currentStatus: "Current status",
+    changeLabel: "Change",
+    changeStatus: "Change status",
+    capturePalletPhoto: "PHOTOGRAPH PALLET",
+    reportDamage: "REPORT DAMAGE",
+    scanNext: "Scan next pallet",
+    summaryType: "Type",
+    summaryClient: "Client",
+    summaryLocation: "Location",
+    clientEmpty: "No client",
+    emptyStatus: "No status",
+    selectClient: "Select client",
+    searchClientPlaceholder: "Search client",
+    noClientsFound: "No clients found",
+    scannedPallets: "Scanned pallets",
+    historyPallets: "Pallet history",
+    showAll: "View all",
+    back: "Back",
+    liveDot: "Live camera",
+    statusUpdatedTitle: "Status updated",
+    statusSavedDetailAtClient: "The pallet is marked at the client.",
+    statusSavedDetailReturn: "The pallet is marked for customer pickup.",
+    statusSavedDetailTransport: "The pallet is marked in transport.",
+    statusSavedDetailWarehouse: "The pallet is marked at Bowido warehouse.",
+    statusSavedDetailRepair: "The pallet is marked in repair.",
+    damageReportedTitle: "Damage reported",
+    damageReportedDetail: "The damage report is saved for this pallet.",
+    damageModalTitle: "Report damage",
+    damageModalDescription: "Damage description",
+    damageModalPhoto: "Attach photo",
+    damageModalPlaceholder: "Write what is damaged on the pallet",
+    damageModalUpload: "Add photo",
+    damageModalCancel: "Cancel",
+    damageModalSubmit: "Save report",
+    damageModalRemove: "Remove",
+    scanImageFallbackTitle: "Test scan",
+    scanImageFallbackDetail: "Upload a QR image to match database pallets.",
+    scanImageNotRecognizedTitle: "QR not recognized",
+    scanImageNotRecognizedDetail:
+      "This QR code is not linked to a pallet in the database.",
+    warehouseDefault: "Warehouse 1",
+    warehouseSecondary: "Warehouse 2",
+    newLocation: "Delivery address",
+    noWarehouseSecondary: "No warehouse 2",
+    gpsLocation: "GPS location",
+    useGpsLocation: "Use GPS location",
+    updateGpsLocation: "Update GPS location",
   },
   nl: {
-    title: 'Scan QR code',
-    resultLabel: 'Gescande bok',
-    palletNameLabel: 'Boknummer',
-    palletTypeLabel: 'Type',
-    currentStatus: 'Huidige status',
-    changeLabel: 'Wijzig',
-    changeStatus: 'Status wijzigen',
-    capturePalletPhoto: 'Foto maken',
-    reportDamage: 'SCHADE MELDEN',
-    scanNext: 'Scan volgende',
-    summaryType: 'Type',
-    summaryClient: 'Klant',
-    summaryLocation: 'Locatie',
-    clientEmpty: 'Geen klant',
-    emptyStatus: 'Geen status',
-    selectClient: 'Klant kiezen',
-    searchClientPlaceholder: 'Zoek klant',
-    noClientsFound: 'Geen klanten gevonden',
-    scannedPallets: 'Gescande bokken',
-    historyPallets: 'Bokgeschiedenis',
-    showAll: 'Toon alles',
-    back: 'Terug',
-    liveDot: 'Live camera',
-    statusUpdatedTitle: 'Status bijgewerkt',
-    statusSavedDetailAtClient: 'De bok staat nu bij de klant.',
-    statusSavedDetailReturn: 'De bok staat nu klaar voor retour.',
-    statusSavedDetailTransport: 'De bok staat nu in transport.',
-    statusSavedDetailWarehouse: 'De bok staat nu in Bowido magazijn.',
-    statusSavedDetailRepair: 'De bok staat nu in reparatie.',
-    damageReportedTitle: 'Schade gemeld',
-    damageReportedDetail: 'De schademelding is opgeslagen voor deze bok.',
-    damageModalTitle: 'Schade melden',
-    damageModalDescription: 'Omschrijving schade',
-    damageModalPhoto: 'Foto toevoegen',
-    damageModalPlaceholder: 'Beschrijf wat er beschadigd is aan de bok',
-    damageModalUpload: 'Foto toevoegen',
-    damageModalCancel: 'Annuleren',
-    damageModalSubmit: 'Melding opslaan',
-    damageModalRemove: 'Verwijderen',
-    scanImageFallbackTitle: 'Testscan',
-    scanImageFallbackDetail: 'Upload een QR-afbeelding om databasebokken te vinden.',
-    scanImageNotRecognizedTitle: 'QR niet herkend',
-    scanImageNotRecognizedDetail: 'Deze QR-code is niet gekoppeld aan een bok in de database.',
-    warehouseDefault: 'Magazijn 1',
-    warehouseSecondary: 'Magazijn 2',
-    thirdAddress: 'Derde adres',
-    addAddress: 'Adres toevoegen',
-    addAnotherAddress: 'Ander adres',
-    useCurrentLocation: 'Huidige locatie',
-    manualLocation: 'Handmatig zoeken',
-    manualLocationPlaceholder: 'Nieuw adres invoeren',
-    applyLocation: 'Selecteren',
-    selectOnMap: 'Kies op kaart',
-    comingSoon: 'Binnenkort',
+    title: "Scan QR code",
+    resultLabel: "Gescande bok",
+    palletNameLabel: "Boknummer",
+    palletTypeLabel: "Type",
+    currentStatus: "Huidige status",
+    changeLabel: "Wijzig",
+    changeStatus: "Status wijzigen",
+    capturePalletPhoto: "Foto maken",
+    reportDamage: "SCHADE MELDEN",
+    scanNext: "Scan volgende",
+    summaryType: "Type",
+    summaryClient: "Klant",
+    summaryLocation: "Locatie",
+    clientEmpty: "Geen klant",
+    emptyStatus: "Geen status",
+    selectClient: "Klant kiezen",
+    searchClientPlaceholder: "Zoek klant",
+    noClientsFound: "Geen klanten gevonden",
+    scannedPallets: "Gescande bokken",
+    historyPallets: "Bokgeschiedenis",
+    showAll: "Toon alles",
+    back: "Terug",
+    liveDot: "Live camera",
+    statusUpdatedTitle: "Status bijgewerkt",
+    statusSavedDetailAtClient: "De bok staat nu bij de klant.",
+    statusSavedDetailReturn: "De bok is gemarkeerd voor ophalen bij de klant.",
+    statusSavedDetailTransport: "De bok staat nu in transport.",
+    statusSavedDetailWarehouse: "De bok staat nu in Bowido magazijn.",
+    statusSavedDetailRepair: "De bok staat nu in reparatie.",
+    damageReportedTitle: "Schade gemeld",
+    damageReportedDetail: "De schademelding is opgeslagen voor deze bok.",
+    damageModalTitle: "Schade melden",
+    damageModalDescription: "Omschrijving schade",
+    damageModalPhoto: "Foto toevoegen",
+    damageModalPlaceholder: "Beschrijf wat er beschadigd is aan de bok",
+    damageModalUpload: "Foto toevoegen",
+    damageModalCancel: "Annuleren",
+    damageModalSubmit: "Melding opslaan",
+    damageModalRemove: "Verwijderen",
+    scanImageFallbackTitle: "Testscan",
+    scanImageFallbackDetail:
+      "Upload een QR-afbeelding om databasebokken te vinden.",
+    scanImageNotRecognizedTitle: "QR niet herkend",
+    scanImageNotRecognizedDetail:
+      "Deze QR-code is niet gekoppeld aan een bok in de database.",
+    warehouseDefault: "Magazijn 1",
+    warehouseSecondary: "Magazijn 2",
+    newLocation: "Afleveradres",
+    noWarehouseSecondary: "Geen magazijn 2",
+    gpsLocation: "GPS-locatie",
+    useGpsLocation: "GPS-locatie gebruiken",
+    updateGpsLocation: "GPS-locatie bijwerken",
   },
   bs: {
-    title: 'Scan QR code',
-    resultLabel: 'Skenirana paleta',
-    palletNameLabel: 'Paleta',
-    palletTypeLabel: 'Tip',
-    currentStatus: 'Trenutni status',
-    changeLabel: 'Promijeni',
-    changeStatus: 'Promijeni status',
-    capturePalletPhoto: 'USLIKAJ PALETU',
-    reportDamage: 'PRIJAVI OŠTEĆENJE',
-    scanNext: 'Skeniraj sljedeću',
-    summaryType: 'Tip',
-    summaryClient: 'Klijent',
-    summaryLocation: 'Lokacija',
-    clientEmpty: 'Bez klijenta',
-    emptyStatus: 'Bez statusa',
-    selectClient: 'Odaberi klijenta',
-    searchClientPlaceholder: 'Pretraži klijenta',
-    noClientsFound: 'Nema pronađenih klijenata',
-    scannedPallets: 'Skenirane palete',
-    historyPallets: 'Historija paleta',
-    showAll: 'Prikaži sve',
-    back: 'Nazad',
-    liveDot: 'Live kamera',
-    statusUpdatedTitle: 'Status ažuriran',
-    statusSavedDetailAtClient: 'Paleta je označena kod klijenta.',
-    statusSavedDetailReturn: 'Paleta je označena za povrat.',
-    statusSavedDetailTransport: 'Paleta je označena u transportu.',
-    statusSavedDetailWarehouse: 'Paleta je označena u Bowido magacinu.',
-    statusSavedDetailRepair: 'Paleta je označena za reparaciju.',
-    damageReportedTitle: 'Šteta prijavljena',
-    damageReportedDetail: 'Prijava štete je sačuvana za ovu paletu.',
-    damageModalTitle: 'Prijavi štetu',
-    damageModalDescription: 'Opis oštećenja',
-    damageModalPhoto: 'Priloži sliku',
-    damageModalPlaceholder: 'Napiši šta je oštećeno na paleti',
-    damageModalUpload: 'Dodaj sliku',
-    damageModalCancel: 'Odustani',
-    damageModalSubmit: 'Sačuvaj prijavu',
-    damageModalRemove: 'Ukloni',
-    scanImageFallbackTitle: 'Test skeniranje',
-    scanImageFallbackDetail: 'Ucitaj QR sliku za pretragu paleta iz baze.',
-    scanImageNotRecognizedTitle: 'QR nije prepoznat',
-    scanImageNotRecognizedDetail: 'Ovaj QR kod nije povezan s paletom u bazi.',
-    warehouseDefault: 'Magacin 1',
-    warehouseSecondary: 'Magacin 2',
-    thirdAddress: 'Treća adresa',
-    addAddress: 'Dodaj adresu',
-    addAnotherAddress: 'Dodaj drugu',
-    useCurrentLocation: 'Trenutna lokacija',
-    manualLocation: 'Ručno unesi',
-    manualLocationPlaceholder: 'Unesi novu adresu',
-    applyLocation: 'Odaberi',
-    selectOnMap: 'Odaberi na mapi',
-    comingSoon: 'Uskoro',
+    title: "Scan QR code",
+    resultLabel: "Skenirana paleta",
+    palletNameLabel: "Paleta",
+    palletTypeLabel: "Tip",
+    currentStatus: "Trenutni status",
+    changeLabel: "Promijeni",
+    changeStatus: "Promijeni status",
+    capturePalletPhoto: "USLIKAJ PALETU",
+    reportDamage: "PRIJAVI OŠTEĆENJE",
+    scanNext: "Skeniraj sljedeću",
+    summaryType: "Tip",
+    summaryClient: "Klijent",
+    summaryLocation: "Lokacija",
+    clientEmpty: "Bez klijenta",
+    emptyStatus: "Bez statusa",
+    selectClient: "Odaberi klijenta",
+    searchClientPlaceholder: "Pretraži klijenta",
+    noClientsFound: "Nema pronađenih klijenata",
+    scannedPallets: "Skenirane palete",
+    historyPallets: "Historija paleta",
+    showAll: "Prikaži sve",
+    back: "Nazad",
+    liveDot: "Live kamera",
+    statusUpdatedTitle: "Status ažuriran",
+    statusSavedDetailAtClient: "Paleta je označena kod klijenta.",
+    statusSavedDetailReturn: "Paleta je označena za preuzimanje kod klijenta.",
+    statusSavedDetailTransport: "Paleta je označena u transportu.",
+    statusSavedDetailWarehouse: "Paleta je označena u Bowido magacinu.",
+    statusSavedDetailRepair: "Paleta je označena za reparaciju.",
+    damageReportedTitle: "Šteta prijavljena",
+    damageReportedDetail: "Prijava štete je sačuvana za ovu paletu.",
+    damageModalTitle: "Prijavi štetu",
+    damageModalDescription: "Opis oštećenja",
+    damageModalPhoto: "Priloži sliku",
+    damageModalPlaceholder: "Napiši šta je oštećeno na paleti",
+    damageModalUpload: "Dodaj sliku",
+    damageModalCancel: "Odustani",
+    damageModalSubmit: "Sačuvaj prijavu",
+    damageModalRemove: "Ukloni",
+    scanImageFallbackTitle: "Test skeniranje",
+    scanImageFallbackDetail: "Ucitaj QR sliku za pretragu paleta iz baze.",
+    scanImageNotRecognizedTitle: "QR nije prepoznat",
+    scanImageNotRecognizedDetail: "Ovaj QR kod nije povezan s paletom u bazi.",
+    warehouseDefault: "Magacin 1",
+    warehouseSecondary: "Magacin 2",
+    newLocation: "Adresa dostave",
+    noWarehouseSecondary: "Nema magacina 2",
+    gpsLocation: "GPS lokacija",
+    useGpsLocation: "Koristi GPS lokaciju",
+    updateGpsLocation: "Ažuriraj GPS lokaciju",
   },
-};
-
-const getWarehouseDirectory = (clientId?: number) =>
-  (clientId ? clientWarehouseDirectories[clientId] : null) || defaultWarehouseDirectory;
-
-const inferLocationModeFromAddress = (location: string, clientId?: number): DriverLocationMode => {
-  const directory = getWarehouseDirectory(clientId);
-
-  if (location === directory.warehouse2) {
-    return 'warehouse_2';
-  }
-
-  if (location === directory.driverCurrent) {
-    return 'driver_current';
-  }
-
-  if (location && location !== directory.warehouse1) {
-    return 'manual';
-  }
-
-  return 'warehouse_1';
 };
 
 const driverDateLocales = {
-  en: 'en-GB',
-  nl: 'nl-NL',
-  bs: 'bs-BA',
+  en: "en-GB",
+  nl: "nl-NL",
+  bs: "bs-BA",
 } as const;
 
 const driverReturnWindowCopy = {
   en: {
-    sentAt: 'Sent',
-    returnDue: 'Return by',
-    reportedAt: 'Reported on',
-    deadlineStatus: 'Deadline',
-    withinDeadline: 'Within deadline',
-    overdue: 'Overdue',
-    daysLeft: 'days left',
-    daysLate: 'days late',
+    sentAt: "Sent",
+    returnDue: "Return by",
+    reportedAt: "Reported on",
+    deadlineStatus: "Deadline",
+    withinDeadline: "Within deadline",
+    overdue: "Overdue",
+    daysLeft: "days left",
+    daysLate: "days late",
   },
   nl: {
-    sentAt: 'Verzonden',
-    returnDue: 'Retour',
-    reportedAt: 'Gemeld op',
-    deadlineStatus: 'Termijn',
-    withinDeadline: 'Binnen termijn',
-    overdue: 'Over tijd',
-    daysLeft: 'dagen over',
-    daysLate: 'dagen te laat',
+    sentAt: "Verzonden",
+    returnDue: "Retour",
+    reportedAt: "Gemeld op",
+    deadlineStatus: "Termijn",
+    withinDeadline: "Binnen termijn",
+    overdue: "Over tijd",
+    daysLeft: "dagen over",
+    daysLate: "dagen te laat",
   },
   bs: {
-    sentAt: 'Poslana',
-    returnDue: 'Povrat do',
-    reportedAt: 'Prijavljeno',
-    deadlineStatus: 'Rok',
-    withinDeadline: 'U roku',
-    overdue: 'Van roka',
-    daysLeft: 'dana do isteka',
-    daysLate: 'dana van roka',
+    sentAt: "Poslana",
+    returnDue: "Povrat do",
+    reportedAt: "Prijavljeno",
+    deadlineStatus: "Rok",
+    withinDeadline: "U roku",
+    overdue: "Van roka",
+    daysLeft: "dana do isteka",
+    daysLate: "dana van roka",
   },
 } as const;
 
 const driverTransportWindowCopy = {
   en: {
-    startedAt: 'Started',
-    dueBy: 'Due by',
-    laneBihToNl: 'BiH -> NL',
-    laneNlToBih: 'NL -> BiH',
+    startedAt: "Started",
+    dueBy: "Due by",
+    laneBihToNl: "BiH -> NL",
+    laneNlToBih: "NL -> BiH",
   },
   nl: {
-    startedAt: 'Verzonden',
-    dueBy: 'Aankomst',
-    laneBihToNl: 'BiH -> NL',
-    laneNlToBih: 'NL -> BiH',
+    startedAt: "Verzonden",
+    dueBy: "Aankomst",
+    laneBihToNl: "BiH -> NL",
+    laneNlToBih: "NL -> BiH",
   },
   bs: {
-    startedAt: 'Početak',
-    dueBy: 'Završiti do',
-    laneBihToNl: 'BiH -> NL',
-    laneNlToBih: 'NL -> BiH',
+    startedAt: "Početak",
+    dueBy: "Završiti do",
+    laneBihToNl: "BiH -> NL",
+    laneNlToBih: "NL -> BiH",
   },
 } as const;
 
@@ -421,51 +457,84 @@ const transportStatusIds = [2, 6];
 
 const getPalletColorTheme = () => {
   return {
-    surface: 'bg-white/92 dark:bg-[#101715]/92',
-    softSurface: 'bg-white/72 dark:bg-[#20372c]/72',
-    strongSurface: 'bg-slate-200/70 dark:bg-slate-700/45',
-    border: 'border-slate-300/80 dark:border-slate-400/28',
-    label: 'text-slate-600 dark:text-slate-300',
-    heading: 'text-slate-900 dark:text-white',
-    body: 'text-slate-700 dark:text-slate-200',
-    button: 'bg-slate-200/88 text-slate-700 dark:bg-slate-700/55 dark:text-slate-100',
-    buttonHover: 'hover:text-slate-900 dark:hover:text-white',
+    surface: "bg-white/92 dark:bg-[#101715]/92",
+    softSurface: "bg-white/72 dark:bg-[#20372c]/72",
+    strongSurface: "bg-slate-200/70 dark:bg-slate-700/45",
+    border: "border-slate-300/80 dark:border-slate-400/28",
+    label: "text-slate-600 dark:text-slate-300",
+    heading: "text-slate-900 dark:text-white",
+    body: "text-slate-700 dark:text-slate-200",
+    button:
+      "bg-slate-200/88 text-slate-700 dark:bg-slate-700/55 dark:text-slate-100",
+    buttonHover: "hover:text-slate-900 dark:hover:text-white",
   };
 };
 
-const getDriverPalletTypeLabel = (type: string, language: 'en' | 'nl' | 'bs') => {
+const getDriverPalletTypeLabel = (
+  type: string,
+  language: "en" | "nl" | "bs",
+) => {
   return getPalletTypeLabel(type, language);
 };
 
-export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ user }) => {
-  const { pallets, clients, deletePallet, updatePalletStatus, statuses, language } = useApp();
+export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
+  user,
+  selectedPalletId: controlledSelectedPalletId,
+  onSelectedPalletIdChange,
+}) => {
+  const {
+    pallets,
+    clients,
+    deletePallet,
+    updatePalletStatus,
+    savePalletDeliveryLocation,
+    statuses,
+    language,
+  } = useApp();
   const [isScanning, setIsScanning] = useState(false);
-  const [selectedPalletId, setSelectedPalletId] = useState<number | null>(null);
+  const [internalSelectedPalletId, setInternalSelectedPalletId] = useState<
+    number | null
+  >(null);
+  const selectedPalletId =
+    controlledSelectedPalletId === undefined
+      ? internalSelectedPalletId
+      : controlledSelectedPalletId;
+  const setSelectedPalletId = (palletId: number | null) => {
+    setInternalSelectedPalletId(palletId);
+    onSelectedPalletIdChange?.(palletId);
+  };
   const [palletPhoto, setPalletPhoto] = useState<File | null>(null);
   const [palletPhotoUrl, setPalletPhotoUrl] = useState<string | null>(null);
   const [damagePhotoUrl, setDamagePhotoUrl] = useState<string | null>(null);
-  const [damageDescription, setDamageDescription] = useState('');
+  const [damageDescription, setDamageDescription] = useState("");
   const [scannedPalletIds, setScannedPalletIds] = useState<number[]>([]);
-  const [isScannedPalletsModalOpen, setIsScannedPalletsModalOpen] = useState(false);
+  const [isScannedPalletsModalOpen, setIsScannedPalletsModalOpen] =
+    useState(false);
   const [isDamageModalOpen, setIsDamageModalOpen] = useState(false);
   const [isNoQrReturnFormOpen, setIsNoQrReturnFormOpen] = useState(false);
   const [isNoQrPickupListOpen, setIsNoQrPickupListOpen] = useState(false);
   const [isRepairListOpen, setIsRepairListOpen] = useState(false);
-  const [confirmationPrompt, setConfirmationPrompt] = useState<ConfirmationPrompt | null>(null);
-  const [noQrClientSearch, setNoQrClientSearch] = useState('');
-  const [activeScannedPalletId, setActiveScannedPalletId] = useState<number | null>(null);
+  const [confirmationPrompt, setConfirmationPrompt] =
+    useState<ConfirmationPrompt | null>(null);
+  const [noQrClientSearch, setNoQrClientSearch] = useState("");
+  const [activeScannedPalletId, setActiveScannedPalletId] = useState<
+    number | null
+  >(null);
   const [openChangeMenu, setOpenChangeMenu] = useState<OpenChangeMenu>(null);
-  const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
-  const [isEditingAlternateAddress, setIsEditingAlternateAddress] = useState(false);
   const [draftStatusId, setDraftStatusId] = useState<number>(4);
-  const [draftClientId, setDraftClientId] = useState<number | undefined>(undefined);
-  const [clientSearchTerm, setClientSearchTerm] = useState('');
-  const [draftLocationMode, setDraftLocationMode] = useState<DriverLocationMode>('warehouse_1');
-  const [manualLocationInput, setManualLocationInput] = useState('');
-  const [cameraState, setCameraState] = useState<CameraState>('loading');
+  const [draftClientId, setDraftClientId] = useState<number | undefined>(
+    undefined,
+  );
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
+  const [draftLocationMode, setDraftLocationMode] =
+    useState<DriverLocationMode>("warehouse_1");
+  const [cameraState, setCameraState] = useState<CameraState>("loading");
   const [cameraZoom, setCameraZoom] = useState(DEFAULT_CAMERA_ZOOM_RANGE.min);
-  const [cameraZoomRange, setCameraZoomRange] = useState<CameraZoomRange>(DEFAULT_CAMERA_ZOOM_RANGE);
-  const [isCameraHardwareZoomSupported, setIsCameraHardwareZoomSupported] = useState(false);
+  const [cameraZoomRange, setCameraZoomRange] = useState<CameraZoomRange>(
+    DEFAULT_CAMERA_ZOOM_RANGE,
+  );
+  const [isCameraHardwareZoomSupported, setIsCameraHardwareZoomSupported] =
+    useState(false);
   const [flashMessage, setFlashMessage] = useState<{
     title: string;
     detail: string;
@@ -499,160 +568,180 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const allDriverPallets = pallets;
   const isScannerOpen = selectedPalletId === null;
   const showNoQrReturnAction = user.role_name === RoleType.KLIJENT;
-  const showNoQrPickupAction = user.role_name === RoleType.VOZAC || user.role_name === RoleType.ADMIN;
+  const showNoQrPickupAction =
+    user.role_name === RoleType.VOZAC || user.role_name === RoleType.ADMIN;
   const showRepairListAction = user.role_name === RoleType.SERVISER;
   const noQrPickupCopy =
-    language === 'bs'
+    language === "bs"
       ? {
-          buttonTitle: 'Palete bez QR koda',
-          buttonText: 'Pregled prijavljenih paleta spremnih za preuzimanje.',
-          title: 'Prijavljene palete bez QR koda',
-          subtitle: 'Preuzimanje kod kupaca',
-          search: 'Pretraži po imenu klijenta',
-          pallet: 'Paleta',
-          location: 'Lokacija',
-          pickup: 'Datum preuzimanja',
-          comment: 'Komentar',
-          returned: 'Paleta vraćena',
-          direct: 'Odmah preuzeti',
-          empty: 'Nema prijavljenih paleta bez QR koda.',
-          confirm: 'Označiti paletu kao vraćenu? Zapis će biti uklonjen.',
+          buttonTitle: "Palete bez QR koda",
+          buttonText: "Pregled prijavljenih paleta spremnih za preuzimanje.",
+          title: "Prijavljene palete bez QR koda",
+          subtitle: "Preuzimanje kod kupaca",
+          search: "Pretraži po imenu klijenta",
+          pallet: "Paleta",
+          location: "Lokacija",
+          pickup: "Datum preuzimanja",
+          comment: "Komentar",
+          returned: "Paleta vraćena",
+          direct: "Odmah preuzeti",
+          empty: "Nema prijavljenih paleta bez QR koda.",
+          confirm: "Označiti paletu kao vraćenu? Zapis će biti uklonjen.",
         }
-      : language === 'nl'
+      : language === "nl"
         ? {
-            buttonTitle: 'Bokken zonder QR-code',
-            buttonText: 'Bekijk gemelde bokken die klaarstaan om opgehaald te worden.',
-            title: 'Gemelde bokken zonder QR-code',
-            subtitle: 'Ophalen bij klanten',
-            search: 'Zoek op klantnaam',
-            pallet: 'Bok',
-            location: 'Locatie',
-            pickup: 'Ophaaldatum',
-            comment: 'Commentaar',
-            returned: 'Bok opgehaald',
-            direct: 'Direct ophalen',
-            empty: 'Geen gemelde bokken zonder QR-code.',
-            confirm: 'Bok als opgehaald markeren? De melding wordt verwijderd.',
+            buttonTitle: "Bokken zonder QR-code",
+            buttonText:
+              "Bekijk gemelde bokken die klaarstaan om opgehaald te worden.",
+            title: "Gemelde bokken zonder QR-code",
+            subtitle: "Ophalen bij klanten",
+            search: "Zoek op klantnaam",
+            pallet: "Bok",
+            location: "Locatie",
+            pickup: "Ophaaldatum",
+            comment: "Commentaar",
+            returned: "Bok opgehaald",
+            direct: "Direct ophalen",
+            empty: "Geen gemelde bokken zonder QR-code.",
+            confirm: "Bok als opgehaald markeren? De melding wordt verwijderd.",
           }
         : {
-            buttonTitle: 'Pallets without QR code',
-            buttonText: 'View reported pallets that are ready for pickup.',
-            title: 'Reported pallets without QR code',
-            subtitle: 'Client pickups',
-            search: 'Search by client name',
-            pallet: 'Pallet',
-            location: 'Location',
-            pickup: 'Pickup date',
-            comment: 'Comment',
-            returned: 'Pallet returned',
-            direct: 'Direct pickup',
-            empty: 'No pallets without a QR code have been reported.',
-            confirm: 'Mark this pallet as returned? The report will be removed.',
+            buttonTitle: "Pallets without QR code",
+            buttonText: "View reported pallets that are ready for pickup.",
+            title: "Reported pallets without QR code",
+            subtitle: "Client pickups",
+            search: "Search by client name",
+            pallet: "Pallet",
+            location: "Location",
+            pickup: "Pickup date",
+            comment: "Comment",
+            returned: "Pallet returned",
+            direct: "Direct pickup",
+            empty: "No pallets without a QR code have been reported.",
+            confirm:
+              "Mark this pallet as returned? The report will be removed.",
           };
   const repairListCopy =
-    language === 'bs'
+    language === "bs"
       ? {
-          buttonTitle: 'Palete za popravak',
-          buttonText: 'Pregled paleta prijavljenih za servis prije skeniranja.',
-          title: 'Palete prijavljene za popravak',
-          pallet: 'Paleta',
-          location: 'Lokacija',
-          type: 'Tip',
-          note: 'Napomena',
-          repaired: 'Označi kao popravljeno',
-          empty: 'Nema paleta prijavljenih za popravak.',
-          confirm: 'Označiti paletu kao popravljenu?',
-          successTitle: 'Paleta popravljena',
-          successDetail: 'Paleta je vraćena iz servisa.',
+          buttonTitle: "Palete za popravak",
+          buttonText: "Pregled paleta prijavljenih za servis prije skeniranja.",
+          title: "Palete prijavljene za popravak",
+          pallet: "Paleta",
+          location: "Lokacija",
+          type: "Tip",
+          note: "Napomena",
+          repaired: "Označi kao popravljeno",
+          empty: "Nema paleta prijavljenih za popravak.",
+          confirm: "Označiti paletu kao popravljenu?",
+          successTitle: "Paleta popravljena",
+          successDetail: "Paleta je vraćena iz servisa.",
         }
-      : language === 'nl'
+      : language === "nl"
         ? {
-            buttonTitle: 'Bokken voor reparatie',
-            buttonText: 'Bekijk bokken die voor service zijn gemeld voor het scannen.',
-            title: 'Bokken gemeld voor reparatie',
-            pallet: 'Bok',
-            location: 'Locatie',
-            type: 'Type',
-            note: 'Opmerking',
-            repaired: 'Als gerepareerd markeren',
-            empty: 'Geen bokken gemeld voor reparatie.',
-            confirm: 'Bok als gerepareerd markeren?',
-            successTitle: 'Bok gerepareerd',
-            successDetail: 'De bok is teruggezet uit service.',
+            buttonTitle: "Bokken voor reparatie",
+            buttonText:
+              "Bekijk bokken die voor service zijn gemeld voor het scannen.",
+            title: "Bokken gemeld voor reparatie",
+            pallet: "Bok",
+            location: "Locatie",
+            type: "Type",
+            note: "Opmerking",
+            repaired: "Als gerepareerd markeren",
+            empty: "Geen bokken gemeld voor reparatie.",
+            confirm: "Bok als gerepareerd markeren?",
+            successTitle: "Bok gerepareerd",
+            successDetail: "De bok is teruggezet uit service.",
           }
         : {
-            buttonTitle: 'Pallets for repair',
-            buttonText: 'View pallets reported for service before scanning.',
-            title: 'Pallets reported for repair',
-            pallet: 'Pallet',
-            location: 'Location',
-            type: 'Type',
-            note: 'Note',
-            repaired: 'Mark as repaired',
-            empty: 'No pallets have been reported for repair.',
-            confirm: 'Mark this pallet as repaired?',
-            successTitle: 'Pallet repaired',
-            successDetail: 'The pallet has been returned from service.',
+            buttonTitle: "Pallets for repair",
+            buttonText: "View pallets reported for service before scanning.",
+            title: "Pallets reported for repair",
+            pallet: "Pallet",
+            location: "Location",
+            type: "Type",
+            note: "Note",
+            repaired: "Mark as repaired",
+            empty: "No pallets have been reported for repair.",
+            confirm: "Mark this pallet as repaired?",
+            successTitle: "Pallet repaired",
+            successDetail: "The pallet has been returned from service.",
           };
-  const repairPallets = pallets.filter((pallet) => pallet.is_active && pallet.current_status_id === 7);
+  const repairPallets = pallets.filter(
+    (pallet) => pallet.is_active && pallet.current_status_slug === "service",
+  );
   const noQrPickupPallets = pallets.filter(
     (pallet) =>
       pallet.is_ghost &&
       pallet.is_active &&
-      (pallet.client_name || '').toLowerCase().includes(noQrClientSearch.trim().toLowerCase())
+      (pallet.client_name || "")
+        .toLowerCase()
+        .includes(noQrClientSearch.trim().toLowerCase()),
   );
   const getNoQrNoteValue = (note: string | undefined, labels: string[]) => {
     if (!note) {
-      return '';
+      return "";
     }
 
     const segment = note
-      .split('|')
+      .split("|")
       .map((item) => item.trim())
-      .find((item) => labels.some((label) => item.toLowerCase().startsWith(label.toLowerCase())));
+      .find((item) =>
+        labels.some((label) =>
+          item.toLowerCase().startsWith(label.toLowerCase()),
+        ),
+      );
 
-    return segment?.split(':').slice(1).join(':').trim() || '';
+    return segment?.split(":").slice(1).join(":").trim() || "";
   };
   const getNoQrPickupLabel = (pallet: Pallet) =>
     getNoQrNoteValue(pallet.note, [
-      'Available for pickup',
-      'Beschikbaar voor het ophalen',
-      'Dostupno za preuzimanje',
+      "Available for pickup",
+      "Beschikbaar voor het ophalen",
+      "Dostupno za preuzimanje",
     ]) || noQrPickupCopy.direct;
   const getNoQrCommentLabel = (pallet: Pallet) => {
-    const structuredComment = getNoQrNoteValue(pallet.note, ['Comment', 'Commentaar', 'Komentar']);
+    const structuredComment = getNoQrNoteValue(pallet.note, [
+      "Comment",
+      "Commentaar",
+      "Komentar",
+    ]);
     if (structuredComment) {
       return structuredComment;
     }
 
-    const legacyComment = (pallet.note || '')
-      .split('|')
+    const legacyComment = (pallet.note || "")
+      .split("|")
       .map((item) => item.trim())
       .filter(
         (item) =>
           item &&
           ![
-            'Submitted from mobile no-QR form',
-            'Verstuurd via mobiel formulier zonder QR',
-            'Poslano preko mobilne no-QR forme',
+            "Submitted from mobile no-QR form",
+            "Verstuurd via mobiel formulier zonder QR",
+            "Poslano preko mobilne no-QR forme",
           ].includes(item) &&
-          !['Available for pickup', 'Beschikbaar voor het ophalen', 'Dostupno za preuzimanje'].some(
-            (label) => item.toLowerCase().startsWith(label.toLowerCase())
+          ![
+            "Available for pickup",
+            "Beschikbaar voor het ophalen",
+            "Dostupno za preuzimanje",
+          ].some((label) =>
+            item.toLowerCase().startsWith(label.toLowerCase()),
           ) &&
-          !['Location', 'Locatie', 'Lokacija'].some((label) =>
-            item.toLowerCase().startsWith(label.toLowerCase())
-          )
+          !["Location", "Locatie", "Lokacija"].some((label) =>
+            item.toLowerCase().startsWith(label.toLowerCase()),
+          ),
       )
-      .join(' | ');
+      .join(" | ");
 
-    return legacyComment || '-';
+    return legacyComment || "-";
   };
   const selectedPallet = selectedPalletId
     ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
     : null;
-  const driverStatusOptions = [4, 5, 2, 6, 3, 1, 7]
-    .map((statusId) => statuses.find((item) => item.id === statusId))
-    .filter((status): status is NonNullable<typeof status> => Boolean(status));
+  const driverStatusOptions = DRIVER_STATUS_SLUG_ORDER.map((slug) =>
+    statuses.find((item) => item.slug === slug),
+  ).filter((status): status is NonNullable<typeof status> => Boolean(status));
   const scannedPallets = scannedPalletIds
     .map((palletId) => allDriverPallets.find((item) => item.id === palletId))
     .filter((item): item is Pallet => Boolean(item));
@@ -661,16 +750,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       ? allDriverPallets.filter((item) => item.is_active)
       : scannedPallets;
   const activeScannedPallet =
-    historyPallets.find((item) => item.id === activeScannedPalletId) || historyPallets[0] || null;
+    historyPallets.find((item) => item.id === activeScannedPalletId) ||
+    historyPallets[0] ||
+    null;
   const damageTargetPallet = selectedPallet || activeScannedPallet;
   const actionButtonClass =
-    'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-white transition-colors active:scale-[0.99]';
+    "flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-center text-[0.58rem] font-black uppercase leading-[1.05] tracking-[0.14em] text-white transition-colors active:scale-[0.99]";
   const modalNavButtonClass =
-    'flex h-full w-full items-center justify-center gap-2 rounded-xl px-3 text-center text-[0.72rem] font-black uppercase tracking-[0.14em] text-white transition-colors active:scale-[0.99]';
+    "flex h-full w-full items-center justify-center gap-2 rounded-xl px-3 text-center text-[0.72rem] font-black uppercase tracking-[0.14em] text-white transition-colors active:scale-[0.99]";
   const changeTriggerClass =
-    'inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white';
+    "inline-flex h-11 items-center gap-1.5 rounded-full bg-emerald-50 px-4 text-[11.5px] font-black uppercase leading-none tracking-[0.14em] text-emerald-700 transition-all active:scale-[0.98] hover:text-emerald-900 dark:bg-white/10 dark:text-emerald-100 dark:hover:bg-white/14 dark:hover:text-white";
   const getVisibleClientName = (statusId: number, clientName?: string) =>
-    statusIdAllowsCustomer(statuses, statusId) ? clientName || text.clientEmpty : null;
+    statusIdAllowsCustomer(statuses, statusId)
+      ? clientName || text.clientEmpty
+      : null;
   const shouldShowLocationForStatus = (statusId?: number) =>
     !transportStatusIds.includes(statusId ?? -1);
   const getDriverStatusLabel = (statusName?: string) => {
@@ -678,115 +771,100 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return text.emptyStatus;
     }
 
-    if (statusName === 'Bij de klant') {
-      if (language === 'bs') {
-        return 'Kod klijenta';
-      }
-
-      if (language === 'en') {
-        return 'At client';
-      }
-
-      return 'Bij de klant';
+    if (statusName === "Bowido BIH") {
+      return "Bowido BIH";
     }
 
-    if (statusName === 'Voor retour') {
-      if (language === 'bs') {
-        return 'Za povrat';
-      }
-
-      if (language === 'en') {
-        return 'Ready for return';
-      }
-
-      return 'Voor retour';
+    if (statusName === "Transport BiH/NL") {
+      return "Transport BIH -> NL";
     }
 
-    if (statusName === 'Bowido BIH') {
-      return 'Bowido BIH';
+    if (statusName === "Transport (NL/BiH)") {
+      return "Transport NL -> BIH";
     }
 
-    if (statusName === 'Transport BiH/NL') {
-      return 'Transport BIH -> NL';
+    if (statusName === "Bowido(NL)") {
+      return "Bowido NL";
     }
 
-    if (statusName === 'Transport (NL/BiH)') {
-      return 'Transport NL -> BIH';
-    }
-
-    if (statusName === 'Bowido(NL)') {
-      return 'Bowido NL';
-    }
-
-    if (statusName === 'Servis') {
-      if (language === 'bs') {
-        return 'Reparacija';
-      }
-
-      if (language === 'en') {
-        return 'Repair';
-      }
-
-      return 'Reparatie';
-    }
-
-    return statusName;
+    return getStatusLabel(statusName, language);
   };
-  const getLocationMeta = (
-    mode: DriverLocationMode,
-    clientId?: number,
-    manualValue = manualLocationInput
-  ) => {
-    const directory = getWarehouseDirectory(clientId);
+  const getLocationMeta = (mode: DriverLocationMode, clientId?: number) => {
+    const client = clients.find((item) => item.user_id === clientId);
+    const warehouse1Address = getClientWarehouseAddress(client, 1);
+    const warehouse2Address = getClientWarehouseAddress(client, 2);
 
     switch (mode) {
-      case 'warehouse_2':
-        return { label: text.warehouseSecondary, address: directory.warehouse2 };
-      case 'driver_current':
-        return { label: text.thirdAddress, address: directory.driverCurrent };
-      case 'manual':
+      case "warehouse_2":
+        return { label: text.warehouseSecondary, address: warehouse2Address };
+      case "delivery":
         return {
-          label: text.thirdAddress,
-          address: manualValue.trim() || directory.driverCurrent,
+          label: text.newLocation,
+          address: getDeliveryLocationAddress(selectedPallet),
         };
       default:
-        return { label: text.warehouseDefault, address: directory.warehouse1 };
+        return { label: text.warehouseDefault, address: warehouse1Address };
     }
   };
-  const activeLocationClientId = statusIdAllowsCustomer(statuses, draftStatusId) ? draftClientId : undefined;
-  const isClientChangeDisabled = !statusIdAllowsCustomer(statuses, draftStatusId);
-  const selectedLocationMeta = getLocationMeta(draftLocationMode, activeLocationClientId);
+  const activeLocationClientId = statusIdAllowsCustomer(statuses, draftStatusId)
+    ? draftClientId
+    : undefined;
+  const isClientChangeDisabled = !statusIdAllowsCustomer(
+    statuses,
+    draftStatusId,
+  );
+  const selectedLocationMeta = getLocationMeta(
+    draftLocationMode,
+    activeLocationClientId,
+  );
+  const warehouse2Address = getLocationMeta(
+    "warehouse_2",
+    activeLocationClientId,
+  ).address;
+  const hasWarehouse2 = Boolean(warehouse2Address);
+  const savedDeliveryLocationAddress =
+    getDeliveryLocationAddress(selectedPallet);
+  const draftStatus = statuses.find((status) => status.id === draftStatusId);
   const fixedWarehouseLocationMeta =
-    draftStatusId === 3
+    draftStatus?.slug === "bowido-nl"
       ? {
-          label: 'Maxwellstraat 2-4',
-          address: '3316 GP Dordrecht',
+          label: "Maxwellstraat 2-4",
+          address: "3316 GP Dordrecht",
         }
-      : draftStatusId === 1
+      : draftStatus?.slug === "bowido-bih"
         ? {
-            label: 'Nikole Tesle 71',
-            address: '',
+            label: "Nikole Tesle 71",
+            address: "",
           }
-        : null;
-  const selectedClientName =
-    statusIdAllowsCustomer(statuses, draftStatusId)
-      ? clients.find((client) => client.user_id === draftClientId)?.name ||
-        selectedPallet?.client_name ||
-        text.clientEmpty
-      : null;
-  const returnWindowText = driverReturnWindowCopy[language] || driverReturnWindowCopy.en;
-  const transportWindowText = driverTransportWindowCopy[language] || driverTransportWindowCopy.en;
+        : draftStatus?.slug === "service"
+          ? {
+              label: getDriverStatusLabel(draftStatus.name),
+              address: SERVICE_ADDRESS,
+            }
+          : null;
+  const selectedClientName = statusIdAllowsCustomer(statuses, draftStatusId)
+    ? clients.find((client) => client.user_id === draftClientId)?.name ||
+      selectedPallet?.client_name ||
+      text.clientEmpty
+    : null;
+  const returnWindowText =
+    driverReturnWindowCopy[language] || driverReturnWindowCopy.en;
+  const transportWindowText =
+    driverTransportWindowCopy[language] || driverTransportWindowCopy.en;
   const getClientStatusInfo = (pallet: Pallet | null, clientId?: number) => {
     if (!pallet) {
       return null;
     }
 
     const sentDate = new Date(pallet.last_status_changed_at);
-    const dateFormatter = new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    const dateFormatter = new Intl.DateTimeFormat(
+      driverDateLocales[language] || "en-GB",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      },
+    );
     const clientDetail = clientId
       ? clients.find((client) => client.user_id === clientId)
       : undefined;
@@ -801,13 +879,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       };
     }
 
-    const sentAtMidnight = new Date(sentDate.getFullYear(), sentDate.getMonth(), sentDate.getDate());
+    const sentAtMidnight = new Date(
+      sentDate.getFullYear(),
+      sentDate.getMonth(),
+      sentDate.getDate(),
+    );
     const today = new Date();
-    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayAtMidnight = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
     const msPerDay = 24 * 60 * 60 * 1000;
     const daysSinceSent = Math.max(
       0,
-      Math.floor((todayAtMidnight.getTime() - sentAtMidnight.getTime()) / msPerDay)
+      Math.floor(
+        (todayAtMidnight.getTime() - sentAtMidnight.getTime()) / msPerDay,
+      ),
     );
     const dueDate = new Date(sentAtMidnight);
     dueDate.setDate(dueDate.getDate() + clientDetail.grace_period_days);
@@ -819,7 +907,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       dueDateLabel: dateFormatter.format(dueDate),
       deadlineLabel: returnWindowText.deadlineStatus,
       deadlineText: isOverdue
-        ? language === 'bs'
+        ? language === "bs"
           ? `${Math.abs(remainingDays)} dana`
           : `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
         : `${remainingDays} ${returnWindowText.daysLeft}`,
@@ -831,30 +919,41 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return null;
     }
 
-    const transportStatus = statuses.find((item) => item.id === pallet.current_status_id);
+    const transportStatus = statuses.find(
+      (item) => item.id === pallet.current_status_id,
+    );
     const counterDays = transportStatus?.grace_period_days || 3;
     const startedAt = new Date(pallet.last_status_changed_at);
     const startedAtMidnight = new Date(
       startedAt.getFullYear(),
       startedAt.getMonth(),
-      startedAt.getDate()
+      startedAt.getDate(),
     );
     const today = new Date();
-    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayAtMidnight = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
     const msPerDay = 24 * 60 * 60 * 1000;
     const daysInTransport = Math.max(
       0,
-      Math.floor((todayAtMidnight.getTime() - startedAtMidnight.getTime()) / msPerDay)
+      Math.floor(
+        (todayAtMidnight.getTime() - startedAtMidnight.getTime()) / msPerDay,
+      ),
     );
     const dueDate = new Date(startedAtMidnight);
     dueDate.setDate(dueDate.getDate() + counterDays);
     const remainingDays = counterDays - daysInTransport;
     const isOverdue = remainingDays < 0;
-    const dateFormatter = new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+    const dateFormatter = new Intl.DateTimeFormat(
+      driverDateLocales[language] || "en-GB",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      },
+    );
 
     return {
       laneLabel:
@@ -865,36 +964,54 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       dueDateLabel: dateFormatter.format(dueDate),
       deadlineLabel: returnWindowText.deadlineStatus,
       deadlineText: isOverdue
-        ? language === 'bs'
+        ? language === "bs"
           ? `${Math.abs(remainingDays)} dana`
           : `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
         : `${remainingDays} ${returnWindowText.daysLeft}`,
       isOverdue,
     };
   };
-  const clientStatusInfo =
-    statusIdAllowsCustomer(statuses, selectedPallet?.current_status_id)
-      ? getClientStatusInfo(selectedPallet, selectedPallet.user_id)
-      : null;
+  const clientStatusInfo = statusIdAllowsCustomer(
+    statuses,
+    selectedPallet?.current_status_id,
+  )
+    ? getClientStatusInfo(selectedPallet, selectedPallet.user_id)
+    : null;
   const transportWindowInfo = getTransportWindowInfo(selectedPallet);
   const selectedPalletTheme = getPalletColorTheme();
-  const isTransportStatus = transportStatusIds.includes(selectedPallet?.current_status_id ?? -1);
-  const isRepairStatus = draftStatusId === 7;
-  const isLocationChangeDisabled = isTransportStatus || Boolean(fixedWarehouseLocationMeta);
-  const isWarehouseStatus = [1, 3].includes(selectedPallet?.current_status_id ?? -1);
-  const isCheckInStatus = [1, 3, 7].includes(selectedPallet?.current_status_id ?? -1);
+  const isTransportStatus = ["bih-nl-transport", "nl-bih-transport"].includes(
+    selectedPallet?.current_status_slug || "",
+  );
+  const isRepairStatus = draftStatus?.slug === "service";
+  const isLocationChangeDisabled =
+    isTransportStatus || Boolean(fixedWarehouseLocationMeta);
+  const isWarehouseStatus = ["bowido-bih", "bowido-nl"].includes(
+    selectedPallet?.current_status_slug || "",
+  );
+  const isCheckInStatus = ["bowido-bih", "bowido-nl", "service"].includes(
+    selectedPallet?.current_status_slug || "",
+  );
   const shouldShowPalletPhotoAction = user.role_name !== RoleType.KLIJENT;
-  const shouldTopAlignSummaryCard = [1, 3, 5, 7].includes(draftStatusId);
+  const shouldTopAlignSummaryCard = [
+    "bowido-bih",
+    "bowido-nl",
+    "ophalen-klant",
+    "service",
+  ].includes(draftStatus?.slug || "");
   const transportLocationLabel =
-    language === 'nl' ? 'Onderweg' : language === 'bs' ? 'Na putu' : 'On the way';
+    language === "nl"
+      ? "Onderweg"
+      : language === "bs"
+        ? "Na putu"
+        : "In transport";
   const showSelectedLocationSummary = Boolean(selectedPallet);
   const warehouseCheckInDateLabel = selectedPallet
-    ? new Intl.DateTimeFormat(driverDateLocales[language] || 'en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
+    ? new Intl.DateTimeFormat(driverDateLocales[language] || "en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       }).format(new Date(selectedPallet.last_status_changed_at))
-    : '';
+    : "";
   const filteredClients = (() => {
     const query = clientSearchTerm.trim().toLocaleLowerCase();
 
@@ -903,38 +1020,45 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     return clients
-      .filter((client) =>
-        client.name.toLocaleLowerCase().includes(query) ||
-        client.country.toLocaleLowerCase().includes(query) ||
-        client.user_id.toString().includes(query)
+      .filter(
+        (client) =>
+          client.name.toLocaleLowerCase().includes(query) ||
+          client.country.toLocaleLowerCase().includes(query) ||
+          client.user_id.toString().includes(query),
       )
       .sort((left, right) => {
         const leftStartsWith = left.name.toLocaleLowerCase().startsWith(query);
-        const rightStartsWith = right.name.toLocaleLowerCase().startsWith(query);
+        const rightStartsWith = right.name
+          .toLocaleLowerCase()
+          .startsWith(query);
 
         if (leftStartsWith !== rightStartsWith) {
           return leftStartsWith ? -1 : 1;
         }
 
-        return left.name.localeCompare(right.name, driverDateLocales[language] || 'en-GB', { sensitivity: 'base' });
+        return left.name.localeCompare(
+          right.name,
+          driverDateLocales[language] || "en-GB",
+          { sensitivity: "base" },
+        );
       });
   })();
   const changeModalTitle =
-    openChangeMenu === 'status'
+    openChangeMenu === "status"
       ? text.changeStatus
-      : openChangeMenu === 'client'
+      : openChangeMenu === "client"
         ? text.summaryClient
-        : openChangeMenu === 'location'
+        : openChangeMenu === "location"
           ? text.summaryLocation
-          : '';
+          : openChangeMenu === "gps"
+            ? text.gpsLocation
+            : "";
   const isFullscreenModalOpen = Boolean(
-    openChangeMenu || isAddAddressModalOpen || isDamageModalOpen || isScannedPalletsModalOpen
+    openChangeMenu || isDamageModalOpen || isScannedPalletsModalOpen,
   );
-  const showLocationModalNavActions =
-    openChangeMenu === 'location' && !isAddAddressModalOpen && !isRepairStatus;
-  const showAddAddressModalNavActions = isAddAddressModalOpen && !isEditingAlternateAddress;
   const showDamageModalNavActions = isDamageModalOpen;
-  const isDamageReportSubmitDisabled = !damagePhotoUrl || !damageDescription.trim();
+  const isDamageReportSubmitDisabled =
+    !damagePhotoUrl || !damageDescription.trim();
 
   useEffect(() => {
     palletsRef.current = allDriverPallets;
@@ -953,17 +1077,25 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setDraftStatusId(
       [1, 2, 3, 4, 5, 6, 7].includes(selectedPallet.current_status_id)
         ? selectedPallet.current_status_id
-        : 0
+        : 0,
     );
     setDraftClientId(selectedPallet.user_id);
-    setClientSearchTerm('');
-    const nextLocationMode = inferLocationModeFromAddress(
-      selectedPallet.current_location,
-      selectedPallet.user_id
+    setClientSearchTerm("");
+    const client = clients.find(
+      (item) => item.user_id === selectedPallet.user_id,
     );
+    const warehouse2Address = getClientWarehouseAddress(client, 2);
+    const deliveryLocationAddress = getDeliveryLocationAddress(selectedPallet);
+    const nextLocationMode =
+      selectedPallet.current_location === deliveryLocationAddress &&
+      deliveryLocationAddress
+        ? "delivery"
+        : selectedPallet.current_location === warehouse2Address &&
+            warehouse2Address
+          ? "warehouse_2"
+          : "warehouse_1";
     setDraftLocationMode(nextLocationMode);
-    setManualLocationInput(nextLocationMode === 'manual' ? selectedPallet.current_location : '');
-  }, [selectedPallet]);
+  }, [selectedPallet, clients]);
 
   useEffect(() => {
     if (historyPallets.length === 0) {
@@ -972,7 +1104,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return;
     }
 
-    if (activeScannedPalletId && historyPallets.some((item) => item.id === activeScannedPalletId)) {
+    if (
+      activeScannedPalletId &&
+      historyPallets.some((item) => item.id === activeScannedPalletId)
+    ) {
       return;
     }
 
@@ -980,8 +1115,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   }, [activeScannedPalletId, historyPallets]);
 
   useEffect(() => {
-    if (openChangeMenu === 'client') {
-      setClientSearchTerm('');
+    if (openChangeMenu === "client") {
+      setClientSearchTerm("");
     }
   }, [openChangeMenu]);
 
@@ -998,14 +1133,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   }, []);
 
   const applyCameraTrackZoom = (zoom: number) => {
-    const track = streamRef.current?.getVideoTracks()[0] as ZoomableMediaTrack | undefined;
-    const zoomCapabilities = (track?.getCapabilities?.() as CameraZoomCapabilities | undefined)?.zoom;
+    const track = streamRef.current?.getVideoTracks()[0] as
+      | ZoomableMediaTrack
+      | undefined;
+    const zoomCapabilities = (
+      track?.getCapabilities?.() as CameraZoomCapabilities | undefined
+    )?.zoom;
 
     if (!track || !zoomCapabilities) {
       return;
     }
 
-    void track.applyConstraints({ advanced: [{ zoom }] }).catch(() => undefined);
+    void track
+      .applyConstraints({ advanced: [{ zoom }] })
+      .catch(() => undefined);
   };
 
   const updateCameraZoom = (value: number, range = cameraZoomRange) => {
@@ -1016,12 +1157,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
   const syncCameraZoomCapabilities = (stream: MediaStream) => {
     const track = stream.getVideoTracks()[0] as ZoomableMediaTrack | undefined;
-    const zoomCapabilities = (track?.getCapabilities?.() as CameraZoomCapabilities | undefined)?.zoom;
+    const zoomCapabilities = (
+      track?.getCapabilities?.() as CameraZoomCapabilities | undefined
+    )?.zoom;
 
     if (
       zoomCapabilities &&
-      typeof zoomCapabilities.min === 'number' &&
-      typeof zoomCapabilities.max === 'number' &&
+      typeof zoomCapabilities.min === "number" &&
+      typeof zoomCapabilities.max === "number" &&
       zoomCapabilities.max > zoomCapabilities.min
     ) {
       const nextRange = {
@@ -1029,16 +1172,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         max: zoomCapabilities.max,
         step: zoomCapabilities.step || DEFAULT_CAMERA_ZOOM_RANGE.step,
       };
-      const currentTrackZoom = (track.getSettings?.() as CameraZoomSettings | undefined)?.zoom;
+      const currentTrackZoom = (
+        track.getSettings?.() as CameraZoomSettings | undefined
+      )?.zoom;
       const nextZoom = clampDriverCameraZoom(
-        typeof currentTrackZoom === 'number' ? currentTrackZoom : cameraZoom,
-        nextRange
+        typeof currentTrackZoom === "number" ? currentTrackZoom : cameraZoom,
+        nextRange,
       );
 
       setCameraZoomRange(nextRange);
       setIsCameraHardwareZoomSupported(true);
       setCameraZoom(nextZoom);
-      void track.applyConstraints({ advanced: [{ zoom: nextZoom }] }).catch(() => undefined);
+      void track
+        .applyConstraints({ advanced: [{ zoom: nextZoom }] })
+        .catch(() => undefined);
       return;
     }
 
@@ -1086,15 +1233,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
     try {
       if (detectorApi.getSupportedFormats) {
-        const supportedFormats = await detectorApi.getSupportedFormats().catch(() => []);
+        const supportedFormats = await detectorApi
+          .getSupportedFormats()
+          .catch(() => []);
 
-        if (supportedFormats.length > 0 && !supportedFormats.includes('qr_code')) {
+        if (
+          supportedFormats.length > 0 &&
+          !supportedFormats.includes("qr_code")
+        ) {
           return null;
         }
       }
 
       detectorRef.current = new detectorApi({
-        formats: ['qr_code', 'code_128', 'code_39', 'ean_13'],
+        formats: ["qr_code", "code_128", "code_39", "ean_13"],
       });
     } catch {
       detectorRef.current = null;
@@ -1111,14 +1263,21 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     const matchedPallet = findMatchingPallet(rawValue);
 
     if (!matchedPallet) {
-      showFlash(text.scanImageNotRecognizedTitle, text.scanImageNotRecognizedDetail, 'warning');
+      showFlash(
+        text.scanImageNotRecognizedTitle,
+        text.scanImageNotRecognizedDetail,
+        "warning",
+      );
       lastScanAtRef.current = Date.now();
       return;
     }
 
     const nextPallet = matchedPallet;
 
-    setScannedPalletIds((current) => [nextPallet.id, ...current.filter((item) => item !== nextPallet.id)]);
+    setScannedPalletIds((current) => [
+      nextPallet.id,
+      ...current.filter((item) => item !== nextPallet.id),
+    ]);
     selectedPalletIdRef.current = nextPallet.id;
     setSelectedPalletId(nextPallet.id);
     lastScanAtRef.current = Date.now();
@@ -1141,7 +1300,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     const now = Date.now();
-    if (now - lastScanAtRef.current < 1300 || now - lastScanAttemptAtRef.current < 150) {
+    if (
+      now - lastScanAtRef.current < 1300 ||
+      now - lastScanAttemptAtRef.current < 150
+    ) {
       return;
     }
 
@@ -1154,7 +1316,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       if (detector) {
         try {
           const codes = await detector.detect(video);
-          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+          rawValue =
+            codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() ||
+            null;
         } catch {
           rawValue = null;
         }
@@ -1168,7 +1332,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         handleDetectedCode(rawValue);
       }
     } catch {
-      setCameraState((current) => (current === 'ready' ? 'preview' : current));
+      setCameraState((current) => (current === "ready" ? "preview" : current));
     } finally {
       scanBusyRef.current = false;
     }
@@ -1184,17 +1348,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   useEffect(() => {
     let cancelled = false;
 
-    if (!isScannerOpen || isNoQrReturnFormOpen || isNoQrPickupListOpen || isRepairListOpen) {
+    if (
+      !isScannerOpen ||
+      isNoQrReturnFormOpen ||
+      isNoQrPickupListOpen ||
+      isRepairListOpen
+    ) {
       stopCamera();
       return;
     }
 
     const startCamera = async () => {
-      setCameraState('loading');
+      setCameraState("loading");
       detectorRef.current = null;
 
       if (!navigator.mediaDevices?.getUserMedia) {
-        setCameraState('unsupported');
+        setCameraState("unsupported");
         return;
       }
 
@@ -1204,7 +1373,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           {
             audio: false,
             video: {
-              facingMode: { ideal: 'environment' },
+              facingMode: { ideal: "environment" },
               width: { ideal: 1280 },
               height: { ideal: 1280 },
             },
@@ -1212,7 +1381,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           {
             audio: false,
             video: {
-              facingMode: 'environment',
+              facingMode: "environment",
             },
           },
           {
@@ -1253,19 +1422,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           detectorRef.current = null;
         }
 
-        setCameraState('ready');
+        setCameraState("ready");
         runDetectionLoop();
       } catch (error) {
         if (cancelled) {
           return;
         }
 
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          setCameraState('denied');
+        if (error instanceof DOMException && error.name === "NotAllowedError") {
+          setCameraState("denied");
           return;
         }
 
-        setCameraState('error');
+        setCameraState("error");
       }
     };
 
@@ -1280,7 +1449,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         flashTimeoutRef.current = null;
       }
     };
-  }, [isNoQrPickupListOpen, isNoQrReturnFormOpen, isRepairListOpen, isScannerOpen]);
+  }, [
+    isNoQrPickupListOpen,
+    isNoQrReturnFormOpen,
+    isRepairListOpen,
+    isScannerOpen,
+  ]);
 
   const dismissFlash = () => {
     if (flashTimeoutRef.current) {
@@ -1295,7 +1469,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     title: string,
     detail: string,
     variant: DriverBadgeVariant,
-    durationMs = 2400
+    durationMs = 2400,
   ) => {
     setFlashMessage({ title, detail, variant });
 
@@ -1319,7 +1493,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     window.setTimeout(() => {
       scanIndexRef.current = (scanIndexRef.current + 1) % pallets.length;
       const nextPallet = pallets[scanIndexRef.current];
-      setScannedPalletIds((current) => [nextPallet.id, ...current.filter((item) => item !== nextPallet.id)]);
+      setScannedPalletIds((current) => [
+        nextPallet.id,
+        ...current.filter((item) => item !== nextPallet.id),
+      ]);
       selectedPalletIdRef.current = nextPallet.id;
       setSelectedPalletId(nextPallet.id);
       setIsScanning(false);
@@ -1333,7 +1510,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     if (palletPhotoInputRef.current) {
-      palletPhotoInputRef.current.value = '';
+      palletPhotoInputRef.current.value = "";
     }
 
     setPalletPhotoUrl(null);
@@ -1341,17 +1518,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     palletPhotoUploadedRef.current = false;
   };
 
-  const uploadPalletPhoto = async (pallet: Pallet, nextStatusId: number, nextClientId?: number) => {
+  const uploadPalletPhoto = async (
+    pallet: Pallet,
+    nextStatusId: number,
+    nextClientId?: number,
+  ) => {
     if (!palletPhoto || palletPhotoUploadedRef.current) {
       return;
     }
 
-    const photoClientId =
-      nextStatusId === 4
-        ? nextClientId
-        : pallet.current_status_id === 4
-          ? pallet.user_id
-          : undefined;
+    const photoClientId = statusIdAllowsCustomer(statuses, nextStatusId)
+      ? nextClientId
+      : statusIdAllowsCustomer(statuses, pallet.current_status_id)
+        ? pallet.user_id
+        : undefined;
 
     palletPhotoUploadedRef.current = true;
 
@@ -1363,14 +1543,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       });
     } catch (error) {
       palletPhotoUploadedRef.current = false;
-      console.error('Failed to upload driver pallet photo', error);
-      showFlash(text.capturePalletPhoto, text.scanImageFallbackDetail, 'warning');
+      console.error("Failed to upload driver pallet photo", error);
+      showFlash(
+        text.capturePalletPhoto,
+        text.scanImageFallbackDetail,
+        "warning",
+      );
     }
   };
 
   const clearDamageDraft = () => {
     if (damagePhotoInputRef.current) {
-      damagePhotoInputRef.current.value = '';
+      damagePhotoInputRef.current.value = "";
     }
 
     if (damagePhotoUrlRef.current) {
@@ -1379,7 +1563,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     setDamagePhotoUrl(null);
-    setDamageDescription('');
+    setDamageDescription("");
   };
 
   const clearDamagePhoto = () => {
@@ -1389,7 +1573,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
 
     if (damagePhotoInputRef.current) {
-      damagePhotoInputRef.current.value = '';
+      damagePhotoInputRef.current.value = "";
     }
 
     setDamagePhotoUrl(null);
@@ -1397,7 +1581,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
 
   const handleScanNext = () => {
     if (selectedPallet) {
-      uploadPalletPhoto(selectedPallet, selectedPallet.current_status_id, selectedPallet.user_id);
+      uploadPalletPhoto(
+        selectedPallet,
+        selectedPallet.current_status_id,
+        selectedPallet.user_id,
+      );
     }
 
     clearPalletPhoto();
@@ -1412,17 +1600,25 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   const persistDriverStatus = async (
     nextStatusId: number,
     clientId?: number,
-    nextLocation = selectedLocationMeta.address
+    nextLocation = selectedLocationMeta.address,
   ) => {
     if (
       !selectedPallet ||
-      (statusIdAllowsCustomer(statuses, nextStatusId) && !clientId && !selectedPallet.user_id)
+      (statusIdAllowsCustomer(statuses, nextStatusId) &&
+        !clientId &&
+        !selectedPallet.user_id)
     ) {
       return;
     }
 
-    const preserveClientAssignment = statusIdAllowsCustomer(statuses, nextStatusId);
-    const nextClientId = preserveClientAssignment ? clientId ?? selectedPallet.user_id : undefined;
+    const preserveClientAssignment = statusIdAllowsCustomer(
+      statuses,
+      nextStatusId,
+    );
+    const nextClientId = preserveClientAssignment
+      ? (clientId ?? selectedPallet.user_id)
+      : undefined;
+    const nextStatus = statuses.find((status) => status.id === nextStatusId);
 
     await uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
 
@@ -1432,59 +1628,64 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       user.id,
       user.name,
       nextLocation,
-      nextStatusId === 4
-        ? 'Driver marked pallet as Bij de klant.'
-        : nextStatusId === 5
-          ? 'Driver marked pallet as Voor retour.'
-          : nextStatusId === 7
-            ? 'Driver marked pallet in repair.'
-          : transportStatusIds.includes(nextStatusId)
-            ? 'Driver marked pallet in transport.'
-          : 'Driver marked pallet in Bowido warehouse.',
-      nextClientId
+      nextStatus?.slug === "bij-de-klant"
+        ? "Driver marked pallet as Bij de klant."
+        : nextStatus?.slug === "ophalen-klant"
+          ? "Driver marked pallet as Ophalen klant."
+          : nextStatus?.slug === "service"
+            ? "Driver marked pallet in repair."
+            : transportStatusIds.includes(nextStatusId)
+              ? "Driver marked pallet in transport."
+              : "Driver marked pallet in Bowido warehouse.",
+      nextClientId,
     );
 
     showFlash(
       text.statusUpdatedTitle,
-      nextStatusId === 4
+      nextStatus?.slug === "bij-de-klant"
         ? text.statusSavedDetailAtClient
-        : nextStatusId === 5
+        : nextStatus?.slug === "ophalen-klant"
           ? text.statusSavedDetailReturn
-          : nextStatusId === 7
+          : nextStatus?.slug === "service"
             ? text.statusSavedDetailRepair
-          : transportStatusIds.includes(nextStatusId)
-            ? text.statusSavedDetailTransport
-          : text.statusSavedDetailWarehouse,
-      'success',
-      1500
+            : transportStatusIds.includes(nextStatusId)
+              ? text.statusSavedDetailTransport
+              : text.statusSavedDetailWarehouse,
+      "success",
+      1500,
     );
   };
 
   const handleStatusSelection = (statusId: number) => {
     setOpenChangeMenu(null);
     setDraftStatusId(statusId);
+    const nextStatus = statuses.find((status) => status.id === statusId);
     const nextClientId = statusIdAllowsCustomer(statuses, statusId)
-      ? draftClientId ?? selectedPallet?.user_id
+      ? (draftClientId ?? selectedPallet?.user_id)
       : undefined;
-    const nextLocationClientId = statusIdAllowsCustomer(statuses, statusId) ? nextClientId : undefined;
+    const nextLocationClientId = statusIdAllowsCustomer(statuses, statusId)
+      ? nextClientId
+      : undefined;
     const nextLocation =
-      statusId === 3
-        ? defaultWarehouseDirectory.warehouse1
-        : statusId === 1
-          ? defaultWarehouseDirectory.warehouse2
-        : getLocationMeta(
-            draftLocationMode,
-            nextLocationClientId,
-            manualLocationInput
-          ).address;
+      nextStatus?.slug === "bowido-nl"
+        ? bowidoWarehouseDirectory.warehouse1
+        : nextStatus?.slug === "bowido-bih"
+          ? bowidoWarehouseDirectory.warehouse2
+          : nextStatus?.slug === "service"
+            ? SERVICE_ADDRESS
+            : getLocationMeta(draftLocationMode, nextLocationClientId).address;
 
-    if (statusId === 3 || statusId === 1) {
-      setDraftLocationMode(statusId === 3 ? 'warehouse_1' : 'warehouse_2');
-      setManualLocationInput('');
+    if (["bowido-nl", "bowido-bih"].includes(nextStatus?.slug || "")) {
+      setDraftLocationMode(
+        nextStatus?.slug === "bowido-nl" ? "warehouse_1" : "warehouse_2",
+      );
     }
 
-    if (statusId === 4 && !nextClientId) {
-      setOpenChangeMenu('client');
+    if (
+      nextStatus?.slug === "ophalen-klant" ||
+      (statusIdAllowsCustomer(statuses, statusId) && !nextClientId)
+    ) {
+      setOpenChangeMenu("client");
       return;
     }
 
@@ -1502,79 +1703,52 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     setDraftClientId(nextClientId);
 
     if (statusIdAllowsCustomer(statuses, draftStatusId) && nextClientId) {
-      const nextLocation = getLocationMeta(draftLocationMode, nextClientId, manualLocationInput).address;
+      const nextClient = clients.find(
+        (client) => client.user_id === nextClientId,
+      );
+      const nextLocationMode =
+        draftLocationMode === "warehouse_2" &&
+        !getClientWarehouseAddress(nextClient, 2)
+          ? "warehouse_1"
+          : draftLocationMode;
+      const nextLocation = getLocationMeta(
+        nextLocationMode,
+        nextClientId,
+      ).address;
+      setDraftLocationMode(nextLocationMode);
+
+      if (draftStatus?.slug === "ophalen-klant") {
+        setOpenChangeMenu("location");
+        return;
+      }
+
       persistDriverStatus(draftStatusId, nextClientId, nextLocation);
     }
   };
 
   const handleLocationSelection = (mode: DriverLocationMode) => {
     setOpenChangeMenu(null);
-    setIsAddAddressModalOpen(false);
-    setIsEditingAlternateAddress(false);
     setDraftLocationMode(mode);
     const nextLocation = getLocationMeta(mode, activeLocationClientId).address;
 
     if (selectedPallet) {
       persistDriverStatus(
         draftStatusId,
-        statusIdAllowsCustomer(statuses, draftStatusId) ? draftClientId : undefined,
-        nextLocation
+        statusIdAllowsCustomer(statuses, draftStatusId)
+          ? draftClientId
+          : undefined,
+        nextLocation,
       );
     }
-  };
-
-  const handleManualLocationApply = (nextLocationInput?: string) => {
-    const nextLocation = (nextLocationInput ?? manualLocationInput).trim();
-
-    if (!nextLocation) {
-      return;
-    }
-
-    setOpenChangeMenu(null);
-    setIsAddAddressModalOpen(false);
-    setIsEditingAlternateAddress(false);
-    setDraftLocationMode('manual');
-    setManualLocationInput(nextLocation);
-
-    if (selectedPallet) {
-      persistDriverStatus(
-        draftStatusId,
-        statusIdAllowsCustomer(statuses, draftStatusId) ? draftClientId : undefined,
-        nextLocation
-      );
-    }
-  };
-
-  const closeAddAddressModal = () => {
-    setIsAddAddressModalOpen(false);
-    setIsEditingAlternateAddress(false);
-    setManualLocationInput(
-      draftLocationMode === 'manual' && selectedPallet ? selectedPallet.current_location : ''
-    );
-  };
-
-  const openAddAddressModal = () => {
-    setOpenChangeMenu(null);
-    setIsEditingAlternateAddress(false);
-    setManualLocationInput('');
-    setIsAddAddressModalOpen(true);
-  };
-
-  const handleSelectOnMap = () => {
-    setOpenChangeMenu(null);
-    setIsAddAddressModalOpen(false);
-    setIsEditingAlternateAddress(false);
-    setManualLocationInput(
-      draftLocationMode === 'manual' && selectedPallet ? selectedPallet.current_location : ''
-    );
-    showFlash(text.comingSoon, '', 'info');
   };
 
   const openPalletPhotoPicker = () => {
     palletPhotoInputRef.current?.click();
   };
 
-  const handlePalletPhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePalletPhotoChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -1590,7 +1764,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     palletPhotoUploadedRef.current = false;
     setPalletPhoto(file);
     setPalletPhotoUrl(nextPhotoUrl);
-    event.target.value = '';
+    event.target.value = "";
   };
 
   const openDamageModal = () => {
@@ -1608,7 +1782,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const blurActiveElement = () => {
-    if (typeof document === 'undefined') {
+    if (typeof document === "undefined") {
       return;
     }
 
@@ -1619,7 +1793,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
   };
 
-  const handleDamagePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDamagePhotoChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
 
     if (!file) {
@@ -1633,7 +1809,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     const nextPhotoUrl = URL.createObjectURL(file);
     damagePhotoUrlRef.current = nextPhotoUrl;
     setDamagePhotoUrl(nextPhotoUrl);
-    event.target.value = '';
+    event.target.value = "";
   };
 
   const handleDamageReportSubmit = () => {
@@ -1643,7 +1819,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       return;
     }
 
-    showFlash(text.damageReportedTitle, text.damageReportedDetail, 'warning');
+    showFlash(text.damageReportedTitle, text.damageReportedDetail, "warning");
     closeDamageModal();
   };
 
@@ -1656,8 +1832,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     return;
   };
 
-  const handleScannerFrameKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.currentTarget !== event.target || (event.key !== 'Enter' && event.key !== ' ')) {
+  const handleScannerFrameKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (
+      event.currentTarget !== event.target ||
+      (event.key !== "Enter" && event.key !== " ")
+    ) {
       return;
     }
 
@@ -1665,7 +1846,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     handleScannerFrameClick();
   };
 
-  const handleScannerFrameTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleScannerFrameTouchStart = (
+    event: React.TouchEvent<HTMLDivElement>,
+  ) => {
     if (event.touches.length !== 2) {
       return;
     }
@@ -1679,7 +1862,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }
   };
 
-  const handleScannerFrameTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleScannerFrameTouchMove = (
+    event: React.TouchEvent<HTMLDivElement>,
+  ) => {
     if (event.touches.length !== 2 || !pinchStateRef.current) {
       return;
     }
@@ -1688,12 +1873,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     const distance = getPinchDistance(event.touches);
 
     if (distance > 0) {
-      updateCameraZoom(pinchStateRef.current.zoom * (distance / pinchStateRef.current.distance));
+      updateCameraZoom(
+        pinchStateRef.current.zoom *
+          (distance / pinchStateRef.current.distance),
+      );
       suppressNextScannerClickRef.current = true;
     }
   };
 
-  const handleScannerFrameTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleScannerFrameTouchEnd = (
+    event: React.TouchEvent<HTMLDivElement>,
+  ) => {
     if (event.touches.length >= 2 || !pinchStateRef.current) {
       return;
     }
@@ -1718,9 +1908,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
     }, 300);
   };
 
-  const handleScanImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleScanImageChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
-    event.target.value = '';
+    event.target.value = "";
 
     if (!file) {
       return;
@@ -1737,7 +1929,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
       if (detector) {
         try {
           const codes = await detector.detect(bitmap);
-          rawValue = codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() || null;
+          rawValue =
+            codes.find((item) => item.rawValue?.trim())?.rawValue?.trim() ||
+            null;
         } catch {
           rawValue = null;
         }
@@ -1750,9 +1944,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         return;
       }
 
-      showFlash(text.scanImageNotRecognizedTitle, text.scanImageNotRecognizedDetail, 'warning');
+      showFlash(
+        text.scanImageNotRecognizedTitle,
+        text.scanImageNotRecognizedDetail,
+        "warning",
+      );
     } catch {
-      showFlash(text.scanImageFallbackTitle, text.scanImageFallbackDetail, 'info');
+      showFlash(
+        text.scanImageFallbackTitle,
+        text.scanImageFallbackDetail,
+        "info",
+      );
     } finally {
       bitmap?.close();
     }
@@ -1773,12 +1975,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   };
 
   const handleFullscreenModalBack = () => {
-    if (isAddAddressModalOpen) {
-      closeAddAddressModal();
-      setOpenChangeMenu('location');
-      return;
-    }
-
     if (isDamageModalOpen) {
       blurActiveElement();
       closeDamageModal();
@@ -1802,8 +1998,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
   return (
     <div
       className={cn(
-        'mx-auto flex min-h-full w-full max-w-md flex-col',
-        isScannerOpen ? 'gap-4 pb-0' : 'gap-2 pb-[calc(env(safe-area-inset-bottom)+4.75rem)]'
+        "mx-auto flex min-h-full w-full max-w-md flex-col",
+        isScannerOpen
+          ? "gap-4 pb-0"
+          : "gap-2 pb-[calc(env(safe-area-inset-bottom)+4.75rem)]",
       )}
     >
       {isScannerOpen && (
@@ -1840,62 +2038,87 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 className={cn(
-                  'relative mx-auto flex h-full min-h-[min(26rem,calc(100dvh-18rem))] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white transition-all duration-500 dark:border-white/10 dark:bg-[#101715]',
-                  cameraState === 'ready' ? '' : 'active:scale-[0.98]'
+                  "relative mx-auto flex h-full min-h-[min(26rem,calc(100dvh-18rem))] w-full items-center justify-center overflow-hidden rounded-[2.9rem] border border-emerald-200 bg-white text-white transition-all duration-500 dark:border-white/10 dark:bg-[#101715]",
+                  cameraState === "ready" ? "" : "active:scale-[0.98]",
                 )}
-                style={{ touchAction: 'none' }}
+                style={{ touchAction: "none" }}
               >
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className={cn(
-                  'absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-300',
-                  cameraState === 'ready' || cameraState === 'preview' ? 'opacity-100' : 'opacity-0'
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className={cn(
+                    "absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-300",
+                    cameraState === "ready" || cameraState === "preview"
+                      ? "opacity-100"
+                      : "opacity-0",
+                  )}
+                  style={{
+                    transform: isCameraHardwareZoomSupported
+                      ? "scale(1)"
+                      : `scale(${cameraZoom})`,
+                  }}
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(236,253,245,0.10)_0%,rgba(255,255,255,0.02)_32%,rgba(236,253,245,0.18)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,35,26,0.16)_0%,rgba(20,45,34,0.08)_35%,rgba(15,35,26,0.34)_100%)]" />
+                <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(16,185,129,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.8)_1px,transparent_1px)] [background-size:28px_28px] dark:opacity-[0.12]" />
+                <div className="absolute inset-3 rounded-[2rem] border border-emerald-300/20 dark:border-white/10" />
+                <div className="absolute left-5 right-5 top-5 h-14 rounded-full bg-emerald-400/12 blur-2xl dark:bg-emerald-400/8" />
+                {(cameraState === "ready" || cameraState === "preview") && (
+                  <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">
+                    <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400/70" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
+                    <span className="sr-only">{text.liveDot}</span>
+                  </div>
                 )}
-                style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(236,253,245,0.10)_0%,rgba(255,255,255,0.02)_32%,rgba(236,253,245,0.18)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,35,26,0.16)_0%,rgba(20,45,34,0.08)_35%,rgba(15,35,26,0.34)_100%)]" />
-              <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(16,185,129,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.8)_1px,transparent_1px)] [background-size:28px_28px] dark:opacity-[0.12]" />
-              <div className="absolute inset-3 rounded-[2rem] border border-emerald-300/20 dark:border-white/10" />
-              <div className="absolute left-5 right-5 top-5 h-14 rounded-full bg-emerald-400/12 blur-2xl dark:bg-emerald-400/8" />
-              {(cameraState === 'ready' || cameraState === 'preview') && (
-                <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">
-                  <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400/70" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
-                  <span className="sr-only">{text.liveDot}</span>
-                </div>
-              )}
 
-              <motion.div
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute left-7 top-7 h-14 w-14 rounded-tl-[1.2rem] border-l-4 border-t-4 border-emerald-400/95"
-              />
-              <motion.div
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut', delay: 0.12 }}
-                className="absolute right-7 top-7 h-14 w-14 rounded-tr-[1.2rem] border-r-4 border-t-4 border-emerald-400/95"
-              />
-              <motion.div
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut', delay: 0.24 }}
-                className="absolute bottom-7 left-7 h-14 w-14 rounded-bl-[1.2rem] border-b-4 border-l-4 border-emerald-400/95"
-              />
-              <motion.div
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut', delay: 0.36 }}
-                className="absolute bottom-7 right-7 h-14 w-14 rounded-br-[1.2rem] border-b-4 border-r-4 border-emerald-400/95"
-              />
+                <motion.div
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{
+                    duration: 1.8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="absolute left-7 top-7 h-14 w-14 rounded-tl-[1.2rem] border-l-4 border-t-4 border-emerald-400/95"
+                />
+                <motion.div
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{
+                    duration: 1.8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.12,
+                  }}
+                  className="absolute right-7 top-7 h-14 w-14 rounded-tr-[1.2rem] border-r-4 border-t-4 border-emerald-400/95"
+                />
+                <motion.div
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{
+                    duration: 1.8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.24,
+                  }}
+                  className="absolute bottom-7 left-7 h-14 w-14 rounded-bl-[1.2rem] border-b-4 border-l-4 border-emerald-400/95"
+                />
+                <motion.div
+                  animate={{ opacity: [0.8, 1, 0.8] }}
+                  transition={{
+                    duration: 1.8,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.36,
+                  }}
+                  className="absolute bottom-7 right-7 h-14 w-14 rounded-br-[1.2rem] border-b-4 border-r-4 border-emerald-400/95"
+                />
 
                 <div className="trackpal-scan-line" />
 
-                {isScanning || cameraState === 'loading' ? (
+                {isScanning || cameraState === "loading" ? (
                   <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/60">
                     <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
-                ) : cameraState !== 'ready' && cameraState !== 'preview' ? (
+                ) : cameraState !== "ready" && cameraState !== "preview" ? (
                   <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#101715]">
                     <div className="grid grid-cols-2 gap-2">
                       <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
@@ -1910,11 +2133,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </motion.div>
             </AnimatePresence>
 
-            {(cameraState === 'ready' || cameraState === 'preview') && (
+            {(cameraState === "ready" || cameraState === "preview") && (
               <div className="mx-auto mt-4 w-3/4 rounded-xl border border-emerald-200 bg-white p-3 dark:border-white/10 dark:bg-[#151d1a]">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <label htmlFor="driver-camera-zoom" className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">
-                    {language === 'bs' ? 'Zoom kamere' : language === 'nl' ? 'Camera zoom' : 'Camera zoom'}
+                  <label
+                    htmlFor="driver-camera-zoom"
+                    className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400"
+                  >
+                    {language === "bs"
+                      ? "Zoom kamere"
+                      : language === "nl"
+                        ? "Camera zoom"
+                        : "Camera zoom"}
                   </label>
                   <span className="font-mono text-[10px] font-black text-zinc-700 dark:text-zinc-300">
                     {cameraZoom.toFixed(1)}x
@@ -1927,9 +2157,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   max={cameraZoomRange.max}
                   step={cameraZoomRange.step}
                   value={cameraZoom}
-                  onChange={(event) => updateCameraZoom(Number(event.target.value))}
+                  onChange={(event) =>
+                    updateCameraZoom(Number(event.target.value))
+                  }
                   className="h-2 w-full cursor-pointer accent-[#00A655]"
-                  aria-label={language === 'bs' ? 'Zoom kamere' : 'Camera zoom'}
+                  aria-label={language === "bs" ? "Zoom kamere" : "Camera zoom"}
                 />
               </div>
             )}
@@ -1951,7 +2183,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </div>
             </button>
           )}
-
         </div>
       )}
 
@@ -1969,7 +2200,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               initial={{ opacity: 0, y: 18, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.96 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               className="w-full max-w-sm"
               onClick={(event) => event.stopPropagation()}
               role="alertdialog"
@@ -1977,11 +2208,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             >
               <Card className="border-emerald-100 bg-white/98 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.32)] dark:border-white/10 dark:bg-[#101715]/98">
                 <div className="text-center">
-                  {flashMessage.variant === 'success' ? (
+                  {flashMessage.variant === "success" ? (
                     <motion.div
                       initial={{ scale: 0.82, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.24, ease: 'easeOut' }}
+                      transition={{ duration: 0.24, ease: "easeOut" }}
                       className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-50 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.16)] dark:bg-emerald-500/10"
                     >
                       <motion.svg
@@ -1998,7 +2229,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           strokeLinecap="round"
                           initial={{ pathLength: 0, opacity: 0.45 }}
                           animate={{ pathLength: 1, opacity: 1 }}
-                          transition={{ duration: 0.34, ease: 'easeOut' }}
+                          transition={{ duration: 0.34, ease: "easeOut" }}
                         />
                         <motion.path
                           d="M16 27.5l6.5 6.5L36.5 20"
@@ -2008,18 +2239,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           strokeLinejoin="round"
                           initial={{ pathLength: 0, opacity: 0 }}
                           animate={{ pathLength: 1, opacity: 1 }}
-                          transition={{ duration: 0.28, delay: 0.18, ease: 'easeOut' }}
+                          transition={{
+                            duration: 0.28,
+                            delay: 0.18,
+                            ease: "easeOut",
+                          }}
                         />
                       </motion.svg>
                     </motion.div>
                   ) : (
                     <div
                       className={cn(
-                        'mx-auto h-2.5 w-20 rounded-full',
-                        flashMessage.variant === 'warning' && 'bg-amber-500',
-                        flashMessage.variant === 'danger' && 'bg-rose-500',
-                        flashMessage.variant === 'info' && 'bg-indigo-500',
-                        flashMessage.variant === 'default' && 'bg-zinc-400'
+                        "mx-auto h-2.5 w-20 rounded-full",
+                        flashMessage.variant === "warning" && "bg-amber-500",
+                        flashMessage.variant === "danger" && "bg-rose-500",
+                        flashMessage.variant === "info" && "bg-indigo-500",
+                        flashMessage.variant === "default" && "bg-zinc-400",
                       )}
                     />
                   )}
@@ -2047,124 +2282,202 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
             exit={{ opacity: 0, y: -12 }}
             className="mx-auto flex w-full max-w-md flex-col bg-white pt-1 dark:bg-[#070b0a]"
           >
-            <Card noPadding className="mx-auto flex w-full flex-col border-transparent bg-transparent shadow-none">
+            <Card
+              noPadding
+              className="mx-auto flex w-full flex-col border-transparent bg-transparent shadow-none"
+            >
               <div className="flex flex-col px-0 pb-3 pt-1">
                 <DriverPalletSummaryCard
                   nameLabel={text.palletNameLabel}
                   code={getPalletDisplayName(selectedPallet)}
                   typeLabel={text.palletTypeLabel}
-                  typeValue={getDriverPalletTypeLabel(selectedPallet.type, language)}
+                  typeValue={getDriverPalletTypeLabel(
+                    selectedPallet.type,
+                    language,
+                  )}
                   theme={selectedPalletTheme}
                   alignTop={shouldTopAlignSummaryCard}
                 >
                   {isCheckInStatus && (
                     <div
                       className={cn(
-                        'mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center',
-                        selectedPalletTheme.softSurface
+                        "mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center",
+                        selectedPalletTheme.softSurface,
                       )}
                     >
                       <div className="flex min-w-0 flex-col items-center">
-                        <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                        <p
+                          className={cn(
+                            "text-[11px] font-black uppercase tracking-[0.14em]",
+                            selectedPalletTheme.label,
+                          )}
+                        >
                           Check in
                         </p>
-                        <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                        <p
+                          className={cn(
+                            "mt-1 text-[13px] font-black tracking-tight",
+                            selectedPalletTheme.heading,
+                          )}
+                        >
                           {warehouseCheckInDateLabel}
                         </p>
                       </div>
                     </div>
                   )}
-                  {clientStatusInfo && selectedPallet.current_status_id === 4 && (
-                    <div
-                      className={cn(
-                        'mt-3 grid w-full grid-cols-3 items-start gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0',
-                        selectedPalletTheme.softSurface
-                      )}
-                    >
-                      <div className="flex min-w-0 w-full flex-col items-start text-left">
-                        <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
-                          {returnWindowText.sentAt}
-                        </p>
-                        <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
-                          {clientStatusInfo.statusChangedAtLabel}
-                        </p>
-                      </div>
-                      <div className="flex min-w-0 w-full flex-col items-center text-center">
-                        <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
-                          {returnWindowText.returnDue}
-                        </p>
-                        <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
-                          {clientStatusInfo.dueDateLabel}
-                        </p>
-                      </div>
+                  {clientStatusInfo &&
+                    selectedPallet.current_status_id === 4 && (
+                      <div
+                        className={cn(
+                          "mt-3 grid w-full grid-cols-3 items-start gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0",
+                          selectedPalletTheme.softSurface,
+                        )}
+                      >
+                        <div className="flex min-w-0 w-full flex-col items-start text-left">
+                          <p
+                            className={cn(
+                              "text-[11px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
+                            {returnWindowText.sentAt}
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-[13px] font-black tracking-tight",
+                              selectedPalletTheme.heading,
+                            )}
+                          >
+                            {clientStatusInfo.statusChangedAtLabel}
+                          </p>
+                        </div>
+                        <div className="flex min-w-0 w-full flex-col items-center text-center">
+                          <p
+                            className={cn(
+                              "text-[11px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
+                            {returnWindowText.returnDue}
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-[13px] font-black tracking-tight",
+                              selectedPalletTheme.heading,
+                            )}
+                          >
+                            {clientStatusInfo.dueDateLabel}
+                          </p>
+                        </div>
                         <div className="flex min-w-0 w-full flex-col items-end text-right">
-                        <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
-                          {clientStatusInfo.deadlineLabel}
-                        </p>
-                        <p
-                          className={cn(
-                            'mt-1 text-right text-[12px] font-black leading-4 tracking-tight',
-                            clientStatusInfo.isOverdue
-                              ? 'text-rose-700 dark:text-rose-100'
-                              : selectedPalletTheme.heading
-                          )}
-                        >
-                          {clientStatusInfo.deadlineText}
-                        </p>
+                          <p
+                            className={cn(
+                              "text-[10px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
+                            {clientStatusInfo.deadlineLabel}
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-right text-[12px] font-black leading-4 tracking-tight",
+                              clientStatusInfo.isOverdue
+                                ? "text-rose-700 dark:text-rose-100"
+                                : selectedPalletTheme.heading,
+                            )}
+                          >
+                            {clientStatusInfo.deadlineText}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {clientStatusInfo && selectedPallet.current_status_id === 5 && (
-                    <div
-                      className={cn(
-                        'mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center',
-                        selectedPalletTheme.softSurface
-                      )}
-                    >
-                      <div className="flex min-w-0 flex-col items-center">
-                        <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
-                          {returnWindowText.reportedAt}
-                        </p>
-                        <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
-                          {clientStatusInfo.statusChangedAtLabel}
-                        </p>
+                    )}
+                  {clientStatusInfo &&
+                    selectedPallet.current_status_id === 5 && (
+                      <div
+                        className={cn(
+                          "mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center",
+                          selectedPalletTheme.softSurface,
+                        )}
+                      >
+                        <div className="flex min-w-0 flex-col items-center">
+                          <p
+                            className={cn(
+                              "text-[11px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
+                            {returnWindowText.reportedAt}
+                          </p>
+                          <p
+                            className={cn(
+                              "mt-1 text-[13px] font-black tracking-tight",
+                              selectedPalletTheme.heading,
+                            )}
+                          >
+                            {clientStatusInfo.statusChangedAtLabel}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                   {transportWindowInfo && (
                     <div
                       className={cn(
-                        'mt-3 w-full rounded-[1rem] px-0 pt-2.5 pb-0',
-                        selectedPalletTheme.softSurface
+                        "mt-3 w-full rounded-[1rem] px-0 pt-2.5 pb-0",
+                        selectedPalletTheme.softSurface,
                       )}
                     >
                       <div className="grid grid-cols-3 items-start gap-2.5">
                         <div className="flex min-w-0 w-full flex-col items-start text-left">
-                          <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                          <p
+                            className={cn(
+                              "text-[11px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
                             {transportWindowText.startedAt}
                           </p>
-                          <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                          <p
+                            className={cn(
+                              "mt-1 text-[13px] font-black tracking-tight",
+                              selectedPalletTheme.heading,
+                            )}
+                          >
                             {transportWindowInfo.startedAtLabel}
                           </p>
                         </div>
                         <div className="flex min-w-0 w-full flex-col items-center text-center">
-                          <p className={cn('text-[11px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                          <p
+                            className={cn(
+                              "text-[11px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
                             {transportWindowText.dueBy}
                           </p>
-                          <p className={cn('mt-1 text-[13px] font-black tracking-tight', selectedPalletTheme.heading)}>
+                          <p
+                            className={cn(
+                              "mt-1 text-[13px] font-black tracking-tight",
+                              selectedPalletTheme.heading,
+                            )}
+                          >
                             {transportWindowInfo.dueDateLabel}
                           </p>
                         </div>
                         <div className="flex min-w-0 w-full flex-col items-end text-right">
-                          <p className={cn('text-[10px] font-black uppercase tracking-[0.14em]', selectedPalletTheme.label)}>
+                          <p
+                            className={cn(
+                              "text-[10px] font-black uppercase tracking-[0.14em]",
+                              selectedPalletTheme.label,
+                            )}
+                          >
                             {transportWindowInfo.deadlineLabel}
                           </p>
                           <p
                             className={cn(
-                              'mt-1 text-right text-[12px] font-black leading-4 tracking-tight',
+                              "mt-1 text-right text-[12px] font-black leading-4 tracking-tight",
                               transportWindowInfo.isOverdue
-                                ? 'text-rose-700 dark:text-rose-100'
-                                : selectedPalletTheme.heading
+                                ? "text-rose-700 dark:text-rose-100"
+                                : selectedPalletTheme.heading,
                             )}
                           >
                             {transportWindowInfo.deadlineText}
@@ -2176,9 +2489,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </DriverPalletSummaryCard>
 
                 <div className="mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
-                  <div
-                    className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#101715]/92"
-                  >
+                  <div className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#101715]/92">
                     <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                       {text.currentStatus}
                     </p>
@@ -2187,13 +2498,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     </p>
                     <button
                       type="button"
-                      onClick={() => setOpenChangeMenu((current) => (current === 'status' ? null : 'status'))}
-                      className={cn(changeTriggerClass, 'mt-3 h-10 self-center px-4 text-[12px]')}
+                      onClick={() =>
+                        setOpenChangeMenu((current) =>
+                          current === "status" ? null : "status",
+                        )
+                      }
+                      className={cn(
+                        changeTriggerClass,
+                        "mt-3 h-10 self-center px-4 text-[12px]",
+                      )}
                     >
                       {text.changeStatus}
                       <ChevronDown
                         size={14}
-                        className={cn('transition-transform', openChangeMenu === 'status' && 'rotate-180')}
+                        className={cn(
+                          "transition-transform",
+                          openChangeMenu === "status" && "rotate-180",
+                        )}
                       />
                     </button>
                   </div>
@@ -2201,100 +2522,114 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   {(selectedClientName || showSelectedLocationSummary) && (
                     <div
                       className={cn(
-                        'grid min-h-0 flex-[1.12] auto-rows-fr gap-2.5 text-left',
+                        "grid min-h-0 flex-[1.12] auto-rows-fr gap-2.5 text-left",
                         selectedClientName && showSelectedLocationSummary
-                          ? 'grid-rows-[minmax(0,1fr)_minmax(0,1fr)]'
-                          : 'grid-rows-[minmax(0,1fr)]'
+                          ? "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"
+                          : "grid-rows-[minmax(0,1fr)]",
                       )}
                     >
-                    {selectedClientName && (
-                      <div
-                        className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 px-3.5 py-4 dark:bg-[#101715]/88"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
-                              {text.summaryClient}
-                            </p>
-                            <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
-                              {selectedClientName}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={isClientChangeDisabled}
-                            onClick={() => {
-                              if (isClientChangeDisabled) {
-                                return;
-                              }
-
-                              setOpenChangeMenu((current) => (current === 'client' ? null : 'client'));
-                            }}
-                            className={cn(
-                              changeTriggerClass,
-                              'shrink-0 self-center',
-                              isClientChangeDisabled && 'cursor-not-allowed opacity-45 hover:text-inherit'
-                            )}
-                          >
-                            {text.changeLabel}
-                            <ChevronDown
-                              size={14}
-                              className={cn('transition-transform', openChangeMenu === 'client' && 'rotate-180')}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {showSelectedLocationSummary && (
-                      <div
-                        className={cn(
-                          'relative rounded-[1.45rem] bg-white/88 dark:bg-[#101715]/88',
-                          selectedClientName ? 'px-3.5 py-4' : 'px-3.5 py-5'
-                        )}
-                      >
-                        <div className="flex h-full items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
-                              {text.summaryLocation}
-                            </p>
-                            <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
-                              {isTransportStatus
-                                ? transportLocationLabel
-                                : fixedWarehouseLocationMeta
-                                  ? fixedWarehouseLocationMeta.label
-                                  : selectedLocationMeta.label}
-                            </p>
-                            {fixedWarehouseLocationMeta?.address && (
-                              <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
-                                {fixedWarehouseLocationMeta.address}
+                      {selectedClientName && (
+                        <div className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 px-3.5 py-4 dark:bg-[#101715]/88">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                                {text.summaryClient}
                               </p>
-                            )}
-                            {!isLocationChangeDisabled && (
-                              <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
-                                {selectedLocationMeta.address}
+                              <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
+                                {selectedClientName}
                               </p>
-                            )}
-                          </div>
-                          {!isLocationChangeDisabled && (
+                            </div>
                             <button
                               type="button"
-                              onClick={() => setOpenChangeMenu((current) => (current === 'location' ? null : 'location'))}
-                              className={cn(changeTriggerClass, 'shrink-0 self-center')}
+                              disabled={isClientChangeDisabled}
+                              onClick={() => {
+                                if (isClientChangeDisabled) {
+                                  return;
+                                }
+
+                                setOpenChangeMenu((current) =>
+                                  current === "client" ? null : "client",
+                                );
+                              }}
+                              className={cn(
+                                changeTriggerClass,
+                                "shrink-0 self-center",
+                                isClientChangeDisabled &&
+                                  "cursor-not-allowed opacity-45 hover:text-inherit",
+                              )}
                             >
                               {text.changeLabel}
                               <ChevronDown
                                 size={14}
-                                className={cn('transition-transform', openChangeMenu === 'location' && 'rotate-180')}
+                                className={cn(
+                                  "transition-transform",
+                                  openChangeMenu === "client" && "rotate-180",
+                                )}
                               />
                             </button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                  )}
+                      )}
 
+                      {showSelectedLocationSummary && (
+                        <div
+                          className={cn(
+                            "relative rounded-[1.45rem] bg-white/88 dark:bg-[#101715]/88",
+                            selectedClientName ? "px-3.5 py-4" : "px-3.5 py-5",
+                          )}
+                        >
+                          <div className="flex h-full items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                                {text.summaryLocation}
+                              </p>
+                              <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
+                                {isTransportStatus
+                                  ? transportLocationLabel
+                                  : fixedWarehouseLocationMeta
+                                    ? fixedWarehouseLocationMeta.label
+                                    : selectedLocationMeta.label}
+                              </p>
+                              {fixedWarehouseLocationMeta?.address && (
+                                <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
+                                  {fixedWarehouseLocationMeta.address}
+                                </p>
+                              )}
+                              {!isLocationChangeDisabled && (
+                                <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
+                                  {selectedLocationMeta.address}
+                                </p>
+                              )}
+                            </div>
+                            {!isLocationChangeDisabled && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenChangeMenu((current) =>
+                                    current === "location" ? null : "location",
+                                  )
+                                }
+                                className={cn(
+                                  changeTriggerClass,
+                                  "shrink-0 self-center",
+                                )}
+                              >
+                                {text.changeLabel}
+                                <ChevronDown
+                                  size={14}
+                                  className={cn(
+                                    "transition-transform",
+                                    openChangeMenu === "location" &&
+                                      "rotate-180",
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2330,154 +2665,141 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[70]">
           <div
             className={cn(
-              'pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-transparent bg-[#00A655] px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-12px_36px_rgba(0,166,85,0.35)]'
+              "pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-transparent bg-[#00A655] px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-12px_36px_rgba(0,166,85,0.35)]",
             )}
           >
-              {isFullscreenModalOpen ? (
-                <div
+            {isFullscreenModalOpen ? (
+              <div
+                className={cn(
+                  "grid h-full gap-1",
+                  showDamageModalNavActions ? "grid-cols-2" : "grid-cols-1",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={handleFullscreenModalBack}
                   className={cn(
-                    'grid h-full gap-1',
-                    showLocationModalNavActions || showAddAddressModalNavActions || showDamageModalNavActions
-                      ? 'grid-cols-2'
-                      : 'grid-cols-1'
+                    modalNavButtonClass,
+                    "hover:bg-white/10 hover:text-white",
                   )}
                 >
+                  <ChevronLeft size={20} className="shrink-0" />
+                  {text.back}
+                </button>
+                {showDamageModalNavActions && (
                   <button
                     type="button"
-                    onClick={handleFullscreenModalBack}
-                    className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
-                  >
-                    <ChevronLeft size={20} className="shrink-0" />
-                    {text.back}
-                  </button>
-                  {showLocationModalNavActions && (
-                    <button
-                      type="button"
-                      onClick={openAddAddressModal}
-                      className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
-                    >
-                      <Plus size={20} className="shrink-0" />
-                      {text.addAddress}
-                    </button>
-                  )}
-                  {showAddAddressModalNavActions && (
-                    <button
-                      type="button"
-                      onClick={handleSelectOnMap}
-                      className={cn(modalNavButtonClass, 'hover:bg-white/10 hover:text-white')}
-                    >
-                      <MapPin size={20} className="shrink-0" />
-                      {text.selectOnMap}
-                    </button>
-                  )}
-                  {showDamageModalNavActions && (
-                    <button
-                      type="button"
-                      onClick={handleDamageReportSubmit}
-                      disabled={isDamageReportSubmitDisabled}
-                      className={cn(
-                        modalNavButtonClass,
-                        isDamageReportSubmitDisabled
-                          ? 'cursor-not-allowed text-white/45 active:scale-100'
-                          : 'hover:bg-white/10 hover:text-white'
-                      )}
-                    >
-                      <Check size={20} className="shrink-0" />
-                      {text.damageModalSubmit}
-                    </button>
-                  )}
-                </div>
-              ) : isScannerOpen ? (
-                <div
-                  className={cn(
-                    'grid h-full gap-1',
-                    scannerBottomActionCount === 1 && 'grid-cols-1',
-                    scannerBottomActionCount === 2 && 'grid-cols-2',
-                    scannerBottomActionCount >= 3 && 'grid-cols-3'
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={openScannedPalletsModal}
-                    disabled={historyPallets.length === 0}
+                    onClick={handleDamageReportSubmit}
+                    disabled={isDamageReportSubmitDisabled}
                     className={cn(
-                      actionButtonClass,
-                      historyPallets.length === 0
-                        ? 'cursor-not-allowed text-white/45 active:scale-100'
-                        : 'hover:bg-white/10 hover:text-white'
+                      modalNavButtonClass,
+                      isDamageReportSubmitDisabled
+                        ? "cursor-not-allowed text-white/45 active:scale-100"
+                        : "hover:bg-white/10 hover:text-white",
                     )}
                   >
-                    <History size={20} className="shrink-0" />
-                    {text.historyPallets}
+                    <Check size={20} className="shrink-0" />
+                    {text.damageModalSubmit}
                   </button>
-                  {showNoQrReturnAction && (
-                    <button
-                      type="button"
-                      onClick={() => setIsNoQrReturnFormOpen(true)}
-                      className={cn(actionButtonClass, 'hover:bg-white/10 hover:text-white')}
-                    >
-                      <AlertTriangle size={20} className="shrink-0" />
-                      {noQrReturnCopy.reportButtonLabel}
-                    </button>
-                  )}
-                  {showNoQrPickupAction && (
-                    <button
-                      type="button"
-                      onClick={() => setIsNoQrPickupListOpen(true)}
-                      className={cn(actionButtonClass, 'hover:bg-white/10 hover:text-white')}
-                    >
-                      <PackageSearch size={20} className="shrink-0" />
-                      {noQrPickupCopy.buttonTitle}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div
+                )}
+              </div>
+            ) : isScannerOpen ? (
+              <div
+                className={cn(
+                  "grid h-full gap-1",
+                  scannerBottomActionCount === 1 && "grid-cols-1",
+                  scannerBottomActionCount === 2 && "grid-cols-2",
+                  scannerBottomActionCount >= 3 && "grid-cols-3",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={openScannedPalletsModal}
+                  disabled={historyPallets.length === 0}
                   className={cn(
-                    'grid h-full gap-1',
-                    shouldShowPalletPhotoAction ? 'grid-cols-3' : 'grid-cols-2'
+                    actionButtonClass,
+                    historyPallets.length === 0
+                      ? "cursor-not-allowed text-white/45 active:scale-100"
+                      : "hover:bg-white/10 hover:text-white",
                   )}
                 >
+                  <History size={20} className="shrink-0" />
+                  {text.historyPallets}
+                </button>
+                {showNoQrReturnAction && (
                   <button
                     type="button"
+                    onClick={() => setIsNoQrReturnFormOpen(true)}
                     className={cn(
                       actionButtonClass,
-                      'hover:bg-white/10 hover:text-white'
-                    )}
-                    onClick={handleScanNext}
-                  >
-                    <RefreshCcw size={20} className="shrink-0" />
-                    {text.scanNext}
-                  </button>
-                  {shouldShowPalletPhotoAction && (
-                    <button
-                      type="button"
-                      onClick={openPalletPhotoPicker}
-                      className={cn(
-                        actionButtonClass,
-                        'hover:bg-white/10 hover:text-white'
-                      )}
-                    >
-                      <Camera size={20} className="shrink-0" />
-                      {text.capturePalletPhoto}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={openDamageModal}
-                    disabled={!damageTargetPallet}
-                    className={cn(
-                      actionButtonClass,
-                      damageTargetPallet
-                        ? 'hover:bg-white/10 hover:text-white'
-                        : 'cursor-not-allowed text-white/45 active:scale-100'
+                      "hover:bg-white/10 hover:text-white",
                     )}
                   >
                     <AlertTriangle size={20} className="shrink-0" />
-                    {text.reportDamage}
+                    {noQrReturnCopy.reportButtonLabel}
                   </button>
-                </div>
-              )}
+                )}
+                {showNoQrPickupAction && (
+                  <button
+                    type="button"
+                    onClick={() => setIsNoQrPickupListOpen(true)}
+                    className={cn(
+                      actionButtonClass,
+                      "hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    <PackageSearch size={20} className="shrink-0" />
+                    {noQrPickupCopy.buttonTitle}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "grid h-full gap-1",
+                  shouldShowPalletPhotoAction ? "grid-cols-3" : "grid-cols-2",
+                )}
+              >
+                <button
+                  type="button"
+                  className={cn(
+                    actionButtonClass,
+                    "hover:bg-white/10 hover:text-white",
+                  )}
+                  onClick={handleScanNext}
+                >
+                  <RefreshCcw size={20} className="shrink-0" />
+                  {text.scanNext}
+                </button>
+                {shouldShowPalletPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={openPalletPhotoPicker}
+                    className={cn(
+                      actionButtonClass,
+                      "hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    <Camera size={20} className="shrink-0" />
+                    {text.capturePalletPhoto}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={openDamageModal}
+                  disabled={!damageTargetPallet}
+                  className={cn(
+                    actionButtonClass,
+                    damageTargetPallet
+                      ? "hover:bg-white/10 hover:text-white"
+                      : "cursor-not-allowed text-white/45 active:scale-100",
+                  )}
+                >
+                  <AlertTriangle size={20} className="shrink-0" />
+                  {text.reportDamage}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2491,7 +2813,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               showFlash(
                 noQrReturnCopy.reportButtonLabel,
                 `${clientName} | ${count}`,
-                'success'
+                "success",
               )
             }
           />
@@ -2521,8 +2843,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     setConfirmationPrompt(null);
                   }}
                   className={cn(
-                    'flex h-12 items-center justify-center rounded-[1rem] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98]',
-                    confirmationPrompt.tone === 'warning' ? 'bg-amber-500' : 'bg-[#00A655]'
+                    "flex h-12 items-center justify-center rounded-[1rem] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98]",
+                    confirmationPrompt.tone === "warning"
+                      ? "bg-amber-500"
+                      : "bg-[#00A655]",
                   )}
                 >
                   {confirmationPrompt.confirmLabel}
@@ -2545,7 +2869,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           <DriverModalShell
             onClose={() => {
               setIsNoQrPickupListOpen(false);
-              setNoQrClientSearch('');
+              setNoQrClientSearch("");
             }}
             title={noQrPickupCopy.title}
             width="md"
@@ -2581,7 +2905,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {noQrPickupCopy.pallet} {index + 1}
                           </p>
                           <p className="mt-1 truncate text-[13px] font-black uppercase tracking-tight text-emerald-900 dark:text-white">
-                            {pallet.client_name || '-'}
+                            {pallet.client_name || "-"}
                           </p>
                         </div>
                         <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-emerald-50 px-2 text-[11px] font-black text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-100">
@@ -2595,7 +2919,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {noQrPickupCopy.location}
                           </p>
                           <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
-                            {pallet.current_location || '-'}
+                            {getLocationLabel(
+                              pallet.current_location,
+                              language,
+                            ) || "-"}
                           </p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
@@ -2625,7 +2952,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             title: noQrPickupCopy.returned,
                             message: noQrPickupCopy.confirm,
                             confirmLabel: noQrPickupCopy.returned,
-                            tone: 'success',
+                            tone: "success",
                             onConfirm: () => deletePallet(pallet.id),
                           });
                         }}
@@ -2639,7 +2966,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                 </div>
               ) : (
                 <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#101715]">
-                  <PackageSearch size={24} className="mx-auto mb-3 text-zinc-300" />
+                  <PackageSearch
+                    size={24}
+                    className="mx-auto mb-3 text-zinc-300"
+                  />
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                     {noQrPickupCopy.empty}
                   </p>
@@ -2694,7 +3024,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                             {repairListCopy.location}
                           </p>
                           <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
-                            {pallet.current_location || '-'}
+                            {getLocationLabel(
+                              pallet.current_location,
+                              language,
+                            ) || "-"}
                           </p>
                         </div>
                       </div>
@@ -2704,7 +3037,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                           {repairListCopy.note}
                         </p>
                         <p className="mt-1 line-clamp-3 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
-                          {pallet.note || '-'}
+                          {pallet.note || "-"}
                         </p>
                       </div>
                     </div>
@@ -2714,10 +3047,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       onClick={() => {
                         setConfirmationPrompt({
                           title: repairListCopy.successTitle,
-                          message: language === 'bs' ? 'Oznaciti paletu kao popravljenu?' : repairListCopy.confirm,
+                          message:
+                            language === "bs"
+                              ? "Oznaciti paletu kao popravljenu?"
+                              : repairListCopy.confirm,
                           confirmLabel:
-                            language === 'bs' ? 'Oznaci kao popravljeno' : repairListCopy.repaired,
-                          tone: 'success',
+                            language === "bs"
+                              ? "Oznaci kao popravljeno"
+                              : repairListCopy.repaired,
+                          tone: "success",
                           onConfirm: () => {
                             updatePalletStatus(
                               pallet.id,
@@ -2725,12 +3063,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                               user.id,
                               user.name,
                               pallet.current_location,
-                              'Service marked pallet as repaired from mobile screen.'
+                              "Service marked pallet as repaired from mobile screen.",
                             );
                             showFlash(
                               repairListCopy.successTitle,
-                              language === 'bs' ? 'Paleta je vracena iz servisa.' : repairListCopy.successDetail,
-                              'success'
+                              language === "bs"
+                                ? "Paleta je vracena iz servisa."
+                                : repairListCopy.successDetail,
+                              "success",
                             );
                           },
                         });
@@ -2738,14 +3078,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                       className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00A655] px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.99]"
                     >
                       <CheckCircle2 size={16} />
-                      {language === 'bs' ? 'Oznaci kao popravljeno' : repairListCopy.repaired}
+                      {language === "bs"
+                        ? "Oznaci kao popravljeno"
+                        : repairListCopy.repaired}
                     </button>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#101715]">
-                <PackageSearch size={24} className="mx-auto mb-3 text-zinc-300" />
+                <PackageSearch
+                  size={24}
+                  className="mx-auto mb-3 text-zinc-300"
+                />
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                   {repairListCopy.empty}
                 </p>
@@ -2758,7 +3103,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           <DriverModalShell
             onClose={() => setOpenChangeMenu(null)}
             header={
-              openChangeMenu === 'client' ? (
+              openChangeMenu === "client" ? (
                 <div className="relative min-w-0 flex-1">
                   <Search
                     size={16}
@@ -2767,22 +3112,32 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                   <input
                     type="text"
                     value={clientSearchTerm}
-                    onChange={(event) => setClientSearchTerm(event.target.value)}
+                    onChange={(event) =>
+                      setClientSearchTerm(event.target.value)
+                    }
                     placeholder={text.searchClientPlaceholder}
                     className="h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 pl-11 pr-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#101715] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
                   />
                 </div>
               ) : undefined
             }
-            title={openChangeMenu === 'client' ? undefined : changeModalTitle}
-            subtitle={openChangeMenu === 'client' ? undefined : getPalletDisplayName(selectedPallet)}
+            title={openChangeMenu === "client" ? undefined : changeModalTitle}
+            subtitle={
+              openChangeMenu === "client"
+                ? undefined
+                : getPalletDisplayName(selectedPallet)
+            }
             width="lg"
             contentClassName="min-h-[24rem] justify-center"
             bodyClassName="p-0"
-            headerClassName={openChangeMenu === 'client' ? 'items-center px-5 pb-3 pt-4' : undefined}
-            showHeaderDivider={openChangeMenu !== 'client'}
+            headerClassName={
+              openChangeMenu === "client"
+                ? "items-center px-5 pb-3 pt-4"
+                : undefined
+            }
+            showHeaderDivider={openChangeMenu !== "client"}
           >
-            {openChangeMenu === 'status' && (
+            {openChangeMenu === "status" && (
               <div className="space-y-2.5 p-5">
                 {driverStatusOptions.map((status) => (
                   <button
@@ -2790,10 +3145,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                     type="button"
                     onClick={() => handleStatusSelection(status.id)}
                     className={cn(
-                      'flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all',
+                      "flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all",
                       draftStatusId === status.id
-                        ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                        : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
+                        ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
+                        : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
                     )}
                   >
                     {getDriverStatusLabel(status.name)}
@@ -2802,144 +3157,133 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
               </div>
             )}
 
-            {openChangeMenu === 'client' && statusIdAllowsCustomer(statuses, draftStatusId) && (
-              <div className="px-5 pb-5">
-                <div className="max-h-80 space-y-2.5 overflow-y-auto">
-                  {filteredClients.map((client) => (
-                    <button
-                      key={client.id}
-                      type="button"
-                      onClick={() => handleClientSelection(client.user_id.toString())}
-                      className={cn(
-                        'flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all',
-                        draftClientId === client.user_id
-                          ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                          : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
-                      )}
-                    >
-                      <div className="text-center">
-                        <p>{client.name}</p>
-                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-400">
-                          {client.country} / #{client.user_id}
-                        </p>
+            {openChangeMenu === "client" &&
+              statusIdAllowsCustomer(statuses, draftStatusId) && (
+                <div className="px-5 pb-5">
+                  <div className="max-h-80 space-y-2.5 overflow-y-auto">
+                    {filteredClients.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() =>
+                          handleClientSelection(client.user_id.toString())
+                        }
+                        className={cn(
+                          "flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all",
+                          draftClientId === client.user_id
+                            ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
+                            : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                        )}
+                      >
+                        <div className="text-center">
+                          <p>{client.name}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-400">
+                            {client.country} / #{client.user_id}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                    {filteredClients.length === 0 && (
+                      <div className="rounded-[1rem] border border-dashed border-emerald-100 bg-emerald-50/40 px-4 py-6 text-center text-[11px] font-black uppercase tracking-[0.12em] text-emerald-500 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-300">
+                        {text.noClientsFound}
                       </div>
-                    </button>
-                  ))}
-                  {filteredClients.length === 0 && (
-                    <div className="rounded-[1rem] border border-dashed border-emerald-100 bg-emerald-50/40 px-4 py-6 text-center text-[11px] font-black uppercase tracking-[0.12em] text-emerald-500 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-300">
-                      {text.noClientsFound}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {openChangeMenu === 'location' && !isLocationChangeDisabled && (
-              <div className="space-y-2.5 p-5">
-                <button
-                  type="button"
-                  onClick={() => handleLocationSelection('warehouse_1')}
-                  className={cn(
-                    'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
-                    draftLocationMode === 'warehouse_1'
-                      ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
-                  )}
-                >
-                  <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseDefault}</span>
-                  <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
-                    {getLocationMeta('warehouse_1', activeLocationClientId).address}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleLocationSelection('warehouse_2')}
-                  className={cn(
-                    'flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all',
-                    draftLocationMode === 'warehouse_2'
-                      ? 'bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100'
-                      : 'bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5'
-                  )}
-                >
-                  <span className="text-[13px] font-black uppercase tracking-tight">{text.warehouseSecondary}</span>
-                  <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
-                    {getLocationMeta('warehouse_2', activeLocationClientId).address}
-                  </span>
-                </button>
-              </div>
-            )}
-          </DriverModalShell>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isAddAddressModalOpen && selectedPallet && (
-          <DriverModalShell
-            onClose={closeAddAddressModal}
-            title={isEditingAlternateAddress ? text.manualLocation : text.addAddress}
-            subtitle={selectedPallet.qr_code}
-            width="md"
-            overlayClassName="z-[60]"
-            bodyClassName="p-0"
-          >
-            <div
-              className={cn(
-                'mx-auto w-full max-w-[21.75rem]',
-                isEditingAlternateAddress ? 'space-y-3.5 px-5 py-5' : ''
-              )}
-            >
-              {!isEditingAlternateAddress ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleLocationSelection('driver_current')}
-                    className="flex w-full flex-col px-5 py-4 text-left text-zinc-700 transition-all hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5"
-                  >
-                    <span className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-200">
-                      {text.useCurrentLocation}
-                    </span>
-                    <span className="mt-2 text-[15px] font-black leading-5 text-emerald-950 dark:text-white">
-                      {getLocationMeta('driver_current', activeLocationClientId).address}
-                    </span>
-                  </button>
-                </>
-              ) : (
-                <div className="space-y-3.5">
-                  <input
-                    value={manualLocationInput}
-                    onChange={(event) => setManualLocationInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        handleManualLocationApply();
-                      }
-                    }}
-                    placeholder={text.manualLocationPlaceholder}
-                    className="h-12 w-full rounded-[1rem] border-2 border-emerald-200 bg-white px-4 text-[14px] font-bold text-emerald-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-emerald-400 focus:bg-white dark:border-white/10 dark:bg-[#151d1a] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
-                  />
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setManualLocationInput('');
-                        setIsEditingAlternateAddress(false);
-                      }}
-                      className="flex items-center justify-center rounded-[1rem] bg-white px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-zinc-700 transition-all hover:bg-zinc-50 active:scale-[0.98] dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5"
-                    >
-                      {text.damageModalCancel}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleManualLocationApply()}
-                      className="flex items-center justify-center rounded-[1rem] bg-[#00A655] px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] text-white transition-all active:scale-[0.98]"
-                    >
-                      {text.applyLocation}
-                    </button>
+                    )}
                   </div>
                 </div>
               )}
-            </div>
+
+            {openChangeMenu === "location" && !isLocationChangeDisabled && (
+              <div className="space-y-2.5 p-5">
+                <button
+                  type="button"
+                  onClick={() => handleLocationSelection("warehouse_1")}
+                  className={cn(
+                    "flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all",
+                    draftLocationMode === "warehouse_1"
+                      ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
+                      : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                  )}
+                >
+                  <span className="text-[13px] font-black uppercase tracking-tight">
+                    {text.warehouseDefault}
+                  </span>
+                  <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                    {
+                      getLocationMeta("warehouse_1", activeLocationClientId)
+                        .address
+                    }
+                  </span>
+                </button>
+                {hasWarehouse2 ? (
+                  <button
+                    type="button"
+                    onClick={() => handleLocationSelection("warehouse_2")}
+                    className={cn(
+                      "flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all",
+                      draftLocationMode === "warehouse_2"
+                        ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
+                        : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                    )}
+                  >
+                    <span className="text-[13px] font-black uppercase tracking-tight">
+                      {text.warehouseSecondary}
+                    </span>
+                    <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                      {warehouse2Address}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="flex w-full flex-col items-start rounded-[1rem] bg-zinc-100 px-4 py-4 text-left text-zinc-400 dark:bg-white/5 dark:text-zinc-500">
+                    <span className="text-[13px] font-black uppercase tracking-tight">
+                      {text.warehouseSecondary}
+                    </span>
+                    <span className="mt-1 text-[11px] font-bold normal-case leading-4">
+                      {text.noWarehouseSecondary}
+                    </span>
+                  </div>
+                )}
+                {savedDeliveryLocationAddress && (
+                  <button
+                    type="button"
+                    onClick={() => handleLocationSelection("delivery")}
+                    className={cn(
+                      "flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all",
+                      draftLocationMode === "delivery"
+                        ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
+                        : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                    )}
+                  >
+                    <span className="text-[13px] font-black uppercase tracking-tight">
+                      {text.newLocation}
+                    </span>
+                    <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                      {savedDeliveryLocationAddress}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOpenChangeMenu("gps")}
+                  className="flex w-full items-center justify-center gap-2 rounded-[1rem] border-2 border-emerald-200 bg-emerald-50/70 px-4 py-3.5 text-[12px] font-black uppercase tracking-[0.1em] text-emerald-800 transition-all active:scale-[0.98] dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
+                >
+                  <MapPin size={16} />
+                  {selectedPallet.delivery_location
+                    ? text.updateGpsLocation
+                    : text.useGpsLocation}
+                </button>
+              </div>
+            )}
+
+            {openChangeMenu === "gps" && (
+              <div className="p-3">
+                <DeliveryLocationMap
+                  palletId={selectedPallet.id}
+                  language={language}
+                  initialLocation={selectedPallet.delivery_location}
+                  onSave={savePalletDeliveryLocation}
+                />
+              </div>
+            )}
           </DriverModalShell>
         )}
       </AnimatePresence>
@@ -3036,14 +3380,25 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
                         <p className="truncate text-[13px] font-black uppercase tracking-tight text-emerald-950 dark:text-white">
                           {pallet.qr_code}
                         </p>
-                        {getVisibleClientName(pallet.current_status_id, pallet.client_name) && (
+                        {getVisibleClientName(
+                          pallet.current_status_id,
+                          pallet.client_name,
+                        ) && (
                           <p className="mt-1 truncate text-[11px] font-bold text-zinc-500 dark:text-[#9fcbb3]">
-                            {getVisibleClientName(pallet.current_status_id, pallet.client_name)}
+                            {getVisibleClientName(
+                              pallet.current_status_id,
+                              pallet.client_name,
+                            )}
                           </p>
                         )}
-                        {shouldShowLocationForStatus(pallet.current_status_id) && (
+                        {shouldShowLocationForStatus(
+                          pallet.current_status_id,
+                        ) && (
                           <p className="mt-1 truncate text-[11px] font-bold text-zinc-400 dark:text-zinc-400">
-                            {pallet.current_location}
+                            {getLocationLabel(
+                              pallet.current_location,
+                              language,
+                            )}
                           </p>
                         )}
                       </div>
@@ -3058,7 +3413,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({ us
           </DriverModalShell>
         )}
       </AnimatePresence>
-
     </div>
   );
 };

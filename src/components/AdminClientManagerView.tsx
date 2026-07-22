@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
+import { appAlert } from './AppAlert';
 import {
   ArrowUpDown,
   Building2,
@@ -27,11 +26,12 @@ import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, PalletPhoto } from '../types';
 import { getStatusLabel } from '../i18n';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
-import { apiService, PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 type SortKey =
   | 'client'
@@ -151,16 +151,6 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
-  const [clients, setPagedClients] = useState<ClientDetail[]>([]);
-  const [pageOffset, setPageOffset] = useState(0);
-  const [pageLimit, setPageLimit] = useState(CLIENT_MANAGER_PAGE_SIZE);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>({
-    total: 0,
-    limit: CLIENT_MANAGER_PAGE_SIZE,
-    offset: 0,
-    count: 0,
-  });
-  const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
@@ -214,48 +204,6 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   }, [photoViewer, selectedRow]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadPage = async () => {
-      setIsPageLoading(true);
-
-      try {
-        const page = await apiService.clients.page({
-          limit: clientIdFilter === undefined ? pageLimit : 1,
-          offset: clientIdFilter === undefined ? pageOffset : 0,
-          user_id: clientIdFilter,
-          search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
-          sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
-          sort_direction: sortConfig.direction,
-        });
-
-        if (!isMounted) {
-          return;
-        }
-
-        setPagedClients(page.items);
-        setPaginationMeta(page.meta);
-      } catch (error) {
-        console.error('Failed to load paginated client manager rows', error);
-      } finally {
-        if (isMounted) {
-          setIsPageLoading(false);
-        }
-      }
-    };
-
-    void loadPage();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [clientIdFilter, debouncedSearchQuery, pageLimit, pageOffset, sortConfig]);
-
-  useEffect(() => {
-    setPageOffset(0);
-  }, [clientIdFilter]);
-
-  useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchQuery(searchQuery.trim());
     }, 250);
@@ -263,9 +211,19 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     return () => window.clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPageOffset(0);
-  }, [debouncedSearchQuery, sortConfig]);
+  const fetchPage = useCallback((offset: number) => apiService.clients.page({
+    limit: clientIdFilter === undefined ? CLIENT_MANAGER_PAGE_SIZE : 1,
+    offset: clientIdFilter === undefined ? offset : 0,
+    user_id: clientIdFilter,
+    search: clientIdFilter === undefined ? debouncedSearchQuery || undefined : undefined,
+    sort_by: clientIdFilter === undefined ? SERVER_SORT_BY_KEY[sortConfig.key] : undefined,
+    sort_direction: sortConfig.direction,
+  }), [clientIdFilter, debouncedSearchQuery, sortConfig]);
+  const { items: clients, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedClients } = useInfinitePagination({
+    queryKey: `${clientIdFilter ?? 'all'}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}`,
+    pageSize: clientIdFilter === undefined ? CLIENT_MANAGER_PAGE_SIZE : 1,
+    fetchPage,
+  });
 
   useEffect(() => {
     if (cachedClients.length === 0) {
@@ -700,7 +658,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       phone_number: clientDraft.phone_number?.trim() || undefined,
     });
     closeClientModal();
-    await Swal.fire({ icon: 'success', title: labels.savedTitle, text: labels.savedText, confirmButtonColor: '#00A655' });
+    await appAlert.fire({ icon: 'success', title: labels.savedTitle, text: labels.savedText });
   };
 
   const createClient = async () => {
@@ -711,12 +669,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     const email = newClientDraft.billing_email?.trim() || '';
 
     if (!name || !kvk || !email) {
-      await Swal.fire({ icon: 'warning', title: labels.createFailed, text: labels.requiredClientFields, confirmButtonColor: '#00A655' });
+      await appAlert.fire({ icon: 'warning', title: labels.createFailed, text: labels.requiredClientFields });
       return;
     }
 
     if (!EMAIL_PATTERN.test(email)) {
-      await Swal.fire({ icon: 'warning', title: labels.createFailed, text: labels.invalidClientEmail, confirmButtonColor: '#00A655' });
+      await appAlert.fire({ icon: 'warning', title: labels.createFailed, text: labels.invalidClientEmail });
       return;
     }
 
@@ -749,13 +707,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         warehouse2_street: '', warehouse2_house_number: '', warehouse2_postal_code: '', warehouse2_city: '',
         warehouse_addresses: [], country: 'NL', grace_period_days: 14, price_per_day: 2, is_active: true,
       });
-      await Swal.fire({ icon: 'success', title: labels.createdTitle, text: labels.createdText, confirmButtonColor: '#00A655' });
+      await appAlert.fire({ icon: 'success', title: labels.createdTitle, text: labels.createdText });
     } catch (error) {
-      await Swal.fire({
+      await appAlert.fire({
         icon: 'error',
         title: labels.createFailed,
         text: error instanceof Error ? error.message : labels.createFailed,
-        confirmButtonColor: '#e11d48',
       });
     } finally {
       setIsCreatingClient(false);
@@ -768,9 +725,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       await deleteClient(clientPendingDeletion.client.id);
       setClientPendingDeletion(null);
       closeClientModal();
-      await Swal.fire({ icon: 'success', title: labels.deletedTitle, text: labels.deletedText, confirmButtonColor: '#00A655' });
+      await appAlert.fire({ icon: 'success', title: labels.deletedTitle, text: labels.deletedText });
     } catch (error) {
-      await Swal.fire({ icon: 'error', title: labels.deleteFailed, text: error instanceof Error ? error.message : labels.deleteFailed, confirmButtonColor: '#e11d48' });
+      await appAlert.fire({ icon: 'error', title: labels.deleteFailed, text: error instanceof Error ? error.message : labels.deleteFailed });
     }
   };
 
@@ -897,7 +854,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         resizeAriaLabel={labels.resize}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
-        isEmpty={!isPageLoading && visibleRows.length === 0}
+        isEmpty={!isInitialLoading && visibleRows.length === 0}
         emptyState={
           <div className="p-20 text-center">
             <Search size={20} className="mx-auto mb-4 text-zinc-200" />
@@ -1023,21 +980,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         )}
       />
 
-      <PageLoadingModal isOpen={isPageLoading} language={language} />
+      <PageLoadingModal isOpen={isInitialLoading} language={language} />
 
-      {clientIdFilter === undefined && <ListPagination
-        total={paginationMeta.total}
-        limit={paginationMeta.limit}
-        offset={paginationMeta.offset}
-        count={paginationMeta.count}
-        isLoading={isPageLoading}
-        language={language}
-        onPageChange={setPageOffset}
-        onLimitChange={(limit) => {
-          setPageOffset(0);
-          setPageLimit(limit);
-        }}
-      />}
+      {clientIdFilter === undefined && <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />}
 
       {!readOnly && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
         <button

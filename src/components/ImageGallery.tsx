@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Image as ImageIcon, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { apiService, type PaginationMeta } from '../services/api';
+import { apiService } from '../services/api';
 import type { PalletPhoto } from '../types';
 import { Card, Input, Select } from './ui';
-import { ListPagination } from './ListPagination';
+import { InfiniteScrollFooter } from './InfiniteScrollFooter';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 function SecureGalleryImage({ photo }: { photo: PalletPhoto }) {
   const [source, setSource] = useState('');
@@ -14,18 +15,20 @@ function SecureGalleryImage({ photo }: { photo: PalletPhoto }) {
 
 export function ImageGallery() {
   const { t, language } = useApp();
-  const [photos, setPhotos] = useState<PalletPhoto[]>([]);
   const [filters, setFilters] = useState({ search: '', type: '', warehouse_scope: '', date_from: '', date_to: '' });
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [meta, setMeta] = useState<PaginationMeta>({ total: 0, limit: 12, offset: 0, count: 0 });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
 
-  useEffect(() => { const timer = window.setTimeout(() => {
-    setLoading(true);
-    void apiService.gallery.page({ ...filters, limit: 12, offset }).then(page => { setPhotos(page.items); setMeta(page.meta); }).finally(() => setLoading(false));
-  }, 200); return () => window.clearTimeout(timer); }, [filters, offset]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedFilters(filters), 200);
+    return () => window.clearTimeout(timer);
+  }, [filters]);
 
-  const update = (key: keyof typeof filters, value: string) => { setFilters(current => ({...current, [key]: value})); setOffset(0); };
+  const fetchPage = useCallback((offset: number) => apiService.gallery.page({ ...debouncedFilters, limit: 12, offset }), [debouncedFilters]);
+  const { items: photos, hasMore, isInitialLoading, isLoadingMore, error, loadMore, retry } = useInfinitePagination({
+    queryKey: JSON.stringify(debouncedFilters), pageSize: 12, fetchPage,
+  });
+
+  const update = (key: keyof typeof filters, value: string) => setFilters(current => ({ ...current, [key]: value }));
   const dateLabels = language === 'bs'
     ? { start: 'Početni datum', end: 'Završni datum' }
     : language === 'nl'
@@ -47,10 +50,10 @@ export function ImageGallery() {
         <div className="relative pt-[22px]"><Search className="absolute left-3 top-[34px] text-zinc-400" size={16}/><Input className="pl-9" placeholder="Search creator or client" value={filters.search} onChange={e => update('search', e.target.value)}/></div>
       </div>
     </Card>
-    {loading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300"/><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map(photo => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
+    {isInitialLoading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300"/><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map(photo => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
       <div className="aspect-video bg-zinc-100 dark:bg-black/20"><SecureGalleryImage photo={photo}/></div>
       <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '—'} · {photo.type}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '—'} · {photo.uploader?.name || '—'}</p><p className="text-xs text-zinc-400">{new Date(photo.created_at).toLocaleString()}</p></div>
     </Card>)}</div>}
-    <ListPagination total={meta.total} limit={12} offset={offset} count={meta.count} language={language} onPageChange={setOffset}/>
+    <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={error} onLoadMore={loadMore} onRetry={retry} language={language} />
   </div>;
 }

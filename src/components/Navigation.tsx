@@ -173,7 +173,21 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               <Boxes size={19} />
             </button>
           )}
-          {hasGhostAccess && (
+          {role === RoleType.KLIJENT ? (
+            <button
+              type="button"
+              title={t('completeDetails')}
+              onClick={() => setActiveTab('customer-details')}
+              className={cn(
+                "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
+                activeTab === 'customer-details'
+                  ? "bg-[#00A655] text-white border-[#00A655]"
+                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
+              )}
+            >
+              <Building2 size={19} />
+            </button>
+          ) : hasGhostAccess && (
             <button
               type="button"
               title={t('ghostReport')}
