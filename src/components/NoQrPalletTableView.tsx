@@ -13,6 +13,7 @@ import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Pallet } from '../types';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -558,7 +559,10 @@ export const NoQrPalletTableView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <AdminTableStickyToolbar
+        flushToPageTop
+        className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+      >
         <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-900">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm">
             <Ghost size={16} />
@@ -574,7 +578,7 @@ export const NoQrPalletTableView: React.FC = () => {
             className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
           />
         </div>
-      </div>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<NoQrColumnKey>
         columnOrder={NO_QR_TABLE_COLUMN_ORDER}

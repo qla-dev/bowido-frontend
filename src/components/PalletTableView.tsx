@@ -19,6 +19,7 @@ import { motion } from 'motion/react';
 import { Pallet } from '../types';
 import { getLocationLabel as getLocalizedLocationLabel, getPalletTypeLabel, getStatusLabel, palletTypeValues } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
@@ -1156,7 +1157,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <AdminTableStickyToolbar
+        flushToPageTop
+        className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+      >
         <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300">
             <Package size={16} />
@@ -1186,7 +1190,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             />
           </div>
         </div>
-      </div>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<ColumnKey>
         columnOrder={PALLET_TABLE_COLUMN_ORDER}

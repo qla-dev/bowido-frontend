@@ -12,6 +12,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { ClientPalletDesktopTable } from './ClientPalletDesktopTable';
 import { DriverModalShell } from './DriverModalShell';
 import { NoQrReturnFormModal } from './NoQrReturnFormModal';
@@ -1103,7 +1104,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <AdminTableStickyToolbar flushToPageTop className="flex justify-end py-3">
         <div className="relative w-full sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
           <Input
@@ -1113,7 +1114,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
           />
         </div>
-      </div>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<ColumnKey>
         columnOrder={columnOrder}

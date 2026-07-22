@@ -7,6 +7,7 @@ import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 interface AdminAuditLogsProps {
@@ -185,11 +186,12 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         <StatCard label={t('qrVersionChanges')} value={qrVersionLogCount} variant="success" />
       </div>
 
-      <Card
-        title={t('auditLogs')}
-        action={dateRangeFilter}
-        noPadding
-      >
+      <AdminTableStickyToolbar className="py-3">
+        <Card
+          title={t('auditLogs')}
+          action={dateRangeFilter}
+          noPadding
+        >
         <div className="border-b border-zinc-100 bg-zinc-50/60 p-4">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_minmax(0,28rem)] lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
@@ -333,7 +335,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           </table>
         </div>
 
-      </Card>
+        </Card>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<AuditColumnKey>
         columnOrder={AUDIT_TABLE_COLUMN_ORDER}

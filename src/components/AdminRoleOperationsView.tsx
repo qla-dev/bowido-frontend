@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
@@ -302,8 +303,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
-        <div className="flex min-w-0 items-center gap-3">
+      <AdminTableStickyToolbar flushToPageTop className="py-3">
+        <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
+          <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-200">
             <ModeIcon size={18} />
           </div>
@@ -315,8 +317,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               {copy.subtitle}
             </p>
           </div>
-        </div>
-        <div className="relative w-full sm:max-w-sm">
+          </div>
+          <div className="relative w-full sm:max-w-sm">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
           <Input
             value={searchQuery}
@@ -324,8 +326,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             placeholder={copy.search}
             className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
           />
+          </div>
         </div>
-      </div>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<string>
         columnOrder={columns.map((column) => column.key)}
