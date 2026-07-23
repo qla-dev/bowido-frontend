@@ -2396,25 +2396,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           "-",
                                         language,
                                       )}
-                                    </p>
-                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                                      {getLocationLabel(
-                                        log.new_location,
-                                        language,
-                                      ) || notAvailableLabel}
-                                    </p>
-                                    <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
-                                      {t("changedBy")}:{" "}
-                                      {getAuditActorLabel(log)}
-                                    </p>
-                                    <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
-                                      <Clock size={12} />
-                                      <span>
-                                        {detailDateFormatter.format(
-                                          new Date(log.created_at),
-                                        )}
-                                      </span>
-                                    </div>
+                                    </dd>
                                   </div>
 
                                   {(latestEditingPalletAuditLog.old_location ||
@@ -2424,13 +2406,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         {t("location")}
                                       </dt>
                                       <dd className="break-words font-bold text-zinc-600 dark:text-zinc-200">
-                                        {latestEditingPalletAuditLog.old_location ||
-                                          "-"}{" "}
+                                        {getLocationLabel(
+                                          latestEditingPalletAuditLog.old_location,
+                                          language,
+                                        ) || "-"}{" "}
                                         <span className="px-1 text-zinc-300">
                                           -&gt;
                                         </span>{" "}
-                                        {latestEditingPalletAuditLog.new_location ||
-                                          "-"}
+                                        {getLocationLabel(
+                                          latestEditingPalletAuditLog.new_location,
+                                          language,
+                                        ) || "-"}
                                       </dd>
                                     </div>
                                   )}
