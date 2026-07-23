@@ -55,6 +55,7 @@ type ApiRecord = Record<string, any>;
 type LoginCredentials = {
   email?: string;
   kvk?: string;
+  customerDetailId?: number;
   password: string;
   loginType?: 'user' | 'customer';
 };
@@ -90,7 +91,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly errors: Record<string, string[]> = {}
+    public readonly errors: Record<string, string[]> = {},
+    public readonly data: unknown = null,
   ) {
     super(message);
   }
@@ -186,7 +188,8 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiE
     throw new ApiError(
       payload?.message || `Request failed with status ${response.status}`,
       response.status,
-      payload?.errors || {}
+      payload?.errors || {},
+      payload?.data ?? null,
     );
   }
 
@@ -512,6 +515,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     current_status_slug: pallet.current_status_slug || pallet.current_status?.slug || status?.slug,
     user_id: pallet.user_id ? Number(pallet.user_id) : undefined,
     client_name: clientName,
+    client_deleted: toBoolean(pallet.client_deleted),
     type: pallet.type || pallet.asset_type || 'pallet',
     current_location: pallet.current_location || '',
     is_ghost: toBoolean(pallet.is_ghost),
@@ -780,6 +784,7 @@ export const apiService = {
           login_type: loginType,
           email: loginType === 'user' ? credentials.email : undefined,
           kvk: loginType === 'customer' ? credentials.kvk : undefined,
+          customer_detail_id: loginType === 'customer' ? credentials.customerDetailId : undefined,
           password: credentials.password,
           token_name: 'trackpal-frontend',
         }),
@@ -982,27 +987,19 @@ export const apiService = {
     palletPhotos: async (customerDetailId: number): Promise<PalletPhoto[]> =>
       (await listAll<ApiRecord>(`/customer_details/${customerDetailId}/pallet-photos`)).map(normalizePalletPhoto),
     create: async (data: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }): Promise<ClientDetail> => {
-      if (data.user_id) {
-        return normalizeClient(
-          await apiData<ApiRecord>('/customer_details', {
-            method: 'POST',
-            body: jsonBody(toCustomerPayload(data)),
-          })
-        );
-      }
-
+      const { user_id: _ignoredUserId, ...clientData } = data;
       const roleId = await resolveRoleId(RoleType.KLIJENT);
-      const name = data.name || 'New Client';
+      const name = clientData.name || 'New Client';
       const user = await apiData<ApiRecord>('/users', {
         method: 'POST',
         body: jsonBody({
           role_id: roleId,
           name,
-          email: data.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
-          phone_number: data.phone_number || undefined,
+          email: clientData.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
+          phone_number: clientData.phone_number || undefined,
           password: DEMO_PASSWORD,
           is_active: true,
-          customer_details: toCustomerPayload(data),
+          customer_details: toCustomerPayload(clientData),
         }),
       });
 
