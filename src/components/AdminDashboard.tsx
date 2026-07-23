@@ -3040,7 +3040,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       ) as HTMLInputElement
                     ).value.trim();
                     if (name) {
-                      addClient({
+                      void addClient({
                         name,
                         kvk_number: kvk || undefined,
                         grace_period_days: grace,
@@ -3050,8 +3050,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         warehouse_addresses: [address1, address2].filter(
                           Boolean,
                         ),
-                      });
-                      setShowAddClient(false);
+                      })
+                        .then(() => setShowAddClient(false))
+                        .catch(() =>
+                          appAlert.fire({
+                            icon: "error",
+                            title:
+                              language === "bs"
+                                ? "Kreiranje klijenta nije uspjelo"
+                                : language === "nl"
+                                  ? "Klant aanmaken mislukt"
+                                  : "Could not create client",
+                            text:
+                              language === "bs"
+                                ? "Korisnički nalog i podaci o klijentu nisu kreirani. Provjerite podatke i pokušajte ponovo."
+                                : language === "nl"
+                                  ? "Het gebruikersaccount en de klantgegevens zijn niet aangemaakt. Controleer de gegevens en probeer opnieuw."
+                                  : "The user account and client details were not created. Check the details and try again.",
+                          }),
+                        );
                     }
                   }}
                   className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs"
