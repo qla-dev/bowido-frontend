@@ -15,7 +15,7 @@ interface PalletGridItemProps {
   onClick?: () => void;
 }
 
-export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses, debt, onClick }) => {
+export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses, clients, debt, onClick }) => {
   const { t, language } = useApp();
   
   const calculateDays = (dateStr: string) => {
@@ -32,6 +32,9 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
   const isOverdue = debt > 0;
   const palletTypeLabel = getPalletTypeLabel(pallet.type, language);
   const statusLabel = getStatusLabel(pallet.current_status_name, language);
+  const displaysDeletedClient =
+    pallet.client_deleted &&
+    !clients.some((client) => client.user_id === pallet.user_id);
 
   return (
     <motion.div
@@ -68,7 +71,12 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
         </div>
         
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black text-zinc-950 truncate uppercase tracking-widest mb-1.5 font-display">
+          <p
+            className={cn(
+              "text-[10px] font-black truncate uppercase tracking-widest mb-1.5 font-display",
+              displaysDeletedClient ? "text-rose-600" : "text-zinc-950",
+            )}
+          >
              {pallet.client_name || t('inStock')}
           </p>
           <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-tight">

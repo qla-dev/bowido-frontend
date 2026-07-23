@@ -981,7 +981,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const deleteClient = async (id: number) => {
+    const deletedClient = clients.find((client) => client.id === id);
     await apiService.clients.delete(id);
+    if (deletedClient) {
+      setPallets((current) =>
+        current.map((pallet) =>
+          pallet.user_id === deletedClient.user_id
+            ? {
+                ...pallet,
+                user_id: undefined,
+                client_name: deletedClient.name,
+                client_deleted: true,
+              }
+            : pallet,
+        ),
+      );
+    }
     setClients((current) => current.filter((client) => client.id !== id));
   };
 

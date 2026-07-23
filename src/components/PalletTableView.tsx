@@ -476,7 +476,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     [language]
   );
   const getClientLabel = (pallet: Pallet) =>
-    clients.find((client) => client.user_id === pallet.user_id)?.name || t('inStock');
+    clients.find((client) => client.user_id === pallet.user_id)?.name ||
+    pallet.client_name?.trim() ||
+    t('inStock');
+  const isDeletedClientLabel = (pallet: Pallet) =>
+    pallet.client_deleted &&
+    !clients.some((client) => client.user_id === pallet.user_id);
 
   const getTypeLabel = (pallet: Pallet) => getPalletTypeLabel(pallet.type, language);
 
@@ -1330,7 +1335,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'uppercase text-zinc-900 dark:text-zinc-200')}>
+                        <span
+                          className={cn(
+                            bodyTextClass,
+                            'uppercase',
+                            isDeletedClientLabel(pallet)
+                              ? 'text-rose-600 dark:text-rose-300'
+                              : 'text-zinc-900 dark:text-zinc-200',
+                          )}
+                        >
                           {clientLabel}
                         </span>
                       </div>

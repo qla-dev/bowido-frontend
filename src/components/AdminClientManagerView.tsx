@@ -332,6 +332,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         : language === 'nl'
           ? 'Weet je zeker dat je deze klant wilt verwijderen?'
           : 'Do you really want to delete this client?',
+    palletsAtDeletion:
+      language === 'bs'
+        ? 'Palete trenutno kod ovog klijenta'
+        : language === 'nl'
+          ? 'Pallets die momenteel bij deze klant staan'
+          : 'Pallets currently at this client',
     confirmDelete: language === 'bs' ? 'Da, obriši' : language === 'nl' ? 'Ja, verwijderen' : 'Yes, delete',
     deletedTitle: language === 'bs' ? 'Klijent je obrisan' : language === 'nl' ? 'Klant verwijderd' : 'Client deleted',
     deletedText: language === 'bs' ? 'Klijent je uspješno obrisan.' : language === 'nl' ? 'De klant is succesvol verwijderd.' : 'The client was deleted successfully.',
@@ -723,6 +729,16 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       await appAlert.fire({ icon: 'error', title: labels.deleteFailed, text: error instanceof Error ? error.message : labels.deleteFailed });
     }
   };
+
+  const pendingDeletionPallets = useMemo(
+    () =>
+      clientPendingDeletion
+        ? pallets.filter(
+            (pallet) => pallet.user_id === clientPendingDeletion.client.user_id,
+          )
+        : [],
+    [clientPendingDeletion, pallets],
+  );
 
   const renderAddressSection = (
     title: string,
@@ -1416,6 +1432,22 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             <h3 className="text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white">{labels.deleteClient}</h3>
             <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-300">{labels.deleteClientQuestion}</p>
             <p className="mt-1 text-sm font-bold text-zinc-800 dark:text-white">{clientPendingDeletion.clientName}</p>
+            <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50/50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-200">
+                {labels.palletsAtDeletion} ({pendingDeletionPallets.length})
+              </p>
+              {pendingDeletionPallets.length > 0 ? (
+                <div className="mt-3 max-h-36 space-y-1 overflow-y-auto">
+                  {pendingDeletionPallets.map((pallet) => (
+                    <p key={pallet.id} className="rounded-lg bg-white px-3 py-2 text-xs font-black uppercase text-zinc-800 shadow-sm dark:bg-[#151d1a] dark:text-white">
+                      {getPalletDisplayName(pallet)}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-xs font-medium text-zinc-500 dark:text-zinc-300">{labels.noPallets}</p>
+              )}
+            </div>
             <div className="mt-7 grid grid-cols-2 gap-3">
               <Button type="button" variant="outline" className="justify-center" onClick={() => setClientPendingDeletion(null)}>{t('cancel')}</Button>
               <Button type="button" variant="danger" className="justify-center" onClick={() => void confirmDeleteClient()}>{labels.confirmDelete}</Button>
