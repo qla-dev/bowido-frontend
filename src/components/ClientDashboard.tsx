@@ -4,7 +4,8 @@ import { StatCard, Card, Badge, Button } from './ui';
 import { BillingList } from './BillingList';
 import { useApp } from '../AppContext';
 import { User } from '../types';
-import { getPalletTypeLabel, getStatusLabel, localeMap } from '../i18n';
+import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatAppDate } from '../lib/dateFormat';
 
 interface ClientDashboardProps {
   user: User;
@@ -83,10 +84,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
   const nextInvoiceDate = new Date();
   nextInvoiceDate.setDate(nextInvoiceDate.getDate() + 7);
 
-  const nextInvoiceDateLabel = new Intl.DateTimeFormat(localeMap[language], {
-    day: '2-digit',
-    month: 'short',
-  }).format(nextInvoiceDate);
+  const nextInvoiceDateLabel = formatAppDate(nextInvoiceDate, language);
 
   const attentionPallets = [...chargingPallets, ...returnRequestedPallets.filter((pallet) => calculatePalletDebt(pallet) === 0)]
     .slice(0, 4);

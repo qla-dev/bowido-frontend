@@ -13,6 +13,7 @@ import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Pallet } from '../types';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -20,6 +21,7 @@ import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDate } from '../lib/dateFormat';
 
 type NoQrColumnKey =
   | 'serial'
@@ -145,13 +147,11 @@ export const NoQrPalletTableView: React.FC = () => {
         : 'Resize column';
   const textFilterInputClass =
     'h-10 bg-white px-3 text-left text-[12px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal';
-  const dateFormatter = new Intl.DateTimeFormat(
-    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
-    {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }
+  const dateFormatter = useMemo(
+    () => ({
+      format: (value: string | number | Date) => formatAppDate(value, language),
+    }),
+    [language]
   );
   const [selectedFilters, setSelectedFilters] = useState<FilterSelections>({
     serial: [],
@@ -558,7 +558,10 @@ export const NoQrPalletTableView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <AdminTableStickyToolbar
+        flushToPageTop
+        className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+      >
         <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-900">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm">
             <Ghost size={16} />
@@ -574,7 +577,7 @@ export const NoQrPalletTableView: React.FC = () => {
             className="h-11 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
           />
         </div>
-      </div>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<NoQrColumnKey>
         columnOrder={NO_QR_TABLE_COLUMN_ORDER}

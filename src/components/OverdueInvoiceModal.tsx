@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Badge, Button, Card } from './ui';
 import { CheckCircle2, Clock3, FileText, Mail, Package, Send, X } from 'lucide-react';
 import { useApp } from '../AppContext';
+import { formatAppDateTime } from '../lib/dateFormat';
 
 export interface OverdueInvoicePreview {
   id: number;
@@ -35,7 +36,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
   onClose,
   onSend,
 }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
 
   return (
     <div className="modal-overlay fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -148,7 +149,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                       {t('issued')}
                     </span>
                     <span className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
-                      {invoice.issued_at}
+                      {formatAppDateTime(invoice.issued_at, language)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
@@ -156,7 +157,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                       {t('lastUpdate')}
                     </span>
                     <span className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
-                      {invoice.updated_at}
+                      {formatAppDateTime(invoice.updated_at, language)}
                     </span>
                   </div>
                 </div>
