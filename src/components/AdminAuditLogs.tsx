@@ -2,11 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { Badge, Card, cn, Input, StatCard } from './ui';
-import { AppLanguage, getStatusLabel, localeMap } from '../i18n';
+import { AppLanguage, getStatusLabel } from '../i18n';
+import { formatAppDateTime } from '../lib/dateFormat';
+import { FlatpickrDateInput } from './FlatpickrDateInput';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 interface AdminAuditLogsProps {
@@ -123,51 +126,43 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     clientId ? clients.find((client) => client.user_id === clientId)?.name || `#${clientId}` : null;
   const dateFromLabel = language === 'bs' ? 'Od' : language === 'nl' ? 'Van' : 'From';
   const dateToLabel = language === 'bs' ? 'Do' : language === 'nl' ? 'Tot' : 'To';
-  const openDatePickerFromPill = (event: React.MouseEvent<HTMLLabelElement>) => {
-    const input = event.currentTarget.querySelector('input');
-
-    if (!input) {
-      return;
-    }
-
-    input.focus();
-
-    try {
-      (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-    } catch {
-      // Some browsers only allow showPicker from direct input interaction.
-    }
-  };
+  const datePlaceholder = language === 'bs' ? 'dd. mm. gggg.' : language === 'nl' ? 'dd. mm. jjjj.' : 'mm. dd. yyyy.';
   const dateRangeFilter = (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <label
-        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
-        onClick={openDatePickerFromPill}
-      >
-        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-          {dateFromLabel}
-        </span>
-        <Input
-          type="date"
-          value={createdFrom}
-          onChange={(event) => setCreatedFrom(event.target.value)}
-          className="h-full w-[7.5rem] cursor-pointer border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
-        />
-      </label>
-      <label
-        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 py-0"
-        onClick={openDatePickerFromPill}
-      >
-        <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-          {dateToLabel}
-        </span>
-        <Input
-          type="date"
-          value={createdTo}
-          onChange={(event) => setCreatedTo(event.target.value)}
-          className="h-full w-[7.5rem] cursor-pointer border-none bg-transparent px-0 py-0 text-[10px] normal-case tracking-normal leading-none"
-        />
-      </label>
+      <FlatpickrDateInput
+        value={createdFrom}
+        onChange={setCreatedFrom}
+        language={language}
+        ariaLabel={dateFromLabel}
+        placeholder={datePlaceholder}
+        maxDate={createdTo || undefined}
+        compact
+        popupPosition="below left"
+        prefix={(
+          <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
+            {dateFromLabel}
+          </span>
+        )}
+        containerClassName="flex h-8 w-[9.3rem] cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white pl-2.5 shadow-sm transition-colors hover:border-zinc-300 focus-within:border-emerald-500 dark:border-white/10 dark:bg-[#151d1a] dark:hover:border-white/20 dark:focus-within:border-emerald-500"
+        className="h-[1.875rem] min-w-0 flex-1 rounded-none border-0 bg-transparent py-0 pl-0 pr-7 text-[9px] font-black leading-none text-zinc-950 shadow-none placeholder:text-zinc-950 placeholder:opacity-100 focus:bg-transparent dark:text-zinc-100 dark:placeholder:text-zinc-100"
+      />
+      <FlatpickrDateInput
+        value={createdTo}
+        onChange={setCreatedTo}
+        language={language}
+        ariaLabel={dateToLabel}
+        placeholder={datePlaceholder}
+        minDate={createdFrom || undefined}
+        compact
+        popupPosition="below right"
+        prefix={(
+          <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
+            {dateToLabel}
+          </span>
+        )}
+        containerClassName="flex h-8 w-[9.3rem] cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white pl-2.5 shadow-sm transition-colors hover:border-zinc-300 focus-within:border-emerald-500 dark:border-white/10 dark:bg-[#151d1a] dark:hover:border-white/20 dark:focus-within:border-emerald-500"
+        className="h-[1.875rem] min-w-0 flex-1 rounded-none border-0 bg-transparent py-0 pl-0 pr-7 text-[9px] font-black leading-none text-zinc-950 shadow-none placeholder:text-zinc-950 placeholder:opacity-100 focus:bg-transparent dark:text-zinc-100 dark:placeholder:text-zinc-100"
+      />
     </div>
   );
 
@@ -185,11 +180,12 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         <StatCard label={t('qrVersionChanges')} value={qrVersionLogCount} variant="success" />
       </div>
 
-      <Card
-        title={t('auditLogs')}
-        action={dateRangeFilter}
-        noPadding
-      >
+      <AdminTableStickyToolbar className="py-3">
+        <Card
+          title={t('auditLogs')}
+          action={dateRangeFilter}
+          noPadding
+        >
         <div className="border-b border-zinc-100 bg-zinc-50/60 p-4">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_minmax(0,28rem)] lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2">
@@ -248,13 +244,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                   return (
                     <tr key={`audit-screen-${log.id}`} className="hover:bg-zinc-50/70 transition-colors align-top">
                       <td className="px-6 py-4 whitespace-nowrap text-zinc-400 font-bold">
-                        {new Date(log.created_at).toLocaleString(localeMap[language], {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatAppDateTime(log.created_at, language)}
                       </td>
                       <td className="px-6 py-4">
                         <Badge variant={logType === 'qr_version' ? 'success' : 'info'}>
@@ -333,7 +323,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           </table>
         </div>
 
-      </Card>
+        </Card>
+      </AdminTableStickyToolbar>
 
       <AdminDataTable<AuditColumnKey>
         columnOrder={AUDIT_TABLE_COLUMN_ORDER}
@@ -402,13 +393,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
                         <span className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>
-                          {new Date(log.created_at).toLocaleString(localeMap[language], {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatAppDateTime(log.created_at, language)}
                         </span>
                       </div>
                     </td>

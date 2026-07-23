@@ -4,7 +4,6 @@ import {
   Truck,
   AlertTriangle,
   Users,
-  ArrowUpRight,
   Filter,
   MoreVertical,
   MapPin,
@@ -15,6 +14,8 @@ import {
   ClipboardList,
   TrendingUp,
   Info,
+  Search,
+  Check,
   X,
 } from "lucide-react";
 import { StatCard, Card, Button, Input, Select, Badge, cn } from "./ui";
@@ -68,6 +69,7 @@ import {
 } from "../i18n";
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
+import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 
 interface AdminDashboardProps {
   initialView?:
@@ -201,6 +203,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   >(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const [editingPalletClientSearch, setEditingPalletClientSearch] =
+    useState("");
+  const [isEditingPalletClientListOpen, setIsEditingPalletClientListOpen] =
+    useState(false);
   const [showEditingPalletDetails, setShowEditingPalletDetails] =
     useState(false);
   const [qrPreview, setQrPreview] = useState<{
@@ -526,6 +532,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     setSelectedPallet(null);
     setShowEditingPalletDetails(false);
+    setEditingPalletClientSearch(
+      clients.find((client) => client.user_id === pallet.user_id)?.name ||
+        pallet.client_name ||
+        "",
+    );
+    setIsEditingPalletClientListOpen(false);
     setEditingPallet({
       ...pallet,
       current_location: fixedLocation || pallet.current_location,
@@ -708,16 +720,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const formatDaysOutsideValue = (days: number) => {
     return `${days} ${days === 1 ? t("daySingular") : t("dayPlural")}`;
   };
-  const detailDateFormatter = new Intl.DateTimeFormat(
-    language === "nl" ? "nl-NL" : language === "bs" ? "bs-BA" : "en-GB",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    },
-  );
+  const detailDateFormatter = {
+    format: (value: string | number | Date) =>
+      formatAppDateTime(value, language, notAvailableLabel),
+  };
   const buildFallbackStatusLog = (pallet: Pallet): AuditLog => {
     return {
       id: -pallet.id,
@@ -787,6 +793,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const getAuditActorLabel = (log: AuditLog) =>
     log.made_by_user_name?.trim() ||
     (log.made_by_user_id ? `#${log.made_by_user_id}` : notAvailableLabel);
+  const getAuditClientLabel = (clientId?: number) =>
+    clientId
+      ? clients.find((client) => client.user_id === clientId)?.name ||
+        `#${clientId}`
+      : "";
   const selectedPalletStatusHistory = selectedPallet
     ? getPalletStatusHistory(selectedPallet)
     : [];
@@ -794,7 +805,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const editingPalletStatusHistory = editingPallet
     ? getPalletStatusHistory(editingPallet)
     : [];
+  const editingPalletAuditHistory = editingPalletStatusHistory.filter(
+    (log) => log.id > 0,
+  );
   const latestEditingPalletStatusLog = editingPalletStatusHistory[0] || null;
+  const filteredEditingPalletClients = React.useMemo(() => {
+    const query = editingPalletClientSearch.trim().toLocaleLowerCase();
+
+    return clients
+      .filter((client) => {
+        if (!query) {
+          return true;
+        }
+
+        return [
+          client.name,
+          client.country,
+          client.kvk_number,
+          String(client.user_id),
+        ].some((value) => value?.toLocaleLowerCase().includes(query));
+      })
+      .sort((left, right) =>
+        left.name.localeCompare(right.name, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
+      );
+  }, [clients, editingPalletClientSearch]);
 
   const renderOverview = () => {
     const overduePallets = pallets.filter((p) => calculateDebt(p) > 0);
@@ -1072,7 +1109,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {getStatusLabel(log.new_status_name, language)}
                               </span>
                               <span className="block text-[10px] font-black uppercase leading-none tracking-wider text-zinc-400">
-                                {new Date(log.created_at).toLocaleTimeString()}
+                                {formatAppTime(log.created_at)}
                               </span>
                             </td>
                           </tr>
@@ -1950,6 +1987,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         editingPallet.user_id,
                                     )
                                   : undefined;
+                                setEditingPalletClientSearch(
+                                  allowsCustomer
+                                    ? selectedClient?.name ||
+                                        editingPallet.client_name ||
+                                        ""
+                                    : "",
+                                );
+                                setIsEditingPalletClientListOpen(false);
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
@@ -2022,6 +2067,163 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </select>
                             </div>
                           )}
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                              {t("assignedClient")}
+                            </label>
+                            <div className="relative">
+                              <Search
+                                size={15}
+                                className="pointer-events-none absolute left-4 top-7 z-10 -translate-y-1/2 text-zinc-400"
+                              />
+                              <input
+                                type="text"
+                                value={editingPalletClientSearch}
+                                disabled={
+                                  !statusIdAllowsCustomer(
+                                    statuses,
+                                    editingPallet.current_status_id,
+                                  )
+                                }
+                                placeholder={t("search")}
+                                onFocus={() =>
+                                  setIsEditingPalletClientListOpen(true)
+                                }
+                                onBlur={() => {
+                                  window.setTimeout(() => {
+                                    setIsEditingPalletClientListOpen(false);
+                                    setEditingPalletClientSearch(
+                                      clients.find(
+                                        (client) =>
+                                          client.user_id ===
+                                          editingPallet.user_id,
+                                      )?.name ||
+                                        editingPallet.client_name ||
+                                        "",
+                                    );
+                                  }, 0);
+                                }}
+                                onChange={(event) => {
+                                  setEditingPalletClientSearch(
+                                    event.target.value,
+                                  );
+                                  setIsEditingPalletClientListOpen(true);
+                                }}
+                                className="w-full rounded-2xl border border-transparent bg-gray-100 py-4 pl-11 pr-4 font-bold outline-none transition-colors focus:border-emerald-300 disabled:cursor-not-allowed disabled:text-gray-500"
+                                role="combobox"
+                                aria-expanded={isEditingPalletClientListOpen}
+                                aria-controls="editing-pallet-client-list"
+                                autoComplete="off"
+                              />
+
+                              {isEditingPalletClientListOpen &&
+                                statusIdAllowsCustomer(
+                                  statuses,
+                                  editingPallet.current_status_id,
+                                ) && (
+                                  <div
+                                    id="editing-pallet-client-list"
+                                    role="listbox"
+                                    className="relative z-40 mt-2 max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
+                                  >
+                                  <button
+                                    type="button"
+                                    role="option"
+                                    aria-selected={!editingPallet.user_id}
+                                    onMouseDown={(event) =>
+                                      event.preventDefault()
+                                    }
+                                    onClick={() => {
+                                      setEditingPallet({
+                                        ...editingPallet,
+                                        user_id: undefined,
+                                        client_name: undefined,
+                                        current_location: "",
+                                      });
+                                      setEditingPalletClientSearch("");
+                                      setIsEditingPalletClientListOpen(false);
+                                    }}
+                                    className={cn(
+                                      "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors",
+                                      !editingPallet.user_id
+                                        ? "bg-emerald-50 text-emerald-800"
+                                        : "text-zinc-500 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5",
+                                    )}
+                                  >
+                                    <span>{t("noClient")}</span>
+                                    {!editingPallet.user_id && (
+                                      <Check size={14} />
+                                    )}
+                                  </button>
+
+                                  {filteredEditingPalletClients.map(
+                                    (client) => (
+                                      <button
+                                        key={"edit-client-" + client.id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={
+                                          editingPallet.user_id ===
+                                          client.user_id
+                                        }
+                                        onMouseDown={(event) =>
+                                          event.preventDefault()
+                                        }
+                                        onClick={() => {
+                                          setEditingPallet({
+                                            ...editingPallet,
+                                            user_id: client.user_id,
+                                            client_name: client.name,
+                                            current_location:
+                                              client
+                                                .warehouse_addresses?.[0] ||
+                                              "",
+                                          });
+                                          setEditingPalletClientSearch(
+                                            client.name,
+                                          );
+                                          setIsEditingPalletClientListOpen(
+                                            false,
+                                          );
+                                        }}
+                                        className={cn(
+                                          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                                          editingPallet.user_id ===
+                                            client.user_id
+                                            ? "bg-emerald-50 text-emerald-800"
+                                            : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5",
+                                        )}
+                                      >
+                                        <span className="min-w-0">
+                                          <span className="block truncate text-[11px] font-black">
+                                            {client.name}
+                                          </span>
+                                          <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                                            {client.country} / #
+                                            {client.user_id}
+                                          </span>
+                                        </span>
+                                        {editingPallet.user_id ===
+                                          client.user_id && (
+                                          <Check
+                                            size={14}
+                                            className="shrink-0"
+                                          />
+                                        )}
+                                      </button>
+                                    ),
+                                  )}
+
+                                  {filteredEditingPalletClients.length ===
+                                    0 && (
+                                    <p className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                      {t("noResults")}
+                                    </p>
+                                  )}
+                                  </div>
+                                )}
+                            </div>
+                          </div>
                         </div>
 
                         <div className="space-y-1">
@@ -2129,22 +2331,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </h4>
                             </div>
 
-                            <div className="space-y-2 max-h-[260px] overflow-y-auto no-scrollbar">
-                              {editingPalletStatusHistory.map((log) => (
-                                <div
-                                  key={`editing-log-${log.id}`}
-                                  className="flex items-start gap-4 rounded-[1.5rem] border border-gray-100 bg-white p-4"
-                                >
-                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
-                                    <MapPin
-                                      size={16}
-                                      className="text-gray-400"
-                                    />
+                            {editingPalletAuditHistory.length > 0 ? (
+                              <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
+                                {editingPalletAuditHistory.map(
+                                  (latestEditingPalletAuditLog) => (
+                              <div
+                                key={
+                                  "editing-audit-card-" +
+                                  latestEditingPalletAuditLog.id
+                                }
+                                className="rounded-[1.5rem] border border-zinc-200 bg-white px-5 py-4 shadow-[0_14px_35px_-28px_rgba(15,23,42,0.55)] dark:border-white/10 dark:bg-[#151d1a]"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-2 border-b border-zinc-100 pb-3 dark:border-white/10">
+                                  <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                                      {t("statusChange")}
+                                    </p>
+                                    <p className="mt-1 font-mono text-[11px] font-black text-zinc-900 dark:text-white">
+                                      {latestEditingPalletAuditLog.pallet_qr ||
+                                        getPalletTitleLabel(editingPallet)}
+                                    </p>
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
+                                  <p className="text-[10px] font-bold text-zinc-400">
+                                    {detailDateFormatter.format(
+                                      new Date(
+                                        latestEditingPalletAuditLog.created_at,
+                                      ),
+                                    )}
+                                  </p>
+                                </div>
+
+                                <dl className="divide-y divide-zinc-100 text-[11px] dark:divide-white/10">
+                                  <div className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+                                    <dt className="font-black uppercase tracking-[0.12em] text-zinc-400">
+                                      {t("changedBy")}
+                                    </dt>
+                                    <dd className="font-bold text-zinc-900 dark:text-white">
+                                      {getAuditActorLabel(
+                                        latestEditingPalletAuditLog,
+                                      )}{" "}
+                                      <span className="text-zinc-400">
+                                        #
+                                        {latestEditingPalletAuditLog.made_by_user_id ||
+                                          "-"}
+                                      </span>
+                                    </dd>
+                                  </div>
+
+                                  <div className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+                                    <dt className="font-black uppercase tracking-[0.12em] text-zinc-400">
+                                      {t("status")}
+                                    </dt>
+                                    <dd className="font-black text-zinc-900 dark:text-white">
                                       {getStatusLabel(
-                                        log.new_status_name,
+                                        latestEditingPalletAuditLog.old_status_name ||
+                                          "-",
+                                        language,
+                                      )}{" "}
+                                      <span className="px-1 text-emerald-500">
+                                        -&gt;
+                                      </span>{" "}
+                                      {getStatusLabel(
+                                        latestEditingPalletAuditLog.new_status_name ||
+                                          "-",
                                         language,
                                       )}
                                     </p>
@@ -2167,17 +2416,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       </span>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
 
-                              {editingPalletStatusHistory.length === 0 && (
-                                <div className="rounded-[1.5rem] border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                    {noMovementHistoryLabel}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                                  {(latestEditingPalletAuditLog.old_location ||
+                                    latestEditingPalletAuditLog.new_location) && (
+                                    <div className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+                                      <dt className="font-black uppercase tracking-[0.12em] text-zinc-400">
+                                        {t("location")}
+                                      </dt>
+                                      <dd className="break-words font-bold text-zinc-600 dark:text-zinc-200">
+                                        {latestEditingPalletAuditLog.old_location ||
+                                          "-"}{" "}
+                                        <span className="px-1 text-zinc-300">
+                                          -&gt;
+                                        </span>{" "}
+                                        {latestEditingPalletAuditLog.new_location ||
+                                          "-"}
+                                      </dd>
+                                    </div>
+                                  )}
+
+                                  {(getAuditClientLabel(
+                                    latestEditingPalletAuditLog.old_client_id,
+                                  ) ||
+                                    getAuditClientLabel(
+                                      latestEditingPalletAuditLog.new_client_id,
+                                    )) && (
+                                    <div className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+                                      <dt className="font-black uppercase tracking-[0.12em] text-zinc-400">
+                                        {t("client")}
+                                      </dt>
+                                      <dd className="break-words font-bold text-zinc-600 dark:text-zinc-200">
+                                        {getAuditClientLabel(
+                                          latestEditingPalletAuditLog.old_client_id,
+                                        ) || "-"}{" "}
+                                        <span className="px-1 text-zinc-300">
+                                          -&gt;
+                                        </span>{" "}
+                                        {getAuditClientLabel(
+                                          latestEditingPalletAuditLog.new_client_id,
+                                        ) || "-"}
+                                      </dd>
+                                    </div>
+                                  )}
+
+                                  {latestEditingPalletAuditLog.note && (
+                                    <div className="grid gap-1 py-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+                                      <dt className="font-black uppercase tracking-[0.12em] text-zinc-400">
+                                        {t("note")}
+                                      </dt>
+                                      <dd className="font-bold leading-5 text-zinc-600 dark:text-zinc-200">
+                                        {latestEditingPalletAuditLog.note}
+                                      </dd>
+                                    </div>
+                                  )}
+                                </dl>
+                              </div>
+                                  ),
+                                )}
+                              </div>
+                            ) : (
+                              <p className="py-4 text-center text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {noMovementHistoryLabel}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

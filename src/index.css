@@ -316,6 +316,28 @@
   }
 }
 
+@keyframes trackpalLandingIllustrationsFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+#login-screen .landing-illustrations-float {
+  animation: trackpalLandingIllustrationsFloat 6s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #login-screen .landing-illustrations-float {
+    animation: none;
+  }
+}
+
 @media (max-width: 1023px) {
   #login-screen .landing-visual-pane,
   #login-screen .landing-login-pane {

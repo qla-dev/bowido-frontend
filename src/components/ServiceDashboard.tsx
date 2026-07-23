@@ -5,6 +5,7 @@ import { useApp } from '../AppContext';
 import { User } from '../types';
 import { StatCard, Card, Button, Badge } from './ui';
 import { getPalletTypeLabel } from '../i18n';
+import { formatAppTime } from '../lib/dateFormat';
 
 interface ServiceDashboardProps {
   user: User;
@@ -243,10 +244,7 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
                     </p>
                   </div>
                   <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-zinc-300">
-                    {new Date(report.resolved_at || report.created_at).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatAppTime(report.resolved_at || report.created_at)}
                   </span>
                 </motion.div>
               );

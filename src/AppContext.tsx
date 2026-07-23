@@ -22,6 +22,7 @@ import {
 } from "./i18n";
 import { normalizeQrCodeForStorage } from "./lib/palletQrMatching";
 import { statusAllowsCustomer } from "./lib/palletCustomerAssignment";
+import { formatAppDate } from "./lib/dateFormat";
 
 interface AppContextType {
   pallets: Pallet[];
@@ -917,7 +918,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           qr_code: normalizedQrCode,
           pallet_name: normalizedQrCode,
           is_ghost: false,
-          note: `${item.note || ""} (Paired from ghost on ${new Date().toLocaleDateString()})`,
+          note: `${item.note || ""} (Paired from ghost on ${formatAppDate(new Date(), language)})`,
         };
       }),
     );
@@ -935,7 +936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           qr_code: normalizedQrCode,
           pallet_name: normalizedQrCode,
           is_ghost: false,
-          note: `${ghost.note || ""} (Paired from ghost on ${new Date().toLocaleDateString()})`,
+          note: `${ghost.note || ""} (Paired from ghost on ${formatAppDate(new Date(), language)})`,
         })
         .then((updatedPallet) => {
           setPallets((prev) =>
