@@ -1,5 +1,5 @@
 import { useState, type FC, type ReactNode } from 'react';
-import { LogOut, Settings, Boxes, Moon, Sun, Building2, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, Boxes, Building2, ChevronDown } from 'lucide-react';
 import { cn } from './ui';
 
 interface RoleMobileShellProps {
@@ -12,7 +12,6 @@ interface RoleMobileShellProps {
   palletActive?: boolean;
   onToggleSettings: () => void;
   onLogout: () => void;
-  onToggleNightMode?: () => void;
   logoSrc: string;
   bodyClassName?: string;
   children: ReactNode;
@@ -35,7 +34,6 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
   palletActive = false,
   onToggleSettings,
   onLogout,
-  onToggleNightMode,
   logoSrc,
   bodyClassName,
   children,
@@ -64,11 +62,6 @@ export const RoleMobileShell: FC<RoleMobileShellProps> = ({
         <img src={logoSrc} alt="Trackpal logo" className="h-6 w-auto" />
 
         <div className="flex items-center gap-2">
-          {onToggleNightMode && (
-            <button type="button" title="Theme" onClick={onToggleNightMode} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] text-[var(--text-secondary)] transition-colors">
-              {isNightMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          )}
           {showClientMenu ? (
             <div className="relative">
               <button type="button" title="Client options" onClick={() => setIsClientMenuOpen((isOpen) => !isOpen)} className={cn('flex h-10 items-center gap-1.5 rounded-xl border px-3 transition-colors dark:border-white/10 dark:bg-[#101715] dark:text-zinc-100', (palletActive || detailsActive) ? 'border-[#00A655] bg-[#00A655] text-white' : 'border-emerald-100 bg-white text-zinc-700')}>

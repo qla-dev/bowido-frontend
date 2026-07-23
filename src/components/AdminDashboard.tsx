@@ -71,6 +71,7 @@ import {
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
+import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 
 interface AdminDashboardProps {
   initialView?:
@@ -1358,28 +1359,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       <Card title={t("settings")}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
-              {t("nightMode")}
-            </p>
-            <p className="mt-2 text-lg font-black uppercase tracking-tight text-emerald-950">
-              {isNightMode ? t("on") : t("off")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onToggleNightMode?.()}
-            className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition-colors hover:border-emerald-300"
-          >
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
-              {t("updateSettings")}
-            </p>
-            <p className="mt-2 text-lg font-black uppercase tracking-tight text-zinc-950">
-              {t("nightMode")}
-            </p>
-          </button>
-        </div>
+        <ThemeSettingsToggle
+          isNightMode={isNightMode}
+          onToggle={() => onToggleNightMode?.()}
+          label={t("nightMode")}
+          onLabel={t("on")}
+          offLabel={t("off")}
+        />
       </Card>
 
       <Card title={t("statusConfiguratorTitle")}>
