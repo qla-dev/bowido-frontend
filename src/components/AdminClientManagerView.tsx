@@ -350,6 +350,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           ? 'De gebruiker en klantgegevens zijn succesvol gekoppeld.'
           : 'The user and customer details were created and linked successfully.',
     createFailed: language === 'bs' ? 'Kreiranje klijenta nije uspjelo' : language === 'nl' ? 'Klant aanmaken mislukt' : 'Could not create client',
+    createFailedText:
+      language === 'bs'
+        ? 'Korisnički nalog i podaci o klijentu nisu kreirani. Provjerite podatke i pokušajte ponovo.'
+        : language === 'nl'
+          ? 'Het gebruikersaccount en de klantgegevens zijn niet aangemaakt. Controleer de gegevens en probeer opnieuw.'
+          : 'The user account and client details were not created. Check the details and try again.',
     savedTitle: language === 'bs' ? 'Izmjene su sačuvane' : language === 'nl' ? 'Wijzigingen opgeslagen' : 'Changes saved',
     savedText: language === 'bs' ? 'Podaci o klijentu su uspješno ažurirani.' : language === 'nl' ? 'De klantgegevens zijn succesvol bijgewerkt.' : 'The client details were updated successfully.',
     requiredClientFields:
@@ -711,7 +717,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       await appAlert.fire({
         icon: 'error',
         title: labels.createFailed,
-        text: error instanceof Error ? error.message : labels.createFailed,
+        text: labels.createFailedText,
       });
     } finally {
       setIsCreatingClient(false);

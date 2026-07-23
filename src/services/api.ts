@@ -1007,8 +1007,14 @@ export const apiService = {
         return normalizeClient(user.customer_detail);
       }
 
-      const clients = await apiService.clients.list({ limit: 100 });
-      return clients.find((client) => client.user_id === Number(user.id)) || clients[0];
+      const clients = await apiService.clients.list({ user_id: Number(user.id), limit: 1 });
+      const createdClient = clients.find((client) => client.user_id === Number(user.id));
+
+      if (!createdClient) {
+        throw new ApiError('The client account was created without customer details.', 500);
+      }
+
+      return createdClient;
     },
     update: async (data: ClientDetail): Promise<ClientDetail> =>
       normalizeClient(
