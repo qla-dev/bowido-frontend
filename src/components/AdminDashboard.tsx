@@ -809,6 +809,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     (log) => log.id > 0,
   );
   const latestEditingPalletStatusLog = editingPalletStatusHistory[0] || null;
+  const isEditingPalletPickupCustomer =
+    statuses.find(
+      (status) => status.id === editingPallet?.current_status_id,
+    )?.slug === "ophalen-klant";
   const filteredEditingPalletClients = React.useMemo(() => {
     const query = editingPalletClientSearch.trim().toLocaleLowerCase();
 
@@ -2045,6 +2049,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </label>
                               <select
                                 value={editingPallet.user_id || ""}
+                                disabled={isEditingPalletPickupCustomer}
                                 onChange={(e) => {
                                   const uid = e.target.value
                                     ? parseInt(e.target.value)
@@ -2093,15 +2098,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 type="text"
                                 value={editingPalletClientSearch}
                                 disabled={
+                                  isEditingPalletPickupCustomer ||
                                   !statusIdAllowsCustomer(
                                     statuses,
                                     editingPallet.current_status_id,
                                   )
                                 }
                                 placeholder={t("search")}
-                                onFocus={() =>
-                                  setIsEditingPalletClientListOpen(true)
-                                }
+                                onFocus={() => {
+                                  if (!isEditingPalletPickupCustomer) {
+                                    setIsEditingPalletClientListOpen(true);
+                                  }
+                                }}
                                 onBlur={() => {
                                   window.setTimeout(() => {
                                     setIsEditingPalletClientListOpen(false);
@@ -2130,6 +2138,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               />
 
                               {isEditingPalletClientListOpen &&
+                                !isEditingPalletPickupCustomer &&
                                 statusIdAllowsCustomer(
                                   statuses,
                                   editingPallet.current_status_id,
