@@ -4,7 +4,7 @@ export const appLanguages = ["en", "nl", "bs"] as const;
 
 export type AppLanguage = (typeof appLanguages)[number];
 
-export const defaultLanguage: AppLanguage = "bs";
+export const defaultLanguage: AppLanguage = "nl";
 export const LANGUAGE_STORAGE_KEY = "trackpal-language";
 
 export const languageOptions: Array<{
