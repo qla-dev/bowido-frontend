@@ -116,6 +116,7 @@ export interface Pallet {
   current_status_slug?: string;
   user_id?: number; // Klijent ID
   client_name?: string;
+  client_deleted?: boolean;
   type: string;
   current_location: string;
   is_ghost: boolean;

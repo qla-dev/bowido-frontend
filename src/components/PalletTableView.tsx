@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   CalendarClock,
+  Funnel,
   X,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
@@ -476,7 +477,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     [language]
   );
   const getClientLabel = (pallet: Pallet) =>
-    clients.find((client) => client.user_id === pallet.user_id)?.name || t('inStock');
+    clients.find((client) => client.user_id === pallet.user_id)?.name ||
+    pallet.client_name?.trim() ||
+    t('inStock');
+  const isDeletedClientLabel = (pallet: Pallet) =>
+    pallet.client_deleted &&
+    !clients.some((client) => client.user_id === pallet.user_id);
 
   const getTypeLabel = (pallet: Pallet) => getPalletTypeLabel(pallet.type, language);
 
@@ -962,25 +968,52 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   const renderSortButton = (key: SortKey, label: string) => {
     const isActive = sortConfig.key === key;
+    const activeFilterCount = selectedFilters[key].length;
+    const isFilterOpen = openFilterKey === key;
 
     return (
-      <button
-        type="button"
-        onClick={() => toggleSort(key)}
-        aria-pressed={isActive}
-        className={cn(
-          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
-          isActive
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
-            : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50'
-        )}
-      >
-        <span className="block min-w-0 truncate">{label}</span>
-        <ArrowUpDown
-          size={13}
-          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
-        />
-      </button>
+      <div className="flex min-w-0 items-center justify-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          aria-pressed={isActive}
+          className={cn(
+            'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+            isActive
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+              : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50'
+          )}
+        >
+          <span className="block min-w-0 truncate">{label}</span>
+          <ArrowUpDown
+            size={13}
+            className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpenQuickFilter(null);
+            setOpenFilterKey((current) => current === key ? null : key);
+          }}
+          aria-label={`${t('filter')}: ${label}`}
+          aria-expanded={isFilterOpen}
+          title={`${t('filter')}: ${label}`}
+          className={cn(
+            'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
+            activeFilterCount > 0 || isFilterOpen
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+              : 'border-transparent text-zinc-400 hover:border-zinc-200 hover:bg-white hover:text-zinc-700 dark:text-zinc-500 dark:hover:border-white/15 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200'
+          )}
+        >
+          <Funnel size={13} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
+          {activeFilterCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#00A655] px-1 text-[8px] font-black leading-none text-white ring-2 ring-zinc-50 dark:ring-[#18181b]">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
     );
   };
 
@@ -1330,7 +1363,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'uppercase text-zinc-900 dark:text-zinc-200')}>
+                        <span
+                          className={cn(
+                            bodyTextClass,
+                            'uppercase',
+                            isDeletedClientLabel(pallet)
+                              ? 'text-rose-600 dark:text-rose-300'
+                              : 'text-zinc-900 dark:text-zinc-200',
+                          )}
+                        >
                           {clientLabel}
                         </span>
                       </div>
