@@ -1,4 +1,4 @@
-import React, { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { appAlert } from './AppAlert';
@@ -20,6 +20,7 @@ import { PageLoadingModal } from './PageLoadingModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import {
   CheckCircle2,
   ChevronDown,
@@ -45,6 +46,7 @@ interface UserFormState {
 }
 
 const USER_PAGE_SIZE = 25;
+type UserTableColumnKey = 'user' | 'role' | 'access';
 
 const defaultFormState: UserFormState = {
   email: '',
@@ -368,6 +370,11 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [roleFilter, setRoleFilter] = useState<'all' | RoleType>('all');
+  const [columnFilters, setColumnFilters] = useState<Record<UserTableColumnKey, string[]>>({
+    user: [],
+    role: [],
+    access: [],
+  });
   const [formState, setFormState] = useState<UserFormState>(defaultFormState);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -502,10 +509,56 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
     }
   };
 
+  const getUserColumnValue = (user: ManagedUser, key: UserTableColumnKey) => {
+    switch (key) {
+      case 'user':
+        return `${user.email} · ${user.name || '-'}`;
+      case 'role':
+        return getRoleLabel(user.role_name, language);
+      case 'access':
+        return user.id === currentUser.id ? t('activeSessionBadge') : t('demoAccount');
+    }
+  };
+  const userFilterOptions = useMemo<Record<UserTableColumnKey, AdminTableFilterOption[]>>(
+    () => Object.fromEntries(
+      (['user', 'role', 'access'] as UserTableColumnKey[]).map((key) => [
+        key,
+        Array.from<string>(new Set<string>(users.map((user) => getUserColumnValue(user, key))))
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+          .map((value) => ({ value, label: value })),
+      ])
+    ) as Record<UserTableColumnKey, AdminTableFilterOption[]>,
+    [currentUser.id, language, t, users]
+  );
+  const renderUserColumnHeader = (key: UserTableColumnKey, label: string) => (
+    <div className="flex items-center gap-1">
+      <span>{label}</span>
+      <AdminTableColumnFilter
+        label={label}
+        options={userFilterOptions[key]}
+        selectedValues={columnFilters[key]}
+        onToggle={(value) => setColumnFilters((current) => ({
+          ...current,
+          [key]: current[key].includes(value)
+            ? current[key].filter((item) => item !== value)
+            : [...current[key], value],
+        }))}
+        onClear={() => setColumnFilters((current) => ({ ...current, [key]: [] }))}
+        filterLabel={t('filter')}
+        searchLabel={t('search')}
+        showAllLabel={t('showAll')}
+        noResultsLabel={t('noResults')}
+      />
+    </div>
+  );
+
   const filteredUsers = users.filter((user) => {
     const matchesRole = roleFilter === 'all' || user.role_name === roleFilter;
+    const matchesColumns = (['user', 'role', 'access'] as UserTableColumnKey[]).every((key) =>
+      columnFilters[key].length === 0 || columnFilters[key].includes(getUserColumnValue(user, key))
+    );
 
-    return matchesRole;
+    return matchesRole && matchesColumns;
   });
 
   const adminCount = users.filter((user) => user.role_name === RoleType.ADMIN).length;
@@ -583,9 +636,9 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
             <table className="w-full text-left">
               <thead className="bg-white text-[9px] font-black text-zinc-400 uppercase tracking-[0.18em] border-b border-zinc-100">
                 <tr>
-                  <th className="px-6 py-4">{t('user')}</th>
-                  <th className="px-6 py-4">{t('role')}</th>
-                  <th className="px-6 py-4">{t('access')}</th>
+                  <th className="px-6 py-4">{renderUserColumnHeader('user', t('user'))}</th>
+                  <th className="px-6 py-4">{renderUserColumnHeader('role', t('role'))}</th>
+                  <th className="px-6 py-4">{renderUserColumnHeader('access', t('access'))}</th>
                   <th className="px-6 py-4 text-right">{t('actions')}</th>
                 </tr>
               </thead>

@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import {
   ArrowUpDown,
   Clock3,
+  Funnel,
   MapPin,
   Package,
   RotateCcw,
@@ -211,7 +212,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     sort_direction: sortConfig.direction,
   }), [client.user_id, debouncedSearchQuery, sortConfig]);
   const { items: pallets, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedPallets } = useInfinitePagination({
-    queryKey: `${client.user_id}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${JSON.stringify(selectedFilters)}`,
+    queryKey: `${client.user_id}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}`,
     pageSize: CLIENT_PALLET_PAGE_SIZE,
     fetchPage,
   });
@@ -425,25 +426,42 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
 
   const renderSortButton = (key: SortKey, label: string) => {
     const isActive = sortConfig.key === key;
+    const activeFilterCount = selectedFilters[key].length;
+    const isFilterOpen = openFilterKey === key;
 
     return (
-      <button
-        type="button"
-        onClick={() => toggleSort(key)}
-        aria-pressed={isActive}
-        className={cn(
-          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
-          isActive
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
-            : 'border-transparent text-zinc-900 hover:text-zinc-700'
-        )}
-      >
-        <span className="block min-w-0 truncate">{label}</span>
-        <ArrowUpDown
-          size={13}
-          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
-        />
-      </button>
+      <div className="flex min-w-0 items-center justify-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          aria-pressed={isActive}
+          className={cn(
+            'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+            isActive
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+              : 'border-transparent text-zinc-900 hover:text-zinc-700'
+          )}
+        >
+          <span className="block min-w-0 truncate">{label}</span>
+          <ArrowUpDown size={13} className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpenFilterKey((current) => current === key ? null : key)}
+          aria-label={`${t('filter')}: ${label}`}
+          aria-expanded={isFilterOpen}
+          title={`${t('filter')}: ${label}`}
+          className={cn(
+            'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
+            activeFilterCount > 0 || isFilterOpen
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+              : 'border-transparent text-zinc-400 hover:border-zinc-200 hover:bg-white hover:text-zinc-700'
+          )}
+        >
+          <Funnel size={13} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
+          {activeFilterCount > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#00A655] px-1 text-[8px] font-black leading-none text-white ring-2 ring-zinc-50">{activeFilterCount}</span>}
+        </button>
+      </div>
     );
   };
 

@@ -9,6 +9,7 @@ import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
@@ -23,6 +24,7 @@ interface AdminAuditLogsProps {
 
 type AuditFilter = 'all' | 'status' | 'qr_version';
 type AuditColumnKey = 'timestamp' | 'logType' | 'pallet' | 'changedBy' | 'changeSummary' | 'note';
+type AuditFilterSelections = Record<AuditColumnKey, string[]>;
 const AUDIT_LOG_PAGE_SIZE = 25;
 
 const AUDIT_TABLE_COLUMN_ORDER = [
@@ -65,6 +67,9 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   const [filter, setFilter] = useState<AuditFilter>('all');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
+  const [columnFilters, setColumnFilters] = useState<AuditFilterSelections>(() =>
+    Object.fromEntries(AUDIT_TABLE_COLUMN_ORDER.map((key) => [key, []])) as AuditFilterSelections
+  );
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<AuditColumnKey, HTMLTableCellElement | null>>>({});
   const {
@@ -117,7 +122,46 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     [auditLogs]
   );
 
-  const filteredLogs = sortedLogs;
+  const getAuditColumnValue = (log: AuditLog, key: AuditColumnKey) => {
+    const logType = log.type || 'status';
+    switch (key) {
+      case 'timestamp':
+        return formatAppDateTime(log.created_at, language);
+      case 'logType':
+        return logType === 'qr_version' ? t('qrVersionChange') : t('statusChange');
+      case 'pallet':
+        return log.pallet_qr || '-';
+      case 'changedBy':
+        return log.made_by_user_name || '-';
+      case 'changeSummary':
+        return logType === 'qr_version'
+          ? `${log.old_qr_code || '-'} → ${log.new_qr_code || '-'}`
+          : `${getStatusLabel(log.old_status_name || '-', language)} → ${getStatusLabel(log.new_status_name, language)}`;
+      case 'note':
+        return log.note || '-';
+    }
+  };
+
+  const auditFilterOptions = useMemo<Record<AuditColumnKey, AdminTableFilterOption[]>>(
+    () => Object.fromEntries(
+      AUDIT_TABLE_COLUMN_ORDER.map((key) => [
+        key,
+        Array.from<string>(new Set<string>(sortedLogs.map((log) => getAuditColumnValue(log, key))))
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+          .map((value) => ({ value, label: value })),
+      ])
+    ) as Record<AuditColumnKey, AdminTableFilterOption[]>,
+    [language, sortedLogs, t]
+  );
+
+  const filteredLogs = useMemo(
+    () => sortedLogs.filter((log) =>
+      AUDIT_TABLE_COLUMN_ORDER.every((key) =>
+        columnFilters[key].length === 0 || columnFilters[key].includes(getAuditColumnValue(log, key))
+      )
+    ),
+    [columnFilters, language, sortedLogs, t]
+  );
 
   const statusLogCount = paginationMeta.status_changes ?? 0;
   const qrVersionLogCount = paginationMeta.qr_version_changes ?? 0;
@@ -166,10 +210,28 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     </div>
   );
 
-  const renderHeaderLabel = (label: string) => (
-    <p className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 dark:text-zinc-300">
-      {label}
-    </p>
+  const renderHeaderLabel = (key: AuditColumnKey, label: string) => (
+    <div className="flex min-w-0 items-center justify-center gap-0.5">
+      <p className="truncate text-[9px] font-black uppercase tracking-[0.14em] leading-none text-zinc-900 dark:text-zinc-300">
+        {label}
+      </p>
+      <AdminTableColumnFilter
+        label={label}
+        options={auditFilterOptions[key]}
+        selectedValues={columnFilters[key]}
+        onToggle={(value) => setColumnFilters((current) => ({
+          ...current,
+          [key]: current[key].includes(value)
+            ? current[key].filter((item) => item !== value)
+            : [...current[key], value],
+        }))}
+        onClear={() => setColumnFilters((current) => ({ ...current, [key]: [] }))}
+        filterLabel={t('filter')}
+        searchLabel={t('search')}
+        showAllLabel={t('showAll')}
+        noResultsLabel={t('noResults')}
+      />
+    </div>
   );
 
   return (
@@ -356,27 +418,27 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
             <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-white/5">
               <tr>
                 <th ref={registerHeaderCell('timestamp')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>{renderHeaderLabel(t('timestamp'))}</div>
+                  <div className={headerContentClass}>{renderHeaderLabel('timestamp', t('timestamp'))}</div>
                   {renderResizeHandle('timestamp')}
                 </th>
                 <th ref={registerHeaderCell('logType')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>{renderHeaderLabel(t('logType'))}</div>
+                  <div className={headerContentClass}>{renderHeaderLabel('logType', t('logType'))}</div>
                   {renderResizeHandle('logType')}
                 </th>
                 <th ref={registerHeaderCell('pallet')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>{renderHeaderLabel(t('pallets'))}</div>
+                  <div className={headerContentClass}>{renderHeaderLabel('pallet', t('pallets'))}</div>
                   {renderResizeHandle('pallet')}
                 </th>
                 <th ref={registerHeaderCell('changedBy')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>{renderHeaderLabel(t('changedBy'))}</div>
+                  <div className={headerContentClass}>{renderHeaderLabel('changedBy', t('changedBy'))}</div>
                   {renderResizeHandle('changedBy')}
                 </th>
                 <th ref={registerHeaderCell('changeSummary')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>{renderHeaderLabel(t('changeSummary'))}</div>
+                  <div className={headerContentClass}>{renderHeaderLabel('changeSummary', t('changeSummary'))}</div>
                   {renderResizeHandle('changeSummary')}
                 </th>
                 <th ref={registerHeaderCell('note')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>{renderHeaderLabel(t('note'))}</div>
+                  <div className={headerContentClass}>{renderHeaderLabel('note', t('note'))}</div>
                   {renderResizeHandle('note')}
                 </th>
               </tr>

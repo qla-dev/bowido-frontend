@@ -12,6 +12,7 @@ import {
   Check,
   ChevronDown,
   CalendarClock,
+  Funnel,
   X,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
@@ -191,7 +192,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     sort_direction: sortConfig.direction,
   }), [debouncedSearchQuery, sortConfig]);
   const { items: pallets, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedPallets } = useInfinitePagination({
-    queryKey: `${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${JSON.stringify(selectedFilters)}|${selectedDeadlineFilters.join(',')}`,
+    queryKey: `${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}`,
     pageSize: PALLET_PAGE_SIZE,
     fetchPage,
   });
@@ -454,9 +455,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         }
       : language === 'nl'
         ? {
-            date: 'Datum',
-            term: 'Termijn',
-            deadline: 'Status',
+            date: 'Verzonden',
+            term: 'Retour',
+            deadline: 'Termijn',
             emptyValue: '-',
             daysLeft: 'dagen resterend',
             daysLate: 'dagen over',
@@ -967,25 +968,52 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   const renderSortButton = (key: SortKey, label: string) => {
     const isActive = sortConfig.key === key;
+    const activeFilterCount = selectedFilters[key].length;
+    const isFilterOpen = openFilterKey === key;
 
     return (
-      <button
-        type="button"
-        onClick={() => toggleSort(key)}
-        aria-pressed={isActive}
-        className={cn(
-          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
-          isActive
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
-            : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50'
-        )}
-      >
-        <span className="block min-w-0 truncate">{label}</span>
-        <ArrowUpDown
-          size={13}
-          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
-        />
-      </button>
+      <div className="flex min-w-0 items-center justify-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          aria-pressed={isActive}
+          className={cn(
+            'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+            isActive
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+              : 'border-transparent text-zinc-900 hover:text-zinc-700 dark:text-zinc-300 dark:hover:text-zinc-50'
+          )}
+        >
+          <span className="block min-w-0 truncate">{label}</span>
+          <ArrowUpDown
+            size={13}
+            className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpenQuickFilter(null);
+            setOpenFilterKey((current) => current === key ? null : key);
+          }}
+          aria-label={`${t('filter')}: ${label}`}
+          aria-expanded={isFilterOpen}
+          title={`${t('filter')}: ${label}`}
+          className={cn(
+            'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
+            activeFilterCount > 0 || isFilterOpen
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100'
+              : 'border-transparent text-zinc-400 hover:border-zinc-200 hover:bg-white hover:text-zinc-700 dark:text-zinc-500 dark:hover:border-white/15 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200'
+          )}
+        >
+          <Funnel size={13} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
+          {activeFilterCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#00A655] px-1 text-[8px] font-black leading-none text-white ring-2 ring-zinc-50 dark:ring-[#18181b]">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
     );
   };
 
@@ -1169,7 +1197,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300">
             <Package size={16} />
           </span>
-          {t('pallets')}
+          {t('adminPalletOverview')}
         </h2>
         <div ref={quickFilterRef} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <div className="relative">
