@@ -25,7 +25,7 @@ import { Eye, EyeOff, LogIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./AppContext";
 import { Button, Card, Input, Select, cn } from "./components/ui";
-import { apiService } from "./services/api";
+import { ApiError, apiService } from "./services/api";
 import logoImage from "./assets/logo.png";
 import { languageOptions } from "./i18n";
 
@@ -45,6 +45,11 @@ const readStoredTheme = () => {
 };
 
 type LoginMode = "user" | "customer";
+
+type CompanyLoginOption = {
+  customer_detail_id: number;
+  company_name: string;
+};
 
 type StoredLoginProfile = {
   id: string;
@@ -311,6 +316,8 @@ const getCredentialLoginCopy = (language: string) => {
       hidePassword: "Wachtwoord verbergen",
       required: "Vul de gegevens en het wachtwoord in.",
       invalid: "Gegevens of wachtwoord zijn onjuist.",
+      chooseCompanyTitle: "Kies je bedrijf",
+      chooseCompanySubtitle: "Dit KVK-nummer hoort bij meerdere bedrijven.",
     };
   }
 
@@ -332,6 +339,8 @@ const getCredentialLoginCopy = (language: string) => {
       hidePassword: "Hide password",
       required: "Enter login details and password.",
       invalid: "Login details or password are incorrect.",
+      chooseCompanyTitle: "Choose your company",
+      chooseCompanySubtitle: "This KVK number belongs to multiple companies.",
     };
   }
 
@@ -352,6 +361,8 @@ const getCredentialLoginCopy = (language: string) => {
     hidePassword: "Sakrij lozinku",
     required: "Unesite podatke za prijavu i lozinku.",
     invalid: "Podaci za prijavu ili lozinka nisu ispravni.",
+    chooseCompanyTitle: "Odaberite kompaniju",
+    chooseCompanySubtitle: "Ovaj KVK broj pripada vise kompanija.",
   };
 };
 
@@ -544,6 +555,9 @@ export default function App() {
   >(null);
   const [isCredentialLoginSubmitting, setIsCredentialLoginSubmitting] =
     useState(false);
+  const [companyLoginOptions, setCompanyLoginOptions] = useState<
+    CompanyLoginOption[]
+  >([]);
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
   const [isKvkRegistrationOpen, setIsKvkRegistrationOpen] = useState(false);
@@ -850,6 +864,7 @@ export default function App() {
       password: "",
     });
     setRememberLogin(Boolean(profile?.saved));
+    setCompanyLoginOptions([]);
     setShowCredentialPassword(false);
     setIsCredentialLoginOpen(true);
   };
@@ -861,19 +876,17 @@ export default function App() {
 
     setIsCredentialLoginOpen(false);
     setCredentialLoginError(null);
+    setCompanyLoginOptions([]);
     setShowCredentialPassword(false);
   };
 
   const selectCredentialLoginMode = (mode: LoginMode) => {
     setCredentialLoginMode(mode);
     setCredentialLoginError(null);
+    setCompanyLoginOptions([]);
   };
 
-  const handleCredentialLoginSubmit = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault();
-
+  const performCredentialLogin = async (customerDetailId?: number) => {
     const loginIdentifier =
       credentialLoginMode === "customer"
         ? credentialLoginForm.kvk.trim()
@@ -893,6 +906,7 @@ export default function App() {
         loginType: credentialLoginMode,
         email: credentialLoginMode === "user" ? loginIdentifier : undefined,
         kvk: credentialLoginMode === "customer" ? loginIdentifier : undefined,
+        customerDetailId,
         password,
       });
       const updatedProfiles = upsertLoginProfile(
@@ -910,17 +924,51 @@ export default function App() {
       setCurrentUser(result.user);
       storeCurrentUser(result.user);
       setCredentialLoginForm({ email: "", kvk: "", password: "" });
+      setCompanyLoginOptions([]);
       setIsCredentialLoginOpen(false);
       setShowCredentialPassword(false);
       setRememberLogin(false);
       void refreshData();
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        error.data &&
+        typeof error.data === "object" &&
+        (error.data as { code?: string }).code ===
+          "company_selection_required"
+      ) {
+        const companies = (error.data as { companies?: unknown }).companies;
+        if (Array.isArray(companies)) {
+          setCompanyLoginOptions(
+            companies.filter(
+              (company): company is CompanyLoginOption =>
+                company !== null &&
+                typeof company === "object" &&
+                Number.isInteger(
+                  (company as CompanyLoginOption).customer_detail_id,
+                ) &&
+                typeof (company as CompanyLoginOption).company_name ===
+                  "string",
+            ),
+          );
+          return;
+        }
+      }
+
       setCredentialLoginError(
         getCredentialLoginErrorMessage(error, credentialLoginCopy.invalid),
       );
     } finally {
       setIsCredentialLoginSubmitting(false);
     }
+  };
+
+  const handleCredentialLoginSubmit = (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+    void performCredentialLogin();
   };
 
   const handleLogout = () => {
@@ -1445,6 +1493,72 @@ export default function App() {
                     </button>
                   </div>
                 </form>
+              </motion.div>
+            </motion.div>
+          )}
+          {companyLoginOptions.length > 0 && (
+            <motion.div
+              className="modal-overlay fixed inset-0 z-[230] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() =>
+                !isCredentialLoginSubmitting && setCompanyLoginOptions([])
+              }
+            >
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="company-login-selection-title"
+                className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-2xl sm:p-8"
+                initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 14, scale: 0.98 }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="mb-6">
+                  <h2
+                    id="company-login-selection-title"
+                    className="text-sm font-black uppercase tracking-[0.16em] text-slate-950"
+                  >
+                    {credentialLoginCopy.chooseCompanyTitle}
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-500">
+                    {credentialLoginCopy.chooseCompanySubtitle}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {companyLoginOptions.map((company) => (
+                    <button
+                      key={company.customer_detail_id}
+                      type="button"
+                      disabled={isCredentialLoginSubmitting}
+                      onClick={() => {
+                        setCompanyLoginOptions([]);
+                        void performCredentialLogin(
+                          company.customer_detail_id,
+                        );
+                      }}
+                      className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-left text-sm font-bold text-slate-800 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-50"
+                    >
+                      <span>{company.company_name}</span>
+                      <span aria-hidden="true" className="text-emerald-600">
+                        →
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isCredentialLoginSubmitting}
+                  onClick={() => setCompanyLoginOptions([])}
+                  className="mt-5 w-full"
+                >
+                  {credentialLoginCopy.cancel}
+                </Button>
               </motion.div>
             </motion.div>
           )}

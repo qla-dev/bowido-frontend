@@ -55,6 +55,7 @@ type ApiRecord = Record<string, any>;
 type LoginCredentials = {
   email?: string;
   kvk?: string;
+  customerDetailId?: number;
   password: string;
   loginType?: 'user' | 'customer';
 };
@@ -90,7 +91,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly errors: Record<string, string[]> = {}
+    public readonly errors: Record<string, string[]> = {},
+    public readonly data: unknown = null,
   ) {
     super(message);
   }
@@ -186,7 +188,8 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<ApiE
     throw new ApiError(
       payload?.message || `Request failed with status ${response.status}`,
       response.status,
-      payload?.errors || {}
+      payload?.errors || {},
+      payload?.data ?? null,
     );
   }
 
@@ -780,6 +783,7 @@ export const apiService = {
           login_type: loginType,
           email: loginType === 'user' ? credentials.email : undefined,
           kvk: loginType === 'customer' ? credentials.kvk : undefined,
+          customer_detail_id: loginType === 'customer' ? credentials.customerDetailId : undefined,
           password: credentials.password,
           token_name: 'trackpal-frontend',
         }),
