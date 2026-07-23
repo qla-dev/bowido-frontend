@@ -648,6 +648,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const hideDetailLabel = t("hideDetails");
   const showDetailLabel = t("showDetails");
+  const palletDetailTitleLabel = language === "nl" ? "Boknummer" : t("pallets");
+  const palletDetailFieldLabel = language === "nl" ? "Boknummer" : t("palletLabel");
   const daysOutsideLabel = t("daysOut");
   const detailsSectionLabel = t("details");
   const noMovementHistoryLabel = t("noMovementHistory");
@@ -1005,7 +1007,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {client?.name || t("inWarehouse")}
                               </p>
                               <p className="text-[11px] leading-4 text-zinc-500">
-                                {p.current_location}
+                                {getLocationLabel(p.current_location, language)}
                               </p>
                             </td>
                             <td className="px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
@@ -1772,7 +1774,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {getStatusLabel(log.new_status_name, language)}
                         </p>
                         <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                          {log.new_location || notAvailableLabel}
+                          {getLocationLabel(log.new_location, language) ||
+                            notAvailableLabel}
                         </p>
                         <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
                           {t("changedBy")}: {getAuditActorLabel(log)}
@@ -1824,7 +1827,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4 dark:border-white/10 sm:px-6">
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">
-                    {t("pallets")}
+                    {palletDetailTitleLabel}
                   </p>
                   <h3 className="mt-1 truncate text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white sm:text-2xl">
                     {getPalletTitleLabel(editingPallet)}
@@ -1867,7 +1870,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       {renderPalletInfoTile(
-                        t("palletLabel"),
+                        palletDetailFieldLabel,
                         getPalletTitleLabel(editingPallet),
                       )}
                       {renderPalletInfoTile(
@@ -1875,13 +1878,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         getPalletTypeLabel(editingPallet.type, language),
                       )}
                       {renderPalletInfoTile(
-                        t("client"),
-                        getAssignedClientLabel(editingPallet),
-                      )}
-                      {renderPalletInfoTile(
                         t("location"),
                         getStatusLocationLabel(editingPallet),
                       )}
+                      {statusIdAllowsCustomer(
+                        statuses,
+                        editingPallet.current_status_id,
+                      ) &&
+                        renderPalletInfoTile(
+                          t("client"),
+                          getAssignedClientLabel(editingPallet),
+                        )}
                     </div>
                   </div>
 
@@ -1917,7 +1924,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
 
                       <div className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div
+                          className={cn(
+                            "grid gap-4",
+                            statusIdAllowsCustomer(
+                              statuses,
+                              editingPallet.current_status_id,
+                            )
+                              ? "md:grid-cols-3"
+                              : "md:grid-cols-2",
+                          )}
+                        >
                           <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                               {t("palletType")}
@@ -2009,6 +2026,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               ))}
                             </select>
                           </div>
+                          {statusIdAllowsCustomer(
+                            statuses,
+                            editingPallet.current_status_id,
+                          ) && (
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                {t("assignedClient")}
+                              </label>
+                              <select
+                                value={editingPallet.user_id || ""}
+                                onChange={(e) => {
+                                  const uid = e.target.value
+                                    ? parseInt(e.target.value)
+                                    : undefined;
+                                  const selectedClient = clients.find(
+                                    (c) => c.user_id === uid,
+                                  );
+                                  const cname = selectedClient?.name || "";
+                                  setEditingPallet({
+                                    ...editingPallet,
+                                    user_id: uid,
+                                    client_name: cname,
+                                    current_location:
+                                      selectedClient?.warehouse_addresses?.[0] ||
+                                      "",
+                                  });
+                                }}
+                                className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                              >
+                                <option value="">{t("noClient")}</option>
+                                {clients.map((c) => (
+                                  <option
+                                    key={`edit-client-${c.id}`}
+                                    value={c.user_id}
+                                  >
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                               {t("assignedClient")}
@@ -2185,7 +2243,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     editingPallet.current_status_id,
                                 )?.slug || "",
                               )
-                                ? "Na putu"
+                                ? getLocationLabel("Na putu", language)
                                 : getFixedWarehouseLocation(
                                     editingPallet.current_status_id,
                                     editingPallet.current_status_name,
@@ -2338,7 +2396,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           "-",
                                         language,
                                       )}
-                                    </dd>
+                                    </p>
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
+                                      {getLocationLabel(
+                                        log.new_location,
+                                        language,
+                                      ) || notAvailableLabel}
+                                    </p>
+                                    <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                                      {t("changedBy")}:{" "}
+                                      {getAuditActorLabel(log)}
+                                    </p>
+                                    <div className="mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-tight text-gray-400">
+                                      <Clock size={12} />
+                                      <span>
+                                        {detailDateFormatter.format(
+                                          new Date(log.created_at),
+                                        )}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   {(latestEditingPalletAuditLog.old_location ||
