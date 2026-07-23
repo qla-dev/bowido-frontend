@@ -580,7 +580,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
 
     if (role === RoleType.ADMIN) {
       items.push(
-        { id: 'pallets', label: t('pallets'), icon: <Package /> },
+        { id: 'pallets', label: t('adminPalletOverview'), icon: <Package /> },
         { id: 'no-qr-pallets', label: t('noQrPallets'), icon: <Ghost /> },
         { id: 'calendar', label: t('calendar'), icon: <CalendarIcon /> },
         { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
@@ -818,7 +818,7 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
     if (role === RoleType.ADMIN) {
       items.push({ id: 'dashboard', label: t('home'), icon: <LayoutDashboard size={18} />, isActive: activeTab === 'dashboard' });
       items.push(
-        { id: 'pallets', label: t('pallets'), icon: <Package size={18} />, isActive: activeTab === 'pallets' },
+        { id: 'pallets', label: t('adminPalletOverview'), icon: <Package size={18} />, isActive: activeTab === 'pallets' },
         { id: 'korisnici', label: t('systemUsers'), icon: <UserCircle size={18} />, isActive: activeTab === 'korisnici' }
       );
     } else if ([RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT, RoleType.SERVISER].includes(role)) {

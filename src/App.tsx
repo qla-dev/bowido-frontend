@@ -300,7 +300,7 @@ const upsertLoginProfile = (
 const getCredentialLoginCopy = (language: string) => {
   if (language === "nl") {
     return {
-      title: "Prijava",
+      title: "Inloggen",
       userMode: "BoWiDo werknemer",
       customerMode: "Ik ben klant",
       email: "E-mail",
@@ -324,7 +324,7 @@ const getCredentialLoginCopy = (language: string) => {
 
   if (language === "en") {
     return {
-      title: "Prijava",
+      title: "Sign in",
       userMode: "BoWiDo employee",
       customerMode: "I am a customer",
       email: "Email",
