@@ -515,6 +515,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     current_status_slug: pallet.current_status_slug || pallet.current_status?.slug || status?.slug,
     user_id: pallet.user_id ? Number(pallet.user_id) : undefined,
     client_name: clientName,
+    client_deleted: toBoolean(pallet.client_deleted),
     type: pallet.type || pallet.asset_type || 'pallet',
     current_location: pallet.current_location || '',
     is_ghost: toBoolean(pallet.is_ghost),

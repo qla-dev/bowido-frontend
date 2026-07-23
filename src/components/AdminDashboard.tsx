@@ -1887,7 +1887,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       ) &&
                         renderPalletInfoTile(
                           t("client"),
-                          getAssignedClientLabel(editingPallet),
+                          <span
+                            className={
+                              editingPallet.client_deleted &&
+                              !getAssignedClient(editingPallet)
+                                ? "text-rose-600 dark:text-rose-300"
+                                : undefined
+                            }
+                          >
+                            {getAssignedClientLabel(editingPallet)}
+                          </span>,
                         )}
                     </div>
                   </div>
