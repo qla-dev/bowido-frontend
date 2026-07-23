@@ -987,27 +987,19 @@ export const apiService = {
     palletPhotos: async (customerDetailId: number): Promise<PalletPhoto[]> =>
       (await listAll<ApiRecord>(`/customer_details/${customerDetailId}/pallet-photos`)).map(normalizePalletPhoto),
     create: async (data: Omit<ClientDetail, 'id' | 'user_id'> & { user_id?: number }): Promise<ClientDetail> => {
-      if (data.user_id) {
-        return normalizeClient(
-          await apiData<ApiRecord>('/customer_details', {
-            method: 'POST',
-            body: jsonBody(toCustomerPayload(data)),
-          })
-        );
-      }
-
+      const { user_id: _ignoredUserId, ...clientData } = data;
       const roleId = await resolveRoleId(RoleType.KLIJENT);
-      const name = data.name || 'New Client';
+      const name = clientData.name || 'New Client';
       const user = await apiData<ApiRecord>('/users', {
         method: 'POST',
         body: jsonBody({
           role_id: roleId,
           name,
-          email: data.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
-          phone_number: data.phone_number || undefined,
+          email: clientData.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
+          phone_number: clientData.phone_number || undefined,
           password: DEMO_PASSWORD,
           is_active: true,
-          customer_details: toCustomerPayload(data),
+          customer_details: toCustomerPayload(clientData),
         }),
       });
 
