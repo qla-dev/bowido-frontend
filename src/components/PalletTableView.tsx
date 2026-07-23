@@ -1197,7 +1197,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-zinc-300">
             <Package size={16} />
           </span>
-          {t('pallets')}
+          {t('adminPalletOverview')}
         </h2>
         <div ref={quickFilterRef} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <div className="relative">

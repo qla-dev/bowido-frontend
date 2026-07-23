@@ -485,6 +485,7 @@ export const translations = {
   en: {
     dashboard: "Dashboard",
     pallets: "Pallet Tracking",
+    adminPalletOverview: "Pallet Tracking",
     noQrPallets: "Ghost Pallets",
     clients: "Client Admin",
     clientManager: "Client Manager",
@@ -1047,6 +1048,7 @@ export const translations = {
   nl: {
     dashboard: "Dashboard",
     pallets: "Bokken",
+    adminPalletOverview: "Bokken overzicht",
     noQrPallets: "Ghost-bokken",
     clients: "Klant Admin",
     clientManager: "Klantbeheer",
@@ -1615,6 +1617,7 @@ export const translations = {
   },
   bs: {
     dashboard: "Kontrolna tabla",
+    adminPalletOverview: "Praćenje paleta",
     noQrPallets: "Ghost palete",
     pallets: "Praćenje paleta",
     clients: "Klijent Admin",
