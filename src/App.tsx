@@ -301,7 +301,7 @@ const getCredentialLoginCopy = (language: string) => {
   if (language === "nl") {
     return {
       title: "Prijava",
-      userMode: "Ik ben gebruiker",
+      userMode: "BoWiDo werknemer",
       customerMode: "Ik ben klant",
       email: "E-mail",
       kvk: "KVK nummer",
@@ -311,11 +311,12 @@ const getCredentialLoginCopy = (language: string) => {
       noLogins: "Nog geen recente logins.",
       rememberMe: "Onthoud mij",
       cancel: "Annuleren",
-      submit: "Prijava",
+      submit: "Inloggen",
       showPassword: "Wachtwoord tonen",
       hidePassword: "Wachtwoord verbergen",
       required: "Vul de gegevens en het wachtwoord in.",
       invalid: "Gegevens of wachtwoord zijn onjuist.",
+      invalidCustomer: "KVK-nummer of wachtwoord is onjuist.",
       chooseCompanyTitle: "Kies je bedrijf",
       chooseCompanySubtitle: "Dit KVK-nummer hoort bij meerdere bedrijven.",
     };
@@ -324,7 +325,7 @@ const getCredentialLoginCopy = (language: string) => {
   if (language === "en") {
     return {
       title: "Prijava",
-      userMode: "I am a user",
+      userMode: "BoWiDo employee",
       customerMode: "I am a customer",
       email: "Email",
       kvk: "KVK number",
@@ -334,11 +335,12 @@ const getCredentialLoginCopy = (language: string) => {
       noLogins: "No recent logins yet.",
       rememberMe: "Remember me",
       cancel: "Cancel",
-      submit: "Prijava",
+      submit: "Log in",
       showPassword: "Show password",
       hidePassword: "Hide password",
       required: "Enter login details and password.",
       invalid: "Login details or password are incorrect.",
+      invalidCustomer: "KVK number or password is incorrect.",
       chooseCompanyTitle: "Choose your company",
       chooseCompanySubtitle: "This KVK number belongs to multiple companies.",
     };
@@ -346,7 +348,7 @@ const getCredentialLoginCopy = (language: string) => {
 
   return {
     title: "Prijava",
-    userMode: "Ja sam korisnik",
+    userMode: "BoWiDo zaposlenik",
     customerMode: "Ja sam kupac",
     email: "Email",
     kvk: "KVK broj",
@@ -361,6 +363,7 @@ const getCredentialLoginCopy = (language: string) => {
     hidePassword: "Sakrij lozinku",
     required: "Unesite podatke za prijavu i lozinku.",
     invalid: "Podaci za prijavu ili lozinka nisu ispravni.",
+    invalidCustomer: "KVK broj ili lozinka nisu ispravni.",
     chooseCompanyTitle: "Odaberite kompaniju",
     chooseCompanySubtitle: "Ovaj KVK broj pripada vise kompanija.",
   };
@@ -957,7 +960,11 @@ export default function App() {
       }
 
       setCredentialLoginError(
-        getCredentialLoginErrorMessage(error, credentialLoginCopy.invalid),
+        credentialLoginMode === "customer" &&
+          error instanceof ApiError &&
+          error.status === 401
+          ? credentialLoginCopy.invalidCustomer
+          : getCredentialLoginErrorMessage(error, credentialLoginCopy.invalid),
       );
     } finally {
       setIsCredentialLoginSubmitting(false);
