@@ -7,6 +7,7 @@ import {
 import { useApp } from '../AppContext';
 import { RoleType } from '../types';
 import { Button, Card } from './ui';
+import { NoQrCodeIcon } from './NoQrCodeIcon';
 
 interface KnowledgeBaseProps {
   onClose: () => void;
@@ -37,7 +38,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ role, onClose }) =
       case RoleType.KLIJENT:
         return [
           { title: 'Grace Period', desc: 'Kako funkcioniše besplatnih 14 dana stay perioda.', icon: <BookOpen /> },
-          { title: 'Ghost Pallets', desc: 'Prijavite palete koje su stigle bez QR koda.', icon: <Smartphone /> },
+          { title: t('noQrPallets'), desc: t('ghostReportCardText'), icon: <NoQrCodeIcon size={20} /> },
         ];
       default:
         return [];

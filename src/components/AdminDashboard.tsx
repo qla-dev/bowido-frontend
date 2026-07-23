@@ -37,6 +37,7 @@ import { NoQrPalletTableView } from "./NoQrPalletTableView";
 import { ClientTableView } from "./ClientTableView";
 import { AdminClientManagerView } from "./AdminClientManagerView";
 import { AdminRoleOperationsView } from "./AdminRoleOperationsView";
+import { NoQrCodeIcon } from "./NoQrCodeIcon";
 import { useApp } from "../AppContext";
 import { apiService } from "../services/api";
 import { motion, AnimatePresence } from "motion/react";
@@ -56,7 +57,6 @@ import {
   Calendar as CalendarIcon,
   Eye,
   Send,
-  Ghost,
   QrCode,
 } from "lucide-react";
 import {
@@ -1256,7 +1256,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex items-center justify-between rounded-2xl border border-rose-100 bg-rose-50/60 p-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center">
-                      <Ghost size={18} />
+                      <NoQrCodeIcon size={18} />
                     </div>
                     <div>
                       <p className="text-[11px] font-bold tracking-[0.08em] text-rose-600">
@@ -1292,7 +1292,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {ghostPallet.current_location}
                             </p>
                           </div>
-                          <Badge variant="warning">Ghost</Badge>
+                          <Badge variant="warning">{t("withoutQr")}</Badge>
                         </div>
                         <p className="mt-3 text-[12px] font-medium leading-5 text-zinc-600">
                           {ghostPallet.note || t("ghostReportCardText")}

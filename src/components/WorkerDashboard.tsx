@@ -5,9 +5,10 @@ import { DamageReportModal } from './DamageReportModal';
 import { RoleType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
-import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Ghost, Truck, Route } from 'lucide-react';
+import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Truck, Route } from 'lucide-react';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { formatAppDate, formatAppTime } from '../lib/dateFormat';
+import { NoQrCodeIcon } from './NoQrCodeIcon';
 
 interface WorkerDashboardProps {
   role: RoleType;
@@ -145,7 +146,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                     >
                       <div className={toolButtonContentClass}>
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
-                          <Ghost size={18} />
+                          <NoQrCodeIcon size={18} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
@@ -201,7 +202,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                     <div className="flex items-center justify-between rounded-2xl border border-zinc-100 bg-zinc-50/80 px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-zinc-100 text-zinc-500">
-                          <Ghost size={18} />
+                          <NoQrCodeIcon size={18} />
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('exceptionQueue')}</p>
@@ -277,7 +278,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                     >
                       <div className={toolButtonContentClass}>
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
-                          <Ghost size={18} />
+                          <NoQrCodeIcon size={18} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>
