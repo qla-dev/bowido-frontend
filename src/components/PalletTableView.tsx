@@ -455,9 +455,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         }
       : language === 'nl'
         ? {
-            date: 'Datum',
-            term: 'Termijn',
-            deadline: 'Status',
+            date: 'Verzonden',
+            term: 'Retour',
+            deadline: 'Termijn',
             emptyValue: '-',
             daysLeft: 'dagen resterend',
             daysLate: 'dagen over',
