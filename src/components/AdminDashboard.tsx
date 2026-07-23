@@ -2067,7 +2067,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </select>
                             </div>
                           )}
-                          <div className="space-y-1">
+                          {statusIdAllowsCustomer(
+                            statuses,
+                            editingPallet.current_status_id,
+                          ) && (
+                            <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                               {t("assignedClient")}
                             </label>
@@ -2223,7 +2227,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </div>
                                 )}
                             </div>
-                          </div>
+                        </div>
+                          )}
                         </div>
 
                         <div className="space-y-1">
