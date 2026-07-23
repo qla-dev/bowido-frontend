@@ -191,7 +191,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     sort_direction: sortConfig.direction,
   }), [debouncedSearchQuery, sortConfig]);
   const { items: pallets, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedPallets } = useInfinitePagination({
-    queryKey: `${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${JSON.stringify(selectedFilters)}|${selectedDeadlineFilters.join(',')}`,
+    queryKey: `${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}`,
     pageSize: PALLET_PAGE_SIZE,
     fetchPage,
   });

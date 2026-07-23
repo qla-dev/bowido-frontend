@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
@@ -49,6 +50,7 @@ type SortKey =
   | 'gracePeriod'
   | 'overdueTotal';
 type SortDirection = 'asc' | 'desc';
+type FilterSelections = Record<SortKey, string[]>;
 
 type ClientManagerRow = {
   client: ClientDetail;
@@ -159,6 +161,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     key: 'client',
     direction: 'asc',
   });
+  const [selectedFilters, setSelectedFilters] = useState<FilterSelections>(() =>
+    Object.fromEntries(COLUMN_ORDER.map((key) => [key, []])) as FilterSelections
+  );
   const [selectedRow, setSelectedRow] = useState<ClientManagerRow | null>(null);
   const [clientDraft, setClientDraft] = useState<ClientDetail | null>(null);
   const [clientPhotos, setClientPhotos] = useState<PalletPhoto[]>([]);
@@ -458,8 +463,36 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     }
   };
 
+  const getFilterValue = (row: ClientManagerRow, key: SortKey) => {
+    const value = getSortValue(row, key);
+    switch (key) {
+      case 'rate':
+        return row.rateLabel;
+      case 'overdueTotal':
+        return row.overdueTotalLabel;
+      default:
+        return String(value);
+    }
+  };
+
+  const filterOptions = useMemo<Record<SortKey, AdminTableFilterOption[]>>(
+    () => Object.fromEntries(
+      COLUMN_ORDER.map((key) => [
+        key,
+        Array.from<string>(new Set<string>(rows.map((row) => getFilterValue(row, key))))
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+          .map((value) => ({ value, label: value })),
+      ])
+    ) as Record<SortKey, AdminTableFilterOption[]>,
+    [rows]
+  );
+
   const visibleRows = useMemo(() => {
-    const nextRows = [...rows];
+    const nextRows = rows.filter((row) =>
+      COLUMN_ORDER.every((key) =>
+        selectedFilters[key].length === 0 || selectedFilters[key].includes(getFilterValue(row, key))
+      )
+    );
 
     nextRows.sort((left, right) => {
       const leftValue = getSortValue(left, sortConfig.key);
@@ -476,7 +509,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     });
 
     return nextRows;
-  }, [rows, sortConfig]);
+  }, [rows, selectedFilters, sortConfig]);
 
   const selectedInvoices = useMemo(() => {
     if (!selectedRow) {
@@ -755,6 +788,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     const isActive = sortConfig.key === key;
 
     return (
+      <div className="flex min-w-0 items-center justify-center gap-0.5">
       <button
         type="button"
         onClick={() => toggleSort(key)}
@@ -772,6 +806,23 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
         />
       </button>
+      <AdminTableColumnFilter
+        label={label}
+        options={filterOptions[key]}
+        selectedValues={selectedFilters[key]}
+        onToggle={(value) => setSelectedFilters((current) => ({
+          ...current,
+          [key]: current[key].includes(value)
+            ? current[key].filter((item) => item !== value)
+            : [...current[key], value],
+        }))}
+        onClear={() => setSelectedFilters((current) => ({ ...current, [key]: [] }))}
+        filterLabel={t('filter')}
+        searchLabel={t('search')}
+        showAllLabel={t('showAll')}
+        noResultsLabel={t('noResults')}
+      />
+      </div>
     );
   };
 
