@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { Badge, Button, cn, Input } from './ui';
@@ -20,6 +21,7 @@ import { formatAppDateTime } from '../lib/dateFormat';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
+type OperationColumnKey = 'primary' | 'secondary' | 'status' | 'location' | 'client' | 'metric' | 'amount';
 
 type OperationRow = {
   id: string;
@@ -70,6 +72,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     direction: 'asc',
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [columnFilters, setColumnFilters] = useState<Record<OperationColumnKey, string[]>>({
+    primary: [],
+    secondary: [],
+    status: [],
+    location: [],
+    client: [],
+    metric: [],
+    amount: [],
+  });
   const {
     headerCellClass,
     headerContentClass,
@@ -243,9 +254,22 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     });
   }, [clients, currencyFormatter, invoices, language, mode, pallets, serviceReports, statuses]);
 
+  const getOperationValue = (row: OperationRow, key: OperationColumnKey) => row[key];
+  const filterOptions = useMemo<Record<OperationColumnKey, AdminTableFilterOption[]>>(
+    () => Object.fromEntries(
+      columns.map((column) => [
+        column.key,
+        Array.from<string>(new Set<string>(rows.map((row) => getOperationValue(row, column.key))))
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+          .map((value) => ({ value, label: value })),
+      ])
+    ) as Record<OperationColumnKey, AdminTableFilterOption[]>,
+    [columns, rows]
+  );
+
   const visibleRows = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const nextRows = normalizedQuery
+    const searchedRows = normalizedQuery
       ? rows.filter((row) =>
           [row.primary, row.secondary, row.status, row.location, row.client, row.metric, row.amount]
             .join(' ')
@@ -253,6 +277,12 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             .includes(normalizedQuery)
         )
       : [...rows];
+    const nextRows = searchedRows.filter((row) =>
+      columns.every((column) =>
+        columnFilters[column.key].length === 0
+        || columnFilters[column.key].includes(getOperationValue(row, column.key))
+      )
+    );
 
     nextRows.sort((left, right) => {
       const leftValue = left.sortValues[sortConfig.key] ?? '';
@@ -266,13 +296,25 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     });
 
     return nextRows;
-  }, [rows, searchQuery, sortConfig]);
+  }, [columnFilters, columns, rows, searchQuery, sortConfig]);
 
   const paginatedRows = useMemo(() => visibleRows.slice(0, visibleCount), [visibleCount, visibleRows]);
 
   useEffect(() => {
     setVisibleCount(ADMIN_ROLE_PAGE_SIZE);
-  }, [mode, searchQuery, sortConfig]);
+  }, [columnFilters, mode, searchQuery, sortConfig]);
+
+  useEffect(() => {
+    setColumnFilters({
+      primary: [],
+      secondary: [],
+      status: [],
+      location: [],
+      client: [],
+      metric: [],
+      amount: [],
+    });
+  }, [mode]);
 
   useEffect(() => {
     setVisibleCount((current) => Math.min(current, Math.max(visibleRows.length, ADMIN_ROLE_PAGE_SIZE)));
@@ -349,6 +391,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                   return (
                     <th key={`role-admin-header-${mode}-${column.key}`} ref={registerHeaderCell(column.key)} className={cn(headerCellClass, 'group')}>
                       <div className={headerContentClass}>
+                        <div className="flex min-w-0 items-center justify-center gap-0.5">
                         <button
                           type="button"
                           onClick={() => toggleSort(column.key)}
@@ -369,6 +412,23 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                             )}
                           />
                         </button>
+                        <AdminTableColumnFilter
+                          label={column.label}
+                          options={filterOptions[column.key]}
+                          selectedValues={columnFilters[column.key]}
+                          onToggle={(value) => setColumnFilters((current) => ({
+                            ...current,
+                            [column.key]: current[column.key].includes(value)
+                              ? current[column.key].filter((item) => item !== value)
+                              : [...current[column.key], value],
+                          }))}
+                          onClear={() => setColumnFilters((current) => ({ ...current, [column.key]: [] }))}
+                          filterLabel={t('filter')}
+                          searchLabel={t('search')}
+                          showAllLabel={t('showAll')}
+                          noResultsLabel={t('noResults')}
+                        />
+                        </div>
                       </div>
                       {renderResizeHandle(column.key)}
                     </th>

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowUpDown,
   Edit,
+  Funnel,
   MapPin,
   Package,
   Plus,
@@ -120,7 +121,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const { clients: cachedClients, pallets, statuses, t, language } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [filterRevision, setFilterRevision] = useState(0);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'client',
     direction: 'asc',
@@ -159,7 +159,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     sort_direction: sortConfig.direction,
   }), [clientIdFilter, debouncedSearchQuery, sortConfig]);
   const { items: clients, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setPagedClients } = useInfinitePagination({
-    queryKey: `${clientIdFilter ?? 'all'}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}|${filterRevision}`,
+    queryKey: `${clientIdFilter ?? 'all'}|${debouncedSearchQuery}|${sortConfig.key}|${sortConfig.direction}`,
     pageSize: clientIdFilter === undefined ? CLIENT_PAGE_SIZE : 1,
     fetchPage,
   });
@@ -533,7 +533,6 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   };
 
   const toggleFilterSelection = (key: SortKey, value: string) => {
-    setFilterRevision((current) => current + 1);
     setSelectedFilters((current) => {
       const selectedValues = current[key];
       const hasValue = selectedValues.includes(value);
@@ -548,32 +547,48 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   };
 
   const clearColumnFilter = (key: SortKey) => {
-    setFilterRevision((current) => current + 1);
     setSelectedFilters((current) => ({ ...current, [key]: [] }));
     setFilterSearch((current) => ({ ...current, [key]: '' }));
   };
 
   const renderSortButton = (key: SortKey, label: string) => {
     const isActive = sortConfig.key === key;
+    const activeFilterCount = selectedFilters[key].length;
+    const isFilterOpen = openFilterKey === key;
 
     return (
-      <button
-        type="button"
-        onClick={() => toggleSort(key)}
-        aria-pressed={isActive}
-        className={cn(
-          'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
-          isActive
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
-            : 'border-transparent text-zinc-900 hover:text-zinc-700'
-        )}
-      >
-        <span className="block min-w-0 truncate">{label}</span>
-        <ArrowUpDown
-          size={13}
-          className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')}
-        />
-      </button>
+      <div className="flex min-w-0 items-center justify-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => toggleSort(key)}
+          aria-pressed={isActive}
+          className={cn(
+            'flex min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none transition-colors',
+            isActive
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+              : 'border-transparent text-zinc-900 hover:text-zinc-700'
+          )}
+        >
+          <span className="block min-w-0 truncate">{label}</span>
+          <ArrowUpDown size={13} className={cn('shrink-0 transition-transform', isActive && sortConfig.direction === 'desc' && 'rotate-180')} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpenFilterKey((current) => current === key ? null : key)}
+          aria-label={`${t('filter')}: ${label}`}
+          aria-expanded={isFilterOpen}
+          title={`${t('filter')}: ${label}`}
+          className={cn(
+            'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors',
+            activeFilterCount > 0 || isFilterOpen
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm'
+              : 'border-transparent text-zinc-400 hover:border-zinc-200 hover:bg-white hover:text-zinc-700'
+          )}
+        >
+          <Funnel size={13} fill={activeFilterCount > 0 ? 'currentColor' : 'none'} />
+          {activeFilterCount > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#00A655] px-1 text-[8px] font-black leading-none text-white ring-2 ring-zinc-50">{activeFilterCount}</span>}
+        </button>
+      </div>
     );
   };
 
