@@ -1026,7 +1026,7 @@ export default function App() {
         ...form,
         ...result.fields,
         kvk: normalizedKvk,
-        email: "",
+        email: result.fields.email ?? "",
         password: "",
         password_confirmation: "",
       }));
