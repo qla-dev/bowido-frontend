@@ -3,7 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, UserCircle, Ghost, History, Boxes, Building2, Wrench, Images
+  Bell, UserCircle, Ghost, History, Building2, Wrench, Images
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -122,8 +122,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const [showProfile, setShowProfile] = useState(false);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
-  const hasGhostAccess = [RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role);
-  const highlightGhostAction = role === RoleType.VOZAC || role === RoleType.KLIJENT;
+  const hasGhostAccess = [RoleType.VOZAC, RoleType.MAGACINER].includes(role);
+  const highlightGhostAction = role === RoleType.VOZAC;
   const showTopbarQrAction = role !== RoleType.ADMIN;
   const currentLanguageOption = languageOptions.find((option) => option.code === language) || languageOptions[0];
 
@@ -154,22 +154,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         <div className="flex w-full items-center justify-center gap-2 md:w-auto md:justify-start">
-          {role === RoleType.KLIJENT && (
-            <button
-              type="button"
-              title={language === 'bs' ? 'Profil' : 'Profile'}
-              onClick={() => setActiveTab(activeTab === 'client-table' ? 'dashboard' : 'client-table')}
-              className={cn(
-                "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
-                activeTab === 'client-table'
-                  ? "bg-[#00A655] text-white border-[#00A655]"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
-              )}
-            >
-              <Boxes size={19} />
-            </button>
-          )}
-          {role === RoleType.KLIJENT ? (
+          {false && role === RoleType.KLIJENT ? (
             <button
               type="button"
               title={t('completeDetails')}
@@ -199,7 +184,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </button>
           )}
 
-          <div className="h-10 w-10 shrink-0 md:hidden">
+          <div className={cn('h-10 w-10 shrink-0 md:hidden', role === RoleType.KLIJENT && 'hidden')}>
             <button
               type="button"
               title={t('language')}
@@ -210,7 +195,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </button>
           </div>
 
-          <div className="relative hidden h-10 w-10 shrink-0 md:block">
+          <div className={cn('relative hidden h-10 w-10 shrink-0 md:block', role === RoleType.KLIJENT && 'md:hidden')}>
             <button
               type="button"
               title={t('language')}
@@ -268,7 +253,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </AnimatePresence>
           </div>
 
-          {showTopbarQrAction && (
+          {showTopbarQrAction && role !== RoleType.KLIJENT && (
             <button
               type="button"
               title={t('qrScan')}
@@ -279,7 +264,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
             </button>
           )}
 
-          <div className="relative shrink-0">
+          <div className="hidden">
             <button
               type="button"
               title={t('activity')}
@@ -517,6 +502,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
   const sidebarPanelWidth = isSidebarExpanded ? "w-64" : "w-[4.625rem]";
   const singleRoleOverviewLabel =
     language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Bokkenoverzicht' : 'Pallet overview';
+  const companyInformationLabel =
+    language === 'bs' ? 'Informacije o kompaniji' : language === 'nl' ? 'Bedrijfsinformatie' : 'Company information';
   const usesSingleOverviewTab = [
     RoleType.MAGACINER,
     RoleType.SERVISER,
@@ -571,7 +558,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
     } else if (role === RoleType.VOZAC || role === RoleType.MAGACINER) {
     } else if (role === RoleType.SERVISER) {
     } else if (role === RoleType.KLIJENT) {
-      items.push({ id: 'customer-details', label: t('completeDetails'), icon: <Building2 /> });
+      items.push({ id: 'customer-details', label: companyInformationLabel, icon: <Building2 /> });
     }
 
     const knownBackendRoles = ['admin','warehouse_operator','customer','driver','technician','user','operator','admin_service','admin_warehouse','finance_administration'];

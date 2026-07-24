@@ -16,14 +16,20 @@ import {
   LocateFixed,
   LoaderCircle,
   MapPin,
+  Search,
   RefreshCcw,
   TriangleAlert,
 } from "lucide-react";
 import { cn } from "./ui";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
 import { useReverseGeocoding } from "../hooks/useReverseGeocoding";
+import { useAddressSearch } from "../hooks/useAddressSearch";
 import type { AppLanguage } from "../i18n";
-import type { DeliveryLocation, DeliveryLocationInput } from "../types";
+import type {
+  DeliveryLocation,
+  DeliveryLocationInput,
+  ReverseGeocodingResult,
+} from "../types";
 
 type Coordinates = {
   latitude: number;
@@ -37,6 +43,11 @@ type AddressFields = {
   city: string;
 };
 
+type AddressResult = Pick<
+  ReverseGeocodingResult,
+  "street" | "house_number" | "postal_code" | "city" | "formatted_address"
+>;
+
 const emptyAddressFields: AddressFields = {
   street: "",
   house_number: "",
@@ -44,10 +55,24 @@ const emptyAddressFields: AddressFields = {
   city: "",
 };
 
+// Geo-coding providers sometimes classify a locality as a suburb or district
+// and omit `street`. The first formatted address segment is the best editable
+// address line in that case (for example, "Donja Jošanica").
+const toAddressFields = (address?: Partial<AddressResult>): AddressFields => ({
+  street:
+    address?.street?.trim() ||
+    address?.formatted_address?.split(",")[0]?.trim() ||
+    "",
+  house_number: address?.house_number?.trim() || "",
+  postal_code: address?.postal_code?.trim() || "",
+  city: address?.city?.trim() || "",
+});
+
 type DeliveryLocationMapProps = {
   palletId: number;
   language: AppLanguage;
   initialLocation?: DeliveryLocation;
+  initialLocationIsSaved?: boolean;
   onSave: (
     palletId: number,
     input: DeliveryLocationInput,
@@ -72,6 +97,12 @@ const copy = {
     houseNumber: "House number",
     postalCode: "Postal code",
     city: "City",
+    searchAddress: "Search full address",
+    searchAddressPlaceholder: "Start typing an address, city or postcode",
+    searchHint: "Choose a suggestion to fill the address and place it on the map.",
+    searchingAddresses: "Searching addresses…",
+    noAddresses: "No matching addresses found.",
+    addressSearchError: "Address suggestions could not be loaded.",
     addressFieldsHint: "Complete any missing address details before saving.",
     refining: "Improving GPS accuracy… Keep the device still for a moment.",
     cancel: "Use best position",
@@ -122,6 +153,12 @@ const copy = {
     houseNumber: "Huisnummer",
     postalCode: "Postcode",
     city: "Plaats",
+    searchAddress: "Zoek volledig adres",
+    searchAddressPlaceholder: "Begin een adres, plaats of postcode te typen",
+    searchHint: "Kies een suggestie om het adres in te vullen en op de kaart te plaatsen.",
+    searchingAddresses: "Adressen zoeken…",
+    noAddresses: "Geen overeenkomende adressen gevonden.",
+    addressSearchError: "Adressuggesties konden niet worden geladen.",
     addressFieldsHint: "Vul ontbrekende adresgegevens aan voordat je opslaat.",
     refining: "GPS-nauwkeurigheid verbeteren… Houd het apparaat even stil.",
     cancel: "Beste positie gebruiken",
@@ -172,6 +209,12 @@ const copy = {
     houseNumber: "Kućni broj",
     postalCode: "Poštanski broj",
     city: "Grad",
+    searchAddress: "Pretraži cijelu adresu",
+    searchAddressPlaceholder: "Počnite unositi adresu, grad ili poštanski broj",
+    searchHint: "Odaberite prijedlog da popunite adresu i prikažete je na mapi.",
+    searchingAddresses: "Pretraživanje adresa…",
+    noAddresses: "Nema pronađenih odgovarajućih adresa.",
+    addressSearchError: "Prijedloge adresa nije moguće učitati.",
     addressFieldsHint: "Dopunite podatke adrese koji nedostaju prije čuvanja.",
     refining:
       "Poboljšavanje GPS preciznosti… Držite uređaj mirno nekoliko trenutaka.",
@@ -279,6 +322,7 @@ export const DeliveryLocationMap = ({
   palletId,
   language,
   initialLocation,
+  initialLocationIsSaved = true,
   onSave,
 }: DeliveryLocationMapProps) => {
   const text = copy[language] || copy.en;
@@ -294,16 +338,13 @@ export const DeliveryLocationMap = ({
     useState<Coordinates | null>(null);
   const [savedLocation, setSavedLocation] = useState<
     DeliveryLocation | undefined
-  >(initialLocation);
+  >(initialLocationIsSaved ? initialLocation : undefined);
   const [displayedAddress, setDisplayedAddress] = useState(
     initialLocation?.formatted_address || "",
   );
-  const [addressFields, setAddressFields] = useState<AddressFields>({
-    street: initialLocation?.street || "",
-    house_number: initialLocation?.house_number || "",
-    postal_code: initialLocation?.postal_code || "",
-    city: initialLocation?.city || "",
-  });
+  const [addressFields, setAddressFields] = useState<AddressFields>(() =>
+    toAddressFields(initialLocation),
+  );
   const [manualMapEnabled, setManualMapEnabled] = useState(
     Boolean(initialLocation),
   );
@@ -317,25 +358,23 @@ export const DeliveryLocationMap = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [addressSearchInput, setAddressSearchInput] = useState("");
   const deviceLocation = useDeviceLocation();
   const reverseGeocoding = useReverseGeocoding(geocodeCoordinates);
+  const addressSearch = useAddressSearch(addressSearchInput);
 
   useEffect(() => {
-    setSavedLocation(initialLocation);
+    setSavedLocation(initialLocationIsSaved ? initialLocation : undefined);
     setSelectedCoordinates(initialCoordinates);
     setGeocodeCoordinates(null);
     setDisplayedAddress(initialLocation?.formatted_address || "");
-    setAddressFields({
-      street: initialLocation?.street || "",
-      house_number: initialLocation?.house_number || "",
-      postal_code: initialLocation?.postal_code || "",
-      city: initialLocation?.city || "",
-    });
+    setAddressFields(toAddressFields(initialLocation));
     setManualMapEnabled(Boolean(initialLocation));
     setCapturedAt(initialLocation?.captured_at || new Date().toISOString());
     setSelectedAccuracy(initialLocation?.accuracy_meters);
     setSaveError("");
     setSaveMessage("");
+    setAddressSearchInput("");
   }, [palletId]);
 
   useEffect(() => {
@@ -369,12 +408,7 @@ export const DeliveryLocationMap = ({
   useEffect(() => {
     if (reverseGeocoding.result) {
       setDisplayedAddress(reverseGeocoding.result.formatted_address || "");
-      setAddressFields({
-        street: reverseGeocoding.result.street || "",
-        house_number: reverseGeocoding.result.house_number || "",
-        postal_code: reverseGeocoding.result.postal_code || "",
-        city: reverseGeocoding.result.city || "",
-      });
+      setAddressFields(toAddressFields(reverseGeocoding.result));
     }
   }, [reverseGeocoding.result]);
 
@@ -393,6 +427,27 @@ export const DeliveryLocationMap = ({
     [deviceLocation.cancelRefinement],
   );
 
+  const selectAddressSuggestion = useCallback(
+    (suggestion: ReverseGeocodingResult) => {
+      deviceLocation.cancelRefinement();
+      setSelectedCoordinates({
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+      });
+      setGeocodeCoordinates(null);
+      setSelectedAccuracy(undefined);
+      setCapturedAt(new Date().toISOString());
+      setDisplayedAddress(suggestion.formatted_address || "");
+      setAddressFields(toAddressFields(suggestion));
+      setManualMapEnabled(true);
+      setAddressSearchInput("");
+      setSaveError("");
+      setSaveMessage("");
+      setRecenterVersion((version) => version + 1);
+    },
+    [deviceLocation.cancelRefinement],
+  );
+
   const mapCenter = useMemo<[number, number]>(
     () =>
       selectedCoordinates
@@ -400,14 +455,18 @@ export const DeliveryLocationMap = ({
         : fallbackMapCenter,
     [selectedCoordinates?.latitude, selectedCoordinates?.longitude],
   );
+  const savedAddressFields = useMemo(
+    () => toAddressFields(savedLocation),
+    [savedLocation],
+  );
   const hasUnsavedChanges =
     !coordinatesMatch(selectedCoordinates, savedLocation) ||
     Boolean(
       savedLocation &&
-        (addressFields.street !== (savedLocation.street || "") ||
-          addressFields.house_number !== (savedLocation.house_number || "") ||
-          addressFields.postal_code !== (savedLocation.postal_code || "") ||
-          addressFields.city !== (savedLocation.city || "")),
+        (addressFields.street !== savedAddressFields.street ||
+          addressFields.house_number !== savedAddressFields.house_number ||
+          addressFields.postal_code !== savedAddressFields.postal_code ||
+          addressFields.city !== savedAddressFields.city),
     );
   const isLowAccuracy = deviceLocation.accuracyLevel === "poor";
   const accuracyTone =
@@ -451,12 +510,7 @@ export const DeliveryLocationMap = ({
       });
       setSavedLocation(nextLocation);
       setDisplayedAddress(nextLocation.formatted_address || displayedAddress);
-      setAddressFields({
-        street: nextLocation.street || "",
-        house_number: nextLocation.house_number || "",
-        postal_code: nextLocation.postal_code || "",
-        city: nextLocation.city || "",
-      });
+      setAddressFields(toAddressFields(nextLocation));
       setSaveMessage(text.saveSuccess);
     } catch (error) {
       setSaveError(
@@ -504,6 +558,66 @@ export const DeliveryLocationMap = ({
             {text.saved}
           </span>
         )}
+      </div>
+
+      <div className="relative z-[600] px-4 pb-3">
+        <label className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-100">
+          {text.searchAddress}
+          <span className="relative mt-1.5 block">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-200"
+            />
+            {addressSearch.status === "loading" && (
+              <LoaderCircle
+                size={15}
+                className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-emerald-600 dark:text-emerald-200"
+              />
+            )}
+            <input
+              type="search"
+              value={addressSearchInput}
+              onChange={(event) => setAddressSearchInput(event.target.value)}
+              placeholder={text.searchAddressPlaceholder}
+              className="h-11 w-full rounded-xl border border-emerald-100 bg-white py-2 pl-9 pr-9 text-[12px] font-semibold normal-case tracking-normal text-emerald-950 outline-none placeholder:text-zinc-400 focus:border-emerald-400 dark:border-white/10 dark:bg-[#101715] dark:text-white"
+            />
+          </span>
+        </label>
+        {addressSearchInput.trim().length >= 3 && (
+          <div className="absolute left-4 right-4 top-[4.7rem] overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-xl dark:border-white/10 dark:bg-[#101715]">
+            {addressSearch.status === "loading" && (
+              <p className="px-3 py-3 text-[11px] font-bold text-zinc-500 dark:text-zinc-300">
+                {text.searchingAddresses}
+              </p>
+            )}
+            {addressSearch.status === "success" && addressSearch.results.length === 0 && (
+              <p className="px-3 py-3 text-[11px] font-bold text-zinc-500 dark:text-zinc-300">
+                {text.noAddresses}
+              </p>
+            )}
+            {["error", "offline"].includes(addressSearch.status) && (
+              <p role="alert" className="px-3 py-3 text-[11px] font-bold text-rose-700 dark:text-rose-200">
+                {text.addressSearchError}
+              </p>
+            )}
+            {addressSearch.results.map((suggestion, index) => (
+              <button
+                key={`${suggestion.latitude}-${suggestion.longitude}-${index}`}
+                type="button"
+                onClick={() => selectAddressSuggestion(suggestion)}
+                className="flex w-full items-start gap-2 border-t border-emerald-50 px-3 py-2.5 text-left transition-colors first:border-t-0 hover:bg-emerald-50 dark:border-white/5 dark:hover:bg-white/5"
+              >
+                <MapPin size={15} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-200" />
+                <span className="text-[12px] font-bold leading-5 text-emerald-950 dark:text-white">
+                  {suggestion.formatted_address || [suggestion.street, suggestion.house_number, suggestion.postal_code, suggestion.city].filter(Boolean).join(", ")}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="mt-1.5 text-[10px] font-semibold leading-4 text-zinc-500 dark:text-zinc-300">
+          {text.searchHint}
+        </p>
       </div>
 
       {!manualMapEnabled && !selectedCoordinates ? (

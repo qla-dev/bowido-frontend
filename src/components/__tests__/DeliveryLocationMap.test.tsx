@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeliveryLocation } from "../../types";
 import { apiService } from "../../services/api";
 import { clearReverseGeocodingCache } from "../../hooks/useReverseGeocoding";
+import { clearAddressSearchCache } from "../../hooks/useAddressSearch";
 
 const leafletMocks = vi.hoisted(() => ({
   mapClickHandler: null as
@@ -127,6 +128,7 @@ describe("DeliveryLocationMap", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     clearReverseGeocodingCache();
+    clearAddressSearchCache();
     vi.spyOn(apiService.locations, "reverseGeocode").mockImplementation(
       async (latitude, longitude) => ({
         latitude,
@@ -220,6 +222,60 @@ describe("DeliveryLocationMap", () => {
       ),
     );
     expect(apiService.locations.reverseGeocode).toHaveBeenCalledTimes(1);
+  });
+
+  it("searches a full address, fills every address field, and places it on the map", async () => {
+    vi.spyOn(apiService.locations, "searchAddress").mockResolvedValue([
+      {
+        latitude: 43.8563,
+        longitude: 18.4131,
+        formatted_address: "Titova 1, 71000 Sarajevo, Bosnia and Herzegovina",
+        street: "Titova",
+        house_number: "1",
+        postal_code: "71000",
+        city: "Sarajevo",
+        provider: "geoapify",
+      },
+    ]);
+    render(<DeliveryLocationMap palletId={12} language="en" onSave={vi.fn()} />);
+
+    await userEvent.type(
+      screen.getByRole("searchbox"),
+      "Titova 1 Sarajevo",
+    );
+    const suggestion = await screen.findByRole("button", {
+      name: /Titova 1, 71000 Sarajevo/,
+    });
+    await userEvent.click(suggestion);
+
+    expect(apiService.locations.searchAddress).toHaveBeenCalledWith("Titova 1 Sarajevo");
+    expect(screen.getByDisplayValue("Titova")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("1")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("71000")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Sarajevo")).toBeInTheDocument();
+    expect(screen.getByText(/43\.8563000, 18\.4131000/)).toBeInTheDocument();
+    expect(screen.getByTestId("delivery-marker")).toBeInTheDocument();
+  });
+
+  it("uses the first formatted address line when a map result has no street field", async () => {
+    vi.spyOn(apiService.locations, "reverseGeocode").mockResolvedValue({
+      latitude: 43.944,
+      longitude: 18.347,
+      formatted_address: "Donja Jošanica, 71320 Vogošća, Bosnia and Herzegovina",
+      postal_code: "71320",
+      city: "Vogošća",
+      provider: "geoapify",
+    });
+    render(<DeliveryLocationMap palletId={12} language="en" onSave={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Choose on map" }));
+    act(() =>
+      leafletMocks.mapClickHandler?.({ latlng: { lat: 43.944, lng: 18.347 } }),
+    );
+
+    expect(await screen.findByDisplayValue("Donja Jošanica")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("71320")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Vogošća")).toBeInTheDocument();
   });
 
   it("does not reverse-geocode intermediate readings and resolves the final best position once", async () => {

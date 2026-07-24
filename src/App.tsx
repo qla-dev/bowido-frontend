@@ -377,6 +377,10 @@ const getKvkRegistrationCopy = (language: string) => {
       subtitle:
         "Voer je KVK-nummer in om de geregistreerde klantgegevens te laden.",
       find: "KVK zoeken",
+      searching: "Zoeken…",
+      database: "Gegevens geladen uit de klantendatabase. Controleer en vul ze aan.",
+      kvk: "Gegevens geladen via KVK. Controleer en vul ze aan.",
+      invalid: "Vul een geldig KVK-nummer van 8 cijfers in.",
     };
   }
 
@@ -385,6 +389,10 @@ const getKvkRegistrationCopy = (language: string) => {
       title: "KVK registracija",
       subtitle: "Unesite KVK broj da učitate registrovane podatke kupca.",
       find: "Pronađi KVK",
+      searching: "Pretraživanje…",
+      database: "Podaci su učitani iz baze kupaca. Pregledajte ih i dopunite.",
+      kvk: "Podaci su učitani preko KVK-a. Pregledajte ih i dopunite.",
+      invalid: "Unesite važeći KVK broj od 8 cifara.",
     };
   }
 
@@ -392,6 +400,10 @@ const getKvkRegistrationCopy = (language: string) => {
     title: "KVK registration",
     subtitle: "Enter your KVK number to load the registered customer details.",
     find: "Find KVK",
+    searching: "Searching…",
+    database: "Details loaded from the customer database. Review and complete them.",
+    kvk: "Details loaded from KVK. Review and complete them.",
+    invalid: "Enter a valid 8-digit KVK number.",
   };
 };
 
@@ -469,6 +481,7 @@ export default function App() {
       ? {
           kvk: "KVK broj",
           company: "Naziv firme",
+          country: "Država",
           email: "E-mail",
           phone: "Broj telefona",
           fixed: "Fiksni telefon",
@@ -490,6 +503,7 @@ export default function App() {
         ? {
             kvk: "KVK-nummer",
             company: "Bedrijfsnaam",
+            country: "Land",
             email: "E-mail",
             phone: "Telefoonnummer",
             fixed: "Vaste telefoon",
@@ -510,6 +524,7 @@ export default function App() {
         : {
             kvk: "KVK number",
             company: "Company name",
+            country: "Country",
             email: "Email",
             phone: "Phone number",
             fixed: "Fixed phone",
@@ -568,6 +583,7 @@ export default function App() {
   const [kvkRegistration, setKvkRegistration] = useState({
     kvk: "",
     name: "",
+    country: "",
     email: "",
     phone_number: "",
     fixed_phone: "",
@@ -591,6 +607,10 @@ export default function App() {
   >(null);
   const [isKvkRegistrationSubmitting, setIsKvkRegistrationSubmitting] =
     useState(false);
+  const [isKvkRegistrationLookingUp, setIsKvkRegistrationLookingUp] =
+    useState(false);
+  const [kvkRegistrationLookupSource, setKvkRegistrationLookupSource] =
+    useState<"database" | "kvk" | null>(null);
   const [activeTab, setActiveTab] = useState(() =>
     readStoredActiveTab(currentUser),
   );
@@ -992,41 +1012,28 @@ export default function App() {
   };
 
   const lookupKvkRegistration = async () => {
-    if (!kvkRegistration.kvk.trim()) return;
-    setIsKvkRegistrationSubmitting(true);
+    const normalizedKvk = kvkRegistration.kvk.replace(/[\s.\-\/()]+/g, "");
+    if (!/^\d{8}$/.test(normalizedKvk) || isKvkRegistrationLookingUp) {
+      setKvkRegistrationError(kvkRegistrationCopy.invalid);
+      return;
+    }
+    setIsKvkRegistrationLookingUp(true);
     setKvkRegistrationError(null);
+    setKvkRegistrationLookupSource(null);
     try {
-      const customer = await apiService.auth.kvkLookup(kvkRegistration.kvk);
+      const result = await apiService.auth.kvkLookup(normalizedKvk);
       setKvkRegistration((form) => ({
         ...form,
-        kvk: customer.kvk,
-        name: customer.company_name || form.name,
-        email: customer.email || form.email,
-        phone_number: customer.phone_number || form.phone_number,
-        fixed_phone: customer.fixed_phone || form.fixed_phone,
-        street: customer.street || form.street,
-        house_number: customer.house_number || form.house_number,
-        postal_code: customer.postal_code || form.postal_code,
-        city: customer.city || form.city,
-        warehouse1_street: customer.warehouse1_street || form.warehouse1_street,
-        warehouse1_house_number:
-          customer.warehouse1_house_number || form.warehouse1_house_number,
-        warehouse1_postal_code:
-          customer.warehouse1_postal_code || form.warehouse1_postal_code,
-        warehouse1_city: customer.warehouse1_city || form.warehouse1_city,
-        warehouse2_street: customer.warehouse2_street || form.warehouse2_street,
-        warehouse2_house_number:
-          customer.warehouse2_house_number || form.warehouse2_house_number,
-        warehouse2_postal_code:
-          customer.warehouse2_postal_code || form.warehouse2_postal_code,
-        warehouse2_city: customer.warehouse2_city || form.warehouse2_city,
+        ...result.fields,
+        kvk: normalizedKvk,
       }));
+      setKvkRegistrationLookupSource(result.source);
     } catch (error) {
       setKvkRegistrationError(
-        error instanceof Error ? error.message : "KVK was not found.",
+        error instanceof Error ? error.message : kvkRegistrationCopy.invalid,
       );
     } finally {
-      setIsKvkRegistrationSubmitting(false);
+      setIsKvkRegistrationLookingUp(false);
     }
   };
 
@@ -1583,6 +1590,7 @@ export default function App() {
               <motion.form
                 onSubmit={(event) => void submitKvkRegistration(event)}
                 onClick={(event) => event.stopPropagation()}
+                autoComplete="off"
                 className="min-h-[100dvh] w-full max-w-lg space-y-4 bg-white p-5 shadow-2xl dark:bg-[#101715] sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:overflow-y-auto sm:rounded-2xl sm:border sm:border-zinc-200 sm:p-6 sm:dark:border-white/10"
               >
                 <div>
@@ -1600,21 +1608,38 @@ export default function App() {
                     placeholder={kvkFormLabels.kvk}
                     value={kvkRegistration.kvk}
                     onChange={(event) =>
-                      setKvkRegistration({
-                        ...kvkRegistration,
-                        kvk: event.target.value,
-                      })
+                      {
+                        setKvkRegistration({
+                          ...kvkRegistration,
+                          kvk: event.target.value,
+                        });
+                        setKvkRegistrationLookupSource(null);
+                        setKvkRegistrationError(null);
+                      }
                     }
                   />
                   <Button
                     type="button"
                     className="w-full sm:w-auto"
                     onClick={() => void lookupKvkRegistration()}
-                    disabled={isKvkRegistrationSubmitting}
+                    disabled={
+                      isKvkRegistrationSubmitting ||
+                      isKvkRegistrationLookingUp ||
+                      !/^\d{8}$/.test(
+                        kvkRegistration.kvk.replace(/[\s.\-\/()]+/g, ""),
+                      )
+                    }
                   >
-                    {kvkRegistrationCopy.find}
+                    {isKvkRegistrationLookingUp
+                      ? kvkRegistrationCopy.searching
+                      : kvkRegistrationCopy.find}
                   </Button>
                 </div>
+                {kvkRegistrationLookupSource && (
+                  <p className="rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-100">
+                    {kvkRegistrationCopy[kvkRegistrationLookupSource]}
+                  </p>
+                )}
                 <label className="block text-xs font-bold dark:text-zinc-200">
                   {kvkFormLabels.company}
                   <Input
@@ -1625,6 +1650,19 @@ export default function App() {
                       setKvkRegistration({
                         ...kvkRegistration,
                         name: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="block text-xs font-bold dark:text-zinc-200">
+                  {kvkFormLabels.country}
+                  <Input
+                    className="mt-1"
+                    value={kvkRegistration.country}
+                    onChange={(event) =>
+                      setKvkRegistration({
+                        ...kvkRegistration,
+                        country: event.target.value,
                       })
                     }
                   />
