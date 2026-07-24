@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import {
   ArrowUpDown,
   Funnel,
-  Ghost,
   RotateCcw,
   Save,
   Search,
@@ -23,6 +22,7 @@ import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
+import { NoQrCodeIcon } from './NoQrCodeIcon';
 
 type NoQrColumnKey =
   | 'serial'
@@ -582,7 +582,7 @@ export const NoQrPalletTableView: React.FC = () => {
       >
         <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-zinc-900">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 shadow-sm">
-            <Ghost size={16} />
+            <NoQrCodeIcon size={16} />
           </span>
           {t('noQrPallets')}
         </h2>
