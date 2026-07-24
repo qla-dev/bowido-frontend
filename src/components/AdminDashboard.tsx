@@ -16,6 +16,7 @@ import {
   Info,
   Search,
   Check,
+  ChevronDown,
   X,
 } from "lucide-react";
 import { StatCard, Card, Button, Input, Select, Badge, cn } from "./ui";
@@ -70,6 +71,7 @@ import {
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
+import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 
 interface AdminDashboardProps {
   initialView?:
@@ -1357,28 +1359,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       <Card title={t("settings")}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
-              {t("nightMode")}
-            </p>
-            <p className="mt-2 text-lg font-black uppercase tracking-tight text-emerald-950">
-              {isNightMode ? t("on") : t("off")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onToggleNightMode?.()}
-            className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition-colors hover:border-emerald-300"
-          >
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
-              {t("updateSettings")}
-            </p>
-            <p className="mt-2 text-lg font-black uppercase tracking-tight text-zinc-950">
-              {t("nightMode")}
-            </p>
-          </button>
-        </div>
+        <ThemeSettingsToggle
+          isNightMode={isNightMode}
+          onToggle={() => onToggleNightMode?.()}
+          label={t("nightMode")}
+          onLabel={t("on")}
+          offLabel={t("off")}
+        />
       </Card>
 
       <Card title={t("statusConfiguratorTitle")}>
@@ -2044,59 +2031,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             editingPallet.current_status_id,
                           ) && (
                             <div className="space-y-1">
-                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                {t("assignedClient")}
-                              </label>
-                              <select
-                                value={editingPallet.user_id || ""}
-                                disabled={isEditingPalletPickupCustomer}
-                                onChange={(e) => {
-                                  const uid = e.target.value
-                                    ? parseInt(e.target.value)
-                                    : undefined;
-                                  const selectedClient = clients.find(
-                                    (c) => c.user_id === uid,
-                                  );
-                                  const cname = selectedClient?.name || "";
-                                  setEditingPallet({
-                                    ...editingPallet,
-                                    user_id: uid,
-                                    client_name: cname,
-                                    current_location:
-                                      selectedClient?.warehouse_addresses?.[0] ||
-                                      "",
-                                  });
-                                }}
-                                className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                              >
-                                <option value="">{t("noClient")}</option>
-                                {clients.map((c) => (
-                                  <option
-                                    key={`edit-client-${c.id}`}
-                                    value={c.user_id}
-                                  >
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                          {statusIdAllowsCustomer(
-                            statuses,
-                            editingPallet.current_status_id,
-                          ) && (
-                            <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                               {t("assignedClient")}
                             </label>
-                            <div className="relative">
-                              <Search
-                                size={15}
-                                className="pointer-events-none absolute left-4 top-7 z-10 -translate-y-1/2 text-zinc-400"
-                              />
-                              <input
-                                type="text"
-                                value={editingPalletClientSearch}
+                            <div
+                              className="relative"
+                              onBlur={(event) => {
+                                if (
+                                  !event.currentTarget.contains(
+                                    event.relatedTarget as Node | null,
+                                  )
+                                ) {
+                                  setIsEditingPalletClientListOpen(false);
+                                  setEditingPalletClientSearch("");
+                                }
+                              }}
+                            >
+                              <button
+                                type="button"
                                 disabled={
                                   isEditingPalletPickupCustomer ||
                                   !statusIdAllowsCustomer(
@@ -2104,38 +2056,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     editingPallet.current_status_id,
                                   )
                                 }
-                                placeholder={t("search")}
-                                onFocus={() => {
-                                  if (!isEditingPalletPickupCustomer) {
-                                    setIsEditingPalletClientListOpen(true);
-                                  }
-                                }}
-                                onBlur={() => {
-                                  window.setTimeout(() => {
-                                    setIsEditingPalletClientListOpen(false);
-                                    setEditingPalletClientSearch(
-                                      clients.find(
-                                        (client) =>
-                                          client.user_id ===
-                                          editingPallet.user_id,
-                                      )?.name ||
-                                        editingPallet.client_name ||
-                                        "",
-                                    );
-                                  }, 0);
-                                }}
-                                onChange={(event) => {
-                                  setEditingPalletClientSearch(
-                                    event.target.value,
+                                onClick={() => {
+                                  setEditingPalletClientSearch("");
+                                  setIsEditingPalletClientListOpen(
+                                    (current) => !current,
                                   );
-                                  setIsEditingPalletClientListOpen(true);
                                 }}
-                                className="w-full rounded-2xl border border-transparent bg-gray-100 py-4 pl-11 pr-4 font-bold outline-none transition-colors focus:border-emerald-300 disabled:cursor-not-allowed disabled:text-gray-500"
+                                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-gray-100 p-4 text-left font-bold outline-none transition-colors focus:border-emerald-300 disabled:cursor-not-allowed disabled:text-gray-500"
                                 role="combobox"
                                 aria-expanded={isEditingPalletClientListOpen}
                                 aria-controls="editing-pallet-client-list"
-                                autoComplete="off"
-                              />
+                              >
+                                <span className="truncate">
+                                  {clients.find(
+                                    (client) =>
+                                      client.user_id === editingPallet.user_id,
+                                  )?.name ||
+                                    editingPallet.client_name ||
+                                    t("noClient")}
+                                </span>
+                                <ChevronDown
+                                  size={16}
+                                  className={cn(
+                                    "shrink-0 text-zinc-400 transition-transform",
+                                    isEditingPalletClientListOpen &&
+                                      "rotate-180",
+                                  )}
+                                />
+                              </button>
 
                               {isEditingPalletClientListOpen &&
                                 !isEditingPalletPickupCustomer &&
@@ -2145,103 +2093,126 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 ) && (
                                   <div
                                     id="editing-pallet-client-list"
-                                    role="listbox"
-                                    className="relative z-40 mt-2 max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
+                                    className="relative z-40 mt-2 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
                                   >
-                                  <button
-                                    type="button"
-                                    role="option"
-                                    aria-selected={!editingPallet.user_id}
-                                    onMouseDown={(event) =>
-                                      event.preventDefault()
-                                    }
-                                    onClick={() => {
-                                      setEditingPallet({
-                                        ...editingPallet,
-                                        user_id: undefined,
-                                        client_name: undefined,
-                                        current_location: "",
-                                      });
-                                      setEditingPalletClientSearch("");
-                                      setIsEditingPalletClientListOpen(false);
-                                    }}
-                                    className={cn(
-                                      "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors",
-                                      !editingPallet.user_id
-                                        ? "bg-emerald-50 text-emerald-800"
-                                        : "text-zinc-500 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5",
-                                    )}
-                                  >
-                                    <span>{t("noClient")}</span>
-                                    {!editingPallet.user_id && (
-                                      <Check size={14} />
-                                    )}
-                                  </button>
-
-                                  {filteredEditingPalletClients.map(
-                                    (client) => (
+                                    <div className="bg-white pb-2 dark:bg-[#151d1a]">
+                                      <div className="relative">
+                                        <Search
+                                          size={15}
+                                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+                                        />
+                                        <input
+                                          type="search"
+                                          value={editingPalletClientSearch}
+                                          onChange={(event) =>
+                                            setEditingPalletClientSearch(
+                                              event.target.value,
+                                            )
+                                          }
+                                          placeholder={t("search")}
+                                          className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-[11px] font-bold outline-none transition-colors focus:border-emerald-300 dark:border-white/10 dark:bg-white/5 sm:h-auto sm:py-2.5"
+                                          autoComplete="off"
+                                          autoFocus
+                                        />
+                                      </div>
+                                    </div>
+                                    <div
+                                      role="listbox"
+                                      className="max-h-[calc(100dvh-16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1 sm:max-h-52"
+                                    >
                                       <button
-                                        key={"edit-client-" + client.id}
                                         type="button"
                                         role="option"
-                                        aria-selected={
-                                          editingPallet.user_id ===
-                                          client.user_id
-                                        }
+                                        aria-selected={!editingPallet.user_id}
                                         onMouseDown={(event) =>
                                           event.preventDefault()
                                         }
                                         onClick={() => {
                                           setEditingPallet({
                                             ...editingPallet,
-                                            user_id: client.user_id,
-                                            client_name: client.name,
-                                            current_location:
-                                              client
-                                                .warehouse_addresses?.[0] ||
-                                              "",
+                                            user_id: undefined,
+                                            client_name: undefined,
+                                            current_location: "",
                                           });
-                                          setEditingPalletClientSearch(
-                                            client.name,
-                                          );
-                                          setIsEditingPalletClientListOpen(
-                                            false,
-                                          );
+                                          setEditingPalletClientSearch("");
+                                          setIsEditingPalletClientListOpen(false);
                                         }}
                                         className={cn(
-                                          "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                                          editingPallet.user_id ===
-                                            client.user_id
+                                          "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors",
+                                          !editingPallet.user_id
                                             ? "bg-emerald-50 text-emerald-800"
-                                            : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5",
+                                            : "text-zinc-500 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5",
                                         )}
                                       >
-                                        <span className="min-w-0">
-                                          <span className="block truncate text-[11px] font-black">
-                                            {client.name}
-                                          </span>
-                                          <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
-                                            {client.country} / #
-                                            {client.user_id}
-                                          </span>
-                                        </span>
-                                        {editingPallet.user_id ===
-                                          client.user_id && (
-                                          <Check
-                                            size={14}
-                                            className="shrink-0"
-                                          />
+                                        <span>{t("noClient")}</span>
+                                        {!editingPallet.user_id && (
+                                          <Check size={14} />
                                         )}
                                       </button>
-                                    ),
-                                  )}
 
-                                  {filteredEditingPalletClients.length ===
-                                    0 && (
-                                    <p className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                                      {t("noResults")}
-                                    </p>
-                                  )}
+                                      {filteredEditingPalletClients.map(
+                                        (client) => (
+                                          <button
+                                            key={"edit-client-" + client.id}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={
+                                              editingPallet.user_id ===
+                                              client.user_id
+                                            }
+                                            onMouseDown={(event) =>
+                                              event.preventDefault()
+                                            }
+                                            onClick={() => {
+                                              setEditingPallet({
+                                                ...editingPallet,
+                                                user_id: client.user_id,
+                                                client_name: client.name,
+                                                current_location:
+                                                  client
+                                                    .warehouse_addresses?.[0] ||
+                                                  "",
+                                              });
+                                              setEditingPalletClientSearch("");
+                                              setIsEditingPalletClientListOpen(
+                                                false,
+                                              );
+                                            }}
+                                            className={cn(
+                                              "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                                              editingPallet.user_id ===
+                                                client.user_id
+                                                ? "bg-emerald-50 text-emerald-800"
+                                                : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5",
+                                            )}
+                                          >
+                                            <span className="min-w-0">
+                                              <span className="block truncate text-[11px] font-black">
+                                                {client.name}
+                                              </span>
+                                              <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
+                                                {client.country} / #
+                                                {client.user_id}
+                                              </span>
+                                            </span>
+                                            {editingPallet.user_id ===
+                                              client.user_id && (
+                                              <Check
+                                                size={14}
+                                                className="shrink-0"
+                                              />
+                                            )}
+                                          </button>
+                                        ),
+                                      )}
+
+                                      {filteredEditingPalletClients.length ===
+                                        0 && (
+                                        <p className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                          {t("noResults")}
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                             </div>

@@ -19,6 +19,7 @@ import { AdminClientManagerView } from "./components/AdminClientManagerView";
 import { RoleManager } from "./components/RoleManager";
 import { UserManager } from "./components/UserManager";
 import { BillingList } from "./components/BillingList";
+import { ThemeSettingsToggle } from "./components/ThemeSettingsToggle";
 import { LandingShell } from "./components/LandingShell";
 import { RoleType, User } from "./types";
 import { Eye, EyeOff, LogIn, X } from "lucide-react";
@@ -1093,12 +1094,12 @@ export default function App() {
           onOpenLogin={() => setIsLandingLoginOpen(true)}
           marketingCopy={landingMarketingCopy}
         >
-          <div className="space-y-6">
+          <div className="space-y-4">
             <motion.div
               layout
-              className="rounded-[34px] border border-slate-200/80 bg-white p-7 shadow-[0_30px_70px_rgba(15,23,42,0.10)] sm:p-10"
+              className="flex max-h-[calc(100dvh-20rem)] min-h-0 flex-col rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-[0_30px_70px_rgba(15,23,42,0.10)] sm:p-7"
             >
-              <div className="mb-9 flex items-center justify-between border-b border-slate-100 pb-8">
+              <div className="mb-5 flex shrink-0 items-center justify-between border-b border-slate-100 pb-5">
                 <div className="flex items-center gap-3">
                   <span className="h-3 w-3 rounded-full bg-[#00ae60]" />
                   <h1 className="text-[14px] font-black uppercase tracking-[0.22em] text-slate-900 sm:text-[16px]">
@@ -1173,7 +1174,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="min-h-0 space-y-3 overflow-y-auto overscroll-contain pr-1">
                 <p className="text-[9px] font-black uppercase tracking-[0.21em] text-slate-400">
                   {credentialLoginCopy.recentLogins}
                 </p>
@@ -1185,7 +1186,7 @@ export default function App() {
                       type="button"
                       onClick={() => openCredentialLogin(profile)}
                       className={cn(
-                        "group flex w-full items-center justify-between rounded-[23px] border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg sm:p-6",
+                        "group flex w-full items-center justify-between rounded-[20px] border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg",
                         index === 0
                           ? "border-[#00ae60]/25 bg-[#00ae60]/[0.055]"
                           : "border-slate-200 bg-slate-50/70",
@@ -1199,8 +1200,8 @@ export default function App() {
                           {loginProfileSubtitle(profile)}
                         </p>
                       </div>
-                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-[#00ae60] text-white shadow-[0_10px_20px_rgba(0,174,96,0.22)] transition-transform group-hover:scale-105">
-                        <LogIn size={20} />
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#00ae60] text-white shadow-[0_10px_20px_rgba(0,174,96,0.22)] transition-transform group-hover:scale-105">
+                        <LogIn size={18} />
                       </span>
                     </button>
                   ),
@@ -1208,7 +1209,7 @@ export default function App() {
 
                 {savedLoginProfiles.length === 0 &&
                   recentLoginProfiles.length === 0 && (
-                    <div className="rounded-[23px] border border-dashed border-slate-200 bg-slate-50/60 px-5 py-8 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                    <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50/60 px-5 py-6 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                       {credentialLoginCopy.noLogins}
                     </div>
                   )}
@@ -1221,12 +1222,12 @@ export default function App() {
               </div>
             </motion.div>
 
-            <div className="rounded-[30px] border border-slate-200/80 bg-white p-5 shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
+            <div className="rounded-[26px] border border-slate-200/80 bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.08)]">
               <div className="flex flex-col gap-3">
                 <button
                   type="button"
                   onClick={() => openCredentialLogin()}
-                  className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#00ae60] py-5 text-[13px] font-black uppercase tracking-[0.08em] text-white shadow-[0_10px_22px_rgba(0,174,96,0.18)] transition-all hover:bg-[#009d56] active:scale-[0.99]"
+                  className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#00ae60] py-4 text-[13px] font-black uppercase tracking-[0.08em] text-white shadow-[0_10px_22px_rgba(0,174,96,0.18)] transition-all hover:bg-[#009d56] active:scale-[0.99]"
                 >
                   <LogIn size={19} />
                   {t("loginButton")}
@@ -1237,7 +1238,7 @@ export default function App() {
                     setKvkRegistrationError(null);
                     setIsKvkRegistrationOpen(true);
                   }}
-                  className="w-full rounded-2xl bg-slate-50 py-5 text-[12px] font-black uppercase tracking-[0.11em] text-slate-500 transition-colors hover:bg-slate-100"
+                  className="w-full rounded-2xl bg-slate-50 py-4 text-[12px] font-black uppercase tracking-[0.11em] text-slate-500 transition-colors hover:bg-slate-100"
                 >
                   {kvkRegistrationCopy.title}
                 </button>
@@ -1249,7 +1250,7 @@ export default function App() {
         <AnimatePresence>
           {(isCredentialLoginOpen || isMobileViewport) && (
             <motion.div
-              className="fixed inset-y-0 right-0 z-[200] flex w-full items-center justify-center overflow-y-auto bg-[#fbfcfd] p-5 sm:p-10 lg:w-1/2"
+              className="fixed inset-y-0 left-0 z-[200] flex w-full items-center justify-center overflow-y-auto bg-[#fbfcfd] p-5 sm:p-10 lg:w-1/2"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -1944,8 +1945,15 @@ export default function App() {
       (currentUser.role_name !== RoleType.ADMIN || usesRoleMobileShell)
     ) {
       return (
-        <Card title={t("language")} className="w-full">
-          <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 text-left dark:bg-emerald-900/20 dark:border-emerald-500/20">
+        <Card title={t("settings")} className="w-full">
+          <ThemeSettingsToggle
+            isNightMode={isNightMode}
+            onToggle={() => setIsNightMode((current) => !current)}
+            label={t("nightMode")}
+            onLabel={t("on")}
+            offLabel={t("off")}
+          />
+          <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 text-left dark:border-emerald-500/20 dark:bg-emerald-900/20">
             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
               {t("language")}
             </span>
@@ -2088,7 +2096,6 @@ export default function App() {
             setActiveTab(activeTab === "settings" ? "dashboard" : "settings")
           }
           onLogout={handleLogout}
-          onToggleNightMode={() => setIsNightMode(!isNightMode)}
           logoSrc={logoImage}
           bodyClassName={
             activeTab === "settings" || activeTab === "client-table"
@@ -2169,8 +2176,6 @@ export default function App() {
         role={currentUser.role_name}
         user={currentUser}
         onLogout={handleLogout}
-        isNightMode={isNightMode}
-        onToggleNightMode={() => setIsNightMode(!isNightMode)}
       />
 
       <div

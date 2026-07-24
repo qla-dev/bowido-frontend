@@ -3,8 +3,7 @@ import { cn } from './ui';
 import { 
   Menu, X, LayoutDashboard, QrCode, ClipboardList, Settings, 
   LogOut, Package, HelpCircle, Shield, Calendar as CalendarIcon,
-  Bell, UserCircle, History, Boxes, Building2, Wrench, Images,
-  Moon, Sun
+  Bell, UserCircle, Ghost, History, Boxes, Building2, Wrench, Images
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RoleType, User } from '../types';
@@ -109,8 +108,6 @@ interface SidebarProps {
 
 interface TopNavbarProps extends SidebarProps {
   user: User;
-  isNightMode?: boolean;
-  onToggleNightMode?: () => void;
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({
@@ -119,8 +116,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   role,
   user,
   onLogout,
-  isNightMode = false,
-  onToggleNightMode,
 }) => {
   const { t, language, setLanguage, notifications, markNotificationRead, setIsScannerOpen, setIsGhostReportOpen } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -130,7 +125,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const hasGhostAccess = [RoleType.VOZAC, RoleType.MAGACINER, RoleType.KLIJENT].includes(role);
   const highlightGhostAction = role === RoleType.VOZAC || role === RoleType.KLIJENT;
   const showTopbarQrAction = role !== RoleType.ADMIN;
-  const showAdminNightModeToggle = Boolean(onToggleNightMode);
   const currentLanguageOption = languageOptions.find((option) => option.code === language) || languageOptions[0];
 
   const openSettings = () => {
@@ -282,29 +276,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               className="hidden h-10 w-10 shrink-0 border-2 border-emerald-100 bg-white text-zinc-700 rounded-xl items-center justify-center hover:border-emerald-300 hover:text-emerald-700 transition-all md:flex dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
             >
               <QrCode size={19} className="text-[#00A655]" />
-            </button>
-          )}
-
-          {showAdminNightModeToggle && (
-            <button
-              type="button"
-              title={t('nightMode')}
-              aria-label={t('nightMode')}
-              aria-pressed={isNightMode}
-              onClick={() => {
-                onToggleNightMode?.();
-                setShowLanguageMenu(false);
-                setShowNotifications(false);
-                setShowProfile(false);
-              }}
-              className={cn(
-                "hidden h-10 w-10 shrink-0 border-2 rounded-xl items-center justify-center transition-all md:flex",
-                isNightMode
-                  ? "border-[#00A655] bg-[#00A655] text-white shadow-md shadow-emerald-900/15"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
-              )}
-            >
-              {isNightMode ? <Sun size={19} /> : <Moon size={19} />}
             </button>
           )}
 

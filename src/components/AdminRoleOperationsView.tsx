@@ -134,7 +134,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         empty: language === 'bs' ? 'Nema magacinskih stavki.' : language === 'nl' ? 'Geen magazijnitems.' : 'No warehouse items.',
         primary: language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet',
         secondary: language === 'bs' ? 'Tip' : language === 'nl' ? 'Type' : 'Type',
-        status: language === 'bs' ? 'Tok' : language === 'nl' ? 'Flow' : 'Flow',
+        status: 'Status',
         location: language === 'bs' ? 'Lokacija' : language === 'nl' ? 'Locatie' : 'Location',
         client: language === 'bs' ? 'Klijent' : language === 'nl' ? 'Klant' : 'Client',
         metric: language === 'bs' ? 'Dana u statusu' : language === 'nl' ? 'Dagen in status' : 'Days in status',
@@ -494,9 +494,107 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-7 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
+            className={cn(
+              'relative max-h-[88vh] w-full overflow-y-auto bg-white shadow-2xl no-scrollbar dark:bg-[#0f1513]',
+              mode === 'warehouse' && selectedRow.pallet
+                ? 'max-w-xl overflow-hidden rounded-[3rem] p-8'
+                : 'max-w-2xl rounded-[2.5rem] p-7'
+            )}
             onClick={(event) => event.stopPropagation()}
           >
+            {mode === 'warehouse' && selectedRow.pallet ? (
+              <>
+                <div className="absolute inset-x-0 top-0 h-2 bg-black dark:bg-emerald-400" />
+
+                <div className="mb-8 flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1 pr-3">
+                    <h3 className="mb-1 break-all text-3xl font-black uppercase leading-none tracking-tighter text-zinc-950 dark:text-white">
+                      {selectedRow.primary}
+                    </h3>
+                    <span className="block truncate text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                      {selectedRow.secondary}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={t('closeDetails')}
+                    onClick={() => setSelectedRow(null)}
+                    className="shrink-0 rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-white"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="mb-4 grid grid-cols-2 gap-6 md:grid-cols-3">
+                  <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                    <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                      {copy.location}
+                    </span>
+                    <p className="break-words text-xs font-black uppercase text-zinc-950 dark:text-white">
+                      {selectedRow.location}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                    <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                      {copy.status}
+                    </span>
+                    <p className="text-xs font-black uppercase text-blue-600 dark:text-blue-300">
+                      {selectedRow.status}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                    <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                      {copy.metric}
+                    </span>
+                    <p className="text-xs font-black text-zinc-950 dark:text-white">
+                      {selectedRow.metric} {t('days')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-4 grid gap-6 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                    <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                      {copy.client}
+                    </span>
+                    <p className="break-words text-xs font-black uppercase text-zinc-950 dark:text-white">
+                      {selectedRow.client}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                    <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                      {copy.amount}
+                    </span>
+                    <p className="break-words text-xs font-black uppercase text-zinc-950 dark:text-white">
+                      {selectedRow.amount}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-8 rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                  <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                    {t('timestamp')}
+                  </span>
+                  <p className="text-xs font-black uppercase text-zinc-950 dark:text-white">
+                    {formatAppDateTime(selectedRow.pallet.last_status_changed_at, language)}
+                  </p>
+                  {selectedRow.pallet.note && (
+                    <p className="mt-3 text-xs font-bold leading-5 text-zinc-600 dark:text-zinc-200">
+                      {selectedRow.pallet.note}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRow(null)}
+                  className="w-full rounded-2xl bg-black py-4 text-xs font-black uppercase text-white shadow-xl shadow-black/10 transition-transform active:scale-[0.99] dark:bg-emerald-500 dark:text-emerald-950"
+                >
+                  {t('closeDetails')}
+                </button>
+              </>
+            ) : (
+              <>
             <div className="mb-6 flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{copy.title}</p>
@@ -534,6 +632,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               <Button type="button" className="mt-5 w-full py-4" onClick={() => markServiceResolved(selectedRow)}>
                 {language === 'bs' ? 'Označi kao popravljeno' : language === 'nl' ? 'Als gerepareerd markeren' : 'Mark repaired'}
               </Button>
+            )}
+              </>
             )}
           </motion.div>
         </div>

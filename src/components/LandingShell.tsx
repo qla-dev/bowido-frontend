@@ -34,7 +34,7 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55 }}
-        className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 py-6 sm:px-10 lg:px-[4.5vw] lg:py-8"
+        className="pointer-events-none absolute inset-x-0 top-0 z-[205] flex items-center justify-between px-5 py-6 sm:px-10 lg:px-[4.5vw] lg:py-8"
       >
         <motion.div
           layout
@@ -152,7 +152,7 @@ export function LandingShell({ isLoginOpen, logoSrc, loginLabel, onOpenLogin, ma
               animate={{ width: '50%', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="landing-login-pane relative flex min-h-[100dvh] min-w-0 shrink-0 items-center justify-center overflow-y-auto bg-[#fbfcfd] px-5 py-24 sm:px-10 lg:px-12"
+              className="landing-login-pane relative flex min-h-[100dvh] min-w-0 shrink-0 items-center justify-center overflow-y-auto bg-[#fbfcfd] px-5 pb-6 pt-24 sm:px-10 lg:px-12"
             >
               <motion.div
                 initial={{ opacity: 0, x: -36 }}

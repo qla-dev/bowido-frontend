@@ -3096,7 +3096,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 <div className="relative min-w-0 flex-1">
                   <Search
                     size={16}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-200"
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
                   />
                   <input
                     type="text"
@@ -3105,7 +3105,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       setClientSearchTerm(event.target.value)
                     }
                     placeholder={text.searchClientPlaceholder}
-                    className="h-11 w-full rounded-[1rem] border border-emerald-100 bg-emerald-50/60 pl-11 pr-4 text-[12px] font-black uppercase tracking-[0.08em] text-emerald-950 outline-none transition-colors placeholder:text-emerald-400 focus:border-emerald-300 dark:border-white/10 dark:bg-[#101715] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-emerald-300"
+                    className="h-10 w-full rounded-[1rem] border border-zinc-200 bg-white pl-11 pr-4 text-[12px] font-black uppercase leading-none tracking-[0.08em] text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-white/30"
                   />
                 </div>
               ) : undefined
@@ -3117,8 +3117,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 : getPalletDisplayName(selectedPallet)
             }
             width="lg"
-            contentClassName="min-h-[24rem] justify-center"
-            bodyClassName="p-0"
+            contentClassName={
+              openChangeMenu === "client"
+                ? "justify-start md:min-h-[36rem]"
+                : "min-h-[24rem] justify-center"
+            }
+            bodyClassName={cn(
+              "p-0",
+              openChangeMenu === "client" &&
+                "flex min-h-0 flex-col overflow-hidden",
+            )}
             headerClassName={
               openChangeMenu === "client"
                 ? "items-center px-5 pb-3 pt-4"
@@ -3148,8 +3156,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
             {openChangeMenu === "client" &&
               statusIdAllowsCustomer(statuses, draftStatusId) && (
-                <div className="px-5 pb-5">
-                  <div className="max-h-80 space-y-2.5 overflow-y-auto">
+                <div className="min-h-0 flex-1 px-5 pb-5">
+                  <div className="h-full space-y-2.5 overflow-y-auto overscroll-contain pr-1">
                     {filteredClients.map((client) => (
                       <button
                         key={client.id}
@@ -3158,13 +3166,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                           handleClientSelection(client.user_id.toString())
                         }
                         className={cn(
-                          "flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all",
+                          "flex w-full items-center justify-start rounded-[1rem] px-11 py-3.5 text-left text-[13px] font-black uppercase tracking-tight transition-all",
                           draftClientId === client.user_id
                             ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
                             : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
                         )}
                       >
-                        <div className="text-center">
+                        <div className="min-w-0 text-left">
                           <p>{client.name}</p>
                           <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-400">
                             {client.country} / #{client.user_id}
