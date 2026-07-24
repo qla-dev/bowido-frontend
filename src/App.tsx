@@ -1026,6 +1026,9 @@ export default function App() {
         ...form,
         ...result.fields,
         kvk: normalizedKvk,
+        email: "",
+        password: "",
+        password_confirmation: "",
       }));
       setKvkRegistrationLookupSource(result.source);
     } catch (error) {
@@ -1672,6 +1675,8 @@ export default function App() {
                   <Input
                     required
                     type="email"
+                    name="kvk-registration-email"
+                    autoComplete="off"
                     className={cn(
                       "mt-1",
                       kvkRegistration.email &&
@@ -1905,6 +1910,8 @@ export default function App() {
                       required
                       minLength={8}
                       type="password"
+                      name="kvk-registration-new-password"
+                      autoComplete="new-password"
                       className="mt-1"
                       value={kvkRegistration.password}
                       onChange={(event) =>
@@ -1921,6 +1928,8 @@ export default function App() {
                       required
                       minLength={8}
                       type="password"
+                      name="kvk-registration-confirm-password"
+                      autoComplete="new-password"
                       className="mt-1"
                       value={kvkRegistration.password_confirmation}
                       onChange={(event) =>
