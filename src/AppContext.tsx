@@ -58,6 +58,12 @@ interface AppContextType {
     palletId: number,
     data: DeliveryLocationInput,
   ) => Promise<DeliveryLocation>;
+  scanCustomerPossessionPallet: (qrCode: string) => Promise<Pallet>;
+  claimCustomerPossessionPallet: (
+    palletId: number,
+    statusId: number,
+    location: string,
+  ) => Promise<Pallet>;
   deletePallet: (id: number) => void;
   addClient: (
     client: Omit<ClientDetail, "id" | "user_id"> & { user_id?: number },
@@ -748,16 +754,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ? {
               ...pallet,
               delivery_location: deliveryLocation,
-              current_location:
-                pallet.current_status_slug === "bij-de-klant" && deliveryAddress
-                  ? deliveryAddress
-                  : pallet.current_location,
+              current_location: deliveryAddress || pallet.current_location,
             }
           : pallet,
       ),
     );
 
     return deliveryLocation;
+  };
+
+  const upsertPalletInState = (nextPallet: Pallet) => {
+    setPallets((previous) => {
+      const exists = previous.some((pallet) => pallet.id === nextPallet.id);
+      return exists
+        ? previous.map((pallet) => pallet.id === nextPallet.id ? nextPallet : pallet)
+        : [nextPallet, ...previous];
+    });
+  };
+
+  const scanCustomerPossessionPallet = async (qrCode: string): Promise<Pallet> => {
+    const pallet = await apiService.pallets.scanCustomerPossession(qrCode);
+    upsertPalletInState(pallet);
+    return pallet;
+  };
+
+  const claimCustomerPossessionPallet = async (
+    palletId: number,
+    statusId: number,
+    location: string,
+  ): Promise<Pallet> => {
+    const pallet = await apiService.pallets.claimCustomerPossession(
+      palletId,
+      statusId,
+      location,
+    );
+    upsertPalletInState(pallet);
+    return pallet;
   };
 
   const reportDamage = (report: {
@@ -1078,6 +1110,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         addPalletBatch,
         updatePallet,
         savePalletDeliveryLocation,
+        scanCustomerPossessionPallet,
+        claimCustomerPossessionPallet,
         deletePallet,
         addClient,
         deleteClient,

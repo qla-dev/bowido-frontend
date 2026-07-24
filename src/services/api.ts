@@ -37,6 +37,30 @@ type ApiEnvelope<T> = {
 
 export type ListParams = Record<string, string | number | boolean | undefined>;
 
+export type KvkRegistrationLookup = {
+  source: 'database' | 'kvk';
+  fields: Partial<{
+    kvk: string;
+    name: string;
+    country: string;
+    email: string;
+    phone_number: string;
+    fixed_phone: string;
+    street: string;
+    house_number: string;
+    postal_code: string;
+    city: string;
+    warehouse1_street: string;
+    warehouse1_house_number: string;
+    warehouse1_postal_code: string;
+    warehouse1_city: string;
+    warehouse2_street: string;
+    warehouse2_house_number: string;
+    warehouse2_postal_code: string;
+    warehouse2_city: string;
+  }>;
+};
+
 export type PaginationMeta = {
   total: number;
   limit: number;
@@ -774,8 +798,12 @@ export const apiService = {
   clearToken: () => setStoredToken(null),
 
   auth: {
-    kvkLookup: (kvk: string) => apiData<{ company_name: string; kvk: string; email?: string; phone_number?: string; fixed_phone?: string; street?: string; house_number?: string; postal_code?: string; city?: string; warehouse1_street?: string; warehouse1_house_number?: string; warehouse1_postal_code?: string; warehouse1_city?: string; warehouse2_street?: string; warehouse2_house_number?: string; warehouse2_postal_code?: string; warehouse2_city?: string }>('/auth/kvk-lookup', { method: 'POST', body: jsonBody({ kvk }) }),
-    kvkRegister: (data: { kvk: string; name: string; email: string; phone_number?: string; fixed_phone?: string; street?: string; house_number?: string; postal_code?: string; city?: string; warehouse1_street?: string; warehouse1_house_number?: string; warehouse1_postal_code?: string; warehouse1_city?: string; warehouse2_street?: string; warehouse2_house_number?: string; warehouse2_postal_code?: string; warehouse2_city?: string; password: string; password_confirmation: string }) => apiData<ApiRecord>('/auth/kvk-register', { method: 'POST', body: jsonBody(data) }),
+    kvkLookup: (kvk: string) =>
+      apiData<KvkRegistrationLookup>('/auth/kvk-lookup', {
+        method: 'POST',
+        body: jsonBody({ kvk }),
+      }),
+    kvkRegister: (data: { kvk: string; name: string; country?: string; email: string; phone_number?: string; fixed_phone?: string; street?: string; house_number?: string; postal_code?: string; city?: string; warehouse1_street?: string; warehouse1_house_number?: string; warehouse1_postal_code?: string; warehouse1_city?: string; warehouse2_street?: string; warehouse2_house_number?: string; warehouse2_postal_code?: string; warehouse2_city?: string; password: string; password_confirmation: string }) => apiData<ApiRecord>('/auth/kvk-register', { method: 'POST', body: jsonBody(data) }),
     login: async (credentials: LoginCredentials) => {
       const loginType = credentials.loginType || (credentials.kvk ? 'customer' : 'user');
       const result = await apiData<ApiRecord>('/auth/login', {
@@ -879,6 +907,27 @@ export const apiService = {
   },
 
   pallets: {
+    scanCustomerPossession: async (qrCode: string): Promise<Pallet> =>
+      normalizePallet(
+        await apiData<ApiRecord>('/pallets/scan-customer-possession', {
+          method: 'POST',
+          body: jsonBody({ qr_code: qrCode }),
+        })
+      ),
+    claimCustomerPossession: async (
+      id: number,
+      statusId: number,
+      location: string,
+    ): Promise<Pallet> =>
+      normalizePallet(
+        await apiData<ApiRecord>(`/pallets/${id}/claim-customer-possession`, {
+          method: 'PUT',
+          body: jsonBody({
+            current_status_id: toBackendStatusId(statusId),
+            current_location: location,
+          }),
+        })
+      ),
     stats: async (): Promise<PalletDashboardStats> =>
       normalizePalletDashboardStats(await apiData<ApiRecord>('/pallets/dashboard-stats')),
     page: (params: ListParams = {}) => listPage<Pallet>('/pallets', params, normalizePallet),
@@ -913,6 +962,11 @@ export const apiService = {
   },
 
   locations: {
+    searchAddress: async (query: string): Promise<ReverseGeocodingResult[]> =>
+      (await apiData<ApiRecord[]>('/location/address-search', {
+        method: 'POST',
+        body: jsonBody({ query, limit: 5 }),
+      })).map(normalizeReverseGeocodingResult),
     reverseGeocode: async (latitude: number, longitude: number): Promise<ReverseGeocodingResult> =>
       normalizeReverseGeocodingResult(
         await apiData<ApiRecord>('/location/reverse-geocode', {

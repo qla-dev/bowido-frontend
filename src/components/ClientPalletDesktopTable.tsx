@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react';
 import {
   ArrowUpDown,
+  ChevronDown,
   Clock3,
   Funnel,
   MapPin,
@@ -21,7 +22,9 @@ import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
-import { formatAppDateTime } from '../lib/dateFormat';
+import { formatAppDate } from '../lib/dateFormat';
+import { DeliveryLocationMap } from './DeliveryLocationMap';
+import { DriverModalShell } from './DriverModalShell';
 
 type SortKey =
   | 'pallet'
@@ -55,8 +58,8 @@ const COLUMN_ORDER = [
   'pallet',
   'type',
   'status',
-  'lastUpdate',
   'location',
+  'lastUpdate',
   'daysOut',
   'overdueDays',
   'debt',
@@ -66,8 +69,8 @@ const INITIAL_COLUMN_WIDTHS: Record<SortKey, number> = {
   pallet: 170,
   type: 145,
   status: 170,
-  lastUpdate: 180,
   location: 230,
+  lastUpdate: 150,
   daysOut: 135,
   overdueDays: 150,
   debt: 140,
@@ -77,8 +80,8 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   pallet: 145,
   type: 120,
   status: 145,
-  lastUpdate: 155,
   location: 190,
+  lastUpdate: 130,
   daysOut: 115,
   overdueDays: 125,
   debt: 115,
@@ -114,11 +117,18 @@ interface ClientPalletDesktopTableProps {
 }
 
 export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> = ({ client, summaryCards }) => {
-  const { pallets: cachedPallets, statuses, auditLogs, t, language } = useApp();
+  const { pallets: cachedPallets, statuses, t, language, updatePallet, updatePalletStatus, savePalletDeliveryLocation } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  const locationMenuRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
-  const [selectedPallet, setSelectedPallet] = useState<PalletRow | null>(null);
+  const locationButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [gpsLocationPallet, setGpsLocationPallet] = useState<Pallet | null>(null);
+  // Details are now shown directly in the list. Kept null so legacy detail markup
+  // remains inert until it is removed in the next table cleanup.
+  const selectedPallet: PalletRow | null = null;
+  const selectedPalletHistory: AuditLog[] = [];
+  const setSelectedPallet = (_pallet: PalletRow | null) => undefined;
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
     key: 'pallet',
     direction: 'asc',
@@ -133,6 +143,12 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     left: number;
     width: number;
     maxHeight: number;
+  } | null>(null);
+  const [openLocationMenuPalletId, setOpenLocationMenuPalletId] = useState<number | null>(null);
+  const [locationMenuStyle, setLocationMenuStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
   } | null>(null);
   const {
     headerCellClass,
@@ -154,7 +170,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const dateFormatter = useMemo(
     () => ({
       format: (value: string | number | Date) =>
-        formatAppDateTime(value, language),
+        formatAppDate(value, language),
     }),
     [language]
   );
@@ -164,14 +180,11 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     language === 'bs' ? 'Prikaži sve' : language === 'nl' ? 'Alles tonen' : 'Show all';
   const noResultsLabel =
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
-  const daysOutLabel =
-    language === 'bs' ? 'Dana vani' : language === 'nl' ? 'Dagen buiten' : 'Days out';
-  const overdueDaysLabel =
-    language === 'bs' ? 'Dana kašnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days';
+  const daysOutLabel = language === 'bs' ? 'Povrat' : language === 'nl' ? 'Retour' : 'Return';
+  const overdueDaysLabel = language === 'bs' ? 'Rok' : language === 'nl' ? 'Termijn' : 'Term';
   const debtLabel =
     language === 'bs' ? 'Iznos duga' : language === 'nl' ? 'Schuldbedrag' : 'Debt amount';
-  const lastUpdateLabel =
-    language === 'bs' ? 'Zadnja izmjena' : language === 'nl' ? 'Laatste wijziging' : 'Last update';
+  const lastUpdateLabel = language === 'bs' ? 'Poslano' : language === 'nl' ? 'Verzonden' : 'Sent';
   const palletLabel =
     language === 'bs' ? 'Paleta' : language === 'nl' ? 'Bok' : 'Pallet';
   const pageTitle =
@@ -182,12 +195,13 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       : language === 'nl'
         ? 'Overzicht van status, locatie en kosten van uw bokken.'
         : 'Overview of your pallets, their status, location and charges.';
-  const movementHistoryLabel =
-    language === 'bs' ? 'Historija kretanja' : language === 'nl' ? 'Bewegingsgeschiedenis' : 'Movement history';
-  const changedByLabel =
-    language === 'bs' ? 'Promijenio' : language === 'nl' ? 'Gewijzigd door' : 'Changed by';
-  const noHistoryLabel =
-    language === 'bs' ? 'Nema historije kretanja.' : language === 'nl' ? 'Geen bewegingsgeschiedenis.' : 'No movement history.';
+  const warehouseOneLabel = language === 'bs' ? 'Magacin 1' : language === 'nl' ? 'Magazijn 1' : 'Warehouse 1';
+  const warehouseTwoLabel = language === 'bs' ? 'Magacin 2' : language === 'nl' ? 'Magazijn 2' : 'Warehouse 2';
+  const otherLocationLabel = language === 'bs' ? 'Druga lokacija' : language === 'nl' ? 'Andere locatie' : 'Other location';
+  const mapLocationLabel = language === 'bs' ? 'Odaberite lokaciju na mapi' : language === 'nl' ? 'Kies locatie op kaart' : 'Choose location on map';
+  const movementHistoryLabel = language === 'bs' ? 'Historija kretanja' : language === 'nl' ? 'Bewegingsgeschiedenis' : 'Movement history';
+  const changedByLabel = language === 'bs' ? 'Promijenio' : language === 'nl' ? 'Gewijzigd door' : 'Changed by';
+  const noHistoryLabel = language === 'bs' ? 'Nema historije kretanja.' : language === 'nl' ? 'Geen bewegingsgeschiedenis.' : 'No movement history.';
   const resizeAriaLabel =
     language === 'bs'
       ? 'Promijeni sirinu kolone'
@@ -227,8 +241,13 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     );
   }, [cachedPallets]);
 
-  const getDaysSince = (date: string) =>
-    Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
+  const getDaysSince = (date: string) => {
+    const changedAt = new Date(date);
+    const changedAtMidnight = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
+    const today = new Date();
+    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.max(0, Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / (24 * 60 * 60 * 1000)));
+  };
 
   const rows = useMemo<PalletRow[]>(
     () =>
@@ -237,9 +256,8 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         .map((pallet) => {
           const status = statuses.find((item) => item.id === pallet.current_status_id);
           const daysOut = getDaysSince(pallet.last_status_changed_at);
-          const overdueDays = status?.is_billable
-            ? Math.max(daysOut - client.grace_period_days, 0)
-            : 0;
+          const graceDays = status?.is_billable ? client.grace_period_days : 0;
+          const overdueDays = graceDays > 0 ? Math.max(daysOut - graceDays, 0) : 0;
           const debt = overdueDays * client.price_per_day;
 
           return {
@@ -335,28 +353,53 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     return nextRows;
   }, [rows, selectedFilters, sortConfig]);
 
-  const selectedPalletHistory = useMemo<AuditLog[]>(() => {
-    if (!selectedPallet) {
-      return [];
-    }
+  const returnStatus = statuses.find((status) => status.slug === 'ophalen-klant' || status.name.toLowerCase() === 'ophalen klant') || statuses.find((status) => status.id === 5);
+  const atClientStatus = statuses.find((status) => status.slug === 'bij-de-klant' || status.name.toLowerCase() === 'bij de klant') || statuses.find((status) => status.id === 4);
+  const updateLocation = (pallet: Pallet, location: string) => {
+    const nextLocation = location.trim();
+    if (!nextLocation || nextLocation === pallet.current_location) return;
+    updatePallet({ ...pallet, current_location: nextLocation });
+  };
 
-    return auditLogs
-      .filter(
-        (log) =>
-          log.pallet_id === selectedPallet.pallet.id &&
-          (log.type || 'status') === 'status'
-      )
-      .sort(
-        (left, right) =>
-          new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
-      );
-  }, [auditLogs, selectedPallet]);
+  const getTimelineInfo = (row: PalletRow) => {
+    const status = statuses.find((item) => item.id === row.pallet.current_status_id);
+    const graceDays = status?.is_billable ? client.grace_period_days : 0;
+    if (graceDays <= 0) return { returnLabel: '-', deadlineLabel: '-', tone: 'muted' as const };
+
+    const changedAt = new Date(row.pallet.last_status_changed_at);
+    const dueDate = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
+    dueDate.setDate(dueDate.getDate() + graceDays);
+    const remainingDays = graceDays - row.daysOut;
+    return {
+      returnLabel: dateFormatter.format(dueDate),
+      deadlineLabel: remainingDays < 0
+        ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}`
+        : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}`,
+      tone: remainingDays < 0 ? 'danger' as const : remainingDays <= 2 ? 'warning' as const : 'success' as const,
+    };
+  };
+
+  const warehouseLocations = [
+    {
+      label: warehouseOneLabel,
+      fields: [client.warehouse1_street, client.warehouse1_house_number, client.warehouse1_postal_code, client.warehouse1_city],
+      address: [[client.warehouse1_street, client.warehouse1_house_number].filter(Boolean).join(' '), [client.warehouse1_postal_code, client.warehouse1_city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+    },
+    {
+      label: warehouseTwoLabel,
+      fields: [client.warehouse2_street, client.warehouse2_house_number, client.warehouse2_postal_code, client.warehouse2_city],
+      address: [[client.warehouse2_street, client.warehouse2_house_number].filter(Boolean).join(' '), [client.warehouse2_postal_code, client.warehouse2_city].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+    },
+  ].filter((warehouse) => warehouse.fields.some((field) => field?.trim()));
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (!tableRef.current?.contains(target) && !filterMenuRef.current?.contains(target)) {
         setOpenFilterKey(null);
+      }
+      if (!tableRef.current?.contains(target) && !locationMenuRef.current?.contains(target)) {
+        setOpenLocationMenuPalletId(null);
       }
     };
 
@@ -402,6 +445,35 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     };
   }, [openFilterKey]);
 
+  useEffect(() => {
+    if (openLocationMenuPalletId === null) {
+      setLocationMenuStyle(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const button = locationButtonRefs.current[openLocationMenuPalletId];
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(360, Math.max(260, rect.width));
+      const viewportPadding = 12;
+      setLocationMenuStyle({
+        top: rect.bottom + 6,
+        left: Math.min(rect.left, window.innerWidth - width - viewportPadding),
+        width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [openLocationMenuPalletId]);
+
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) =>
       current.key === key
@@ -422,6 +494,72 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const clearColumnFilter = (key: SortKey) => {
     setSelectedFilters((current) => ({ ...current, [key]: [] }));
     setFilterSearch((current) => ({ ...current, [key]: '' }));
+  };
+
+  const selectLocation = (pallet: Pallet, location: string) => {
+    setOpenLocationMenuPalletId(null);
+    if (location === '__other__') {
+      setGpsLocationPallet(pallet);
+      return;
+    }
+    updateLocation(pallet, location);
+  };
+
+  const getLocationOptions = (pallet: Pallet) => {
+    const options = warehouseLocations.map((warehouse) => ({
+      value: warehouse.address,
+      label: `${warehouse.label}: ${warehouse.address}`,
+    }));
+    if (pallet.current_location && !options.some((option) => option.value === pallet.current_location)) {
+      options.unshift({ value: pallet.current_location, label: pallet.current_location });
+    }
+    return options;
+  };
+
+  const renderLocationMenu = () => {
+    if (openLocationMenuPalletId === null || !locationMenuStyle) return null;
+    const pallet = filteredRows.find((row) => row.pallet.id === openLocationMenuPalletId)?.pallet;
+    if (!pallet) return null;
+
+    return (
+      <div
+        ref={locationMenuRef}
+        style={locationMenuStyle}
+        className="fixed z-40 overflow-hidden rounded-2xl border border-emerald-100 bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(0,82,48,0.32)] dark:border-emerald-300/15 dark:bg-[#151d1a]"
+      >
+        <p className="px-2.5 pb-1 pt-1 text-[9px] font-black uppercase tracking-[0.13em] text-emerald-600 dark:text-emerald-200">
+          {language === 'bs' ? 'Odaberite lokaciju' : language === 'nl' ? 'Kies locatie' : 'Choose location'}
+        </p>
+        {getLocationOptions(pallet).map((option) => {
+          const isSelected = option.value === pallet.current_location;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => selectLocation(pallet, option.value)}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[11px] font-bold leading-4 transition-colors',
+                isSelected
+                  ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-100'
+                  : 'text-zinc-700 hover:bg-emerald-50/80 dark:text-zinc-100 dark:hover:bg-white/5'
+              )}
+            >
+              <MapPin size={14} className="shrink-0 text-emerald-600 dark:text-emerald-200" />
+              <span className="min-w-0 break-words">{option.label}</span>
+              {isSelected && <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-[#00A655]" />}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => selectLocation(pallet, '__other__')}
+          className="mt-1 flex w-full items-center gap-2 rounded-xl border-t border-emerald-100 px-2.5 py-2.5 text-left text-[11px] font-black text-emerald-700 transition-colors hover:bg-emerald-50 dark:border-white/10 dark:text-emerald-100 dark:hover:bg-white/5"
+        >
+          <MapPin size={14} className="shrink-0" />
+          {otherLocationLabel}
+        </button>
+      </div>
+    );
   };
 
   const renderSortButton = (key: SortKey, label: string) => {
@@ -619,19 +757,8 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {filteredRows.map((row) => (
-                <tr
-                  key={`client-pallet-row-${row.pallet.id}`}
-                  onClick={() => setSelectedPallet(row)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedPallet(row);
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  className="group cursor-pointer transition-colors hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none"
-                >
+                <React.Fragment key={`client-pallet-row-${row.pallet.id}`}>
+                <tr className="group transition-colors hover:bg-zinc-50/60">
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-900')}>{row.palletLabel}</span>
@@ -654,8 +781,38 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                         }
                         className="min-h-[1.875rem] rounded-lg px-2.5 py-1 text-[11px] font-bold normal-case"
                       >
-                        {row.statusLabel}
+                        {(row.pallet.current_status_id === atClientStatus?.id || row.pallet.current_status_id === returnStatus?.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextStatus = row.pallet.current_status_id === atClientStatus?.id ? returnStatus : atClientStatus;
+                              if (nextStatus) updatePalletStatus(row.pallet.id, nextStatus.id, client.user_id, client.name, row.pallet.current_location, undefined, client.user_id);
+                            }}
+                            title={language === 'bs' ? 'Zatraži povrat' : language === 'nl' ? 'Retour aanvragen' : 'Request return'}
+                            className="-my-1 -mx-1 rounded px-1 py-1 text-left underline-offset-2 hover:underline"
+                          >
+                            {row.statusLabel}
+                          </button>
+                        ) : row.statusLabel}
                       </Badge>
+                    </div>
+                  </td>
+                  <td className={bodyCellClass}>
+                    <div className={cn(bodyCellInnerClass, 'relative')}>
+                      <button
+                        ref={(element) => { locationButtonRefs.current[row.pallet.id] = element; }}
+                        type="button"
+                        onClick={() => setOpenLocationMenuPalletId((current) => current === row.pallet.id ? null : row.pallet.id)}
+                        aria-haspopup="menu"
+                        aria-expanded={openLocationMenuPalletId === row.pallet.id}
+                        className="flex h-9 w-full items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/70 py-1 pl-2.5 pr-2 text-left text-[11px] font-black text-emerald-950 shadow-sm outline-none transition-colors hover:border-emerald-200 hover:bg-emerald-50 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100 dark:border-emerald-300/15 dark:bg-emerald-400/10 dark:text-emerald-50 dark:hover:bg-emerald-400/15 dark:focus:bg-[#151d1a]"
+                      >
+                        <MapPin size={13} className="shrink-0 text-emerald-600 dark:text-emerald-200" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {getLocationOptions(row.pallet).find((option) => option.value === row.pallet.current_location)?.label || otherLocationLabel}
+                        </span>
+                        <ChevronDown size={14} className={cn('shrink-0 text-emerald-600 transition-transform dark:text-emerald-200', openLocationMenuPalletId === row.pallet.id && 'rotate-180')} />
+                      </button>
                     </div>
                   </td>
                   <td className={bodyCellClass}>
@@ -665,18 +822,14 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                   </td>
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, 'text-zinc-500')}>{row.locationLabel}</span>
+                      <span className={cn(bodyTextClass, 'text-zinc-900')}>{getTimelineInfo(row).returnLabel}</span>
                     </div>
                   </td>
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, 'text-zinc-900')}>{row.daysOut}</span>
-                    </div>
-                  </td>
-                  <td className={bodyCellClass}>
-                    <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, row.overdueDays > 0 ? 'text-rose-600' : 'text-zinc-400')}>
-                        {row.overdueDays}
+                      <span className={cn(bodyTextClass, 'flex items-center gap-1.5', getTimelineInfo(row).tone === 'danger' ? 'text-rose-600' : getTimelineInfo(row).tone === 'warning' ? 'text-amber-600' : 'text-emerald-600')}>
+                        <span className={cn('h-2 w-2 shrink-0 rounded-full', getTimelineInfo(row).tone === 'danger' ? 'bg-rose-500' : getTimelineInfo(row).tone === 'warning' ? 'bg-amber-500' : getTimelineInfo(row).tone === 'success' ? 'bg-emerald-500' : 'bg-zinc-300')} />
+                        {getTimelineInfo(row).deadlineLabel}
                       </span>
                     </div>
                   </td>
@@ -688,6 +841,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                     </div>
                   </td>
                 </tr>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -701,6 +855,28 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       </div>
 
       {openFilterKey && renderFilterMenu(openFilterKey)}
+      {renderLocationMenu()}
+
+      {gpsLocationPallet && (
+        <DriverModalShell
+          onClose={() => setGpsLocationPallet(null)}
+          title={otherLocationLabel}
+          subtitle={mapLocationLabel}
+          width="lg"
+          bodyClassName="p-4"
+        >
+          <DeliveryLocationMap
+            palletId={gpsLocationPallet.id}
+            language={language}
+            initialLocation={gpsLocationPallet.delivery_location}
+            onSave={async (palletId, data) => {
+              const savedLocation = await savePalletDeliveryLocation(palletId, data);
+              setGpsLocationPallet(null);
+              return savedLocation;
+            }}
+          />
+        </DriverModalShell>
+      )}
 
       {selectedPallet && (
         <div
