@@ -5,13 +5,13 @@ import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, RoleType, User } from '../types';
 import {
   AlertTriangle,
-  Ghost,
   Link2,
   PackageSearch,
   Search,
   Send,
   X,
 } from 'lucide-react';
+import { NoQrCodeIcon } from './NoQrCodeIcon';
 
 interface GhostPalletCenterProps {
   currentUser: User;
@@ -115,7 +115,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
           <div className="px-6 md:px-8 py-5 border-b border-zinc-100 bg-zinc-50/60 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className={getGhostActionStyles(emphasizeGhost) + ' w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0'}>
-                <Ghost size={20} />
+                <NoQrCodeIcon size={20} />
               </div>
               <div className="min-w-0">
                 <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-emerald-950 font-display">
@@ -153,7 +153,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
               <Card>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl border border-zinc-200 bg-zinc-50 flex items-center justify-center shrink-0 text-zinc-500">
-                    <Ghost size={18} />
+                    <NoQrCodeIcon size={18} />
                   </div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('affectedClients')}</p>
@@ -270,7 +270,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <Badge variant="warning">Ghost</Badge>
+                                <Badge variant="warning">{t('withoutQr')}</Badge>
                                 <Badge variant="default">{t('withoutQr')}</Badge>
                               </div>
                               <h3 className="text-sm font-black uppercase tracking-tight text-emerald-950">
@@ -341,7 +341,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                     })
                   ) : (
                     <div className="p-10 text-center text-zinc-400">
-                      <Ghost size={28} className="mx-auto mb-3 opacity-40" />
+                      <NoQrCodeIcon size={28} className="mx-auto mb-3 opacity-40" />
                       <p className="text-[10px] font-black uppercase tracking-[0.18em]">
                         {t('noOpenGhostReports')}
                       </p>

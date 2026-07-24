@@ -873,7 +873,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         },
       })
       .catch((error) =>
-        console.error("Failed to create ghost pallet report", error),
+        console.error("Failed to create no-QR pallet report", error),
       );
 
     void Promise.all(
@@ -887,7 +887,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet),
         );
       })
-      .catch((error) => console.error("Failed to create ghost pallets", error));
+      .catch((error) => console.error("Failed to create pallets without QR codes", error));
 
     const notificationDetails = [
       baseLocation !== "Client Location" ? `Location: ${baseLocation}` : "",
@@ -897,8 +897,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .join(" | ");
 
     pushNotification(
-      "Ghost Pallet Report",
-      `${count} unlabeled unit${count > 1 ? "s" : ""} reported for ${clientName}.${notificationDetails ? ` ${notificationDetails}` : ""}`,
+      t("ghostReport"),
+      language === "nl"
+        ? `${count} bok${count > 1 ? "ken" : ""} zonder QR-code gemeld voor ${clientName}.${notificationDetails ? ` ${notificationDetails}` : ""}`
+        : language === "bs"
+          ? `${count} paleta${count > 1 ? " bez QR koda" : " bez QR koda"} prijavljeno za ${clientName}.${notificationDetails ? ` ${notificationDetails}` : ""}`
+          : `${count} pallet${count > 1 ? "s" : ""} without a QR code reported for ${clientName}.${notificationDetails ? ` ${notificationDetails}` : ""}`,
       "alert",
     );
   };
@@ -918,15 +922,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           qr_code: normalizedQrCode,
           pallet_name: normalizedQrCode,
           is_ghost: false,
-          note: `${item.note || ""} (Paired from ghost on ${formatAppDate(new Date(), language)})`,
+          note: `${item.note || ""} (Paired from a pallet without a QR code on ${formatAppDate(new Date(), language)})`,
         };
       }),
     );
 
     if (ghost) {
       pushNotification(
-        "Ghost Pallet Paired",
-        `${ghost.client_name || "Client"} ghost pallet is now paired with QR ${normalizedQrCode}.`,
+        t("reviewAndPair"),
+        language === "nl"
+          ? `${ghost.client_name || "Klant"} bok zonder QR-code is gekoppeld aan QR ${normalizedQrCode}.`
+          : language === "bs"
+            ? `${ghost.client_name || "Klijent"} paleta bez QR koda je uparena s QR kodom ${normalizedQrCode}.`
+            : `${ghost.client_name || "Client"} pallet without a QR code is now paired with QR ${normalizedQrCode}.`,
         "status",
       );
 
@@ -936,7 +944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           qr_code: normalizedQrCode,
           pallet_name: normalizedQrCode,
           is_ghost: false,
-          note: `${ghost.note || ""} (Paired from ghost on ${formatAppDate(new Date(), language)})`,
+          note: `${ghost.note || ""} (Paired from a pallet without a QR code on ${formatAppDate(new Date(), language)})`,
         })
         .then((updatedPallet) => {
           setPallets((prev) =>
@@ -946,7 +954,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           );
           void fetchAuditLogs();
         })
-        .catch((error) => console.error("Failed to pair ghost pallet", error));
+        .catch((error) => console.error("Failed to pair pallet without a QR code", error));
     }
   };
 

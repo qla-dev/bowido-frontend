@@ -1,11 +1,12 @@
 import React from 'react';
-import { ArrowRight, Clock3, Ghost, Package, QrCode, RotateCcw } from 'lucide-react';
+import { ArrowRight, Clock3, Package, QrCode, RotateCcw } from 'lucide-react';
 import { StatCard, Card, Badge, Button } from './ui';
 import { BillingList } from './BillingList';
 import { useApp } from '../AppContext';
 import { User } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { formatAppDate } from '../lib/dateFormat';
+import { NoQrCodeIcon } from './NoQrCodeIcon';
 
 interface ClientDashboardProps {
   user: User;
@@ -120,7 +121,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
           >
             <div className={toolButtonContentClass}>
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white">
-                <Ghost size={18} />
+                <NoQrCodeIcon size={18} />
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase leading-none text-rose-900">{t('ghostReport')}</p>

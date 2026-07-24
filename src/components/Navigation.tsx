@@ -13,6 +13,7 @@ import { getRoleLabel, languageOptions } from '../i18n';
 import logoImage from '../assets/logo.png';
 import logoNightImage from '../assets/logo-night.png';
 import { formatAppTime } from '../lib/dateFormat';
+import { NoQrCodeIcon } from './NoQrCodeIcon';
 
 const SIDEBAR_PINNED_STORAGE_KEY = 'trackpal.sidebarPinnedState';
 const SIDEBAR_RECENT_TOGGLE_STORAGE_KEY = 'trackpal.sidebarHoverEnabled';
@@ -185,7 +186,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           ) : hasGhostAccess && (
             <button
               type="button"
-              title={t('ghostReport')}
+              title={t('sidebarNoQrPallets')}
               onClick={() => setIsGhostReportOpen(true)}
               className={cn(
                 "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
@@ -194,7 +195,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
               )}
             >
-              <Ghost size={19} />
+              <NoQrCodeIcon size={19} />
             </button>
           )}
 
@@ -552,7 +553,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
     if (role === RoleType.ADMIN) {
       items.push(
         { id: 'pallets', label: t('adminPalletOverview'), icon: <Package /> },
-        { id: 'no-qr-pallets', label: t('noQrPallets'), icon: <Ghost /> },
+        {
+          id: 'no-qr-pallets',
+          label: t('sidebarNoQrPallets'),
+          icon: (
+            <NoQrCodeIcon />
+          ),
+        },
         { id: 'calendar', label: t('calendar'), icon: <CalendarIcon /> },
         { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
         { id: 'client-manager', label: t('clientManager'), icon: <Building2 /> },
