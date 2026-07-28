@@ -294,7 +294,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     exportInvoice:
       language === 'bs' ? 'Izvezi fakturu' : language === 'nl' ? 'Factuur exporteren' : 'Export invoice',
     viewPhotos:
-      language === 'bs' ? 'Prikaži fotografije palete' : language === 'nl' ? 'Palletfoto\'s bekijken' : 'View pallet photos',
+      language === 'bs' ? 'Prikaži fotografije palete' : language === 'nl' ? 'Bokfoto\'s bekijken' : 'View pallet photos',
     noPhotos:
       language === 'bs' ? 'Nema fotografija za ovog kupca' : language === 'nl' ? 'Geen foto\'s voor deze klant' : 'No photos for this customer',
     photos: language === 'bs' ? 'Fotografije' : language === 'nl' ? 'Foto\'s' : 'Photos',
@@ -341,7 +341,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       language === 'bs'
         ? 'Palete trenutno kod ovog klijenta'
         : language === 'nl'
-          ? 'Pallets die momenteel bij deze klant staan'
+          ? 'Bokken die momenteel bij deze klant staan'
           : 'Pallets currently at this client',
     confirmDelete: language === 'bs' ? 'Da, obriši' : language === 'nl' ? 'Ja, verwijderen' : 'Yes, delete',
     deletedTitle: language === 'bs' ? 'Klijent je obrisan' : language === 'nl' ? 'Klant verwijderd' : 'Client deleted',

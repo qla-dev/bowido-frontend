@@ -32,6 +32,10 @@ import {
 } from "../lib/videoQrDecoder";
 import { apiService } from "../services/api";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
+import {
+  getClientWarehouseAddress,
+  getDeliveryLocationAddress,
+} from "../lib/palletLocations";
 import { formatAppDate } from "../lib/dateFormat";
 
 interface DriverMobileDashboardProps {
@@ -129,55 +133,6 @@ const DRIVER_STATUS_SLUG_ORDER = [
   "bowido-bih",
   "service",
 ] as const;
-
-const formatWarehouseAddress = (
-  street?: string,
-  houseNumber?: string,
-  postalCode?: string,
-  city?: string,
-) => {
-  const streetLine = [street, houseNumber].filter(Boolean).join(" ").trim();
-  const localityLine = [postalCode, city].filter(Boolean).join(" ").trim();
-
-  return [streetLine, localityLine].filter(Boolean).join(", ");
-};
-
-const getClientWarehouseAddress = (
-  client: ClientDetail | undefined,
-  warehouse: 1 | 2,
-) =>
-  warehouse === 1
-    ? formatWarehouseAddress(
-        client?.warehouse1_street,
-        client?.warehouse1_house_number,
-        client?.warehouse1_postal_code,
-        client?.warehouse1_city,
-      )
-    : formatWarehouseAddress(
-        client?.warehouse2_street,
-        client?.warehouse2_house_number,
-        client?.warehouse2_postal_code,
-        client?.warehouse2_city,
-      );
-
-const getDeliveryLocationAddress = (pallet?: Pallet | null) => {
-  const location = pallet?.delivery_location;
-
-  if (!location) {
-    return "";
-  }
-
-  return (
-    formatWarehouseAddress(
-      location.street,
-      location.house_number,
-      location.postal_code,
-      location.city,
-    ) ||
-    location.formatted_address ||
-    ""
-  );
-};
 
 type DriverCopy = {
   title: string;

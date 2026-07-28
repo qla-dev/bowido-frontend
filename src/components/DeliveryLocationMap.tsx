@@ -8,6 +8,7 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import { motion } from "motion/react";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
@@ -73,6 +74,9 @@ type DeliveryLocationMapProps = {
   language: AppLanguage;
   initialLocation?: DeliveryLocation;
   initialLocationIsSaved?: boolean;
+  mapClassName?: string;
+  layout?: "default" | "desktop-split";
+  onSelectionChange?: (hasSelection: boolean) => void;
   onSave: (
     palletId: number,
     input: DeliveryLocationInput,
@@ -89,6 +93,22 @@ const deliveryMarkerIcon = new L.Icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
+
+const MapResizeObserver = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [map]);
+
+  return null;
+};
 
 const copy = {
   en: {
@@ -323,9 +343,13 @@ export const DeliveryLocationMap = ({
   language,
   initialLocation,
   initialLocationIsSaved = true,
+  mapClassName,
+  layout = "default",
+  onSelectionChange,
   onSave,
 }: DeliveryLocationMapProps) => {
   const text = copy[language] || copy.en;
+  const isDesktopSplit = layout === "desktop-split";
   const initialCoordinates = initialLocation
     ? {
         latitude: initialLocation.latitude,
@@ -346,7 +370,7 @@ export const DeliveryLocationMap = ({
     toAddressFields(initialLocation),
   );
   const [manualMapEnabled, setManualMapEnabled] = useState(
-    Boolean(initialLocation),
+    Boolean(initialLocation) || isDesktopSplit,
   );
   const [recenterVersion, setRecenterVersion] = useState(0);
   const [capturedAt, setCapturedAt] = useState(
@@ -482,6 +506,12 @@ export const DeliveryLocationMap = ({
     !isSaving &&
     !deviceLocation.isRefining &&
     (hasUnsavedChanges || !savedLocation);
+  const showDesktopSplitDetails =
+    isDesktopSplit && Boolean(selectedCoordinates);
+
+  useEffect(() => {
+    onSelectionChange?.(Boolean(selectedCoordinates));
+  }, [onSelectionChange, selectedCoordinates]);
 
   const handleSave = async () => {
     if (!selectedCoordinates) {
@@ -542,25 +572,46 @@ export const DeliveryLocationMap = ({
   ].includes(deviceLocation.status);
 
   return (
-    <section className="overflow-hidden rounded-[1.65rem] border border-emerald-100 bg-white/92 shadow-sm dark:border-white/10 dark:bg-[#101715]/92">
-      <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
-        <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
-            {text.title}
-          </p>
-          <p className="mt-1.5 text-[12px] font-semibold leading-5 text-zinc-500 dark:text-zinc-300">
-            {text.explanation}
-          </p>
+    <motion.section
+      layout
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className={cn(
+        "overflow-hidden rounded-[1.65rem] border border-emerald-100 bg-white/92 shadow-sm dark:border-white/10 dark:bg-[#101715]/92",
+        isDesktopSplit &&
+          "overflow-visible rounded-none border-0 bg-transparent shadow-none dark:border-0 dark:bg-transparent",
+        showDesktopSplitDetails &&
+          "md:grid md:grid-cols-2 md:items-start md:gap-x-5",
+      )}
+    >
+      {!isDesktopSplit && (
+        <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+              {text.title}
+            </p>
+            <p className="mt-1.5 text-[12px] font-semibold leading-5 text-zinc-500 dark:text-zinc-300">
+              {text.explanation}
+            </p>
+          </div>
+          {savedLocation && !hasUnsavedChanges && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200">
+              <CheckCircle2 size={13} />
+              {text.saved}
+            </span>
+          )}
         </div>
-        {savedLocation && !hasUnsavedChanges && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200">
-            <CheckCircle2 size={13} />
-            {text.saved}
-          </span>
-        )}
-      </div>
+      )}
 
-      <div className="relative z-[600] px-4 pb-3">
+      <motion.div
+        layout
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className={cn(
+          "relative z-[600] px-4 pb-3",
+          showDesktopSplitDetails &&
+            "px-0 md:col-start-2 md:row-start-1 md:pb-3",
+          isDesktopSplit && !showDesktopSplitDetails && "px-0",
+        )}
+      >
         <label className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-100">
           {text.searchAddress}
           <span className="relative mt-1.5 block">
@@ -618,10 +669,17 @@ export const DeliveryLocationMap = ({
         <p className="mt-1.5 text-[10px] font-semibold leading-4 text-zinc-500 dark:text-zinc-300">
           {text.searchHint}
         </p>
-      </div>
+      </motion.div>
 
       {!manualMapEnabled && !selectedCoordinates ? (
-        <div className="mx-3 mb-3 flex min-h-[240px] flex-col items-center justify-center rounded-[1.35rem] bg-emerald-50/70 px-5 py-6 text-center dark:bg-[#151d1a]">
+        <div
+          className={cn(
+            "mx-3 mb-3 flex min-h-[240px] flex-col items-center justify-center rounded-[1.35rem] bg-emerald-50/70 px-5 py-6 text-center dark:bg-[#151d1a]",
+            showDesktopSplitDetails &&
+              "mx-0 md:col-start-1 md:row-start-1 md:row-span-2 md:mb-0 md:min-h-[560px]",
+            isDesktopSplit && !showDesktopSplitDetails && "mx-0",
+          )}
+        >
           {deviceLocation.isRefining ? (
             <>
               <LoaderCircle
@@ -682,13 +740,24 @@ export const DeliveryLocationMap = ({
         </div>
       ) : (
         <>
-          <div className="delivery-location-map relative isolate mx-3 h-[clamp(230px,32dvh,290px)] min-h-[230px] overflow-hidden rounded-[1.35rem] bg-emerald-50 dark:bg-[#151d1a]">
+          <motion.div
+            layout
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className={cn(
+              "delivery-location-map relative isolate mx-3 h-[clamp(230px,32dvh,290px)] min-h-[230px] overflow-hidden rounded-[1.35rem] bg-emerald-50 dark:bg-[#151d1a]",
+              showDesktopSplitDetails &&
+                "mx-0 md:col-start-1 md:row-start-1 md:row-span-2",
+              isDesktopSplit && !showDesktopSplitDetails && "mx-0",
+              mapClassName,
+            )}
+          >
             <MapContainer
               center={mapCenter}
               zoom={selectedCoordinates ? 17 : 7}
               scrollWheelZoom
               className="h-full w-full"
             >
+              <MapResizeObserver />
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -755,9 +824,22 @@ export const DeliveryLocationMap = ({
                 {text.manualHint}
               </div>
             )}
-          </div>
+          </motion.div>
 
-          <div className="px-4 pb-4 pt-3">
+          <motion.div
+            layout
+            initial={false}
+            animate={{
+              opacity: 1,
+              x: showDesktopSplitDetails ? 0 : 0,
+            }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className={cn(
+              "px-4 pb-4 pt-3",
+              showDesktopSplitDetails &&
+                "px-0 pb-0 md:col-start-2 md:row-start-2 md:pt-0",
+            )}
+          >
             {deviceLocation.isRefining && (
               <div
                 role="status"
@@ -874,11 +956,24 @@ export const DeliveryLocationMap = ({
                 )}
               </div>
             )}
+          </motion.div>
 
+          {selectedCoordinates && (
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className={cn(
+                "px-4 pb-4",
+                isDesktopSplit &&
+                  "px-0 md:col-span-2 md:flex md:flex-col md:items-center md:pt-4",
+              )}
+            >
             {saveError && (
               <p
                 role="alert"
-                className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"
+                className="mt-3 w-full max-w-sm rounded-xl bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"
               >
                 {saveError}
               </p>
@@ -886,7 +981,7 @@ export const DeliveryLocationMap = ({
             {saveMessage && (
               <p
                 role="status"
-                className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200"
+                className="mt-3 flex w-full max-w-sm items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200"
               >
                 <CheckCircle2 size={15} />
                 {saveMessage}
@@ -898,7 +993,7 @@ export const DeliveryLocationMap = ({
               onClick={handleSave}
               disabled={!canSave}
               className={cn(
-                "mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-[1rem] px-4 py-3 text-[11px] font-black uppercase tracking-[0.1em] transition-transform active:scale-[0.99]",
+                "mt-3 flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-[1rem] px-4 py-3 text-[11px] font-black uppercase tracking-[0.1em] transition-transform active:scale-[0.99]",
                 canSave
                   ? "bg-[#00A655] text-white shadow-[0_10px_24px_-14px_rgba(0,166,85,0.8)]"
                   : "bg-emerald-100 text-emerald-500 dark:bg-white/10 dark:text-white/35",
@@ -920,7 +1015,7 @@ export const DeliveryLocationMap = ({
                   : text.save}
             </button>
 
-            <p className="mt-3 text-center text-[9px] font-semibold leading-4 text-zinc-400 dark:text-zinc-500">
+            <p className="mt-3 max-w-sm text-center text-[9px] font-semibold leading-4 text-zinc-400 dark:text-zinc-500">
               Map data ©{" "}
               <a
                 href="https://www.openstreetmap.org/copyright"
@@ -940,9 +1035,10 @@ export const DeliveryLocationMap = ({
                 Geoapify
               </a>
             </p>
-          </div>
+            </motion.div>
+          )}
         </>
       )}
-    </section>
+    </motion.section>
   );
 };

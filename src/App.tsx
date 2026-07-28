@@ -733,8 +733,8 @@ export default function App() {
         }
       : language === "nl"
         ? {
-            eyebrow: "Slim palletbeheer",
-            title: "Elke pallet. Eén duidelijk proces.",
+            eyebrow: "Slim bokbeheer",
+            title: "Elke bok. Eén duidelijk proces.",
             description:
               "Van QR-scans en transport tot retouren, service en facturatie — de hele operatie werkt vanuit één betrouwbare status.",
             illustrationLabels: [
