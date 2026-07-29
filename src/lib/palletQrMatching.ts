@@ -68,7 +68,7 @@ export const findPalletByScannedQr = (rawValue: string, pallets: Pallet[]) => {
 
   const scannedValues = Array.from(scannedCandidates);
 
-  return (
+  const matchedPallet = (
     pallets.find((pallet) =>
       getPalletQrCandidates(pallet).some((candidate) =>
         scannedValues.some((scannedValue) =>
@@ -79,4 +79,12 @@ export const findPalletByScannedQr = (rawValue: string, pallets: Pallet[]) => {
       )
     ) || null
   );
+
+  console.info('[TrackPal QR] QR match result', {
+    scannedCandidates: scannedValues,
+    loadedPalletCount: pallets.length,
+    matchedPalletId: matchedPallet?.id ?? null,
+  });
+
+  return matchedPallet;
 };
