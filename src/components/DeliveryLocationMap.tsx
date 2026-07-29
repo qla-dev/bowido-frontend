@@ -74,11 +74,10 @@ type DeliveryLocationMapProps = {
   language: AppLanguage;
   initialLocation?: DeliveryLocation;
   initialLocationIsSaved?: boolean;
-  onSave?: (
   mapClassName?: string;
   layout?: "default" | "desktop-split";
   onSelectionChange?: (hasSelection: boolean) => void;
-  onSave: (
+  onSave?: (
     palletId: number,
     input: DeliveryLocationInput,
   ) => Promise<DeliveryLocation>;
