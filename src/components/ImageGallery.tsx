@@ -11,8 +11,31 @@ import { FlatpickrDateInput } from './FlatpickrDateInput';
 
 function SecureGalleryImage({ photo }: { photo: PalletPhoto }) {
   const [source, setSource] = useState('');
-  useEffect(() => { let objectUrl = ''; if (photo.url) void apiService.gallery.image(photo.url).then(blob => { objectUrl = URL.createObjectURL(blob); setSource(objectUrl); }).catch(() => setSource('')); return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }; }, [photo.id, photo.url]);
-  return source ? <img src={source} loading="lazy" alt={photo.pallet?.name || 'Pallet'} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center"><ImageIcon className="text-zinc-300"/></div>;
+
+  useEffect(() => {
+    let objectUrl = '';
+
+    if (photo.url) {
+      void apiService.gallery.image(photo.url)
+        .then((blob) => {
+          objectUrl = URL.createObjectURL(blob);
+          setSource(objectUrl);
+        })
+        .catch(() => setSource(''));
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [photo.id, photo.url]);
+
+  return source ? (
+    <img src={source} loading="lazy" alt={photo.pallet?.name || 'Pallet'} className="h-full w-full object-cover" />
+  ) : (
+    <div className="flex h-full items-center justify-center"><ImageIcon className="text-zinc-300" /></div>
+  );
 }
 
 export function ImageGallery() {
@@ -25,39 +48,50 @@ export function ImageGallery() {
     return () => window.clearTimeout(timer);
   }, [filters]);
 
-  const fetchPage = useCallback((offset: number) => apiService.gallery.page({ ...debouncedFilters, limit: 12, offset }), [debouncedFilters]);
+  const fetchPage = useCallback(
+    (offset: number) => apiService.gallery.page({ ...debouncedFilters, limit: 12, offset }),
+    [debouncedFilters],
+  );
   const { items: photos, hasMore, isInitialLoading, isLoadingMore, error, loadMore, retry } = useInfinitePagination({
     queryKey: JSON.stringify(debouncedFilters), pageSize: 12, fetchPage,
   });
 
-  const update = (key: keyof typeof filters, value: string) => setFilters(current => ({ ...current, [key]: value }));
+  const update = (key: keyof typeof filters, value: string) => setFilters((current) => ({ ...current, [key]: value }));
   const dateLabels = language === 'bs'
-    ? { start: 'Početni datum', end: 'Završni datum' }
+    ? { start: 'Pocetni datum', end: 'Zavrsni datum' }
     : language === 'nl'
       ? { start: 'Startdatum', end: 'Einddatum' }
       : { start: 'Start date', end: 'End date' };
-  const deliveryPhotoLabel = language === 'bs' ? 'Fotografija isporuke' : language === 'nl' ? 'Leveringsfoto' : 'Delivery photo';
+  const photoTypeLabel = (type: PalletPhoto['type']) => ({
+    scan: t('statusChangeImage'),
+    status_change: t('statusChangeImage'),
+    damage_report: t('damageReportImage'),
+    service_report: t('serviceReportImage'),
+    no_qr_report: t('noQrReportImage'),
+    delivery_photo: 'Delivery photo',
+  }[type]);
+
   return <div className="space-y-5">
     <div><h2 className="text-3xl font-black uppercase tracking-tight dark:text-white">{t('imageGallery')}</h2><p className="text-sm text-zinc-400">{t('galleryDescription')}</p></div>
     <Card className="dark:bg-[#101715]" contentClassName="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
-        <Select className="h-11 py-0" value={filters.type} onChange={e => update('type', e.target.value)}><option value="">{t('allImageTypes')}</option><option value="scan">{t('statusChangeImage')}</option><option value="damage_report">{t('damageReportImage')}</option><option value="service_report">{t('serviceReportImage')}</option><option value="delivery_photo">{deliveryPhotoLabel}</option></Select>
-        <Select className="h-11 py-0" value={filters.warehouse_scope} onChange={e => update('warehouse_scope', e.target.value)}><option value="">{t('allWarehouses')}</option><option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option></Select>
+        <Select className="h-11 py-0" value={filters.type} onChange={(event) => update('type', event.target.value)}><option value="">{t('allImageTypes')}</option><option value="scan">{t('statusChangeImage')}</option><option value="damage_report">{t('damageReportImage')}</option><option value="service_report">{t('serviceReportImage')}</option><option value="no_qr_report">{t('noQrReportImage')}</option></Select>
+        <Select className="h-11 py-0" value={filters.warehouse_scope} onChange={(event) => update('warehouse_scope', event.target.value)}><option value="">{t('allWarehouses')}</option><option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option></Select>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="grid grid-cols-2 gap-3">
-          <FlatpickrDateInput value={filters.date_from} onChange={value => update('date_from', value)} language={language} ariaLabel={dateLabels.start} placeholder={dateLabels.start} maxDate={filters.date_to || undefined} popupPosition="below left" className="h-11 py-0 text-[9px] font-black text-zinc-950 placeholder:text-zinc-950 placeholder:opacity-100 dark:text-zinc-100 dark:placeholder:text-zinc-100" />
-          <FlatpickrDateInput value={filters.date_to} onChange={value => update('date_to', value)} language={language} ariaLabel={dateLabels.end} placeholder={dateLabels.end} minDate={filters.date_from || undefined} popupPosition="below right" className="h-11 py-0 text-[9px] font-black text-zinc-950 placeholder:text-zinc-950 placeholder:opacity-100 dark:text-zinc-100 dark:placeholder:text-zinc-100" />
+          <FlatpickrDateInput value={filters.date_from} onChange={(value) => update('date_from', value)} language={language} ariaLabel={dateLabels.start} placeholder={dateLabels.start} maxDate={filters.date_to || undefined} popupPosition="below left" className="h-11 py-0 text-[9px] font-black text-zinc-950 placeholder:text-zinc-950 placeholder:opacity-100 dark:text-zinc-100 dark:placeholder:text-zinc-100" />
+          <FlatpickrDateInput value={filters.date_to} onChange={(value) => update('date_to', value)} language={language} ariaLabel={dateLabels.end} placeholder={dateLabels.end} minDate={filters.date_from || undefined} popupPosition="below right" className="h-11 py-0 text-[9px] font-black text-zinc-950 placeholder:text-zinc-950 placeholder:opacity-100 dark:text-zinc-100 dark:placeholder:text-zinc-100" />
         </div>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16}/>
-          <Input className="h-11 py-0 pl-9" placeholder="Search creator or client" value={filters.search} onChange={e => update('search', e.target.value)}/>
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+          <Input className="h-11 py-0 pl-9" placeholder="Search creator or client" value={filters.search} onChange={(event) => update('search', event.target.value)} />
         </div>
       </div>
     </Card>
-    {isInitialLoading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300"/><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map(photo => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
-      <div className="aspect-video bg-zinc-100 dark:bg-black/20"><SecureGalleryImage photo={photo}/></div>
-      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '—'} · {photo.type === 'delivery_photo' ? deliveryPhotoLabel : photo.type}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '—'} · {photo.uploader?.name || '—'}</p><p className="text-xs text-zinc-400">{formatAppDateTime(photo.created_at, language)}</p></div>
+    {isInitialLoading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300" /><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map((photo) => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
+      <div className="aspect-video bg-zinc-100 dark:bg-black/20"><SecureGalleryImage photo={photo} /></div>
+      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '-'} / {photoTypeLabel(photo.type)}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '-'} / {photo.uploader?.name || '-'}</p><p className="text-xs text-zinc-400">{formatAppDateTime(photo.created_at, language)}</p></div>
     </Card>)}</div>}
     <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={error} onLoadMore={loadMore} onRetry={retry} language={language} />
   </div>;
