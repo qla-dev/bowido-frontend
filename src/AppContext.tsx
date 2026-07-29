@@ -84,7 +84,7 @@ interface AppContextType {
     clientId: number,
     clientName: string,
     details: string | GhostPalletReportInput,
-  ) => void;
+  ) => Promise<void>;
   pairGhostPallet: (ghostId: number, newQrCode: string) => void;
   fetchInvoices: () => Promise<void>;
   fetchAuditLogs: () => Promise<void>;
@@ -847,7 +847,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
   };
 
-  const reportGhostPallets = (
+  const reportGhostPallets = async (
     count: number,
     clientId: number,
     clientName: string,
@@ -860,40 +860,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const baseNote = normalizedDetails.note?.trim() || "";
     const entryDetails = normalizedDetails.entries || [];
 
-    const maxId =
-      pallets.length > 0 ? Math.max(...pallets.map((pallet) => pallet.id)) : 0;
-    const newPallets: Pallet[] = Array.from({ length: count }).map(
-      (_, index) => {
-        const entry = entryDetails[index];
-        const currentLocation = entry?.location?.trim() || baseLocation;
-        const entryNote = entry?.note?.trim() || "";
-        const note = [baseNote, entryNote].filter(Boolean).join(" | ");
-        const qrCode = `GHOST-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-
-        return {
-          id: maxId + index + 1,
-          qr_code: qrCode,
-          pallet_name: qrCode,
-          type: "Euro Pallet (Unlabeled)",
-          current_status_id: 5,
-          current_status_name:
-            statuses.find((status) => status.id === 5)?.name || "Voor retour",
-          user_id: clientId,
-          client_name: clientName,
-          current_location: currentLocation,
-          is_ghost: true,
-          is_active: true,
-          last_status_changed_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          note: note || undefined,
-        };
-      },
-    );
-
-    setPallets((prev) => [...prev, ...newPallets]);
-
-    void apiService.ghostReports
-      .create({
+    try {
+      const createdPallets = await apiService.ghostReports.create({
         user_id: clientId,
         quantity: count,
         location: baseLocation,
@@ -901,25 +869,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         notes: baseNote || undefined,
         metadata: {
           entries: entryDetails,
-          ghost_qr_codes: newPallets.map((pallet) => pallet.qr_code),
         },
-      })
-      .catch((error) =>
-        console.error("Failed to create no-QR pallet report", error),
-      );
+        image: normalizedDetails.image,
+      });
 
-    void Promise.all(
-      newPallets.map((pallet) => apiService.pallets.create(pallet)),
-    )
-      .then((createdPallets) => {
-        const createdByQr = new Map(
-          createdPallets.map((pallet) => [pallet.qr_code, pallet]),
-        );
-        setPallets((prev) =>
-          prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet),
-        );
-      })
-      .catch((error) => console.error("Failed to create pallets without QR codes", error));
+      setPallets((previous) => [
+        ...createdPallets,
+        ...previous.filter((pallet) => !createdPallets.some((created) => created.id === pallet.id)),
+      ]);
+    } catch (error) {
+      console.error("Failed to create pallets without QR codes", error);
+      throw error;
+    }
 
     const notificationDetails = [
       baseLocation !== "Client Location" ? `Location: ${baseLocation}` : "",

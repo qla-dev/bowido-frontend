@@ -36,11 +36,12 @@ export function ImageGallery() {
     : language === 'nl'
       ? { start: 'Startdatum', end: 'Einddatum' }
       : { start: 'Start date', end: 'End date' };
+  const deliveryPhotoLabel = language === 'bs' ? 'Fotografija isporuke' : language === 'nl' ? 'Leveringsfoto' : 'Delivery photo';
   return <div className="space-y-5">
     <div><h2 className="text-3xl font-black uppercase tracking-tight dark:text-white">{t('imageGallery')}</h2><p className="text-sm text-zinc-400">{t('galleryDescription')}</p></div>
     <Card className="dark:bg-[#101715]" contentClassName="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
-        <Select className="h-11 py-0" value={filters.type} onChange={e => update('type', e.target.value)}><option value="">{t('allImageTypes')}</option><option value="scan">{t('statusChangeImage')}</option><option value="damage_report">{t('damageReportImage')}</option><option value="service_report">{t('serviceReportImage')}</option></Select>
+        <Select className="h-11 py-0" value={filters.type} onChange={e => update('type', e.target.value)}><option value="">{t('allImageTypes')}</option><option value="scan">{t('statusChangeImage')}</option><option value="damage_report">{t('damageReportImage')}</option><option value="service_report">{t('serviceReportImage')}</option><option value="delivery_photo">{deliveryPhotoLabel}</option></Select>
         <Select className="h-11 py-0" value={filters.warehouse_scope} onChange={e => update('warehouse_scope', e.target.value)}><option value="">{t('allWarehouses')}</option><option value="warehouse_nl">Bowido NL</option><option value="warehouse_bih">Bowido BiH</option></Select>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
@@ -56,7 +57,7 @@ export function ImageGallery() {
     </Card>
     {isInitialLoading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300"/><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map(photo => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
       <div className="aspect-video bg-zinc-100 dark:bg-black/20"><SecureGalleryImage photo={photo}/></div>
-      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '—'} · {photo.type}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '—'} · {photo.uploader?.name || '—'}</p><p className="text-xs text-zinc-400">{formatAppDateTime(photo.created_at, language)}</p></div>
+      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '—'} · {photo.type === 'delivery_photo' ? deliveryPhotoLabel : photo.type}</p><p className="text-xs text-zinc-400">{photo.warehouse_scope === 'warehouse_nl' ? 'Bowido NL' : photo.warehouse_scope === 'warehouse_bih' ? 'Bowido BiH' : '—'} · {photo.uploader?.name || '—'}</p><p className="text-xs text-zinc-400">{formatAppDateTime(photo.created_at, language)}</p></div>
     </Card>)}</div>}
     <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={error} onLoadMore={loadMore} onRetry={retry} language={language} />
   </div>;

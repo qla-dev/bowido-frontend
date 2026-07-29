@@ -531,7 +531,9 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
 
   return {
     id: Number(pallet.id),
-    qr_code: pallet.qr_code,
+    // No-QR pallet records deliberately have no qr_code in the database; use
+    // their generated display name in the UI so they remain identifiable.
+    qr_code: pallet.qr_code || palletDisplayName,
     reference_code: pallet.reference_code || undefined,
     pallet_name: palletDisplayName || undefined,
     current_status_id: currentStatusId,
@@ -540,7 +542,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     user_id: pallet.user_id ? Number(pallet.user_id) : undefined,
     client_name: clientName,
     client_deleted: toBoolean(pallet.client_deleted),
-    type: pallet.type || pallet.asset_type || 'pallet',
+    type: pallet.type || pallet.asset_type || 'invullen!',
     current_location: pallet.current_location || '',
     is_ghost: toBoolean(pallet.is_ghost),
     is_active: toBoolean(pallet.is_active),
@@ -767,8 +769,8 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
 const toPalletPayload = (pallet: Partial<Pallet>) => ({
   user_id: pallet.user_id,
   current_status_id: toBackendStatusId(Number(pallet.current_status_id ?? 8)),
-  type: pallet.type || 'pallet',
-  asset_type: 'pallet',
+  type: pallet.type || pallet.asset_type || 'invullen!',
+  asset_type: pallet.asset_type || pallet.type || 'invullen!',
   qr_code: pallet.qr_code,
   pallet_name: pallet.pallet_name || pallet.reference_code || pallet.qr_code,
   reference_code: pallet.reference_code,
@@ -947,6 +949,20 @@ export const apiService = {
           body: jsonBody(toPalletPayload(data)),
         })
       ),
+    updateCurrentLocation: async (id: number, currentLocation: string): Promise<Pallet> =>
+      normalizePallet(
+        await apiData<ApiRecord>(`/pallets/${id}/current-location`, {
+          method: 'PUT',
+          body: jsonBody({ current_location: currentLocation }),
+        })
+      ),
+    updateClientStatus: async (id: number, statusId: number): Promise<Pallet> =>
+      normalizePallet(
+        await apiData<ApiRecord>(`/pallets/${id}/client-status`, {
+          method: 'PUT',
+          body: jsonBody({ current_status_id: toBackendStatusId(statusId) }),
+        })
+      ),
     saveDeliveryLocation: async (id: number, data: DeliveryLocationInput): Promise<DeliveryLocation> =>
       normalizeDeliveryLocation(
         await apiData<ApiRecord>(`/pallets/${id}/delivery-location`, {
@@ -954,6 +970,17 @@ export const apiService = {
           body: jsonBody(data),
         })
       ),
+    uploadDeliveryPhoto: async (id: number, photo: File): Promise<PalletPhoto> => {
+      const formData = new FormData();
+      formData.append('photo', photo);
+
+      return normalizePalletPhoto(
+        await apiData<ApiRecord>(`/pallets/${id}/delivery-photo`, {
+          method: 'POST',
+          body: formData,
+        })
+      );
+    },
     sendOverdueInvoice: async (id: number): Promise<{ invoice_id: number; recipient: string }> =>
       apiData<{ invoice_id: number; recipient: string }>(`/pallets/${id}/overdue-invoice/send`, { method: 'POST' }),
     delete: async (id: number): Promise<void> => {
@@ -1188,11 +1215,26 @@ export const apiService = {
       description?: string;
       notes?: string;
       metadata?: Record<string, unknown>;
-    }) =>
-      apiData<ApiRecord>('/ghost_pallet_reports', {
+      image?: File;
+    }): Promise<Pallet[]> => {
+      const formData = new FormData();
+      formData.append('user_id', String(data.user_id));
+      formData.append('quantity', String(data.quantity));
+      if (data.location) formData.append('location', data.location);
+      if (data.description) formData.append('description', data.description);
+      if (data.notes) formData.append('notes', data.notes);
+      if (data.metadata) formData.append('metadata', JSON.stringify(data.metadata));
+      if (data.image) formData.append('image', data.image);
+
+      const report = await apiData<ApiRecord>('/ghost_pallet_reports', {
         method: 'POST',
-        body: jsonBody(data),
-      }),
+        body: formData,
+      });
+
+      return Array.isArray(report.pallets)
+        ? report.pallets.map(normalizePallet)
+        : [];
+    },
   },
 
   invoices: {

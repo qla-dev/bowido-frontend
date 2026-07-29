@@ -30,9 +30,11 @@ import {
   decodeQrFromImageBitmap,
   decodeQrFromVideo,
 } from "../lib/videoQrDecoder";
+import { createNativeQrDetector, NativeQrDetector } from "../lib/nativeQrDetector";
 import { apiService } from "../services/api";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDate } from "../lib/dateFormat";
+import { compressPhotoForUpload } from "../lib/imageCompression";
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -73,19 +75,6 @@ type ZoomableMediaTrack = MediaStreamTrack & {
   ) => Promise<void>;
 };
 
-interface DetectedCode {
-  rawValue?: string;
-}
-
-interface BarcodeDetectorLike {
-  detect: (source: ImageBitmapSource) => Promise<DetectedCode[]>;
-}
-
-interface BarcodeDetectorConstructorLike {
-  new (options?: { formats?: string[] }): BarcodeDetectorLike;
-  getSupportedFormats?: () => Promise<string[]>;
-}
-
 type OpenChangeMenu = "client" | "status" | "location" | "gps" | null;
 type DriverLocationMode = "warehouse_1" | "warehouse_2" | "delivery";
 
@@ -94,6 +83,9 @@ const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
   max: 3,
   step: 0.1,
 };
+const QR_SCAN_INTERVAL_MS = 100;
+const QR_FALLBACK_MAX_DIMENSION = 960;
+const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
 
 const clampDriverCameraZoom = (
   value: number,
@@ -188,6 +180,8 @@ type DriverCopy = {
   changeLabel: string;
   changeStatus: string;
   capturePalletPhoto: string;
+  savePalletPhoto: string;
+  palletPhotoSaved: string;
   reportDamage: string;
   scanNext: string;
   summaryType: string;
@@ -243,6 +237,8 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     changeLabel: "Change",
     changeStatus: "Change status",
     capturePalletPhoto: "PHOTOGRAPH PALLET",
+    savePalletPhoto: "SAVE PHOTO",
+    palletPhotoSaved: "PHOTO SAVED",
     reportDamage: "REPORT DAMAGE",
     scanNext: "Scan next pallet",
     summaryType: "Type",
@@ -297,6 +293,8 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     changeLabel: "Wijzig",
     changeStatus: "Status wijzigen",
     capturePalletPhoto: "Foto maken",
+    savePalletPhoto: "Foto opslaan",
+    palletPhotoSaved: "Foto opgeslagen",
     reportDamage: "SCHADE MELDEN",
     scanNext: "Scan volgende",
     summaryType: "Type",
@@ -352,6 +350,8 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     changeLabel: "Promijeni",
     changeStatus: "Promijeni status",
     capturePalletPhoto: "USLIKAJ PALETU",
+    savePalletPhoto: "SAČUVAJ FOTOGRAFIJU",
+    palletPhotoSaved: "FOTOGRAFIJA SAČUVANA",
     reportDamage: "PRIJAVI OŠTEĆENJE",
     scanNext: "Skeniraj sljedeću",
     summaryType: "Tip",
@@ -512,6 +512,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
   const [palletPhoto, setPalletPhoto] = useState<File | null>(null);
   const [palletPhotoUrl, setPalletPhotoUrl] = useState<string | null>(null);
+  const [isPalletPhotoSaved, setIsPalletPhotoSaved] = useState(false);
   const [damagePhotoUrl, setDamagePhotoUrl] = useState<string | null>(null);
   const [damageDescription, setDamageDescription] = useState("");
   const [scannedPalletIds, setScannedPalletIds] = useState<number[]>([]);
@@ -561,11 +562,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const palletPhotoUrlRef = useRef<string | null>(null);
   const palletPhotoUploadedRef = useRef(false);
   const damagePhotoUrlRef = useRef<string | null>(null);
-  const detectorRef = useRef<BarcodeDetectorLike | null>(null);
+  const qrDetectorRef = useRef<NativeQrDetector | null>(null);
   const palletsRef = useRef(pallets);
   const scanBusyRef = useRef(false);
   const lastScanAttemptAtRef = useRef(0);
   const lastScanAtRef = useRef(0);
+  const fallbackScanAttemptRef = useRef(0);
   const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
@@ -1215,43 +1217,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
   };
 
-  const getBarcodeDetector = async () => {
-    if (detectorRef.current) {
-      return detectorRef.current;
+  const getQrDetector = async () => {
+    if (!qrDetectorRef.current) {
+      qrDetectorRef.current = await createNativeQrDetector();
     }
 
-    const detectorApi = (
-      window as Window & {
-        BarcodeDetector?: BarcodeDetectorConstructorLike;
-      }
-    ).BarcodeDetector;
-
-    if (!detectorApi) {
-      return null;
-    }
-
-    try {
-      if (detectorApi.getSupportedFormats) {
-        const supportedFormats = await detectorApi
-          .getSupportedFormats()
-          .catch(() => []);
-
-        if (
-          supportedFormats.length > 0 &&
-          !supportedFormats.includes("qr_code")
-        ) {
-          return null;
-        }
-      }
-
-      detectorRef.current = new detectorApi({
-        formats: ["qr_code", "code_128", "code_39", "ean_13"],
-      });
-    } catch {
-      detectorRef.current = null;
-    }
-
-    return detectorRef.current;
+    return qrDetectorRef.current;
   };
 
   const findMatchingPallet = (rawValue: string) => {
@@ -1291,7 +1262,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const detectFromCamera = async () => {
-    const detector = detectorRef.current;
+    const detector = qrDetectorRef.current;
     const video = videoRef.current;
 
     if (!video) {
@@ -1309,7 +1280,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     const now = Date.now();
     if (
       now - lastScanAtRef.current < 1300 ||
-      now - lastScanAttemptAtRef.current < 150
+      now - lastScanAttemptAtRef.current < QR_SCAN_INTERVAL_MS
     ) {
       return;
     }
@@ -1332,7 +1303,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       }
 
       if (!rawValue) {
-        rawValue = decodeQrFromVideo(video, scanCanvasRef);
+        fallbackScanAttemptRef.current += 1;
+        const isDetailPass =
+          fallbackScanAttemptRef.current % QR_FALLBACK_DETAIL_PASS_EVERY === 0;
+
+        // Do not constrain the QR to the centre of the camera frame. Fast
+        // passes process the complete frame at a lower resolution; every
+        // fourth pass restores full detail for smaller or farther-away codes.
+        rawValue = decodeQrFromVideo(video, scanCanvasRef, {
+          maxDimension: isDetailPass ? undefined : QR_FALLBACK_MAX_DIMENSION,
+          inversionAttempts: isDetailPass ? "attemptBoth" : "dontInvert",
+        });
       }
 
       if (rawValue) {
@@ -1367,7 +1348,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     const startCamera = async () => {
       setCameraState("loading");
-      detectorRef.current = null;
+      qrDetectorRef.current = null;
 
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraState("unsupported");
@@ -1375,7 +1356,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       }
 
       try {
-        const detector = await getBarcodeDetector();
+        const detector = await getQrDetector();
+        fallbackScanAttemptRef.current = 0;
         const cameraAttempts: MediaStreamConstraints[] = [
           {
             audio: false,
@@ -1426,7 +1408,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         }
 
         if (!detector) {
-          detectorRef.current = null;
+          qrDetectorRef.current = null;
         }
 
         setCameraState("ready");
@@ -1522,6 +1504,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     setPalletPhotoUrl(null);
     setPalletPhoto(null);
+    setIsPalletPhotoSaved(false);
     palletPhotoUploadedRef.current = false;
   };
 
@@ -1548,6 +1531,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         new_status_id: nextStatusId,
         client_id: photoClientId,
       });
+      setIsPalletPhotoSaved(true);
     } catch (error) {
       palletPhotoUploadedRef.current = false;
       console.error("Failed to upload driver pallet photo", error);
@@ -1781,7 +1765,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     palletPhotoInputRef.current?.click();
   };
 
-  const handlePalletPhotoChange = (
+  const handlePalletPhotoChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
@@ -1790,16 +1774,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    if (palletPhotoUrlRef.current) {
-      URL.revokeObjectURL(palletPhotoUrlRef.current);
-    }
-
-    const nextPhotoUrl = URL.createObjectURL(file);
-    palletPhotoUrlRef.current = nextPhotoUrl;
-    palletPhotoUploadedRef.current = false;
-    setPalletPhoto(file);
-    setPalletPhotoUrl(nextPhotoUrl);
     event.target.value = "";
+
+    try {
+      const compressed = await compressPhotoForUpload(file);
+      if (palletPhotoUrlRef.current) {
+        URL.revokeObjectURL(palletPhotoUrlRef.current);
+      }
+
+      const nextPhotoUrl = URL.createObjectURL(compressed);
+      palletPhotoUrlRef.current = nextPhotoUrl;
+      palletPhotoUploadedRef.current = false;
+      setIsPalletPhotoSaved(false);
+      setPalletPhoto(compressed);
+      setPalletPhotoUrl(nextPhotoUrl);
+    } catch (error) {
+      console.error("Failed to compress driver pallet photo", error);
+    }
   };
 
   const openDamageModal = () => {
@@ -1953,7 +1944,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    const detector = await getBarcodeDetector();
+    const detector = await getQrDetector();
 
     let bitmap: ImageBitmap | null = null;
 
@@ -2691,6 +2682,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                         className="h-28 w-full object-cover"
                       />
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedPallet) {
+                          void uploadPalletPhoto(
+                            selectedPallet,
+                            selectedPallet.current_status_id,
+                            selectedPallet.user_id,
+                          );
+                        }
+                      }}
+                      disabled={!selectedPallet || isPalletPhotoSaved}
+                      className="mt-2 w-full rounded-xl bg-[#00A655] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isPalletPhotoSaved ? text.palletPhotoSaved : text.savePalletPhoto}
+                    </button>
                   </div>
                 </div>
               )}

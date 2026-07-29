@@ -117,7 +117,7 @@ interface ClientPalletDesktopTableProps {
 }
 
 export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> = ({ client, summaryCards }) => {
-  const { pallets: cachedPallets, statuses, t, language, updatePallet, updatePalletStatus, savePalletDeliveryLocation } = useApp();
+  const { pallets: cachedPallets, statuses, t, language, savePalletDeliveryLocation, refreshData } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const locationMenuRef = useRef<HTMLDivElement | null>(null);
@@ -150,6 +150,8 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     left: number;
     width: number;
   } | null>(null);
+  const [savingPalletIds, setSavingPalletIds] = useState<number[]>([]);
+  const [editError, setEditError] = useState<string | null>(null);
   const {
     headerCellClass,
     headerContentClass,
@@ -355,10 +357,55 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
 
   const returnStatus = statuses.find((status) => status.slug === 'ophalen-klant' || status.name.toLowerCase() === 'ophalen klant') || statuses.find((status) => status.id === 5);
   const atClientStatus = statuses.find((status) => status.slug === 'bij-de-klant' || status.name.toLowerCase() === 'bij de klant') || statuses.find((status) => status.id === 4);
-  const updateLocation = (pallet: Pallet, location: string) => {
+  const replacePagedPallet = useCallback((updatedPallet: Pallet) => {
+    setPagedPallets((current) =>
+      current.map((pallet) => pallet.id === updatedPallet.id ? updatedPallet : pallet)
+    );
+  }, [setPagedPallets]);
+
+  const setPalletSaving = (palletId: number, saving: boolean) => {
+    setSavingPalletIds((current) => saving
+      ? current.includes(palletId) ? current : [...current, palletId]
+      : current.filter((id) => id !== palletId)
+    );
+  };
+
+  const updateLocation = async (pallet: Pallet, location: string) => {
     const nextLocation = location.trim();
     if (!nextLocation || nextLocation === pallet.current_location) return;
-    updatePallet({ ...pallet, current_location: nextLocation });
+
+    setPalletSaving(pallet.id, true);
+    setEditError(null);
+    try {
+      const updatedPallet = await apiService.pallets.updateCurrentLocation(pallet.id, nextLocation);
+      replacePagedPallet(updatedPallet);
+      void refreshData();
+    } catch (error) {
+      console.error('Failed to update pallet location', error);
+      setEditError(language === 'bs' ? 'Lokacija nije sačuvana. Pokušajte ponovo.' : language === 'nl' ? 'De locatie is niet opgeslagen. Probeer opnieuw.' : 'The location was not saved. Please try again.');
+    } finally {
+      setPalletSaving(pallet.id, false);
+    }
+  };
+
+  const updateStatus = async (pallet: Pallet, statusId: number) => {
+    if (savingPalletIds.includes(pallet.id) || statusId === pallet.current_status_id) return;
+
+    const nextStatus = statuses.find((status) => status.id === statusId);
+    if (!nextStatus) return;
+
+    setPalletSaving(pallet.id, true);
+    setEditError(null);
+    try {
+      const updatedPallet = await apiService.pallets.updateClientStatus(pallet.id, nextStatus.id);
+      replacePagedPallet(updatedPallet);
+      void refreshData();
+    } catch (error) {
+      console.error('Failed to update pallet status', error);
+      setEditError(language === 'bs' ? 'Status nije sačuvan. Pokušajte ponovo.' : language === 'nl' ? 'De status is niet opgeslagen. Probeer opnieuw.' : 'The status was not saved. Please try again.');
+    } finally {
+      setPalletSaving(pallet.id, false);
+    }
   };
 
   const getTimelineInfo = (row: PalletRow) => {
@@ -502,7 +549,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       setGpsLocationPallet(pallet);
       return;
     }
-    updateLocation(pallet, location);
+    void updateLocation(pallet, location);
   };
 
   const getLocationOptions = (pallet: Pallet) => {
@@ -786,8 +833,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                             type="button"
                             onClick={() => {
                               const nextStatus = row.pallet.current_status_id === atClientStatus?.id ? returnStatus : atClientStatus;
-                              if (nextStatus) updatePalletStatus(row.pallet.id, nextStatus.id, client.user_id, client.name, row.pallet.current_location, undefined, client.user_id);
+                              if (nextStatus) void updateStatus(row.pallet, nextStatus.id);
                             }}
+                            disabled={savingPalletIds.includes(row.pallet.id)}
                             title={language === 'bs' ? 'Zatraži povrat' : language === 'nl' ? 'Retour aanvragen' : 'Request return'}
                             className="-my-1 -mx-1 rounded px-1 py-1 text-left underline-offset-2 hover:underline"
                           >
@@ -803,6 +851,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                         ref={(element) => { locationButtonRefs.current[row.pallet.id] = element; }}
                         type="button"
                         onClick={() => setOpenLocationMenuPalletId((current) => current === row.pallet.id ? null : row.pallet.id)}
+                        disabled={savingPalletIds.includes(row.pallet.id)}
                         aria-haspopup="menu"
                         aria-expanded={openLocationMenuPalletId === row.pallet.id}
                         className="flex h-9 w-full items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/70 py-1 pl-2.5 pr-2 text-left text-[11px] font-black text-emerald-950 shadow-sm outline-none transition-colors hover:border-emerald-200 hover:bg-emerald-50 focus:border-emerald-400 focus:bg-white focus:ring-2 focus:ring-emerald-100 dark:border-emerald-300/15 dark:bg-emerald-400/10 dark:text-emerald-50 dark:hover:bg-emerald-400/15 dark:focus:bg-[#151d1a]"
@@ -856,6 +905,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
 
       {openFilterKey && renderFilterMenu(openFilterKey)}
       {renderLocationMenu()}
+      {editError && <p className="text-sm font-semibold text-rose-600">{editError}</p>}
 
       {gpsLocationPallet && (
         <DriverModalShell
@@ -871,6 +921,15 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             initialLocation={gpsLocationPallet.delivery_location}
             onSave={async (palletId, data) => {
               const savedLocation = await savePalletDeliveryLocation(palletId, data);
+              const streetLine = [savedLocation.street, savedLocation.house_number].filter(Boolean).join(' ').trim();
+              const localityLine = [savedLocation.postal_code, savedLocation.city].filter(Boolean).join(' ').trim();
+              const address = [streetLine, localityLine].filter(Boolean).join(', ') || savedLocation.formatted_address || gpsLocationPallet.current_location;
+              replacePagedPallet({
+                ...gpsLocationPallet,
+                current_location: address,
+                delivery_location: savedLocation,
+              });
+              void refreshData();
               setGpsLocationPallet(null);
               return savedLocation;
             }}

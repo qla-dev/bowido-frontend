@@ -5,6 +5,7 @@ import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Button, Card, Input } from './ui';
 import { getPalletTypeLabel } from '../i18n';
+import { compressPhotoForUpload } from '../lib/imageCompression';
 
 interface DamageReportModalProps {
   onClose: () => void;
@@ -153,12 +154,17 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
                         type="file"
                         accept="image/*"
                         capture="environment"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (imagePreview) URL.revokeObjectURL(imagePreview);
-                            setImage(file);
-                            setImagePreview(URL.createObjectURL(file));
+                            try {
+                              const compressed = await compressPhotoForUpload(file);
+                              if (imagePreview) URL.revokeObjectURL(imagePreview);
+                              setImage(compressed);
+                              setImagePreview(URL.createObjectURL(compressed));
+                            } catch (error) {
+                              console.error('Failed to compress damage photo', error);
+                            }
                           }
                         }}
                         className="hidden"

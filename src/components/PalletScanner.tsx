@@ -6,28 +6,20 @@ import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { findPalletByScannedQr } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
+import { createNativeQrDetector, NativeQrDetector } from '../lib/nativeQrDetector';
 import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import { compressPhotoForUpload } from '../lib/imageCompression';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
 const CAMERA_ZOOM_STEP = 0.1;
+const QR_SCAN_INTERVAL_MS = 100;
+const QR_FALLBACK_MAX_DIMENSION = 960;
+const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
 
 const clampCameraZoom = (value: number) =>
   Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, Number(value.toFixed(2))));
-
-interface DetectedCode {
-  rawValue?: string;
-}
-
-interface BarcodeDetectorLike {
-  detect: (source: ImageBitmapSource) => Promise<DetectedCode[]>;
-}
-
-interface BarcodeDetectorConstructorLike {
-  new (options?: { formats?: string[] }): BarcodeDetectorLike;
-  getSupportedFormats?: () => Promise<string[]>;
-}
 
 interface ScannerProps {
   onClose: () => void;
@@ -58,11 +50,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const scanCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const scanImageInputRef = React.useRef<HTMLInputElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
-  const detectorRef = React.useRef<BarcodeDetectorLike | null>(null);
+  const qrDetectorRef = React.useRef<NativeQrDetector | null>(null);
   const scanFrameRef = React.useRef<number | null>(null);
   const scanBusyRef = React.useRef(false);
   const lastScanAttemptAtRef = React.useRef(0);
   const lastDetectedAtRef = React.useRef(0);
+  const fallbackScanAttemptRef = React.useRef(0);
 
   const getAllowedStatusIds = () => {
     return statuses.map((status) => status.id);
@@ -101,31 +94,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     lastDetectedAtRef.current = Date.now();
   }, [handleDetectedPallet, pallets]);
 
-  const getBarcodeDetector = React.useCallback(async () => {
-    const detectorApi = (
-      window as Window & {
-        BarcodeDetector?: BarcodeDetectorConstructorLike;
-      }
-    ).BarcodeDetector;
-
-    if (!detectorApi) {
-      return null;
-    }
-
-    try {
-      if (detectorApi.getSupportedFormats) {
-        const supportedFormats = await detectorApi.getSupportedFormats().catch(() => []);
-
-        if (supportedFormats.length > 0 && !supportedFormats.includes('qr_code')) {
-          return null;
-        }
-      }
-
-      return new detectorApi({ formats: ['qr_code'] });
-    } catch {
-      return null;
-    }
-  }, []);
+  const getQrDetector = React.useCallback(createNativeQrDetector, []);
 
   React.useEffect(() => {
     if (!scanMode) {
@@ -150,12 +119,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         streamRef.current = null;
       }
 
-      detectorRef.current = null;
+      qrDetectorRef.current = null;
       setIsCameraActive(false);
     };
 
     const detectFromCamera = async () => {
-      const detector = detectorRef.current;
+      const detector = qrDetectorRef.current;
       const video = videoRef.current;
 
       if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || scanBusyRef.current || detectedPallet) {
@@ -163,7 +132,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       }
 
       const now = Date.now();
-      if (now - lastDetectedAtRef.current < 1200 || now - lastScanAttemptAtRef.current < 150) {
+      if (now - lastDetectedAtRef.current < 1200 || now - lastScanAttemptAtRef.current < QR_SCAN_INTERVAL_MS) {
         return;
       }
 
@@ -183,7 +152,16 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         }
 
         if (!rawValue) {
-          rawValue = decodeQrFromVideo(video, scanCanvasRef);
+          fallbackScanAttemptRef.current += 1;
+          const isDetailPass = fallbackScanAttemptRef.current % QR_FALLBACK_DETAIL_PASS_EVERY === 0;
+
+          // Every pass sees the full frame, so a code can remain off-centre.
+          // Most passes are downscaled for speed; regular full-detail passes
+          // preserve recognition of smaller or more distant QR codes.
+          rawValue = decodeQrFromVideo(video, scanCanvasRef, {
+            maxDimension: isDetailPass ? undefined : QR_FALLBACK_MAX_DIMENSION,
+            inversionAttempts: isDetailPass ? 'attemptBoth' : 'dontInvert',
+          });
         }
 
         if (rawValue) {
@@ -216,7 +194,8 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
       try {
         setCameraError(null);
-        const detector = await getBarcodeDetector();
+        fallbackScanAttemptRef.current = 0;
+        const detector = await getQrDetector();
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
@@ -231,7 +210,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           return;
         }
 
-        detectorRef.current = detector;
+        qrDetectorRef.current = detector;
         streamRef.current = stream;
 
         if (videoRef.current) {
@@ -257,7 +236,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       cancelled = true;
       stopCamera();
     };
-  }, [detectedPallet, getBarcodeDetector, handleDetectedCode, scanMode]);
+  }, [detectedPallet, getQrDetector, handleDetectedCode, scanMode]);
 
   const simulateScan = () => {
     setIsScanning(true);
@@ -310,7 +289,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     let bitmap: ImageBitmap | null = null;
 
     try {
-      const detector = await getBarcodeDetector();
+      const detector = await getQrDetector();
       bitmap = await createImageBitmap(file);
       let rawValue: string | null = null;
 
@@ -440,12 +419,18 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                     accept="image/jpeg,image/png,image/webp"
                     capture="environment"
                     className="hidden"
-                    onChange={(event) => {
+                    onChange={async (event) => {
                       const file = event.target.files?.[0];
+                      event.target.value = '';
                       if (!file) return;
-                      clearScanPhoto();
-                      setScanPhoto(file);
-                      setScanPhotoPreview(URL.createObjectURL(file));
+                      try {
+                        const compressed = await compressPhotoForUpload(file);
+                        clearScanPhoto();
+                        setScanPhoto(compressed);
+                        setScanPhotoPreview(URL.createObjectURL(compressed));
+                      } catch {
+                        setScanPhotoError('Photo could not be compressed. Please try another image.');
+                      }
                     }}
                   />
                   {scanPhotoError && <p className="mt-3 text-xs font-semibold text-rose-600">{scanPhotoError}</p>}

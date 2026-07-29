@@ -69,14 +69,15 @@ const toAddressFields = (address?: Partial<AddressResult>): AddressFields => ({
 });
 
 type DeliveryLocationMapProps = {
-  palletId: number;
+  palletId?: number;
   language: AppLanguage;
   initialLocation?: DeliveryLocation;
   initialLocationIsSaved?: boolean;
-  onSave: (
+  onSave?: (
     palletId: number,
     input: DeliveryLocationInput,
   ) => Promise<DeliveryLocation>;
+  onLocationSelected?: (input: DeliveryLocationInput) => Promise<void> | void;
 };
 
 const fallbackMapCenter: [number, number] = [44.2, 17.9];
@@ -324,6 +325,7 @@ export const DeliveryLocationMap = ({
   initialLocation,
   initialLocationIsSaved = true,
   onSave,
+  onLocationSelected,
 }: DeliveryLocationMapProps) => {
   const text = copy[language] || copy.en;
   const initialCoordinates = initialLocation
@@ -498,7 +500,7 @@ export const DeliveryLocationMap = ({
     setSaveMessage("");
 
     try {
-      const nextLocation = await onSave(palletId, {
+      const input: DeliveryLocationInput = {
         latitude: selectedCoordinates.latitude,
         longitude: selectedCoordinates.longitude,
         accuracy_meters: selectedAccuracy,
@@ -507,7 +509,19 @@ export const DeliveryLocationMap = ({
         house_number: addressFields.house_number.trim(),
         postal_code: addressFields.postal_code.trim(),
         city: addressFields.city.trim(),
-      });
+      };
+      let nextLocation: DeliveryLocation;
+      if (onSave && palletId !== undefined) {
+        nextLocation = await onSave(palletId, input);
+      } else {
+        await onLocationSelected?.(input);
+        const streetLine = [input.street, input.house_number].filter(Boolean).join(' ');
+        const localityLine = [input.postal_code, input.city].filter(Boolean).join(' ');
+        nextLocation = {
+          ...input,
+          formatted_address: [streetLine, localityLine].filter(Boolean).join(', '),
+        } as DeliveryLocation;
+      }
       setSavedLocation(nextLocation);
       setDisplayedAddress(nextLocation.formatted_address || displayedAddress);
       setAddressFields(toAddressFields(nextLocation));
