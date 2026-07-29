@@ -73,6 +73,13 @@ import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
+import { DeliveryLocationMap } from "./DeliveryLocationMap";
+import { DriverModalShell } from "./DriverModalShell";
+import {
+  formatPalletLocationAddress,
+  getClientWarehouseAddress,
+  getDeliveryLocationAddress,
+} from "../lib/palletLocations";
 
 interface AdminDashboardProps {
   initialView?:
@@ -150,6 +157,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     addPallet,
     addPalletBatch,
     updatePallet,
+    savePalletDeliveryLocation,
     deletePallet,
     addClient,
     updateClient,
@@ -210,6 +218,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     useState("");
   const [isEditingPalletClientListOpen, setIsEditingPalletClientListOpen] =
     useState(false);
+  const [showEditingPalletDeliveryMap, setShowEditingPalletDeliveryMap] =
+    useState(false);
+  const [
+    isEditingPalletMapLocationSelected,
+    setIsEditingPalletMapLocationSelected,
+  ] = useState(false);
   const [showEditingPalletDetails, setShowEditingPalletDetails] =
     useState(false);
   const [qrPreview, setQrPreview] = useState<{
@@ -541,6 +555,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         "",
     );
     setIsEditingPalletClientListOpen(false);
+    setShowEditingPalletDeliveryMap(false);
+    setIsEditingPalletMapLocationSelected(Boolean(pallet.delivery_location));
     setEditingPallet({
       ...pallet,
       current_location: fixedLocation || pallet.current_location,
@@ -816,6 +832,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     statuses.find(
       (status) => status.id === editingPallet?.current_status_id,
     )?.slug === "ophalen-klant";
+  const editingPalletStatus = statuses.find(
+    (status) => status.id === editingPallet?.current_status_id,
+  );
+  const isEditingPalletTransportStatus =
+    [2, 6].includes(editingPallet?.current_status_id || 0) ||
+    ["bih-nl-transport", "nl-bih-transport"].includes(
+      editingPalletStatus?.slug || "",
+    );
+  const editingPalletFixedLocation = editingPallet
+    ? getFixedWarehouseLocation(
+        editingPallet.current_status_id,
+        editingPallet.current_status_name,
+      )
+    : undefined;
+  const editingPalletClient = clients.find(
+    (client) => client.user_id === editingPallet?.user_id,
+  );
+  const editingPalletWarehouseOne = getClientWarehouseAddress(
+    editingPalletClient,
+    1,
+  );
+  const editingPalletWarehouseTwo = getClientWarehouseAddress(
+    editingPalletClient,
+    2,
+  );
+  const editingPalletDeliveryAddress = getDeliveryLocationAddress(editingPallet);
+  const canSelectEditingPalletLocation = Boolean(
+    editingPallet &&
+      editingPalletClient &&
+      statusIdAllowsCustomer(statuses, editingPallet.current_status_id) &&
+      !isEditingPalletTransportStatus &&
+      !editingPalletFixedLocation,
+  );
   const filteredEditingPalletClients = React.useMemo(() => {
     const query = editingPalletClientSearch.trim().toLocaleLowerCase();
 
@@ -1914,6 +1963,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       className="mt-6 overflow-hidden border-t border-zinc-100 pt-5 dark:border-white/10"
+                      style={{
+                        overflow: isEditingPalletClientListOpen
+                          ? "visible"
+                          : "hidden",
+                      }}
                     >
                       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -1998,6 +2052,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     : "",
                                 );
                                 setIsEditingPalletClientListOpen(false);
+                                setShowEditingPalletDeliveryMap(false);
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
@@ -2011,8 +2066,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   current_location: isTransportStatus
                                     ? "Na putu"
                                     : allowsCustomer
-                                      ? selectedClient
-                                          ?.warehouse_addresses?.[0] || ""
+                                      ? getClientWarehouseAddress(
+                                          selectedClient,
+                                          1,
+                                        )
                                       : getFixedWarehouseLocation(sid, sname) ||
                                         editingPallet.current_location,
                                 });
@@ -2038,7 +2095,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {t("assignedClient")}
                             </label>
                             <div
-                              className="relative"
+                              className={cn(
+                                "relative",
+                                isEditingPalletClientListOpen && "z-[100]",
+                              )}
                               onBlur={(event) => {
                                 if (
                                   !event.currentTarget.contains(
@@ -2096,7 +2156,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 ) && (
                                   <div
                                     id="editing-pallet-client-list"
-                                    className="relative z-40 mt-2 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
+                                    className="absolute left-0 top-full z-[110] mt-2 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
                                   >
                                     <div className="bg-white pb-2 dark:bg-[#151d1a]">
                                       <div className="relative">
@@ -2139,6 +2199,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           });
                                           setEditingPalletClientSearch("");
                                           setIsEditingPalletClientListOpen(false);
+                                          setShowEditingPalletDeliveryMap(false);
                                         }}
                                         className={cn(
                                           "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors",
@@ -2172,12 +2233,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 user_id: client.user_id,
                                                 client_name: client.name,
                                                 current_location:
-                                                  client
-                                                    .warehouse_addresses?.[0] ||
-                                                  "",
+                                                  getClientWarehouseAddress(
+                                                    client,
+                                                    1,
+                                                  ),
                                               });
                                               setEditingPalletClientSearch("");
                                               setIsEditingPalletClientListOpen(
+                                                false,
+                                              );
+                                              setShowEditingPalletDeliveryMap(
                                                 false,
                                               );
                                             }}
@@ -2223,71 +2288,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           )}
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                             {t("physicalLocation")}
                           </label>
-                          <input
-                            className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold disabled:text-gray-500"
-                            value={
-                              [2, 6].includes(
-                                editingPallet.current_status_id,
-                              ) ||
-                              ["bih-nl-transport", "nl-bih-transport"].includes(
-                                statuses.find(
-                                  (status) =>
-                                    status.id ===
-                                    editingPallet.current_status_id,
-                                )?.slug || "",
-                              )
-                                ? getLocationLabel("Na putu", language)
-                                : getFixedWarehouseLocation(
-                                    editingPallet.current_status_id,
-                                    editingPallet.current_status_name,
-                                  ) || editingPallet.current_location
-                            }
-                            disabled={
-                              Boolean(
-                                getFixedWarehouseLocation(
-                                  editingPallet.current_status_id,
-                                  editingPallet.current_status_name,
-                                ),
-                              ) ||
-                              [2, 6].includes(
-                                editingPallet.current_status_id,
-                              ) ||
-                              ["bih-nl-transport", "nl-bih-transport"].includes(
-                                statuses.find(
-                                  (status) =>
-                                    status.id ===
-                                    editingPallet.current_status_id,
-                                )?.slug || "",
-                              )
-                            }
-                            onChange={(e) =>
-                              setEditingPallet({
-                                ...editingPallet,
-                                current_location: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
+                          {canSelectEditingPalletLocation ? (
+                            <>
+                              <div className="grid gap-2 md:grid-cols-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPallet({
+                                      ...editingPallet,
+                                      current_location:
+                                        editingPalletWarehouseOne,
+                                    });
+                                    setShowEditingPalletDeliveryMap(false);
+                                  }}
+                                  className={cn(
+                                    "min-h-24 rounded-2xl border p-3 text-left transition-colors",
+                                    editingPallet.current_location ===
+                                      editingPalletWarehouseOne
+                                      ? "border-emerald-400 bg-emerald-50 text-emerald-900"
+                                      : "border-gray-100 bg-gray-50 text-gray-700 hover:border-emerald-200",
+                                  )}
+                                >
+                                  <span className="block text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                                    {t("warehouseAddressOne")}
+                                  </span>
+                                  <span className="mt-2 block text-xs font-bold leading-5">
+                                    {editingPalletWarehouseOne ||
+                                      t("notAvailable")}
+                                  </span>
+                                </button>
 
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                            {t("customOperationalNotes")}
-                          </label>
-                          <textarea
-                            placeholder={t("addOperationalNotes")}
-                            className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold text-sm h-24"
-                            value={editingPallet.note || ""}
-                            onChange={(e) =>
-                              setEditingPallet({
-                                ...editingPallet,
-                                note: e.target.value,
-                              })
-                            }
-                          />
+                                <button
+                                  type="button"
+                                  disabled={!editingPalletWarehouseTwo}
+                                  onClick={() => {
+                                    setEditingPallet({
+                                      ...editingPallet,
+                                      current_location:
+                                        editingPalletWarehouseTwo,
+                                    });
+                                    setShowEditingPalletDeliveryMap(false);
+                                  }}
+                                  className={cn(
+                                    "min-h-24 rounded-2xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+                                    editingPalletWarehouseTwo &&
+                                      editingPallet.current_location ===
+                                        editingPalletWarehouseTwo
+                                      ? "border-emerald-400 bg-emerald-50 text-emerald-900"
+                                      : "border-gray-100 bg-gray-50 text-gray-700 hover:border-emerald-200",
+                                  )}
+                                >
+                                  <span className="block text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                                    {t("warehouseAddressTwo")}
+                                  </span>
+                                  <span className="mt-2 block text-xs font-bold leading-5">
+                                    {editingPalletWarehouseTwo ||
+                                      t("notAvailable")}
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEditingPalletMapLocationSelected(
+                                      Boolean(editingPallet.delivery_location),
+                                    );
+                                    setShowEditingPalletDeliveryMap(true);
+                                  }}
+                                  className={cn(
+                                    "min-h-24 rounded-2xl border p-3 text-left transition-colors",
+                                    showEditingPalletDeliveryMap ||
+                                      (editingPalletDeliveryAddress &&
+                                        editingPallet.current_location ===
+                                          editingPalletDeliveryAddress)
+                                      ? "border-emerald-400 bg-emerald-50 text-emerald-900"
+                                      : "border-gray-100 bg-gray-50 text-gray-700 hover:border-emerald-200",
+                                  )}
+                                >
+                                  <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                                    <MapPin size={12} />
+                                    {t("otherDeliveryAddress")}
+                                  </span>
+                                  <span className="mt-2 block text-xs font-bold leading-5">
+                                    {editingPalletDeliveryAddress ||
+                                      t("searchAddressOnMap")}
+                                  </span>
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <input
+                              className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold disabled:text-gray-500"
+                              value={
+                                isEditingPalletTransportStatus
+                                  ? getLocationLabel("Na putu", language)
+                                  : editingPalletFixedLocation ||
+                                    editingPallet.current_location
+                              }
+                              disabled={Boolean(
+                                editingPalletFixedLocation ||
+                                  isEditingPalletTransportStatus,
+                              )}
+                              onChange={(e) =>
+                                setEditingPallet({
+                                  ...editingPallet,
+                                  current_location: e.target.value,
+                                })
+                              }
+                            />
+                          )}
                         </div>
 
                         <div className="border-t border-gray-100 pt-6">
@@ -2483,6 +2596,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={() => {
                     setEditingPallet(null);
                     setShowEditingPalletDetails(false);
+                    setShowEditingPalletDeliveryMap(false);
                   }}
                   className="h-14 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-xs font-black uppercase tracking-[0.12em] text-rose-600 transition-colors hover:border-rose-200 hover:bg-rose-100"
                 >
@@ -2503,6 +2617,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     );
                     setEditingPallet(null);
                     setShowEditingPalletDetails(false);
+                    setShowEditingPalletDeliveryMap(false);
                     setSelectedPallet(null);
                     void appAlert.fire({
                       icon: "success",
@@ -2522,6 +2637,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+
+        {editingPallet && showEditingPalletDeliveryMap && (
+          <DriverModalShell
+            onClose={() => setShowEditingPalletDeliveryMap(false)}
+            title={t("otherDeliveryAddress")}
+            subtitle={t("searchAddressOnMap")}
+            width="lg"
+            overlayClassName="z-[160]"
+            contentClassName={cn(
+              "transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              isEditingPalletMapLocationSelected
+                ? "md:!max-w-4xl"
+                : "md:!max-w-xl",
+            )}
+            bodyClassName="p-4 md:p-5"
+          >
+            <DeliveryLocationMap
+              palletId={editingPallet.id}
+              language={language}
+              layout="desktop-split"
+              mapClassName="md:!h-[520px] md:!max-h-none"
+              onSelectionChange={setIsEditingPalletMapLocationSelected}
+              initialLocation={editingPallet.delivery_location}
+              initialLocationIsSaved={Boolean(
+                editingPallet.delivery_location,
+              )}
+              onSave={async (palletId, data) => {
+                const savedLocation = await savePalletDeliveryLocation(
+                  palletId,
+                  data,
+                );
+                const savedAddress =
+                  formatPalletLocationAddress(
+                    savedLocation.street,
+                    savedLocation.house_number,
+                    savedLocation.postal_code,
+                    savedLocation.city,
+                  ) ||
+                  savedLocation.formatted_address ||
+                  "";
+
+                setEditingPallet((current) =>
+                  current?.id === palletId
+                    ? {
+                        ...current,
+                        delivery_location: savedLocation,
+                        current_location:
+                          savedAddress || current.current_location,
+                      }
+                    : current,
+                );
+                setShowEditingPalletDeliveryMap(false);
+
+                return savedLocation;
+              }}
+            />
+          </DriverModalShell>
         )}
 
         {qrPreview && (

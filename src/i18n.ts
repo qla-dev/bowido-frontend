@@ -978,8 +978,6 @@ export const translations = {
     assignedClient: "Assigned Client",
     noClient: "No Client",
     physicalLocation: "Location",
-    customOperationalNotes: "Custom Operational Notes",
-    addOperationalNotes: "Add operational notes...",
     confirmDeleteUnit:
       "Are you sure you want to delete this unit? All history will be lost.",
     newPalletEntry: "New Pallet Entry",
@@ -1009,6 +1007,8 @@ export const translations = {
     dayPlural: "days",
     warehouseAddressOne: "Warehouse address 1",
     warehouseAddressTwo: "Warehouse address 2",
+    otherDeliveryAddress: "Other delivery address",
+    searchAddressOnMap: "Search an address on the map",
     warehouseAddressOnePlaceholder: "e.g. Veldhovenweg 18, Eindhoven",
     warehouseAddressTwoPlaceholder: "e.g. Waalhaven Zuidzijde 19, Rotterdam",
     searchInvoices: "Search invoices",
@@ -1060,7 +1060,7 @@ export const translations = {
     settings: "Instellingen",
     completeDetails: "Gegevens aanvullen",
     imageGallery: "Afbeeldingengalerij",
-    galleryDescription: "Beveiligde palletfoto’s met operationele context.",
+    galleryDescription: "Beveiligde bokfoto’s met operationele context.",
     allImageTypes: "Alle afbeeldingstypen",
     statusChangeImage: "Statuswijziging",
     damageReportImage: "Schaderapport",
@@ -1227,7 +1227,7 @@ export const translations = {
     download: "Downloaden",
     qrCode: "QR-code",
     showQrCode: "QR-code tonen",
-    palletQrCode: "Pallet QR-code",
+    palletQrCode: "QR-code van bok",
     status: "Status",
     location: "Locatie",
     client: "Klant",
@@ -1549,8 +1549,6 @@ export const translations = {
     assignedClient: "Toegewezen klant",
     noClient: "Geen klant",
     physicalLocation: "Locatie",
-    customOperationalNotes: "Aangepaste operationele notities",
-    addOperationalNotes: "Voeg operationele notities toe...",
     confirmDeleteUnit:
       "Weet je zeker dat je deze eenheid wilt verwijderen? Alle historiek gaat verloren.",
     newPalletEntry: "Nieuwe bokinvoer",
@@ -1580,6 +1578,8 @@ export const translations = {
     dayPlural: "dagen",
     warehouseAddressOne: "Magazijnadres 1",
     warehouseAddressTwo: "Magazijnadres 2",
+    otherDeliveryAddress: "Ander afleveradres",
+    searchAddressOnMap: "Zoek een adres op de kaart",
     warehouseAddressOnePlaceholder: "bijv. Veldhovenweg 18, Eindhoven",
     warehouseAddressTwoPlaceholder: "bijv. Waalhaven Zuidzijde 19, Rotterdam",
     searchInvoices: "Zoek facturen",
@@ -2114,8 +2114,6 @@ export const translations = {
     assignedClient: "Dodijeljeni klijent",
     noClient: "Bez klijenta",
     physicalLocation: "Lokacija",
-    customOperationalNotes: "Prilagođene operativne napomene",
-    addOperationalNotes: "Dodaj operativne napomene...",
     confirmDeleteUnit:
       "Jeste li sigurni da želite obrisati ovu jedinicu? Sva historija će biti izgubljena.",
     newPalletEntry: "Novi unos palete",
@@ -2145,6 +2143,8 @@ export const translations = {
     dayPlural: "dana",
     warehouseAddressOne: "Adresa magacina 1",
     warehouseAddressTwo: "Adresa magacina 2",
+    otherDeliveryAddress: "Druga adresa isporuke",
+    searchAddressOnMap: "Pretraži adresu na mapi",
     warehouseAddressOnePlaceholder: "npr. Veldhovenweg 18, Eindhoven",
     warehouseAddressTwoPlaceholder: "npr. Waalhaven Zuidzijde 19, Rotterdam",
     searchInvoices: "Pretraži fakture",
@@ -2186,10 +2186,29 @@ export const translations = {
   },
 } as const;
 
-export const translate = (language: AppLanguage, key: string) =>
-  translations[language][key as keyof (typeof translations)[AppLanguage]] ||
-  translations.en[key as keyof typeof translations.en] ||
-  key;
+const useDutchBokTerminology = (value: string) =>
+  value.replace(/pallets?/gi, (match) => {
+    const replacement = match.toLocaleLowerCase().endsWith("s")
+      ? "bokken"
+      : "bok";
+
+    if (match === match.toLocaleUpperCase()) {
+      return replacement.toLocaleUpperCase();
+    }
+
+    return /^[A-Z]/.test(match)
+      ? replacement.charAt(0).toLocaleUpperCase() + replacement.slice(1)
+      : replacement;
+  });
+
+export const translate = (language: AppLanguage, key: string) => {
+  const value =
+    translations[language][key as keyof (typeof translations)[AppLanguage]] ||
+    translations.en[key as keyof typeof translations.en] ||
+    key;
+
+  return language === "nl" ? useDutchBokTerminology(value) : value;
+};
 
 export const getRoleLabel = (role: RoleType, language: AppLanguage) =>
   roleLabels[language][role] || roleLabels.en[role] || role;
@@ -2208,9 +2227,7 @@ export const getPalletTypeLabel = (type: string, language: AppLanguage) => {
     normalizedType ||
     type;
 
-  return language === "nl"
-    ? label.replace(/pallets/gi, "bokken").replace(/pallet/gi, "bok")
-    : label;
+  return language === "nl" ? useDutchBokTerminology(label) : label;
 };
 
 export const getStatusLabel = (status: string, language: AppLanguage) =>
