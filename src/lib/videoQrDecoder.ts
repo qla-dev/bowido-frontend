@@ -4,9 +4,20 @@ type CanvasRef = {
   current: HTMLCanvasElement | null;
 };
 
+type VideoQrDecodeOptions = {
+  /**
+   * Keep the whole camera frame, but cap its largest side before handing it to
+   * jsQR. This preserves off-centre codes while substantially reducing pixel
+   * processing on the common scan pass.
+   */
+  maxDimension?: number;
+  inversionAttempts?: 'dontInvert' | 'attemptBoth';
+};
+
 export const decodeQrFromVideo = (
   video: HTMLVideoElement,
-  canvasRef: CanvasRef
+  canvasRef: CanvasRef,
+  options: VideoQrDecodeOptions = {}
 ): string | null => {
   const width = video.videoWidth;
   const height = video.videoHeight;
@@ -18,12 +29,19 @@ export const decodeQrFromVideo = (
   const canvas = canvasRef.current ?? document.createElement('canvas');
   canvasRef.current = canvas;
 
-  if (canvas.width !== width) {
-    canvas.width = width;
+  const largestSide = Math.max(width, height);
+  const scale = options.maxDimension && largestSide > options.maxDimension
+    ? options.maxDimension / largestSide
+    : 1;
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+
+  if (canvas.width !== targetWidth) {
+    canvas.width = targetWidth;
   }
 
-  if (canvas.height !== height) {
-    canvas.height = height;
+  if (canvas.height !== targetHeight) {
+    canvas.height = targetHeight;
   }
 
   const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -32,10 +50,10 @@ export const decodeQrFromVideo = (
     return null;
   }
 
-  context.drawImage(video, 0, 0, width, height);
-  const imageData = context.getImageData(0, 0, width, height);
+  context.drawImage(video, 0, 0, width, height, 0, 0, targetWidth, targetHeight);
+  const imageData = context.getImageData(0, 0, targetWidth, targetHeight);
   const decoded = jsQR(imageData.data, imageData.width, imageData.height, {
-    inversionAttempts: 'attemptBoth',
+    inversionAttempts: options.inversionAttempts ?? 'dontInvert',
   });
 
   return decoded?.data?.trim() || null;

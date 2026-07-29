@@ -118,6 +118,7 @@ export interface Pallet {
   client_name?: string;
   client_deleted?: boolean;
   type: string;
+  asset_type?: string;
   current_location: string;
   is_ghost: boolean;
   is_active: boolean;
@@ -178,11 +179,13 @@ export interface PalletPhoto {
   new_status_id?: number;
   client_id?: number;
   service_report_id?: number;
-  type: "scan" | "status_change" | "damage_report" | "service_report";
+  type: "scan" | "status_change" | "damage_report" | "service_report" | "no_qr_report" | "delivery_photo";
   warehouse_scope?: "warehouse_nl" | "warehouse_bih";
   original_name?: string;
   mime_type: string;
   size_bytes: number;
+  width?: number;
+  height?: number;
   expires_at: string;
   url?: string;
   created_at: string;
@@ -230,12 +233,14 @@ export interface ClientDetail {
 export interface GhostPalletReportEntry {
   location: string;
   note?: string;
+  delivery_location?: DeliveryLocationInput;
 }
 
 export interface GhostPalletReportInput {
   note?: string;
   location?: string;
   entries?: GhostPalletReportEntry[];
+  image?: File;
 }
 
 export interface Invoice {

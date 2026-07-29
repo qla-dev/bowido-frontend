@@ -72,6 +72,7 @@ import { getPalletDisplayName } from "../lib/palletDisplay";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
+import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
 import { DeliveryLocationMap } from "./DeliveryLocationMap";
 import { DriverModalShell } from "./DriverModalShell";
 import {
@@ -1795,6 +1796,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </p>
                 </div>
               </div>
+
+              <PalletDeliveryPhotoUpload palletId={selectedPallet.id} />
 
               <div className="space-y-4 mb-8">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">

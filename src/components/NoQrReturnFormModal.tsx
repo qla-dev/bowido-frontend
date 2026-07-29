@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, MapPin, Minus, Plus, Send } from 'lucide-react';
+import { Building2, Camera, MapPin, Minus, Plus, Send, X } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { ClientDetail, RoleType, User } from '../types';
+import { ClientDetail, DeliveryLocationInput, RoleType, User } from '../types';
 import { Button, Input, Select, cn } from './ui';
 import { DriverModalShell } from './DriverModalShell';
+import { DeliveryLocationMap } from './DeliveryLocationMap';
 import { formatAppDate } from '../lib/dateFormat';
 import { FlatpickrDateInput } from './FlatpickrDateInput';
+import { appAlert } from './AppAlert';
+import { compressPhotoForUpload } from '../lib/imageCompression';
 
 interface NoQrReturnFormModalProps {
   currentUser: User;
@@ -19,6 +22,7 @@ type LocationEntryState = {
   mode: LocationMode;
   details: string;
   warehouseIndex: number | null;
+  deliveryLocation?: DeliveryLocationInput;
 };
 
 const copyByLanguage = {
@@ -51,6 +55,10 @@ const copyByLanguage = {
     pickupDirectSummary: 'Direct pickup',
     pickupDateSummary: 'Pickup date',
     sourceLabel: 'Submitted from mobile no-QR form',
+    reportSuccessTitle: 'Report saved',
+    reportSuccessText: 'The pallet without a QR code was created successfully.',
+    reportErrorTitle: 'Report not saved',
+    reportErrorText: 'The report could not be saved. Please try again.',
   },
   nl: {
     eyebrow: 'Zonder QR',
@@ -81,6 +89,10 @@ const copyByLanguage = {
     pickupDirectSummary: 'Direct ophalen',
     pickupDateSummary: 'Ophaaldatum',
     sourceLabel: 'Verstuurd via mobiel formulier zonder QR',
+    reportSuccessTitle: 'Melding opgeslagen',
+    reportSuccessText: 'De bok zonder QR-code is succesvol aangemaakt.',
+    reportErrorTitle: 'Melding niet opgeslagen',
+    reportErrorText: 'De melding kon niet worden opgeslagen. Probeer het opnieuw.',
   },
   bs: {
     eyebrow: 'Bez QR koda',
@@ -111,6 +123,10 @@ const copyByLanguage = {
     pickupDirectSummary: 'Odmah preuzeti',
     pickupDateSummary: 'Datum preuzimanja',
     sourceLabel: 'Poslano preko mobilne no-QR forme',
+    reportSuccessTitle: 'Prijava je sačuvana',
+    reportSuccessText: 'Paleta bez QR koda je uspješno kreirana.',
+    reportErrorTitle: 'Prijava nije sačuvana',
+    reportErrorText: 'Prijavu nije moguće sačuvati. Pokušajte ponovo.',
   },
 } as const;
 
@@ -137,6 +153,10 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
   const [directPickup, setDirectPickup] = useState(true);
   const [pickupDate, setPickupDate] = useState('');
   const [comment, setComment] = useState('');
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (roleClients.length === 0) {
@@ -222,10 +242,13 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
     (!directPickup && !pickupDate) ||
     hasInvalidLocation;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedClient || isSubmitDisabled) {
       return;
     }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
 
     const pickupSummary = directPickup
       ? copy.pickupDirectSummary
@@ -243,15 +266,36 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
         `${copy.entryLabel} ${index + 1}`,
         entry.mode === 'warehouse' ? copy.ownWarehouse : copy.otherLocation,
       ].join(' | '),
+      delivery_location: entry.deliveryLocation,
     }));
 
-    reportGhostPallets(palletCount, selectedClient.user_id, selectedClient.name, {
-      location: entries[0]?.location,
-      note: sharedNote,
-      entries,
-    });
-    onSubmitted?.(selectedClient.name, palletCount);
-    onClose();
+    try {
+      await reportGhostPallets(palletCount, selectedClient.user_id, selectedClient.name, {
+        location: entries[0]?.location,
+        note: sharedNote,
+        entries,
+        image: image || undefined,
+      });
+      await appAlert.fire({
+        icon: 'success',
+        title: copy.reportSuccessTitle,
+        text: copy.reportSuccessText,
+      });
+      onSubmitted?.(selectedClient.name, palletCount);
+      onClose();
+    } catch (error) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : copy.reportErrorText;
+      setSubmitError(message);
+      await appAlert.fire({
+        icon: 'error',
+        title: copy.reportErrorTitle,
+        text: message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -267,10 +311,10 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
           <Button
             className="w-full"
             onClick={handleSubmit}
-            disabled={isSubmitDisabled}
+            disabled={isSubmitDisabled || isSubmitting}
           >
             <Send size={15} className="mr-2" />
-            {copy.sendLabel}
+            {isSubmitting ? 'Saving…' : copy.sendLabel}
           </Button>
         </div>
       }
@@ -295,6 +339,56 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
             </Select>
           )}
         </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[#9fcbb3]">
+            Photo (optional)
+          </label>
+          {imagePreview ? (
+            <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 dark:border-white/10 dark:bg-[#151d1a]">
+              <img src={imagePreview} alt="No QR pallet" className="h-40 w-full rounded-xl object-cover" />
+              <button
+                type="button"
+                onClick={() => {
+                  URL.revokeObjectURL(imagePreview);
+                  setImagePreview(null);
+                  setImage(null);
+                }}
+                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl bg-black/65 text-white"
+                aria-label="Remove photo"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ) : (
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-5 text-[11px] font-black uppercase tracking-[0.12em] text-zinc-600 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200">
+              <Camera size={16} />
+              Take photo
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                className="hidden"
+                onChange={async (event) => {
+                  const nextImage = event.target.files?.[0];
+                  event.target.value = '';
+                  if (!nextImage) return;
+                  try {
+                    const compressed = await compressPhotoForUpload(nextImage);
+                    if (imagePreview) URL.revokeObjectURL(imagePreview);
+                    setImage(compressed);
+                    setImagePreview(URL.createObjectURL(compressed));
+                  } catch (error) {
+                    setSubmitError(error instanceof Error ? error.message : copy.reportErrorText);
+                  }
+                }}
+              />
+            </label>
+          )}
+          <p className="text-[10px] font-bold leading-4 text-zinc-400">The photo is saved in the database when you send this report.</p>
+        </div>
+
+        {submitError && <p className="text-sm font-semibold text-rose-600">{submitError}</p>}
 
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[#9fcbb3]">
@@ -447,16 +541,18 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                 )}
 
                 {entry.mode === 'other' && (
-                  <div className="mt-3 space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-[#9fcbb3]">
-                      {copy.locationLabel}
-                    </label>
-                    <Input
-                      value={entry.details}
-                      onChange={(event) => updateLocationEntry(index, { details: event.target.value })}
-                      placeholder={copy.locationPlaceholder}
-                      className="bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]"
+                  <div className="mt-3 space-y-3">
+                    <DeliveryLocationMap
+                      language={language}
+                      initialLocationIsSaved={false}
+                      onLocationSelected={(data) => {
+                        const streetLine = [data.street, data.house_number].filter(Boolean).join(' ');
+                        const localityLine = [data.postal_code, data.city].filter(Boolean).join(' ');
+                        const location = [streetLine, localityLine].filter(Boolean).join(', ') || `${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`;
+                        updateLocationEntry(index, { details: location, deliveryLocation: data });
+                      }}
                     />
+                    <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-300">{entry.details || copy.locationPlaceholder}</p>
                   </div>
                 )}
               </div>

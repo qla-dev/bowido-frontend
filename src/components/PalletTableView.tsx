@@ -11,7 +11,6 @@ import {
   FileSpreadsheet,
   Check,
   ChevronDown,
-  CalendarClock,
   Funnel,
   X,
 } from 'lucide-react';
@@ -302,8 +301,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     language === 'bs' ? 'Nema rezultata' : language === 'nl' ? 'Geen resultaten' : 'No results';
   const addPalletLabel =
     language === 'bs' ? 'Dodaj paletu' : language === 'nl' ? 'Bok toevoegen' : 'Add pallet';
-  const statusFilterLabel = language === 'bs' ? 'Status' : language === 'nl' ? 'Status' : 'Status';
-  const deadlineFilterLabel = language === 'bs' ? 'Rok' : language === 'nl' ? 'Termijn' : 'Due status';
   const deadlineFilterOptions: Array<{ value: DeadlineFilter; label: string }> = language === 'bs'
     ? [
         { value: 'overdue', label: 'Kasni' },
@@ -1200,18 +1197,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           {t('adminPalletOverview')}
         </h2>
         <div ref={quickFilterRef} className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <div className="relative">
-            <button type="button" onClick={() => setOpenQuickFilter((current) => current === 'status' ? null : 'status')} className={cn('flex h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 text-[10px] font-black uppercase tracking-[0.12em] transition-colors sm:w-36', selectedFilters.status.length > 0 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-300/40 dark:bg-emerald-400/10 dark:text-emerald-100' : 'border-zinc-200 bg-white text-zinc-600 hover:border-emerald-200 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200')}>
-              <span className="truncate">{statusFilterLabel}{selectedFilters.status.length > 0 ? ` (${selectedFilters.status.length})` : ''}</span><ChevronDown size={14} className={cn('shrink-0 transition-transform', openQuickFilter === 'status' && 'rotate-180')} />
-            </button>
-            {renderQuickFilterMenu('status')}
-          </div>
-          <div className="relative">
-            <button type="button" onClick={() => setOpenQuickFilter((current) => current === 'deadline' ? null : 'deadline')} className={cn('flex h-11 w-full items-center justify-between gap-2 rounded-xl border px-3 text-[10px] font-black uppercase tracking-[0.12em] transition-colors sm:w-40', selectedDeadlineFilters.length > 0 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-300/40 dark:bg-emerald-400/10 dark:text-emerald-100' : 'border-zinc-200 bg-white text-zinc-600 hover:border-emerald-200 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200')}>
-              <span className="flex min-w-0 items-center gap-1.5 truncate"><CalendarClock size={14} className="shrink-0" />{deadlineFilterLabel}{selectedDeadlineFilters.length > 0 ? ` (${selectedDeadlineFilters.length})` : ''}</span><ChevronDown size={14} className={cn('shrink-0 transition-transform', openQuickFilter === 'deadline' && 'rotate-180')} />
-            </button>
-            {renderQuickFilterMenu('deadline')}
-          </div>
           <div className="relative w-full sm:w-64">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
             <Input
