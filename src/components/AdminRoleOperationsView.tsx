@@ -14,10 +14,11 @@ import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { Pallet } from '../types';
+import { Pallet, ServiceReport } from '../types';
 import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDateTime } from '../lib/dateFormat';
+import { apiService } from '../services/api';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
@@ -26,6 +27,7 @@ type OperationColumnKey = 'primary' | 'secondary' | 'status' | 'location' | 'cli
 type OperationRow = {
   id: string;
   pallet?: Pallet;
+  serviceReport?: ServiceReport;
   primary: string;
   secondary: string;
   status: string;
@@ -66,6 +68,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<string, HTMLTableCellElement | null>>>({});
   const [selectedRow, setSelectedRow] = useState<OperationRow | null>(null);
+  const [serviceReportImageUrl, setServiceReportImageUrl] = useState('');
+  const [isServiceReportImageLoading, setIsServiceReportImageLoading] = useState(false);
+  const [serviceReportImageFailed, setServiceReportImageFailed] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ADMIN_ROLE_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: SortDirection }>({
     key: 'primary',
@@ -88,6 +93,51 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     bodyCellInnerClass,
     bodyTextClass,
   } = adminTableStyles;
+
+  useEffect(() => {
+    const imagePath = selectedRow?.serviceReport?.image_path;
+    let objectUrl = '';
+    let cancelled = false;
+
+    setServiceReportImageUrl('');
+    setServiceReportImageFailed(false);
+
+    if (!imagePath) {
+      setIsServiceReportImageLoading(false);
+      return;
+    }
+
+    setIsServiceReportImageLoading(true);
+
+    void apiService.gallery
+      .image(imagePath)
+      .then((blob) => {
+        if (cancelled) {
+          return;
+        }
+
+        objectUrl = URL.createObjectURL(blob);
+        setServiceReportImageUrl(objectUrl);
+      })
+      .catch((error) => {
+        console.error('Failed to load service report photo', error);
+        if (!cancelled) {
+          setServiceReportImageFailed(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsServiceReportImageLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [selectedRow?.serviceReport?.id, selectedRow?.serviceReport?.image_path]);
 
   const locale = language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB';
   const currencyFormatter = useMemo(
@@ -234,6 +284,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       return {
         id: `${mode}-${pallet.id}`,
         pallet,
+        serviceReport: openReport,
         primary: getPalletDisplayName(pallet),
         secondary: getPalletTypeLabel(pallet.type, language),
         status: getStatusLabel(pallet.current_status_name, language),
@@ -496,13 +547,183 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             animate={{ scale: 1, opacity: 1 }}
             className={cn(
               'relative max-h-[88vh] w-full overflow-y-auto bg-white shadow-2xl no-scrollbar dark:bg-[#0f1513]',
-              mode === 'warehouse' && selectedRow.pallet
+              mode === 'service' && selectedRow.pallet
+                ? 'max-w-3xl overflow-hidden rounded-[2.5rem] p-0'
+                : mode === 'warehouse' && selectedRow.pallet
                 ? 'max-w-xl overflow-hidden rounded-[3rem] p-8'
                 : 'max-w-2xl rounded-[2.5rem] p-7'
             )}
             onClick={(event) => event.stopPropagation()}
           >
-            {mode === 'warehouse' && selectedRow.pallet ? (
+            {mode === 'service' && selectedRow.pallet ? (
+              <>
+                <div className="h-2 w-full bg-[#00A655]" />
+
+                <div className="p-6 sm:p-8">
+                  <div className="mb-7 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
+                        {language === 'bs'
+                          ? 'Servisna prijava'
+                          : language === 'nl'
+                            ? 'Servicemelding'
+                            : 'Service report'}
+                      </p>
+                      <h3 className="mt-2 break-words text-2xl font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white sm:text-3xl">
+                        {selectedRow.primary}
+                      </h3>
+                      <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                        {selectedRow.secondary}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={t('closeDetails')}
+                      onClick={() => setSelectedRow(null)}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:bg-white/[0.07] dark:text-zinc-300 dark:hover:bg-white/[0.12] dark:hover:text-white"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(17rem,0.9fr)]">
+                    <div className="overflow-hidden rounded-[1.5rem] border border-zinc-100 bg-zinc-50 dark:border-white/10 dark:bg-[#151d1a]">
+                      {serviceReportImageUrl ? (
+                        <img
+                          src={serviceReportImageUrl}
+                          alt={selectedRow.serviceReport.problem_description}
+                          className="h-full max-h-[30rem] min-h-64 w-full object-contain"
+                        />
+                      ) : (
+                        <div className="flex min-h-64 items-center justify-center px-6 text-center">
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                            {isServiceReportImageLoading
+                              ? language === 'bs'
+                                ? 'Učitavanje fotografije...'
+                                : language === 'nl'
+                                  ? 'Foto laden...'
+                                  : 'Loading photo...'
+                              : serviceReportImageFailed
+                                ? language === 'bs'
+                                  ? 'Fotografiju nije moguće učitati'
+                                  : language === 'nl'
+                                    ? 'Foto kan niet worden geladen'
+                                    : 'Photo could not be loaded'
+                                : language === 'bs'
+                                  ? 'Fotografija nije priložena'
+                                  : language === 'nl'
+                                    ? 'Geen foto toegevoegd'
+                                    : 'No photo attached'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/60 p-5 dark:border-white/10 dark:bg-white/[0.06]">
+                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                          {language === 'bs'
+                            ? 'Opis oštećenja'
+                            : language === 'nl'
+                              ? 'Omschrijving schade'
+                              : 'Damage description'}
+                        </p>
+                        <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-emerald-950 dark:text-white">
+                          {selectedRow.serviceReport?.problem_description ||
+                            selectedRow.pallet.note ||
+                            '-'}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                            {copy.status}
+                          </p>
+                          <p className="mt-2 break-words text-xs font-black uppercase text-rose-600 dark:text-rose-300">
+                            {selectedRow.status}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                            {copy.metric}
+                          </p>
+                          <p className="mt-2 text-xs font-black uppercase text-zinc-950 dark:text-white">
+                            {getDaysSince(
+                              selectedRow.serviceReport?.created_at ||
+                                selectedRow.pallet.last_status_changed_at
+                            )}{' '}
+                            {t('days')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                        {copy.location}
+                      </p>
+                      <p className="mt-2 break-words text-xs font-black text-zinc-950 dark:text-white">
+                        {selectedRow.location}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                        {copy.client}
+                      </p>
+                      <p className="mt-2 break-words text-xs font-black text-zinc-950 dark:text-white">
+                        {selectedRow.client}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                        {language === 'bs'
+                          ? 'Vrijeme prijave'
+                          : language === 'nl'
+                            ? 'Gemeld op'
+                            : 'Reported at'}
+                      </p>
+                      <p className="mt-2 text-xs font-black text-zinc-950 dark:text-white">
+                        {formatAppDateTime(
+                          selectedRow.serviceReport?.created_at ||
+                            selectedRow.pallet.last_status_changed_at,
+                          language
+                        )}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                        {language === 'bs'
+                          ? 'Prijavio'
+                          : language === 'nl'
+                            ? 'Gemeld door'
+                            : 'Reported by'}
+                      </p>
+                      <p className="mt-2 break-words text-xs font-black text-zinc-950 dark:text-white">
+                        {selectedRow.serviceReport?.reported_by_user?.name ||
+                          (selectedRow.serviceReport
+                            ? `#${selectedRow.serviceReport.reported_by_user_id}`
+                            : '-')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    className="mt-6 w-full py-4"
+                    onClick={() => markServiceResolved(selectedRow)}
+                  >
+                    {language === 'bs'
+                      ? 'Označi kao popravljeno'
+                      : language === 'nl'
+                        ? 'Als gerepareerd markeren'
+                        : 'Mark repaired'}
+                  </Button>
+                </div>
+              </>
+            ) : mode === 'warehouse' && selectedRow.pallet ? (
               <>
                 <div className="absolute inset-x-0 top-0 h-2 bg-black dark:bg-emerald-400" />
 
@@ -628,11 +849,6 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               </div>
             )}
 
-            {mode === 'service' && selectedRow.pallet && (
-              <Button type="button" className="mt-5 w-full py-4" onClick={() => markServiceResolved(selectedRow)}>
-                {language === 'bs' ? 'Označi kao popravljeno' : language === 'nl' ? 'Als gerepareerd markeren' : 'Mark repaired'}
-              </Button>
-            )}
               </>
             )}
           </motion.div>

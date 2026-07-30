@@ -20,6 +20,7 @@ interface DriverModalShellProps {
   footerClassName?: string;
   showHeaderDivider?: boolean;
   showFooterDivider?: boolean;
+  closeOnBackdrop?: boolean;
 }
 
 const widthClassMap: Record<DriverModalWidth, string> = {
@@ -43,6 +44,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
   footerClassName,
   showHeaderDivider = true,
   showFooterDivider = true,
+  closeOnBackdrop = true,
 }) => {
   const hasHeaderContent = header !== undefined || Boolean(title) || Boolean(subtitle);
 
@@ -84,7 +86,7 @@ export const DriverModalShell: React.FC<DriverModalShellProps> = ({
         'fixed inset-0 z-50 flex items-stretch justify-center bg-[var(--surface-overlay)] p-0 backdrop-blur-[2px] md:items-center md:px-4 md:py-6',
         overlayClassName
       )}
-      onClick={onClose}
+      onClick={closeOnBackdrop ? onClose : undefined}
     >
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.98 }}

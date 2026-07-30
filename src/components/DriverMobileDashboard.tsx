@@ -167,6 +167,9 @@ type DriverCopy = {
   damageModalUpload: string;
   damageModalCancel: string;
   damageModalSubmit: string;
+  damageModalSaving: string;
+  damageModalError: string;
+  damagePhotoError: string;
   damageModalRemove: string;
   scanImageFallbackTitle: string;
   scanImageFallbackDetail: string;
@@ -224,6 +227,9 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     damageModalUpload: "Add photo",
     damageModalCancel: "Cancel",
     damageModalSubmit: "Save report",
+    damageModalSaving: "Saving report...",
+    damageModalError: "The damage report could not be saved. Please try again.",
+    damagePhotoError: "The photo could not be prepared. Please try another photo.",
     damageModalRemove: "Remove",
     scanImageFallbackTitle: "Test scan",
     scanImageFallbackDetail: "Upload a QR image to match database pallets.",
@@ -280,6 +286,9 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     damageModalUpload: "Foto toevoegen",
     damageModalCancel: "Annuleren",
     damageModalSubmit: "Melding opslaan",
+    damageModalSaving: "Melding opslaan...",
+    damageModalError: "De schademelding kon niet worden opgeslagen. Probeer het opnieuw.",
+    damagePhotoError: "De foto kon niet worden verwerkt. Probeer een andere foto.",
     damageModalRemove: "Verwijderen",
     scanImageFallbackTitle: "Testscan",
     scanImageFallbackDetail:
@@ -337,6 +346,9 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     damageModalUpload: "Dodaj sliku",
     damageModalCancel: "Odustani",
     damageModalSubmit: "Sačuvaj prijavu",
+    damageModalSaving: "Čuvanje prijave...",
+    damageModalError: "Prijavu oštećenja nije moguće sačuvati. Pokušajte ponovo.",
+    damagePhotoError: "Fotografiju nije moguće pripremiti. Pokušajte s drugom fotografijom.",
     damageModalRemove: "Ukloni",
     scanImageFallbackTitle: "Test skeniranje",
     scanImageFallbackDetail: "Ucitaj QR sliku za pretragu paleta iz baze.",
@@ -450,6 +462,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     savePalletDeliveryLocation,
     scanCustomerPossessionPallet,
     claimCustomerPossessionPallet,
+    reportDamage,
     statuses,
     language,
   } = useApp();
@@ -469,7 +482,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [palletPhotoUrl, setPalletPhotoUrl] = useState<string | null>(null);
   const [isPalletPhotoSaved, setIsPalletPhotoSaved] = useState(false);
   const [damagePhotoUrl, setDamagePhotoUrl] = useState<string | null>(null);
+  const [damagePhoto, setDamagePhoto] = useState<File | null>(null);
   const [damageDescription, setDamageDescription] = useState("");
+  const [damageDraftPalletId, setDamageDraftPalletId] = useState<number | null>(
+    null,
+  );
+  const [isDamageReportSubmitting, setIsDamageReportSubmitting] =
+    useState(false);
+  const [damageReportError, setDamageReportError] = useState("");
   const [scannedPalletIds, setScannedPalletIds] = useState<number[]>([]);
   const [isScannedPalletsModalOpen, setIsScannedPalletsModalOpen] =
     useState(false);
@@ -1014,7 +1034,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   );
   const showDamageModalNavActions = isDamageModalOpen;
   const isDamageReportSubmitDisabled =
-    !damagePhotoUrl || !damageDescription.trim();
+    !damagePhoto ||
+    !damageDescription.trim() ||
+    isDamageReportSubmitting;
 
   useEffect(() => {
     palletsRef.current = allDriverPallets;
@@ -1508,8 +1530,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       damagePhotoUrlRef.current = null;
     }
 
+    setDamagePhoto(null);
     setDamagePhotoUrl(null);
     setDamageDescription("");
+    setDamageDraftPalletId(null);
+    setDamageReportError("");
   };
 
   const clearDamagePhoto = () => {
@@ -1522,7 +1547,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       damagePhotoInputRef.current.value = "";
     }
 
+    setDamagePhoto(null);
     setDamagePhotoUrl(null);
+    setDamageReportError("");
   };
 
   const handleScanNext = () => {
@@ -1753,12 +1780,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    clearDamageDraft();
+    if (
+      damageDraftPalletId !== null &&
+      damageDraftPalletId !== damageTargetPallet.id
+    ) {
+      clearDamageDraft();
+    }
+
+    setDamageDraftPalletId(damageTargetPallet.id);
     setIsDamageModalOpen(true);
   };
 
   const closeDamageModal = () => {
-    clearDamageDraft();
+    if (isDamageReportSubmitting) {
+      return;
+    }
+
     setIsDamageModalOpen(false);
   };
 
@@ -1774,34 +1811,65 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
   };
 
-  const handleDamagePhotoChange = (
+  const handleDamagePhotoChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
+    event.target.value = "";
 
     if (!file) {
       return;
     }
 
-    if (damagePhotoUrlRef.current) {
-      URL.revokeObjectURL(damagePhotoUrlRef.current);
-    }
+    setDamageReportError("");
 
-    const nextPhotoUrl = URL.createObjectURL(file);
-    damagePhotoUrlRef.current = nextPhotoUrl;
-    setDamagePhotoUrl(nextPhotoUrl);
-    event.target.value = "";
+    try {
+      const compressed = await compressPhotoForUpload(file);
+
+      if (damagePhotoUrlRef.current) {
+        URL.revokeObjectURL(damagePhotoUrlRef.current);
+      }
+
+      const nextPhotoUrl = URL.createObjectURL(compressed);
+      damagePhotoUrlRef.current = nextPhotoUrl;
+      setDamagePhoto(compressed);
+      setDamagePhotoUrl(nextPhotoUrl);
+    } catch (error) {
+      console.error("Failed to compress driver damage photo", error);
+      setDamageReportError(text.damagePhotoError);
+    }
   };
 
-  const handleDamageReportSubmit = () => {
+  const handleDamageReportSubmit = async () => {
     blurActiveElement();
 
-    if (!damageTargetPallet || !damagePhotoUrl || !damageDescription.trim()) {
+    if (
+      !damageTargetPallet ||
+      !damagePhoto ||
+      !damageDescription.trim() ||
+      isDamageReportSubmitting
+    ) {
       return;
     }
 
-    showFlash(text.damageReportedTitle, text.damageReportedDetail, "warning");
-    closeDamageModal();
+    setIsDamageReportSubmitting(true);
+    setDamageReportError("");
+
+    try {
+      await reportDamage({
+        pallet_id: damageTargetPallet.id,
+        problem_description: damageDescription.trim(),
+        image: damagePhoto,
+      });
+      showFlash(text.damageReportedTitle, text.damageReportedDetail, "warning");
+      clearDamageDraft();
+      setIsDamageModalOpen(false);
+    } catch (error) {
+      console.error("Failed to submit driver damage report", error);
+      setDamageReportError(text.damageModalError);
+    } finally {
+      setIsDamageReportSubmitting(false);
+    }
   };
 
   const handleScannerFrameClick = () => {
@@ -1972,7 +2040,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
   };
 
-  const isBottomNavVisible = isScannerOpen || Boolean(selectedPallet);
+  const isBottomNavVisible =
+    (isScannerOpen || Boolean(selectedPallet)) && !isDamageModalOpen;
   const scannerBottomActionCount =
     1 + (showNoQrReturnAction ? 1 : 0) + (showNoQrPickupAction ? 1 : 0);
 
@@ -2662,7 +2731,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       </AnimatePresence>
 
       {isBottomNavVisible && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[70]">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[100]">
           <div
             className={cn(
               "pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-transparent bg-[#00A655] px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-12px_36px_rgba(0,166,85,0.35)]",
@@ -2699,7 +2768,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     )}
                   >
                     <Check size={20} className="shrink-0" />
-                    {text.damageModalSubmit}
+                    {isDamageReportSubmitting
+                      ? text.damageModalSaving
+                      : text.damageModalSubmit}
                   </button>
                 )}
               </div>
@@ -3310,10 +3381,40 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         {isDamageModalOpen && damageTargetPallet && (
           <DriverModalShell
             onClose={closeDamageModal}
+            closeOnBackdrop={false}
             title={text.damageModalTitle}
             subtitle={getPalletDisplayName(damageTargetPallet)}
             width="sm"
             bodyClassName="p-0"
+            footerClassName="bg-[var(--surface-panel)] px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+            footer={
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={closeDamageModal}
+                  disabled={isDamageReportSubmitting}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-[1rem] bg-[var(--surface-raised)] px-3 text-[11px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChevronLeft size={18} className="shrink-0" />
+                  {text.back}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDamageReportSubmit}
+                  disabled={isDamageReportSubmitDisabled}
+                  className={cn(
+                    "flex min-h-12 items-center justify-center gap-2 rounded-[1rem] bg-[#00A655] px-3 text-center text-[11px] font-black uppercase tracking-[0.12em] text-white transition-all active:scale-[0.99]",
+                    isDamageReportSubmitDisabled &&
+                      "cursor-not-allowed opacity-45 active:scale-100",
+                  )}
+                >
+                  <Check size={18} className="shrink-0" />
+                  {isDamageReportSubmitting
+                    ? text.damageModalSaving
+                    : text.damageModalSubmit}
+                </button>
+              </div>
+            }
           >
             <div className="space-y-4 p-5">
               <div>
@@ -3370,6 +3471,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   </button>
                 )}
               </div>
+
+              {damageReportError && (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-rose-50 px-3 py-2.5 text-[11px] font-bold leading-5 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"
+                >
+                  {damageReportError}
+                </p>
+              )}
             </div>
           </DriverModalShell>
         )}
