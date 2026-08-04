@@ -1418,7 +1418,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                               'px-2 text-[10px] font-black uppercase tracking-[0.08em]',
                               pallet.current_status_id === 4
                                 ? 'text-emerald-600 dark:text-emerald-300'
-                                : pallet.current_status_id === 7
+                                : pallet.is_for_repair
                                   ? 'text-rose-600 dark:text-rose-300'
                                   : pallet.current_status_id === 5
                                     ? 'text-amber-600 dark:text-amber-300'

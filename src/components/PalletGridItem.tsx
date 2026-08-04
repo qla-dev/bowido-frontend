@@ -46,7 +46,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
       <div className="flex justify-between items-start p-5 bg-zinc-50 border-b border-zinc-100">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-mono font-black text-lg tracking-tighter text-zinc-950 uppercase">
+            <span className={cn("font-mono font-black text-lg tracking-tighter uppercase", pallet.is_for_repair ? "text-rose-600" : "text-zinc-950")}>
               {getPalletDisplayName(pallet)}
             </span>
             {isOverdue && <Badge variant="danger">{t('overdue')}</Badge>}
@@ -55,7 +55,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
             {palletTypeLabel}
           </p>
         </div>
-        <Badge variant={pallet.current_status_id === 4 ? 'success' : pallet.current_status_id === 7 ? 'danger' : 'info'}>
+        <Badge variant={pallet.current_status_id === 4 ? 'success' : pallet.is_for_repair ? 'danger' : 'info'}>
           {statusLabel}
         </Badge>
       </div>

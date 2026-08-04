@@ -46,10 +46,10 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const inTransport = pallets.filter(p => [2, 6].includes(p.current_status_id));
   const warehouseDispatch = pallets.filter(p => [2, 6].includes(p.current_status_id));
   const warehouseReturns = pallets.filter(p => p.current_status_id === 5);
-  const serviceJobs = pallets.filter(p => p.current_status_id === 7 || serviceReports.some(r => r.pallet_id === p.id && !r.resolved_at));
+  const serviceJobs = pallets.filter(p => p.is_for_repair || serviceReports.some(r => r.pallet_id === p.id && !r.resolved_at));
   const ghostPallets = pallets.filter(p => p.is_ghost);
   const driverStops = (pendingPickups.length > 0 ? pendingPickups : inTransport).slice(0, 4);
-  const warehouseQueue = pallets.filter(p => [5, 2, 6, 7, 1, 3].includes(p.current_status_id)).slice(0, 6);
+  const warehouseQueue = pallets.filter(p => [5, 2, 6, 1, 3].includes(p.current_status_id)).slice(0, 6);
   const activeRoutePallet = inTransport[0] || pendingPickups[0] || pallets[0];
   const nextStopLabel = pendingPickups[0]?.current_location || activeRoutePallet?.current_location || 'Eindhoven Hub';
   const routeClientLabel = pendingPickups[0]?.client_name || activeRoutePallet?.client_name || t('client');
@@ -229,7 +229,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{pallet.qr_code}</span>
-                              <Badge variant={pallet.current_status_id === 7 ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
+                              <Badge variant={pallet.is_for_repair ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
                                 {getStatusLabel(pallet.current_status_name, language)}
                               </Badge>
                             </div>
@@ -530,7 +530,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                              <p className="text-[11px] font-black uppercase tracking-tight truncate">{getPalletTypeLabel(p.type, language)}</p>
                           </div>
                        </div>
-                       <Badge variant={p.current_status_id === 7 ? 'danger' : 'info'}>
+                       <Badge variant={p.is_for_repair ? 'danger' : 'info'}>
                           {getStatusLabel(p.current_status_name, language)}
                        </Badge>
                     </div>
@@ -710,7 +710,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                          <div className="grid grid-cols-2 gap-4">
                             <div className="bg-zinc-50 p-4 rounded-2xl">
                                <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{t('status')}</p>
-                               <Badge variant={pallet.current_status_id === 7 ? 'danger' : 'info'}>{getStatusLabel(pallet.current_status_name, language)}</Badge>
+                               <Badge variant={pallet.is_for_repair ? 'danger' : 'info'}>{getStatusLabel(pallet.current_status_name, language)}</Badge>
                             </div>
                             <div className="bg-zinc-50 p-4 rounded-2xl">
                                <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{t('location')}</p>

@@ -18,6 +18,7 @@ import {
   Search,
   Check,
   ChevronDown,
+  Wrench,
   X,
 } from "lucide-react";
 import { StatCard, Card, Button, Input, Select, Badge, cn } from "./ui";
@@ -47,7 +48,6 @@ import { appAlert } from "./AppAlert";
 import {
   RoleType,
   Pallet,
-  PalletDashboardStats,
   PalletStatus,
   ClientDetail,
   User,
@@ -310,6 +310,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     clients,
     auditLogs,
     serviceReports,
+    palletDashboardStats: dashboardStats,
     updateStatusSettings,
     addStatus,
     deleteStatus,
@@ -408,8 +409,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   >([]);
   const [invoiceDeliveryError, setInvoiceDeliveryError] =
     useState<Pallet | null>(null);
-  const [dashboardStats, setDashboardStats] =
-    useState<PalletDashboardStats | null>(null);
 
   React.useEffect(() => {
     if (!isEditingPalletClientListOpen) return;
@@ -440,32 +439,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [view]);
 
-  React.useEffect(() => {
-    if (view !== "overview") {
-      return;
-    }
-
-    let isCancelled = false;
-
-    void apiService.pallets
-      .stats()
-      .then((stats) => {
-        if (!isCancelled) {
-          setDashboardStats(stats);
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load pallet dashboard stats", error);
-
-        if (!isCancelled) {
-          setDashboardStats(null);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [view, pallets]);
 
   React.useEffect(() => {
     if (!openPalletId) {
@@ -973,7 +946,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const logsById = new Map<number, AuditLog>();
 
     [...auditLogs, ...loadedLogs].forEach((log) => {
-      if (log.pallet_id === pallet.id && (log.type || "status") === "status") {
+      if (log.pallet_id === pallet.id && ["status", "repair"].includes(log.type || "status")) {
         logsById.set(log.id, log);
       }
     });
@@ -1138,32 +1111,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ? `${overduePallets.length} overdue pallets require action (€${totalDebt.toFixed(2)} outstanding).`
                   : "No overdue pallets require action.",
             };
-    const overviewStats = dashboardStats ?? {
-      total_pallets: pallets.length,
-      in_transport: pallets.filter((p) => [2, 6].includes(p.current_status_id))
-        .length,
-      overdue_units: overduePallets.length,
-    };
+    // These counters must come from the aggregate endpoint. `pallets` is a
+    // deliberately small first page, so using it as a fallback briefly shows
+    // an incorrect total before the real count arrives.
+    const overviewStats = dashboardStats;
 
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard
             label={t("totalPallets")}
-            value={overviewStats.total_pallets.toString()}
+            value={overviewStats ? overviewStats.total_pallets.toString() : "—"}
           />
           <StatCard
             label={t("inTransit")}
-            value={overviewStats.in_transport.toString()}
+            value={overviewStats ? overviewStats.in_transport.toString() : "—"}
             variant="info"
           />
           <StatCard
             label={t("overdueUnits")}
-            value={overviewStats.overdue_units.toString()}
+            value={overviewStats ? overviewStats.overdue_units.toString() : "—"}
             trend={
-              overviewStats.overdue_units > 0
+              overviewStats && overviewStats.overdue_units > 0
                 ? t("actionRequired")
-                : t("allGood")
+                : overviewStats
+                  ? t("allGood")
+                  : "—"
             }
             trendUp={false}
             variant="danger"
@@ -1915,9 +1888,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="absolute top-0 left-0 right-0 h-2 bg-black"></div>
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <h3 className="text-3xl font-black tracking-tighter uppercase mb-1">
+                  <h3 className={cn("text-3xl font-black tracking-tighter uppercase mb-1", selectedPallet.is_for_repair && "text-rose-600")}>
                     {getPalletTitleLabel(selectedPallet)}
                   </h3>
+                  {selectedPallet.is_for_repair && (
+                    <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-rose-700">
+                      <Wrench size={11} /> For repair
+                    </span>
+                  )}
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                     {getPalletTypeLabel(selectedPallet.type, language)}
                   </span>
@@ -1999,15 +1977,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="flex items-start gap-4 rounded-2xl border border-gray-100 bg-white p-4"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50">
-                        <MapPin size={16} className="text-gray-400" />
+                        {log.type === "repair" ? <Wrench size={16} className="text-rose-500" /> : <MapPin size={16} className="text-gray-400" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-black uppercase tracking-tight text-gray-900">
-                          {getStatusLabel(log.new_status_name, language)}
+                          {log.type === "repair"
+                            ? (log.context?.new_is_for_repair ? "Marked for repair" : "Unmarked for repair")
+                            : getStatusLabel(log.new_status_name, language)}
                         </p>
                         <p className="mt-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">
-                          {getLocationLabel(log.new_location, language) ||
-                            notAvailableLabel}
+                          {log.type === "repair"
+                            ? log.note || notAvailableLabel
+                            : getLocationLabel(log.new_location, language) || notAvailableLabel}
                         </p>
                         <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
                           {t("changedBy")}: {getAuditActorLabel(log)}
@@ -2097,6 +2078,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               language,
                             )}
                           </p>
+                          {editingPallet.is_for_repair && (
+                            <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-rose-700 dark:bg-rose-500/15 dark:text-rose-200">
+                              <Wrench size={12} /> For repair
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

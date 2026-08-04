@@ -1927,6 +1927,9 @@ export default function App() {
     if (activeTab === "korisnici")
       return <UserManager currentUser={currentUser} />;
     if (activeTab === "invoices") return <BillingList />;
+    // Keep the admin sidebar on the same standalone repair queue used by the
+    // Admin Service role. Rendering it inside AdminDashboard can leave its
+    // internal view state empty during sidebar transitions.
     if (activeTab === "admin-service")
       return <AdminRoleOperationsView mode="service" />;
     if (

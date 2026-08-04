@@ -820,7 +820,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                     <div className={bodyCellInnerClass}>
                       <Badge
                         variant={
-                          row.pallet.current_status_id === 7
+                          row.pallet.is_for_repair
                             ? 'danger'
                             : row.pallet.current_status_id === 4
                               ? 'success'
