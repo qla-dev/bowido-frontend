@@ -668,6 +668,9 @@ const normalizeServiceReport = (report: ApiRecord): ServiceReport => ({
   id: Number(report.id),
   pallet_id: Number(report.pallet_id),
   reported_by_user_id: Number(report.reported_by_user_id),
+  reported_by_user: report.reported_by_user
+    ? normalizeUser(report.reported_by_user)
+    : undefined,
   resolved_by_user_id: report.resolved_by_user_id ? Number(report.resolved_by_user_id) : undefined,
   problem_description: report.problem_description || report.description || '',
   image_path: report.image_path || undefined,

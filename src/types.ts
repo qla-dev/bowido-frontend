@@ -163,6 +163,7 @@ export interface ServiceReport {
   id: number;
   pallet_id: number;
   reported_by_user_id: number;
+  reported_by_user?: User;
   resolved_by_user_id?: number;
   problem_description: string;
   image_path?: string;
