@@ -911,8 +911,24 @@ export const apiService = {
     },
   },
 
-  pallets: {
-    scanCustomerPossession: async (qrCode: string): Promise<Pallet> =>
+    pallets: {
+      scanLookup: async (qrCode: string, scannedCandidates: string[]): Promise<Pallet> =>
+        normalizePallet(
+          await apiData<ApiRecord>('/pallets/scan-lookup', {
+            method: 'POST',
+            body: jsonBody({ qr_code: qrCode, scanned_candidates: scannedCandidates }),
+          })
+        ),
+      logScanDiagnostics: (data: { rawQrCode: string; scannedCandidates: string[]; loadedPalletCount: number }): Promise<void> =>
+        apiData<null>('/pallets/scan-diagnostics', {
+          method: 'POST',
+          body: jsonBody({
+            raw_qr_code: data.rawQrCode,
+            scanned_candidates: data.scannedCandidates,
+            loaded_pallet_count: data.loadedPalletCount,
+          }),
+        }).then(() => undefined),
+      scanCustomerPossession: async (qrCode: string): Promise<Pallet> =>
       normalizePallet(
         await apiData<ApiRecord>('/pallets/scan-customer-possession', {
           method: 'POST',

@@ -20,6 +20,7 @@ import { RoleManager } from "./components/RoleManager";
 import { UserManager } from "./components/UserManager";
 import { BillingList } from "./components/BillingList";
 import { ThemeSettingsToggle } from "./components/ThemeSettingsToggle";
+import { KvkLookupControl } from "./components/KvkLookupControl";
 import { LandingShell } from "./components/LandingShell";
 import { RoleType, User } from "./types";
 import { Eye, EyeOff, LogIn, X } from "lucide-react";
@@ -607,10 +608,6 @@ export default function App() {
   >(null);
   const [isKvkRegistrationSubmitting, setIsKvkRegistrationSubmitting] =
     useState(false);
-  const [isKvkRegistrationLookingUp, setIsKvkRegistrationLookingUp] =
-    useState(false);
-  const [kvkRegistrationLookupSource, setKvkRegistrationLookupSource] =
-    useState<"database" | "kvk" | null>(null);
   const [activeTab, setActiveTab] = useState(() =>
     readStoredActiveTab(currentUser),
   );
@@ -906,8 +903,11 @@ export default function App() {
 
   const selectCredentialLoginMode = (mode: LoginMode) => {
     setCredentialLoginMode(mode);
+    setCredentialLoginForm({ email: "", kvk: "", password: "" });
+    setRememberLogin(false);
     setCredentialLoginError(null);
     setCompanyLoginOptions([]);
+    setShowCredentialPassword(false);
   };
 
   const performCredentialLogin = async (customerDetailId?: number) => {
@@ -1009,35 +1009,6 @@ export default function App() {
     setDriverSelectedPalletId(null);
     resetData();
     setLoginProfiles(readLoginProfiles());
-  };
-
-  const lookupKvkRegistration = async () => {
-    const normalizedKvk = kvkRegistration.kvk.replace(/[\s.\-\/()]+/g, "");
-    if (!/^\d{8}$/.test(normalizedKvk) || isKvkRegistrationLookingUp) {
-      setKvkRegistrationError(kvkRegistrationCopy.invalid);
-      return;
-    }
-    setIsKvkRegistrationLookingUp(true);
-    setKvkRegistrationError(null);
-    setKvkRegistrationLookupSource(null);
-    try {
-      const result = await apiService.auth.kvkLookup(normalizedKvk);
-      setKvkRegistration((form) => ({
-        ...form,
-        ...result.fields,
-        kvk: normalizedKvk,
-        email: result.fields.email ?? "",
-        password: "",
-        password_confirmation: "",
-      }));
-      setKvkRegistrationLookupSource(result.source);
-    } catch (error) {
-      setKvkRegistrationError(
-        error instanceof Error ? error.message : kvkRegistrationCopy.invalid,
-      );
-    } finally {
-      setIsKvkRegistrationLookingUp(false);
-    }
   };
 
   const submitKvkRegistration = async (event: FormEvent<HTMLFormElement>) => {
@@ -1374,11 +1345,6 @@ export default function App() {
                         setCredentialLoginError(null);
                       }}
                       className="h-14 rounded-2xl border-slate-100 bg-slate-50 px-5 normal-case tracking-normal focus:bg-white"
-                      placeholder={
-                        credentialLoginMode === "customer"
-                          ? "12345678"
-                          : "korisnik@trackpal.app"
-                      }
                       disabled={isCredentialLoginSubmitting}
                     />
                   </div>
@@ -1604,45 +1570,27 @@ export default function App() {
                     {kvkRegistrationCopy.subtitle}
                   </p>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    required
-                    inputMode="numeric"
-                    placeholder={kvkFormLabels.kvk}
-                    value={kvkRegistration.kvk}
-                    onChange={(event) =>
-                      {
-                        setKvkRegistration({
-                          ...kvkRegistration,
-                          kvk: event.target.value,
-                        });
-                        setKvkRegistrationLookupSource(null);
-                        setKvkRegistrationError(null);
-                      }
-                    }
-                  />
-                  <Button
-                    type="button"
-                    className="w-full sm:w-auto"
-                    onClick={() => void lookupKvkRegistration()}
-                    disabled={
-                      isKvkRegistrationSubmitting ||
-                      isKvkRegistrationLookingUp ||
-                      !/^\d{8}$/.test(
-                        kvkRegistration.kvk.replace(/[\s.\-\/()]+/g, ""),
-                      )
-                    }
-                  >
-                    {isKvkRegistrationLookingUp
-                      ? kvkRegistrationCopy.searching
-                      : kvkRegistrationCopy.find}
-                  </Button>
-                </div>
-                {kvkRegistrationLookupSource && (
-                  <p className="rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-100">
-                    {kvkRegistrationCopy[kvkRegistrationLookupSource]}
-                  </p>
-                )}
+                <KvkLookupControl
+                  value={kvkRegistration.kvk}
+                  onChange={(kvk) => {
+                    setKvkRegistration({ ...kvkRegistration, kvk });
+                    setKvkRegistrationError(null);
+                  }}
+                  onResult={(result, kvk) => setKvkRegistration((form) => ({
+                    ...form,
+                    ...result.fields,
+                    kvk,
+                    email: result.fields.email ?? "",
+                    password: "",
+                    password_confirmation: "",
+                  }))}
+                  placeholder={kvkFormLabels.kvk}
+                  findLabel={kvkRegistrationCopy.find}
+                  searchingLabel={kvkRegistrationCopy.searching}
+                  invalidMessage={kvkRegistrationCopy.invalid}
+                  sourceMessages={{ database: kvkRegistrationCopy.database, kvk: kvkRegistrationCopy.kvk }}
+                  disabled={isKvkRegistrationSubmitting}
+                />
                 <label className="block text-xs font-bold dark:text-zinc-200">
                   {kvkFormLabels.company}
                   <Input

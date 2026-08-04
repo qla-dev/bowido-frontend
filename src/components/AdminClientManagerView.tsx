@@ -30,6 +30,7 @@ import { ClientDetail, Pallet, PalletPhoto } from '../types';
 import { getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
+import { KvkLookupControl } from './KvkLookupControl';
 import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
@@ -325,6 +326,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           ? 'Vul de gegevens in om een nieuwe klant te registreren.'
           : 'Enter the details to register a new client.',
     email: language === 'bs' ? 'E-mail' : language === 'nl' ? 'E-mail' : 'Email',
+    country: language === 'bs' ? 'Država' : language === 'nl' ? 'Land' : 'Country',
+    findKvk: language === 'bs' ? 'Pronađi KVK' : language === 'nl' ? 'KVK zoeken' : 'Find KVK',
+    searchingKvk: language === 'bs' ? 'Pretraživanje...' : language === 'nl' ? 'Zoeken...' : 'Searching...',
+    invalidKvk: language === 'bs' ? 'Unesite važeći KVK broj od 8 cifara.' : language === 'nl' ? 'Vul een geldig KVK-nummer van 8 cijfers in.' : 'Enter a valid 8-digit KVK number.',
+    loadedFromDatabase: language === 'bs' ? 'Podaci su učitani iz registrovanog klijenta.' : language === 'nl' ? 'Gegevens geladen uit de geregistreerde klant.' : 'Details loaded from the registered client.',
+    loadedFromKvk: language === 'bs' ? 'Podaci su učitani preko KVK-a. Pregledajte ih i dopunite.' : language === 'nl' ? 'Gegevens geladen via KVK. Controleer en vul ze aan.' : 'Details loaded via KVK. Review and complete them.',
     fixedPhone: language === 'bs' ? 'Fiksni telefon' : language === 'nl' ? 'Vaste telefoon' : 'Fixed phone',
     postalCode: language === 'bs' ? 'Poštanski broj' : language === 'nl' ? 'Postcode' : 'Postal code',
     street: language === 'bs' ? 'Ulica' : language === 'nl' ? 'Straat' : 'Street',
@@ -1083,7 +1090,24 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">KVK
-                <Input required className="mt-1" value={newClientDraft.kvk_number || ''} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, kvk_number: event.target.value }))} />
+                <KvkLookupControl
+                  className="mt-1"
+                  value={newClientDraft.kvk_number || ''}
+                  onChange={(kvk_number) => setNewClientDraft((draft) => ({ ...draft, kvk_number }))}
+                  onResult={(result, kvk_number) => {
+                    const { kvk: _kvk, email, ...fields } = result.fields;
+                    setNewClientDraft((draft) => ({ ...draft, ...fields, kvk_number, billing_email: email ?? draft.billing_email }));
+                  }}
+                  placeholder="e.g. 74291836"
+                  findLabel={labels.findKvk}
+                  searchingLabel={labels.searchingKvk}
+                  invalidMessage={labels.invalidKvk}
+                  sourceMessages={{ database: labels.loadedFromDatabase, kvk: labels.loadedFromKvk }}
+                  disabled={isCreatingClient}
+                />
+              </label>
+              <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.country}
+                <Input className="mt-1" value={newClientDraft.country || ''} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, country: event.target.value }))} />
               </label>
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.companyName}
                 <Input required className="mt-1" value={newClientDraft.name} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, name: event.target.value }))} />

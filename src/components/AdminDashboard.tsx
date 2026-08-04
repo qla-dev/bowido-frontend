@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Package,
   Truck,
@@ -103,6 +104,164 @@ interface AdminDashboardProps {
   openPalletId?: number | null;
   onPalletDetailOpened?: () => void;
 }
+
+type PalletDetailDropdownOption = {
+  value: string;
+  label: string;
+};
+
+const searchMatchRank = (value: string, query: string) => {
+  const normalizedValue = value.toLocaleLowerCase();
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+
+  if (!normalizedQuery || normalizedValue.startsWith(normalizedQuery)) {
+    return 0;
+  }
+
+  return normalizedValue
+    .split(/[^\p{L}\p{N}]+/u)
+    .some((word) => word.startsWith(normalizedQuery))
+    ? 0
+    : 1;
+};
+
+const PalletDetailDropdown = ({
+  value,
+  options,
+  onChange,
+  searchPlaceholder,
+  noResultsLabel,
+}: {
+  value: string;
+  options: PalletDetailDropdownOption[];
+  onChange: (value: string) => void;
+  searchPlaceholder: string;
+  noResultsLabel: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 256 });
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => option.value === value);
+  const visibleOptions = options
+    .filter((option) =>
+      option.label.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()),
+    )
+    .sort((left, right) => {
+      const rankDifference = searchMatchRank(left.label, searchQuery) - searchMatchRank(right.label, searchQuery);
+      return rankDifference || left.label.localeCompare(right.label, undefined, { sensitivity: 'base' });
+    });
+
+  const updatePosition = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Menus overlay the editor rather than forcing the modal to scroll or flip.
+    setMenuPosition({
+      top: rect.bottom + 8,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(140, Math.min(300, window.innerHeight - rect.bottom - 12)),
+    });
+  };
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen, options.length]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [isOpen]);
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          setSearchQuery('');
+          setIsOpen((current) => !current);
+        }}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-gray-100 p-4 text-left font-bold outline-none transition-colors focus:border-emerald-300 dark:bg-white/[0.07]"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <span className="truncate">{selectedOption?.label || value}</span>
+        <ChevronDown size={16} className={cn('shrink-0 text-zinc-400 transition-transform', isOpen && 'rotate-180')} />
+      </button>
+      {isOpen && createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          className="pallet-detail-dropdown-portal overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
+            maxHeight: menuPosition.maxHeight,
+          }}
+        >
+          <div className="relative mb-2">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={searchPlaceholder}
+              autoComplete="off"
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-[11px] font-bold outline-none transition-colors focus:border-emerald-300 dark:border-white/10 dark:bg-white/5"
+            />
+          </div>
+          {visibleOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={cn(
+                'flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors',
+                option.value === value
+                  ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-100'
+                  : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5',
+              )}
+            >
+              <span>{option.label}</span>
+              {option.value === value && <Check size={14} className="shrink-0" />}
+            </button>
+          ))}
+          {visibleOptions.length === 0 && (
+            <p className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest text-zinc-400">
+              {noResultsLabel}
+            </p>
+          )}
+        </div>
+      , document.body)}
+    </div>
+  );
+};
 
 type DeleteConfirmState =
   | { kind: "pallet"; pallet: Pallet }
@@ -218,6 +377,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     useState("");
   const [isEditingPalletClientListOpen, setIsEditingPalletClientListOpen] =
     useState(false);
+  const [isEditingPalletClientListOpeningUpward, setIsEditingPalletClientListOpeningUpward] =
+    useState(false);
+  const [editingPalletClientListMaxHeight, setEditingPalletClientListMaxHeight] =
+    useState(256);
+  const editingPalletClientTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const editingPalletClientMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const [editingPalletClientMenuPosition, setEditingPalletClientMenuPosition] = useState({ top: 0, left: 0, width: 0 });
   const [showEditingPalletDeliveryMap, setShowEditingPalletDeliveryMap] =
     useState(false);
   const [
@@ -244,6 +410,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     useState<Pallet | null>(null);
   const [dashboardStats, setDashboardStats] =
     useState<PalletDashboardStats | null>(null);
+
+  React.useEffect(() => {
+    if (!isEditingPalletClientListOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!editingPalletClientTriggerRef.current?.contains(target) && !editingPalletClientMenuRef.current?.contains(target)) {
+        setIsEditingPalletClientListOpen(false);
+        setEditingPalletClientSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [isEditingPalletClientListOpen]);
   const [palletAuditLogsById, setPalletAuditLogsById] = useState<
     Record<number, AuditLog[]>
   >({});
@@ -828,10 +1009,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     (log) => log.id > 0,
   );
   const latestEditingPalletStatusLog = editingPalletStatusHistory[0] || null;
-  const isEditingPalletPickupCustomer =
-    statuses.find(
-      (status) => status.id === editingPallet?.current_status_id,
-    )?.slug === "ophalen-klant";
   const editingPalletStatus = statuses.find(
     (status) => status.id === editingPallet?.current_status_id,
   );
@@ -881,12 +1058,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           String(client.user_id),
         ].some((value) => value?.toLocaleLowerCase().includes(query));
       })
-      .sort((left, right) =>
-        left.name.localeCompare(right.name, undefined, {
+      .sort((left, right) => {
+        const leftRank = Math.min(
+          ...[left.name, left.country, left.kvk_number, String(left.user_id)]
+            .filter(Boolean)
+            .map((value) => searchMatchRank(String(value), query)),
+        );
+        const rightRank = Math.min(
+          ...[right.name, right.country, right.kvk_number, String(right.user_id)]
+            .filter(Boolean)
+            .map((value) => searchMatchRank(String(value), query)),
+        );
+
+        return leftRank - rightRank || left.name.localeCompare(right.name, undefined, {
           numeric: true,
           sensitivity: "base",
-        }),
-      );
+        });
+      });
   }, [clients, editingPalletClientSearch]);
 
   const renderOverview = () => {
@@ -1049,6 +1237,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           >
                             <td className="px-4 py-2.5 text-center align-middle">
                               <button
+                                ref={editingPalletClientTriggerRef}
                                 type="button"
                                 onClick={() => openQrPreview(p)}
                                 title={t("showQrCode")}
@@ -1863,9 +2052,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4"
           >
             <motion.div
+              data-pallet-editor
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#101715]"
+              className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-visible rounded-[2rem] border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#101715]"
             >
               <div className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4 dark:border-white/10 sm:px-6">
                 <div className="min-w-0">
@@ -1892,7 +2082,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-5 no-scrollbar sm:p-6">
+              <div className="relative z-10 min-h-0 flex-1 overflow-y-auto p-5 no-scrollbar sm:p-6">
                 <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
                   <div className="space-y-4">
                     <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/50 p-5 dark:border-white/10 dark:bg-white/[0.06]">
@@ -1963,11 +2153,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       className="mt-6 overflow-hidden border-t border-zinc-100 pt-5 dark:border-white/10"
-                      style={{
-                        overflow: isEditingPalletClientListOpen
-                          ? "visible"
-                          : "hidden",
-                      }}
+                      style={{ overflow: "visible" }}
                     >
                       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -1996,33 +2182,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                               {t("palletType")}
                             </label>
-                            <select
+                            <PalletDetailDropdown
                               value={editingPallet.type}
-                              onChange={(e) =>
-                                setEditingPallet({
-                                  ...editingPallet,
-                                  type: e.target.value,
-                                })
-                              }
-                              className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                            >
-                              {getPalletTypeOptions(editingPallet.type).map(
-                                (palletType) => (
-                                  <option key={palletType} value={palletType}>
-                                    {getPalletTypeLabel(palletType, language)}
-                                  </option>
-                                ),
-                              )}
-                            </select>
+                              options={getPalletTypeOptions(editingPallet.type).map((palletType) => ({
+                                value: palletType,
+                                label: getPalletTypeLabel(palletType, language),
+                              }))}
+                              onChange={(type) => setEditingPallet({ ...editingPallet, type })}
+                              searchPlaceholder={t("search")}
+                              noResultsLabel={t("noResults")}
+                            />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                               {t("globalStatus")}
                             </label>
-                            <select
-                              value={editingPallet.current_status_id}
-                              onChange={(e) => {
-                                const sid = parseInt(e.target.value);
+                            <PalletDetailDropdown
+                              value={String(editingPallet.current_status_id)}
+                              options={statuses.map((status) => ({
+                                value: String(status.id),
+                                label: getStatusLabel(status.name, language),
+                              }))}
+                              onChange={(value) => {
+                                const sid = parseInt(value);
                                 const selectedStatus = statuses.find(
                                   (s) => s.id === sid,
                                 );
@@ -2074,17 +2256,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         editingPallet.current_location,
                                 });
                               }}
-                              className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
-                            >
-                              {statuses.map((s) => (
-                                <option
-                                  key={`filter-status-${s.id}`}
-                                  value={s.id}
-                                >
-                                  {getStatusLabel(s.name, language)}
-                                </option>
-                              ))}
-                            </select>
+                              searchPlaceholder={t("search")}
+                              noResultsLabel={t("noResults")}
+                            />
                           </div>
                           {statusIdAllowsCustomer(
                             statuses,
@@ -2099,28 +2273,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 "relative",
                                 isEditingPalletClientListOpen && "z-[100]",
                               )}
-                              onBlur={(event) => {
-                                if (
-                                  !event.currentTarget.contains(
-                                    event.relatedTarget as Node | null,
-                                  )
-                                ) {
-                                  setIsEditingPalletClientListOpen(false);
-                                  setEditingPalletClientSearch("");
-                                }
-                              }}
                             >
                               <button
+                                ref={editingPalletClientTriggerRef}
                                 type="button"
-                                disabled={
-                                  isEditingPalletPickupCustomer ||
-                                  !statusIdAllowsCustomer(
-                                    statuses,
-                                    editingPallet.current_status_id,
-                                  )
-                                }
+                                disabled={!statusIdAllowsCustomer(
+                                  statuses,
+                                  editingPallet.current_status_id,
+                                )}
                                 onClick={() => {
                                   setEditingPalletClientSearch("");
+                                  const rect = editingPalletClientTriggerRef.current?.getBoundingClientRect();
+                                  if (rect) {
+                                    setIsEditingPalletClientListOpeningUpward(false);
+                                    setEditingPalletClientListMaxHeight(
+                                      Math.max(140, Math.min(300, window.innerHeight - rect.bottom - 12)),
+                                    );
+                                    setEditingPalletClientMenuPosition({
+                                      top: rect.bottom + 8,
+                                      left: rect.left,
+                                      width: rect.width,
+                                    });
+                                  }
                                   setIsEditingPalletClientListOpen(
                                     (current) => !current,
                                   );
@@ -2149,14 +2323,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </button>
 
                               {isEditingPalletClientListOpen &&
-                                !isEditingPalletPickupCustomer &&
                                 statusIdAllowsCustomer(
                                   statuses,
                                   editingPallet.current_status_id,
-                                ) && (
+                                ) && createPortal(
                                   <div
+                                    ref={editingPalletClientMenuRef}
                                     id="editing-pallet-client-list"
-                                    className="absolute left-0 top-full z-[110] mt-2 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
+                                    className="pallet-detail-dropdown-portal overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]"
+                                    style={{
+                                      top: editingPalletClientMenuPosition.top,
+                                      left: editingPalletClientMenuPosition.left,
+                                      width: editingPalletClientMenuPosition.width,
+                                      maxHeight: editingPalletClientListMaxHeight,
+                                    }}
                                   >
                                     <div className="bg-white pb-2 dark:bg-[#151d1a]">
                                       <div className="relative">
@@ -2175,13 +2355,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           placeholder={t("search")}
                                           className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-[11px] font-bold outline-none transition-colors focus:border-emerald-300 dark:border-white/10 dark:bg-white/5 sm:h-auto sm:py-2.5"
                                           autoComplete="off"
-                                          autoFocus
                                         />
                                       </div>
                                     </div>
                                     <div
                                       role="listbox"
-                                      className="max-h-[calc(100dvh-16rem)] space-y-1 overflow-y-auto overscroll-contain pr-1 sm:max-h-52"
+                                      className="space-y-1 overflow-y-auto overscroll-contain pr-1"
+                                      style={{ maxHeight: Math.max(80, editingPalletClientListMaxHeight - 72) }}
                                     >
                                       <button
                                         type="button"
@@ -2259,8 +2439,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 {client.name}
                                               </span>
                                               <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-400">
-                                                {client.country} / #
-                                                {client.user_id}
+                                                {client.kvk_number || t("notAvailable")}
                                               </span>
                                             </span>
                                             {editingPallet.user_id ===
@@ -2281,7 +2460,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         </p>
                                       )}
                                     </div>
-                                  </div>
+                                  </div>,
+                                  document.body,
                                 )}
                             </div>
                         </div>
@@ -2582,7 +2762,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   )}
                 </AnimatePresence>
               </div>
-              <div className="grid shrink-0 grid-cols-3 items-center gap-4 border-t border-zinc-100 p-4 dark:border-white/10 sm:p-5">
+              <div data-pallet-editor-footer className="relative z-0 grid shrink-0 grid-cols-3 items-center gap-4 border-t border-zinc-100 p-4 dark:border-white/10 sm:p-5">
                 <button
                   type="button"
                   onClick={() =>

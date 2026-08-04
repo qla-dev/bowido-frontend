@@ -59,6 +59,7 @@ interface AppContextType {
     data: DeliveryLocationInput,
   ) => Promise<DeliveryLocation>;
   scanCustomerPossessionPallet: (qrCode: string) => Promise<Pallet>;
+  scanPalletByQr: (qrCode: string, scannedCandidates: string[]) => Promise<Pallet>;
   claimCustomerPossessionPallet: (
     palletId: number,
     statusId: number,
@@ -778,6 +779,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     return pallet;
   };
 
+  const scanPalletByQr = async (qrCode: string, scannedCandidates: string[]): Promise<Pallet> => {
+    const pallet = await apiService.pallets.scanLookup(qrCode, scannedCandidates);
+    upsertPalletInState(pallet);
+    return pallet;
+  };
+
   const claimCustomerPossessionPallet = async (
     palletId: number,
     statusId: number,
@@ -1072,6 +1079,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         updatePallet,
         savePalletDeliveryLocation,
         scanCustomerPossessionPallet,
+        scanPalletByQr,
         claimCustomerPossessionPallet,
         deletePallet,
         addClient,

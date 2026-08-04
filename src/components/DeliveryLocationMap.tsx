@@ -506,8 +506,7 @@ export const DeliveryLocationMap = ({
   const canSave =
     Boolean(selectedCoordinates) &&
     !isSaving &&
-    !deviceLocation.isRefining &&
-    (hasUnsavedChanges || !savedLocation);
+    !deviceLocation.isRefining;
   const showDesktopSplitDetails =
     isDesktopSplit && Boolean(selectedCoordinates);
 
@@ -1025,7 +1024,7 @@ export const DeliveryLocationMap = ({
                 : savedLocation
                   ? hasUnsavedChanges
                     ? text.update
-                    : text.saved
+                    : text.save
                   : text.save}
             </button>
 

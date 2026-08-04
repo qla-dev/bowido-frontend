@@ -24,7 +24,7 @@ import {
   getNoQrReturnButtonCopy,
 } from "./NoQrReturnFormModal";
 import { getLocationLabel, getPalletTypeLabel, getStatusLabel } from "../i18n";
-import { findPalletByScannedQr } from "../lib/palletQrMatching";
+import { getScannedQrCandidates } from "../lib/palletQrMatching";
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import {
   decodeQrFromImageBitmap,
@@ -124,6 +124,7 @@ const DRIVER_STATUS_SLUG_ORDER = [
   "bowido-nl",
   "bowido-bih",
   "service",
+  "onbekend",
 ] as const;
 
 type DriverCopy = {
@@ -461,6 +462,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     updatePalletStatus,
     savePalletDeliveryLocation,
     scanCustomerPossessionPallet,
+    scanPalletByQr,
     claimCustomerPossessionPallet,
     reportDamage,
     statuses,
@@ -1053,7 +1055,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     setOpenChangeMenu(null);
     setDraftStatusId(
-      [1, 2, 3, 4, 5, 6, 7].includes(selectedPallet.current_status_id)
+      [1, 2, 3, 4, 5, 6, 7, 8].includes(selectedPallet.current_status_id)
         ? selectedPallet.current_status_id
         : 0,
     );
@@ -1202,22 +1204,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     return qrDetectorRef.current;
   };
 
-  const findMatchingPallet = (rawValue: string) => {
-    return findPalletByScannedQr(rawValue, palletsRef.current);
-  };
-
   const handleDetectedCode = async (rawValue: string) => {
-    let matchedPallet = findMatchingPallet(rawValue);
+    let matchedPallet: Pallet | null = null;
+    const scannedCandidates = getScannedQrCandidates(rawValue);
 
-    if (!matchedPallet && isCustomer) {
-      try {
-        matchedPallet = await scanCustomerPossessionPallet(rawValue);
-      } catch {
-        matchedPallet = null;
-      }
+    try {
+      matchedPallet = isCustomer
+        ? await scanCustomerPossessionPallet(rawValue)
+        : await scanPalletByQr(rawValue, scannedCandidates);
+    } catch {
+      matchedPallet = null;
     }
 
     if (!matchedPallet) {
+      void apiService.pallets.logScanDiagnostics({
+        rawQrCode: rawValue,
+        scannedCandidates,
+        loadedPalletCount: palletsRef.current.length,
+      }).catch(() => undefined);
       showFlash(
         text.scanImageNotRecognizedTitle,
         text.scanImageNotRecognizedDetail,
@@ -1989,7 +1993,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       rawValue = rawValue || decodeQrFromImageBitmap(bitmap, scanCanvasRef);
 
       if (rawValue) {
-        handleDetectedCode(rawValue);
+        await handleDetectedCode(rawValue);
         return;
       }
 
@@ -2020,7 +2024,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   const handleHistoryPalletOpen = (palletCode: string) => {
     setIsScannedPalletsModalOpen(false);
-    handleDetectedCode(palletCode);
+    void handleDetectedCode(palletCode);
   };
 
   const handleFullscreenModalBack = () => {

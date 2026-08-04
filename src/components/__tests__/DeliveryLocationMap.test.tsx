@@ -374,7 +374,9 @@ describe("DeliveryLocationMap", () => {
     expect(
       screen.getByText("Delivery location saved for this pallet."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Saved" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Save as delivery location" }),
+    ).toBeEnabled();
   });
 
   it("renders an existing saved delivery location when reopened", () => {

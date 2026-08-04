@@ -4,7 +4,7 @@ import { QrCode, X, ScanLine, Camera, AlertCircle, CheckCircle2, ChevronRight } 
 import { Button, Card, Badge, Input, cn } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
-import { findPalletByScannedQr } from '../lib/palletQrMatching';
+import { getScannedQrCandidates } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 import { createNativeQrDetector, NativeQrDetector } from '../lib/nativeQrDetector';
 import { apiService } from '../services/api';
@@ -28,7 +28,7 @@ interface ScannerProps {
 }
 
 export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, onPalletDetected }) => {
-  const { pallets, statuses, clients, updatePalletStatus, t, language } = useApp();
+  const { pallets, statuses, clients, updatePalletStatus, scanPalletByQr, t, language } = useApp();
   const isDetailScan = Boolean(onPalletDetected);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
@@ -80,10 +80,16 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     setScannedCodes((prev) => prev.includes(code) ? prev : [...prev, code]);
   }, [scanMode]);
 
-  const handleDetectedCode = React.useCallback((rawValue: string) => {
-    const matchedPallet = findPalletByScannedQr(rawValue, pallets);
+  const handleDetectedCode = React.useCallback(async (rawValue: string) => {
+    let matchedPallet: Pallet | null = null;
 
-    if (!matchedPallet) {
+    try {
+      matchedPallet = await scanPalletByQr(rawValue, getScannedQrCandidates(rawValue));
+    } catch {
+      matchedPallet = null;
+    }
+
+    if (matchedPallet === null) {
       setScanError('This QR code is not linked to a pallet.');
       lastDetectedAtRef.current = Date.now();
       return;
@@ -92,7 +98,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     setScanError(null);
     handleDetectedPallet(matchedPallet);
     lastDetectedAtRef.current = Date.now();
-  }, [handleDetectedPallet, pallets]);
+  }, [handleDetectedPallet, scanPalletByQr]);
 
   const getQrDetector = React.useCallback(createNativeQrDetector, []);
 
@@ -165,7 +171,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         }
 
         if (rawValue) {
-          handleDetectedCode(rawValue);
+          await handleDetectedCode(rawValue);
         }
       } finally {
         scanBusyRef.current = false;
@@ -261,7 +267,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
   const handleComplete = () => {
     scannedCodes.forEach((code) => {
-      const pallet = findPalletByScannedQr(code, pallets);
+      const pallet = pallets.find((item) => item.qr_code === code);
       if (pallet) {
         updatePalletStatus(
           pallet.id,
@@ -305,7 +311,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       rawValue = rawValue || decodeQrFromImageBitmap(bitmap, scanCanvasRef);
 
       if (rawValue) {
-        handleDetectedCode(rawValue);
+        await handleDetectedCode(rawValue);
       } else {
         setScanError('No QR code was found in that image.');
       }
