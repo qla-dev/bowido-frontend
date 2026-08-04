@@ -121,6 +121,7 @@ export interface Pallet {
   asset_type?: string;
   current_location: string;
   is_ghost: boolean;
+  is_for_repair: boolean;
   is_active: boolean;
   last_status_changed_at: string;
   created_at: string;
@@ -142,7 +143,8 @@ export interface AuditLog {
   pallet_qr: string;
   made_by_user_id: number;
   made_by_user_name: string;
-  type?: "status" | "qr_version";
+  type?: "status" | "qr_version" | "repair";
+  event_type?: string;
   old_status_id?: number;
   new_status_id: number;
   old_status_name?: string;
@@ -156,6 +158,7 @@ export interface AuditLog {
   new_qr_code?: string;
   note?: string;
   status_change_photo_url?: string;
+  context?: Record<string, unknown>;
   created_at: string;
 }
 

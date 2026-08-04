@@ -58,15 +58,19 @@ export const getPalletQrCandidates = (pallet: Pallet) => {
   return Array.from(candidates);
 };
 
-export const findPalletByScannedQr = (rawValue: string, pallets: Pallet[]) => {
+export const getScannedQrCandidates = (rawValue: string) => {
   const scannedCandidates = new Set<string>();
   addQrCandidates(scannedCandidates, rawValue);
 
-  if (scannedCandidates.size === 0) {
+  return Array.from(scannedCandidates);
+};
+
+export const findPalletByScannedQr = (rawValue: string, pallets: Pallet[]) => {
+  const scannedValues = getScannedQrCandidates(rawValue);
+
+  if (scannedValues.length === 0) {
     return null;
   }
-
-  const scannedValues = Array.from(scannedCandidates);
 
   const matchedPallet = (
     pallets.find((pallet) =>

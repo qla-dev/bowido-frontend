@@ -309,8 +309,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                         {formatAppDateTime(log.created_at, language)}
                       </td>
                       <td className="px-6 py-4">
-                        <Badge variant={logType === 'qr_version' ? 'success' : 'info'}>
-                          {logType === 'qr_version' ? t('qrVersionChange') : t('statusChange')}
+                        <Badge variant={logType === 'qr_version' ? 'success' : logType === 'repair' ? 'danger' : 'info'}>
+                          {logType === 'qr_version' ? t('qrVersionChange') : logType === 'repair' ? 'Repair status' : t('statusChange')}
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
@@ -351,6 +351,15 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                               <span>{t('oldQrCode')}: {log.old_qr_code || '-'}</span>
                               <span>{t('newQrCode')}: {log.new_qr_code || '-'}</span>
                             </div>
+                          </div>
+                        ) : logType === 'repair' ? (
+                          <div className="space-y-1">
+                            <p className="font-black text-rose-600">
+                              {log.context?.new_is_for_repair ? 'Marked for repair' : 'Unmarked for repair'}
+                            </p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                              {log.note || '-'}
+                            </p>
                           </div>
                         ) : (
                           <div className="space-y-2">
@@ -461,8 +470,8 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                     </td>
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <Badge variant={logType === 'qr_version' ? 'success' : 'info'}>
-                          {logType === 'qr_version' ? t('qrVersionChange') : t('statusChange')}
+                        <Badge variant={logType === 'qr_version' ? 'success' : logType === 'repair' ? 'danger' : 'info'}>
+                          {logType === 'qr_version' ? t('qrVersionChange') : logType === 'repair' ? 'Repair status' : t('statusChange')}
                         </Badge>
                       </div>
                     </td>
@@ -508,6 +517,15 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                               <p className="truncate">{t('oldQrCode')}: {log.old_qr_code || '-'}</p>
                               <p className="truncate">{t('newQrCode')}: {log.new_qr_code || '-'}</p>
                             </div>
+                          </div>
+                        ) : logType === 'repair' ? (
+                          <div className="space-y-1">
+                            <p className="font-black text-rose-600">
+                              {log.context?.new_is_for_repair ? 'Marked for repair' : 'Unmarked for repair'}
+                            </p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                              {log.note || '-'}
+                            </p>
                           </div>
                         ) : (
                           <div className="min-w-0 space-y-2 text-center">

@@ -288,7 +288,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                       <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-zinc-500 dark:text-[#b8cabf]">{pallet.current_location}</p>
                     </div>
                     <div className="text-right">
-                      <Badge variant={pallet.current_status_id === 7 ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
+                      <Badge variant={pallet.is_for_repair ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>
                         {getStatusLabel(pallet.current_status_name, language)}
                       </Badge>
                       <p className="mt-2 text-[11px] font-medium text-zinc-500 dark:text-[#b8cabf]">{days} d</p>

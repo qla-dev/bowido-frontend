@@ -6,6 +6,7 @@ import {
   Search,
   Warehouse,
   Wrench,
+  Check,
   X,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
@@ -19,10 +20,11 @@ import { getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDateTime } from '../lib/dateFormat';
 import { apiService } from '../services/api';
+import { useInfinitePagination } from '../hooks/useInfinitePagination';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
-type OperationColumnKey = 'primary' | 'secondary' | 'status' | 'location' | 'client' | 'metric' | 'amount';
+type OperationColumnKey = 'primary' | 'secondary' | 'status' | 'location' | 'client' | 'metric' | 'amount' | 'actions';
 
 type OperationRow = {
   id: string;
@@ -46,6 +48,7 @@ const COLUMN_WIDTHS: Record<string, number> = {
   client: 190,
   metric: 170,
   amount: 170,
+  actions: 110,
 };
 
 const MIN_WIDTHS: Record<string, number> = {
@@ -56,6 +59,7 @@ const MIN_WIDTHS: Record<string, number> = {
   client: 150,
   metric: 135,
   amount: 135,
+  actions: 90,
 };
 
 const ADMIN_ROLE_PAGE_SIZE = 25;
@@ -64,7 +68,7 @@ const getDaysSince = (date: string) =>
   Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
 
 export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) => {
-  const { clients, pallets, statuses, serviceReports, invoices, language, updatePalletStatus, t } = useApp();
+  const { clients, pallets, statuses, serviceReports, invoices, language, updatePalletRepairStatus, t } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<string, HTMLTableCellElement | null>>>({});
   const [selectedRow, setSelectedRow] = useState<OperationRow | null>(null);
@@ -85,6 +89,35 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     client: [],
     metric: [],
     amount: [],
+    actions: [],
+  });
+  const repairPalletPage = useMemo(
+    () => (offset: number) => mode === 'service'
+      ? apiService.pallets.page({
+          limit: ADMIN_ROLE_PAGE_SIZE,
+          offset,
+          is_for_repair: true,
+          sort_by: 'pallet_name',
+          sort_direction: 'asc',
+        })
+      : Promise.resolve({
+          items: [],
+          meta: { total: 0, limit: ADMIN_ROLE_PAGE_SIZE, offset, count: 0 },
+        }),
+    [mode],
+  );
+  const {
+    items: repairPallets,
+    hasMore: hasMoreRepairPallets,
+    isInitialLoading: isRepairPalletsLoading,
+    isLoadingMore: isLoadingMoreRepairPallets,
+    error: repairPalletsError,
+    loadMore: loadMoreRepairPallets,
+    retry: retryRepairPallets,
+  } = useInfinitePagination({
+    queryKey: `repair-pallets-${mode}`,
+    pageSize: ADMIN_ROLE_PAGE_SIZE,
+    fetchPage: repairPalletPage,
   });
   const {
     headerCellClass,
@@ -227,6 +260,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         { key: 'client', label: copy.client },
         { key: 'metric', label: copy.metric },
         { key: 'amount', label: copy.amount },
+        { key: 'actions', label: language === 'bs' ? 'Akcije' : language === 'nl' ? 'Acties' : 'Actions' },
       ] as const,
     [copy]
   );
@@ -266,7 +300,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
 
     const relevantPallets =
       mode === 'service'
-        ? pallets.filter((pallet) => pallet.current_status_id === 7 || serviceReports.some((report) => report.pallet_id === pallet.id && !report.resolved_at))
+        ? repairPallets
         : pallets.filter((pallet) => [1, 2, 3, 5, 6, 8].includes(pallet.current_status_id));
 
     return relevantPallets.map((pallet) => {
@@ -303,9 +337,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         },
       };
     });
-  }, [clients, currencyFormatter, invoices, language, mode, pallets, serviceReports, statuses]);
+  }, [clients, currencyFormatter, invoices, language, mode, pallets, repairPallets, serviceReports, statuses]);
 
-  const getOperationValue = (row: OperationRow, key: OperationColumnKey) => row[key];
+  const getOperationValue = (row: OperationRow, key: OperationColumnKey) => key === 'actions' ? '' : row[key];
   const filterOptions = useMemo<Record<OperationColumnKey, AdminTableFilterOption[]>>(
     () => Object.fromEntries(
       columns.map((column) => [
@@ -364,6 +398,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       client: [],
       metric: [],
       amount: [],
+      actions: [],
     });
   }, [mode]);
 
@@ -379,7 +414,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
 
   const markServiceResolved = (row: OperationRow) => {
     if (!row.pallet) return;
-    updatePalletStatus(row.pallet.id, 1, 1, 'Admin Service', row.pallet.current_location, 'Service resolved from admin service table.');
+    updatePalletRepairStatus(row.pallet.id, false);
     setSelectedRow(null);
   };
   const ModeIcon = mode === 'service' ? Wrench : mode === 'warehouse' ? Warehouse : Banknote;
@@ -438,6 +473,19 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               <tr>
                 {columns.map((column) => {
                   const isActiveSort = sortConfig.key === column.key;
+
+                  if (column.key === 'actions') {
+                    return (
+                      <th key={`role-admin-header-${mode}-${column.key}`} ref={registerHeaderCell(column.key)} className={cn(headerCellClass, 'group')}>
+                        <div className={headerContentClass}>
+                          <span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-900 dark:text-white">
+                            {column.label}
+                          </span>
+                        </div>
+                        {renderResizeHandle(column.key)}
+                      </th>
+                    );
+                  }
 
                   return (
                     <th key={`role-admin-header-${mode}-${column.key}`} ref={registerHeaderCell(column.key)} className={cn(headerCellClass, 'group')}>
@@ -509,7 +557,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                     <td key={`role-admin-cell-${row.id}-${cellIndex}`} className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
                         {cellIndex === 2 ? (
-                          <Badge variant={row.pallet?.current_status_id === 7 ? 'danger' : row.pallet?.current_status_id === 5 ? 'warning' : 'info'} className="rounded-lg text-[9px]">
+                          <Badge variant={row.pallet?.is_for_repair ? 'danger' : row.pallet?.current_status_id === 5 ? 'warning' : 'info'} className="rounded-lg text-[9px]">
                             {value}
                           </Badge>
                         ) : (
@@ -518,6 +566,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                               bodyTextClass,
                               cellIndex === 6 && mode === 'finance' && Number(row.sortValues.amount) > 0
                                 ? 'text-rose-600'
+                              : cellIndex === 0 && row.pallet?.is_for_repair
+                                ? 'text-rose-600 dark:text-rose-300'
                                 : 'text-zinc-600 dark:text-zinc-200'
                             )}
                           >
@@ -527,6 +577,29 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                       </div>
                     </td>
                   ))}
+                  <td className={bodyCellClass} onClick={(event) => event.stopPropagation()}>
+                    <div className={bodyCellInnerClass}>
+                      {mode === 'service' && row.pallet ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          className={cn(
+                            'h-9 w-9 p-0',
+                            row.pallet.is_for_repair
+                              ? 'border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700'
+                              : 'border-emerald-200 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
+                          )}
+                          title={row.pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
+                          aria-label={row.pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
+                          aria-pressed={row.pallet.is_for_repair}
+                          onClick={() => updatePalletRepairStatus(row.pallet!.id, !row.pallet!.is_for_repair)}
+                        >
+                          <Check size={15} />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </td>
                 </motion.tr>
               ))}
             </tbody>
@@ -534,9 +607,19 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         )}
       />
       <InfiniteScrollFooter
-        hasMore={paginatedRows.length < visibleRows.length}
-        isLoading={false}
-        onLoadMore={() => setVisibleCount((current) => Math.min(current + ADMIN_ROLE_PAGE_SIZE, visibleRows.length))}
+        hasMore={paginatedRows.length < visibleRows.length || (mode === 'service' && hasMoreRepairPallets)}
+        isLoading={mode === 'service' && (isRepairPalletsLoading || isLoadingMoreRepairPallets)}
+        error={mode === 'service' ? repairPalletsError : undefined}
+        onLoadMore={() => {
+          if (paginatedRows.length < visibleRows.length) {
+            setVisibleCount((current) => Math.min(current + ADMIN_ROLE_PAGE_SIZE, visibleRows.length));
+            return;
+          }
+          if (mode === 'service') {
+            loadMoreRepairPallets();
+          }
+        }}
+        onRetry={mode === 'service' ? retryRepairPallets : undefined}
         language={language}
       />
 

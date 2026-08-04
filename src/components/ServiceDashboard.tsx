@@ -12,11 +12,11 @@ interface ServiceDashboardProps {
 }
 
 export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
-  const { pallets, updatePalletStatus, t, language, serviceReports, setIsScannerOpen } = useApp();
+  const { pallets, updatePalletRepairStatus, t, language, serviceReports, setIsScannerOpen } = useApp();
 
   const servicePallets = pallets.filter(
     (pallet) =>
-      pallet.current_status_id === 7 ||
+      pallet.is_for_repair ||
       serviceReports.some((report) => report.pallet_id === pallet.id && !report.resolved_at)
   );
   const openReports = serviceReports.filter((report) => !report.resolved_at);
@@ -50,16 +50,7 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
   };
 
   const handleFix = (palletId: number) => {
-    const pallet = pallets.find((item) => item.id === palletId);
-
-    updatePalletStatus(
-      palletId,
-      1,
-      user.id,
-      user.name,
-      pallet?.current_location || 'Warehouse BiH',
-      t('markAsFixed')
-    );
+    updatePalletRepairStatus(palletId, false);
   };
 
   return (

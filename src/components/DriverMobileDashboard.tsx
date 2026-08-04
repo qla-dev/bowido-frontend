@@ -24,7 +24,7 @@ import {
   getNoQrReturnButtonCopy,
 } from "./NoQrReturnFormModal";
 import { getLocationLabel, getPalletTypeLabel, getStatusLabel } from "../i18n";
-import { findPalletByScannedQr } from "../lib/palletQrMatching";
+import { getScannedQrCandidates } from "../lib/palletQrMatching";
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import {
   decodeQrFromImageBitmap,
@@ -115,7 +115,6 @@ const bowidoWarehouseDirectory = {
   warehouse2: "Nikole Tesle 71",
 };
 
-const SERVICE_ADDRESS = "Nikole Tesle 71, 74000 Doboj";
 const DRIVER_STATUS_SLUG_ORDER = [
   "bij-de-klant",
   "ophalen-klant",
@@ -124,6 +123,7 @@ const DRIVER_STATUS_SLUG_ORDER = [
   "bowido-nl",
   "bowido-bih",
   "service",
+  "onbekend",
 ] as const;
 
 type DriverCopy = {
@@ -459,8 +459,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     clients,
     deletePallet,
     updatePalletStatus,
+    updatePalletRepairStatus,
     savePalletDeliveryLocation,
     scanCustomerPossessionPallet,
+    scanPalletByQr,
     claimCustomerPossessionPallet,
     reportDamage,
     statuses,
@@ -653,7 +655,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             successDetail: "The pallet has been returned from service.",
           };
   const repairPallets = pallets.filter(
-    (pallet) => pallet.is_active && pallet.current_status_slug === "service",
+    (pallet) => pallet.is_active && pallet.is_for_repair,
   );
   const noQrPickupPallets = pallets.filter(
     (pallet) =>
@@ -820,12 +822,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             label: "Nikole Tesle 71",
             address: "",
           }
-        : draftStatus?.slug === "service"
-          ? {
-              label: getDriverStatusLabel(draftStatus.name),
-              address: SERVICE_ADDRESS,
-            }
-          : null;
+        : null;
   const selectedClientName = statusIdAllowsCustomer(statuses, draftStatusId)
     ? isCustomer
       ? user.name
@@ -960,7 +957,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const isTransportStatus = ["bih-nl-transport", "nl-bih-transport"].includes(
     selectedPallet?.current_status_slug || "",
   );
-  const isRepairStatus = draftStatus?.slug === "service";
   const isLocationChangeDisabled =
     isTransportStatus ||
     Boolean(fixedWarehouseLocationMeta) ||
@@ -968,7 +964,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const isWarehouseStatus = ["bowido-bih", "bowido-nl"].includes(
     selectedPallet?.current_status_slug || "",
   );
-  const isCheckInStatus = ["bowido-bih", "bowido-nl", "service"].includes(
+  const isCheckInStatus = ["bowido-bih", "bowido-nl"].includes(
     selectedPallet?.current_status_slug || "",
   );
   const shouldShowPalletPhotoAction = user.role_name !== RoleType.KLIJENT;
@@ -976,7 +972,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     "bowido-bih",
     "bowido-nl",
     "ophalen-klant",
-    "service",
   ].includes(draftStatus?.slug || "");
   const transportLocationLabel =
     language === "nl"
@@ -1053,7 +1048,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     setOpenChangeMenu(null);
     setDraftStatusId(
-      [1, 2, 3, 4, 5, 6, 7].includes(selectedPallet.current_status_id)
+      [1, 2, 3, 4, 5, 6, 7, 8].includes(selectedPallet.current_status_id)
         ? selectedPallet.current_status_id
         : 0,
     );
@@ -1202,22 +1197,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     return qrDetectorRef.current;
   };
 
-  const findMatchingPallet = (rawValue: string) => {
-    return findPalletByScannedQr(rawValue, palletsRef.current);
-  };
-
   const handleDetectedCode = async (rawValue: string) => {
-    let matchedPallet = findMatchingPallet(rawValue);
+    let matchedPallet: Pallet | null = null;
+    const scannedCandidates = getScannedQrCandidates(rawValue);
 
-    if (!matchedPallet && isCustomer) {
-      try {
-        matchedPallet = await scanCustomerPossessionPallet(rawValue);
-      } catch {
-        matchedPallet = null;
-      }
+    try {
+      matchedPallet = isCustomer
+        ? await scanCustomerPossessionPallet(rawValue)
+        : await scanPalletByQr(rawValue, scannedCandidates);
+    } catch {
+      matchedPallet = null;
     }
 
     if (!matchedPallet) {
+      void apiService.pallets.logScanDiagnostics({
+        rawQrCode: rawValue,
+        scannedCandidates,
+        loadedPalletCount: palletsRef.current.length,
+      }).catch(() => undefined);
       showFlash(
         text.scanImageNotRecognizedTitle,
         text.scanImageNotRecognizedDetail,
@@ -1605,9 +1602,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         ? "Driver marked pallet as Bij de klant."
         : nextStatus?.slug === "ophalen-klant"
           ? "Driver marked pallet as Ophalen klant."
-          : nextStatus?.slug === "service"
-            ? "Driver marked pallet in repair."
-            : transportStatusIds.includes(nextStatusId)
+          : transportStatusIds.includes(nextStatusId)
               ? "Driver marked pallet in transport."
               : "Driver marked pallet in Bowido warehouse.",
       nextClientId,
@@ -1619,9 +1614,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         ? text.statusSavedDetailAtClient
         : nextStatus?.slug === "ophalen-klant"
           ? text.statusSavedDetailReturn
-          : nextStatus?.slug === "service"
-            ? text.statusSavedDetailRepair
-            : transportStatusIds.includes(nextStatusId)
+          : transportStatusIds.includes(nextStatusId)
               ? text.statusSavedDetailTransport
               : text.statusSavedDetailWarehouse,
       "success",
@@ -1653,9 +1646,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         ? bowidoWarehouseDirectory.warehouse1
         : nextStatus?.slug === "bowido-bih"
           ? bowidoWarehouseDirectory.warehouse2
-          : nextStatus?.slug === "service"
-            ? SERVICE_ADDRESS
-            : getLocationMeta(draftLocationMode, nextLocationClientId).address;
+          : getLocationMeta(draftLocationMode, nextLocationClientId).address;
 
     if (["bowido-nl", "bowido-bih"].includes(nextStatus?.slug || "")) {
       setDraftLocationMode(
@@ -1989,7 +1980,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       rawValue = rawValue || decodeQrFromImageBitmap(bitmap, scanCanvasRef);
 
       if (rawValue) {
-        handleDetectedCode(rawValue);
+        await handleDetectedCode(rawValue);
         return;
       }
 
@@ -2020,7 +2011,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   const handleHistoryPalletOpen = (palletCode: string) => {
     setIsScannedPalletsModalOpen(false);
-    handleDetectedCode(palletCode);
+    void handleDetectedCode(palletCode);
   };
 
   const handleFullscreenModalBack = () => {
@@ -3128,14 +3119,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                               : repairListCopy.repaired,
                           tone: "success",
                           onConfirm: () => {
-                            updatePalletStatus(
-                              pallet.id,
-                              1,
-                              user.id,
-                              user.name,
-                              pallet.current_location,
-                              "Service marked pallet as repaired from mobile screen.",
-                            );
+                            updatePalletRepairStatus(pallet.id, false);
                             showFlash(
                               repairListCopy.successTitle,
                               language === "bs"

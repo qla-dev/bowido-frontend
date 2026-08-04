@@ -4,12 +4,11 @@ import {
   Search,
   ArrowUpDown,
   Package,
-  Edit,
   Trash2,
   Plus,
   RotateCcw,
   FileSpreadsheet,
-  Check,
+  Wrench,
   ChevronDown,
   Funnel,
   X,
@@ -132,7 +131,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   onEditPallet,
   onDeletePallet,
 }) => {
-  const { pallets: cachedPallets, statuses, clients, t, language } = useApp();
+  const { pallets: cachedPallets, statuses, clients, t, language, updatePalletRepairStatus } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const quickFilterRef = useRef<HTMLDivElement | null>(null);
@@ -1334,7 +1333,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   >
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
-                        <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-zinc-300')}>
+                        <span className={cn(bodyTextClass, pallet.is_for_repair ? 'text-rose-600 dark:text-rose-300' : 'text-zinc-900 dark:text-zinc-300')}>
                           {getPalletDisplayName(pallet)}
                         </span>
                       </div>
@@ -1365,7 +1364,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                       <div className="flex min-h-[2.75rem] items-center justify-center">
                         <Badge
                           variant={
-                            pallet.current_status_id === 7
+                            pallet.is_for_repair
                               ? 'danger'
                               : pallet.current_status_id === 4
                                 ? 'success'
@@ -1425,15 +1424,21 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                             type="button"
                             variant="outline"
                             size="xs"
-                            className="h-10 w-10 p-0"
+                            className={cn(
+                              'h-10 w-10 p-0',
+                              pallet.is_for_repair
+                                ? 'border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700'
+                                : 'border-emerald-200 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
+                            )}
                             onClick={(event) => {
                               event.stopPropagation();
-                              onEditPallet?.(pallet);
+                              updatePalletRepairStatus(pallet.id, !pallet.is_for_repair);
                             }}
-                            title={t('editData')}
-                            aria-label={t('editData')}
+                            title={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
+                            aria-label={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
+                            aria-pressed={pallet.is_for_repair}
                           >
-                            <Edit size={15} />
+                            <Wrench size={15} />
                           </Button>
                           <Button
                             type="button"

@@ -319,7 +319,6 @@ const statusUiBySlug: Record<string, { id: number; name: string }> = {
   at_customer: { id: 4, name: 'Bij de klant' },
   pending_return: { id: 5, name: 'Voor retour' },
   transport_nl_bih: { id: 6, name: 'Transport (NL/BiH)' },
-  service: { id: 7, name: 'Voor reparatie' },
   unknown: { id: 8, name: 'Onbekend' },
 };
 
@@ -333,9 +332,6 @@ const statusUiByName: Record<string, { id: number; name: string }> = {
   'Bij de klant': statusUiBySlug.at_customer,
   'Pending Return': statusUiBySlug.pending_return,
   'Voor retour': statusUiBySlug.pending_return,
-  Service: statusUiBySlug.service,
-  Servis: statusUiBySlug.service,
-  'Voor reparatie': statusUiBySlug.service,
   Unknown: statusUiBySlug.unknown,
   Onbekend: statusUiBySlug.unknown,
 };
@@ -545,6 +541,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     type: pallet.type || pallet.asset_type || 'invullen!',
     current_location: pallet.current_location || '',
     is_ghost: toBoolean(pallet.is_ghost),
+    is_for_repair: toBoolean(pallet.is_for_repair),
     is_active: toBoolean(pallet.is_active),
     last_status_changed_at: pallet.last_status_changed_at || pallet.updated_at || new Date().toISOString(),
     created_at: pallet.created_at || pallet.last_status_changed_at || new Date().toISOString(),
@@ -601,7 +598,8 @@ const normalizeAuditLog = (log: ApiRecord): AuditLog => {
     pallet_qr: log.pallet?.pallet_name || log.pallet?.reference_code || log.pallet_qr || log.pallet?.qr_code || '',
     made_by_user_id: Number(log.made_by_user_id || 0),
     made_by_user_name: log.made_by_user_name || log.made_by_user?.name || '',
-    type: eventType.includes('qr_code') ? 'qr_version' : 'status',
+    type: eventType.includes('qr_code') ? 'qr_version' : eventType === 'repair_status_changed' ? 'repair' : 'status',
+    event_type: eventType,
     old_status_id: oldStatus?.id || (log.old_status_id ? Number(log.old_status_id) : undefined),
     new_status_id: newStatus?.id || Number(log.new_status_id || 0),
     old_status_name: oldStatus?.name || log.old_status_name || undefined,
@@ -615,6 +613,7 @@ const normalizeAuditLog = (log: ApiRecord): AuditLog => {
     new_qr_code: log.new_qr_code || undefined,
     note: log.note || undefined,
     status_change_photo_url: log.status_change_photo_url || undefined,
+    context: log.context && typeof log.context === 'object' ? log.context : undefined,
     created_at: log.created_at || new Date().toISOString(),
   };
 };
@@ -911,8 +910,24 @@ export const apiService = {
     },
   },
 
-  pallets: {
-    scanCustomerPossession: async (qrCode: string): Promise<Pallet> =>
+    pallets: {
+      scanLookup: async (qrCode: string, scannedCandidates: string[]): Promise<Pallet> =>
+        normalizePallet(
+          await apiData<ApiRecord>('/pallets/scan-lookup', {
+            method: 'POST',
+            body: jsonBody({ qr_code: qrCode, scanned_candidates: scannedCandidates }),
+          })
+        ),
+      logScanDiagnostics: (data: { rawQrCode: string; scannedCandidates: string[]; loadedPalletCount: number }): Promise<void> =>
+        apiData<null>('/pallets/scan-diagnostics', {
+          method: 'POST',
+          body: jsonBody({
+            raw_qr_code: data.rawQrCode,
+            scanned_candidates: data.scannedCandidates,
+            loaded_pallet_count: data.loadedPalletCount,
+          }),
+        }).then(() => undefined),
+      scanCustomerPossession: async (qrCode: string): Promise<Pallet> =>
       normalizePallet(
         await apiData<ApiRecord>('/pallets/scan-customer-possession', {
           method: 'POST',
@@ -957,6 +972,13 @@ export const apiService = {
         await apiData<ApiRecord>(`/pallets/${id}/current-location`, {
           method: 'PUT',
           body: jsonBody({ current_location: currentLocation }),
+        })
+      ),
+    updateRepairStatus: async (id: number, isForRepair: boolean): Promise<Pallet> =>
+      normalizePallet(
+        await apiData<ApiRecord>(`/pallets/${id}/repair-status`, {
+          method: 'PUT',
+          body: jsonBody({ is_for_repair: isForRepair }),
         })
       ),
     updateClientStatus: async (id: number, statusId: number): Promise<Pallet> =>

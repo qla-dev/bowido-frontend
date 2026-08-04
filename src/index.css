@@ -149,6 +149,13 @@
     min-height: 100dvh;
   }
 
+  /* Portaled pallet-editor menus must sit above the modal and its sticky footer. */
+  .pallet-detail-dropdown-portal {
+    position: fixed !important;
+    z-index: 2200 !important;
+    pointer-events: auto !important;
+  }
+
   /* Keep the brand green while making the black logo artwork white in dark mode. */
   .dark .sidebar-brand-logo {
     filter: url('#trackpal-sidebar-dark-logo');

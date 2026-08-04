@@ -7,6 +7,7 @@ import {
   GhostPalletReportInput,
   Invoice,
   Pallet,
+  PalletDashboardStats,
   PalletStatus,
   Permission,
   Role,
@@ -35,6 +36,7 @@ interface AppContextType {
   language: AppLanguage;
   notifications: AppNotification[];
   serviceReports: ServiceReport[];
+  palletDashboardStats: PalletDashboardStats | null;
   isScannerOpen: boolean;
   isGhostReportOpen: boolean;
   setIsScannerOpen: (open: boolean) => void;
@@ -50,6 +52,7 @@ interface AppContextType {
     note?: string,
     clientId?: number,
   ) => void;
+  updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => void;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
   addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
@@ -59,6 +62,7 @@ interface AppContextType {
     data: DeliveryLocationInput,
   ) => Promise<DeliveryLocation>;
   scanCustomerPossessionPallet: (qrCode: string) => Promise<Pallet>;
+  scanPalletByQr: (qrCode: string, scannedCandidates: string[]) => Promise<Pallet>;
   claimCustomerPossessionPallet: (
     palletId: number,
     statusId: number,
@@ -118,6 +122,7 @@ interface AppDataCache {
   roles: Role[];
   permissions: Permission[];
   serviceReports: ServiceReport[];
+  palletDashboardStats: PalletDashboardStats;
 }
 
 const readAppDataCache = (): Partial<AppDataCache> => {
@@ -187,6 +192,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [serviceReports, setServiceReports] = useState<ServiceReport[]>(
     () => readAppDataCache().serviceReports || [],
+  );
+  const [palletDashboardStats, setPalletDashboardStats] = useState<PalletDashboardStats | null>(
+    () => readAppDataCache().palletDashboardStats || null,
   );
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
@@ -266,6 +274,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setRoles([]);
     setPermissions([]);
     setServiceReports([]);
+    setPalletDashboardStats(null);
     setNotifications([]);
   };
 
@@ -312,20 +321,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       items: [],
       meta: { total: 0, limit: 100, offset: 0, count: 0 },
     };
+    const emptyPalletPage = {
+      items: [],
+      meta: { total: 0, limit: 50, offset: 0, count: 0 },
+    };
+    const emptyClientPage = {
+      items: [],
+      meta: { total: 0, limit: 50, offset: 0, count: 0 },
+    };
 
     const [
       statusesData,
-      palletsData,
-      clientsData,
+      palletsPage,
+      clientsPage,
       auditLogsData,
       serviceReportsData,
       invoicesData,
       rolesPage,
       permissionsData,
+      dashboardStatsData,
     ] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
-      safeLoad(() => apiService.pallets.list(), []),
-      safeLoad(() => apiService.clients.list(), []),
+      safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
+      safeLoad(() => apiService.clients.page({ limit: 50 }), emptyClientPage),
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
       canLoadInvoices
@@ -337,8 +355,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       canLoadAccessSettings
         ? safeLoad(() => apiService.permissions.list(), [])
         : Promise.resolve([]),
+      safeLoad(() => apiService.pallets.stats(), null),
     ]);
     const rolesData = rolesPage.items;
+    const palletsData = palletsPage.items;
+    const clientsData = clientsPage.items;
 
     setStatuses(statusesData);
     setPallets(palletsData);
@@ -348,6 +369,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setInvoices(invoicesData);
     setRoles(rolesData);
     setPermissions(permissionsData);
+    setPalletDashboardStats(dashboardStatsData);
     setNotifications(
       buildNotifications(auditLogsData, serviceReportsData, invoicesData),
     );
@@ -360,6 +382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       invoices: invoicesData,
       roles: rolesData,
       permissions: permissionsData,
+      palletDashboardStats: dashboardStatsData,
     });
   };
 
@@ -484,9 +507,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       status.slug,
     )
       ? "Na putu"
-      : status.slug === "service"
-        ? "Nikole Tesle 71, 74000 Doboj"
-        : location || pallet.current_location;
+      : location || pallet.current_location;
     const nextClientName = preserveClientAssignment
       ? nextClientId
         ? clients.find((client) => client.user_id === nextClientId)?.name ||
@@ -778,6 +799,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     return pallet;
   };
 
+  const updatePalletRepairStatus = (palletId: number, isForRepair: boolean) => {
+    const pallet = pallets.find((item) => item.id === palletId);
+    if (!pallet) return;
+
+    setPallets((previous) => previous.map((item) =>
+      item.id === palletId ? { ...item, is_for_repair: isForRepair } : item
+    ));
+
+    void apiService.pallets.updateRepairStatus(palletId, isForRepair)
+      .then((updatedPallet) => {
+        setPallets((previous) => previous.map((item) =>
+          item.id === updatedPallet.id ? updatedPallet : item
+        ));
+        void fetchAuditLogs();
+      })
+      .catch((error) => {
+        console.error('Failed to update pallet repair status', error);
+        setPallets((previous) => previous.map((item) =>
+          item.id === palletId ? pallet : item
+        ));
+      });
+  };
+
+  const scanPalletByQr = async (qrCode: string, scannedCandidates: string[]): Promise<Pallet> => {
+    const pallet = await apiService.pallets.scanLookup(qrCode, scannedCandidates);
+    upsertPalletInState(pallet);
+    return pallet;
+  };
+
   const claimCustomerPossessionPallet = async (
     palletId: number,
     statusId: number,
@@ -1059,6 +1109,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         language,
         notifications,
         serviceReports,
+        palletDashboardStats,
         isScannerOpen,
         isGhostReportOpen,
         setIsScannerOpen,
@@ -1066,12 +1117,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         setLanguage,
         t,
         updatePalletStatus,
+        updatePalletRepairStatus,
         markNotificationRead,
         addPallet,
         addPalletBatch,
         updatePallet,
         savePalletDeliveryLocation,
         scanCustomerPossessionPallet,
+        scanPalletByQr,
         claimCustomerPossessionPallet,
         deletePallet,
         addClient,
