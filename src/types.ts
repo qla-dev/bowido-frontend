@@ -124,6 +124,10 @@ export interface Pallet {
   is_for_repair: boolean;
   is_active: boolean;
   last_status_changed_at: string;
+  days_at_customer?: number;
+  grace_days?: number;
+  overdue_days?: number;
+  debt_eur?: number;
   created_at: string;
   note?: string;
   status_change_photo_url?: string;
@@ -193,6 +197,7 @@ export interface PalletPhoto {
   expires_at: string;
   url?: string;
   created_at: string;
+  status?: { id: number; name: string; slug?: string };
   pallet?: {
     id: number;
     qr_code: string;

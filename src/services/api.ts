@@ -544,6 +544,10 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     is_for_repair: toBoolean(pallet.is_for_repair),
     is_active: toBoolean(pallet.is_active),
     last_status_changed_at: pallet.last_status_changed_at || pallet.updated_at || new Date().toISOString(),
+    days_at_customer: pallet.days_at_customer == null ? undefined : Number(pallet.days_at_customer),
+    grace_days: pallet.grace_days == null ? undefined : Number(pallet.grace_days),
+    overdue_days: pallet.overdue_days == null ? undefined : Number(pallet.overdue_days),
+    debt_eur: pallet.debt_eur == null ? undefined : Number(pallet.debt_eur),
     created_at: pallet.created_at || pallet.last_status_changed_at || new Date().toISOString(),
     note: pallet.note || pallet.notes || undefined,
     metadata: pallet.metadata && typeof pallet.metadata === 'object' ? pallet.metadata : undefined,
@@ -694,6 +698,13 @@ const normalizePalletPhoto = (photo: ApiRecord): PalletPhoto => ({
   expires_at: photo.expires_at,
   url: photo.url || undefined,
   created_at: photo.created_at,
+  status: photo.status
+    ? {
+        id: Number(photo.status.id),
+        name: String(photo.status.name || ''),
+        slug: photo.status.slug || undefined,
+      }
+    : undefined,
   pallet: photo.pallet || undefined,
   uploader: photo.uploader || undefined,
 });
@@ -1276,7 +1287,21 @@ export const apiService = {
   },
 
   gallery: {
-    page: (params: ListParams = {}) => listPage<PalletPhoto>('/gallery', params, normalizePalletPhoto),
+    page: (params: ListParams = {}) => {
+      const statusId = params.status_id;
+
+      return listPage<PalletPhoto>(
+        '/gallery',
+        {
+          ...params,
+          status_id:
+            statusId === undefined || statusId === ''
+              ? undefined
+              : toBackendStatusId(Number(statusId)),
+        },
+        normalizePalletPhoto,
+      );
+    },
     image: (url: string) => requestBlob(url),
   },
 

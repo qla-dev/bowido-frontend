@@ -8,6 +8,8 @@ import {
   ChevronDown,
   ChevronLeft,
   History,
+  Flashlight,
+  FlashlightOff,
   MapPin,
   PackageSearch,
   RefreshCcw,
@@ -39,6 +41,11 @@ import {
 } from "../lib/palletLocations";
 import { formatAppDate } from "../lib/dateFormat";
 import { compressPhotoForUpload } from "../lib/imageCompression";
+import {
+  configureQrCamera,
+  qrCameraConstraintAttempts,
+  setQrCameraTorch,
+} from "../lib/qrCameraSupport";
 
 interface DriverMobileDashboardProps {
   user: User;
@@ -89,6 +96,7 @@ const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
 };
 const QR_SCAN_INTERVAL_MS = 100;
 const QR_FALLBACK_MAX_DIMENSION = 960;
+const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1440;
 const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
 
 const clampDriverCameraZoom = (
@@ -520,6 +528,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   );
   const [isCameraHardwareZoomSupported, setIsCameraHardwareZoomSupported] =
     useState(false);
+  const [isTorchSupported, setIsTorchSupported] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const [flashMessage, setFlashMessage] = useState<{
     title: string;
     detail: string;
@@ -1128,6 +1138,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     applyCameraTrackZoom(nextZoom);
   };
 
+  const toggleCameraTorch = async () => {
+    const nextTorchState = !isTorchOn;
+    const applied = await setQrCameraTorch(streamRef.current, nextTorchState);
+
+    if (applied) {
+      setIsTorchOn(nextTorchState);
+    }
+  };
+
   const syncCameraZoomCapabilities = (stream: MediaStream) => {
     const track = stream.getVideoTracks()[0] as ZoomableMediaTrack | undefined;
     const zoomCapabilities = (
@@ -1184,9 +1203,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
 
     if (streamRef.current) {
+      void setQrCameraTorch(streamRef.current, false);
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+
+    setIsTorchOn(false);
+    setIsTorchSupported(false);
   };
 
   const getQrDetector = async () => {
@@ -1285,8 +1308,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         // passes process the complete frame at a lower resolution; every
         // fourth pass restores full detail for smaller or farther-away codes.
         rawValue = decodeQrFromVideo(video, scanCanvasRef, {
-          maxDimension: isDetailPass ? undefined : QR_FALLBACK_MAX_DIMENSION,
+          maxDimension: isDetailPass ? QR_FALLBACK_DETAIL_MAX_DIMENSION : QR_FALLBACK_MAX_DIMENSION,
           inversionAttempts: isDetailPass ? "attemptBoth" : "dontInvert",
+          multiPass: isDetailPass,
+          enhanceContrast: isDetailPass,
         });
       }
 
@@ -1332,26 +1357,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       try {
         const detector = await getQrDetector();
         fallbackScanAttemptRef.current = 0;
-        const cameraAttempts: MediaStreamConstraints[] = [
-          {
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 1280 },
-            },
-          },
-          {
-            audio: false,
-            video: {
-              facingMode: "environment",
-            },
-          },
-          {
-            audio: false,
-            video: true,
-          },
-        ];
+        const cameraAttempts = qrCameraConstraintAttempts;
         let stream: MediaStream | null = null;
         let lastCameraError: unknown = null;
 
@@ -1374,6 +1380,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         }
 
         streamRef.current = stream;
+        const cameraFeatures = await configureQrCamera(stream);
+        setIsTorchSupported(cameraFeatures.torchSupported);
+        setIsTorchOn(false);
         syncCameraZoomCapabilities(stream);
 
         if (videoRef.current) {
@@ -2040,6 +2049,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     <div
       className={cn(
         "mx-auto flex min-h-full w-full max-w-md flex-col",
+        selectedPallet && "driver-scan-result-active h-full min-h-0 overflow-hidden",
         isScannerOpen
           ? "gap-4 pb-0"
           : "gap-2 pb-[calc(env(safe-area-inset-bottom)+4.75rem)]",
@@ -2190,6 +2200,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <span className="font-mono text-[10px] font-black text-zinc-700 dark:text-zinc-300">
                     {cameraZoom.toFixed(1)}x
                   </span>
+                  {isTorchSupported && (
+                    <button
+                      type="button"
+                      onClick={() => void toggleCameraTorch()}
+                      className={cn(
+                        "flex h-8 items-center gap-1.5 rounded-lg border px-2 text-[9px] font-black uppercase tracking-wider transition-colors",
+                        isTorchOn
+                          ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-300/30 dark:bg-amber-400/10 dark:text-amber-200"
+                          : "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300",
+                      )}
+                      aria-pressed={isTorchOn}
+                    >
+                      {isTorchOn ? <FlashlightOff size={13} /> : <Flashlight size={13} />}
+                      {language === "bs" ? "Lampa" : language === "nl" ? "Lamp" : "Torch"}
+                    </button>
+                  )}
                 </div>
                 <input
                   id="driver-camera-zoom"
@@ -2321,13 +2347,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="mx-auto flex w-full max-w-md flex-col bg-white pt-1 dark:bg-[#070b0a]"
+            className="driver-scan-result mx-auto flex h-full min-h-0 w-full max-w-md flex-col overflow-hidden bg-white pt-1 dark:bg-[#070b0a]"
           >
             <Card
               noPadding
-              className="mx-auto flex w-full flex-col border-transparent bg-transparent shadow-none"
+              className="driver-scan-result-card mx-auto flex h-full min-h-0 w-full flex-col border-transparent bg-transparent shadow-none"
             >
-              <div className="flex flex-col px-0 pb-3 pt-1">
+              <div className="driver-scan-result-content flex min-h-0 flex-1 flex-col px-0 pb-3 pt-1">
                 <DriverPalletSummaryCard
                   nameLabel={text.palletNameLabel}
                   code={getPalletDisplayName(selectedPallet)}
@@ -2529,8 +2555,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   )}
                 </DriverPalletSummaryCard>
 
-                <div className="mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
-                  <div className="relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#101715]/92">
+                <div className="driver-scan-result-body mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
+                  <div className="driver-scan-result-status relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#101715]/92">
                     <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                       {text.currentStatus}
                     </p>
@@ -2563,7 +2589,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   {(selectedClientName || showSelectedLocationSummary) && (
                     <div
                       className={cn(
-                        "grid min-h-0 flex-[1.12] auto-rows-fr text-left",
+                        "driver-scan-result-details grid min-h-0 flex-[1.12] auto-rows-fr text-left",
                         isCustomer ? "gap-1.5" : "gap-2.5",
                         selectedClientName && showSelectedLocationSummary
                           ? "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"

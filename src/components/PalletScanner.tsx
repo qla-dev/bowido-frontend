@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { QrCode, X, ScanLine, Camera, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
+import { QrCode, X, ScanLine, Camera, AlertCircle, CheckCircle2, ChevronRight, Flashlight, FlashlightOff } from 'lucide-react';
 import { Button, Card, Badge, Input, cn } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
@@ -10,16 +10,20 @@ import { createNativeQrDetector, NativeQrDetector } from '../lib/nativeQrDetecto
 import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { compressPhotoForUpload } from '../lib/imageCompression';
+import {
+  configureQrCamera,
+  qrCameraConstraintAttempts,
+  setQrCameraTorch,
+  setQrCameraZoom,
+} from '../lib/qrCameraSupport';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
 const CAMERA_ZOOM_STEP = 0.1;
 const QR_SCAN_INTERVAL_MS = 100;
 const QR_FALLBACK_MAX_DIMENSION = 960;
+const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1440;
 const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
-
-const clampCameraZoom = (value: number) =>
-  Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, Number(value.toFixed(2))));
 
 interface ScannerProps {
   onClose: () => void;
@@ -39,6 +43,14 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const [location, setLocation] = useState('');
   const [scanMode, setScanMode] = useState<'singular' | 'bulk' | null>(isDetailScan ? 'singular' : null);
   const [cameraZoom, setCameraZoom] = useState(CAMERA_ZOOM_MIN);
+  const [cameraZoomRange, setCameraZoomRange] = useState({
+    min: CAMERA_ZOOM_MIN,
+    max: CAMERA_ZOOM_MAX,
+    step: CAMERA_ZOOM_STEP,
+  });
+  const [isCameraHardwareZoomSupported, setIsCameraHardwareZoomSupported] = useState(false);
+  const [isTorchSupported, setIsTorchSupported] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const [detectedPallet, setDetectedPallet] = useState<Pallet | null>(null);
   const [scanPhoto, setScanPhoto] = useState<File | null>(null);
   const [scanPhotoPreview, setScanPhotoPreview] = useState<string | null>(null);
@@ -121,11 +133,14 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       }
 
       if (streamRef.current) {
+        void setQrCameraTorch(streamRef.current, false);
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
 
       qrDetectorRef.current = null;
+      setIsTorchOn(false);
+      setIsTorchSupported(false);
       setIsCameraActive(false);
     };
 
@@ -165,8 +180,10 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           // Most passes are downscaled for speed; regular full-detail passes
           // preserve recognition of smaller or more distant QR codes.
           rawValue = decodeQrFromVideo(video, scanCanvasRef, {
-            maxDimension: isDetailPass ? undefined : QR_FALLBACK_MAX_DIMENSION,
+            maxDimension: isDetailPass ? QR_FALLBACK_DETAIL_MAX_DIMENSION : QR_FALLBACK_MAX_DIMENSION,
             inversionAttempts: isDetailPass ? 'attemptBoth' : 'dontInvert',
+            multiPass: isDetailPass,
+            enhanceContrast: isDetailPass,
           });
         }
 
@@ -202,14 +219,21 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         setCameraError(null);
         fallbackScanAttemptRef.current = 0;
         const detector = await getQrDetector();
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 1280 },
-          },
-        });
+        let stream: MediaStream | null = null;
+        let lastCameraError: unknown = null;
+
+        for (const constraints of qrCameraConstraintAttempts) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            break;
+          } catch (error) {
+            lastCameraError = error;
+          }
+        }
+
+        if (!stream) {
+          throw lastCameraError;
+        }
 
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
@@ -218,6 +242,19 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
         qrDetectorRef.current = detector;
         streamRef.current = stream;
+        const cameraFeatures = await configureQrCamera(stream);
+        setIsTorchSupported(cameraFeatures.torchSupported);
+        setIsTorchOn(false);
+
+        if (cameraFeatures.zoomRange) {
+          const { min, max, step, current } = cameraFeatures.zoomRange;
+          setCameraZoomRange({ min, max, step });
+          setCameraZoom(current);
+          setIsCameraHardwareZoomSupported(true);
+        } else {
+          setCameraZoomRange({ min: CAMERA_ZOOM_MIN, max: CAMERA_ZOOM_MAX, step: CAMERA_ZOOM_STEP });
+          setIsCameraHardwareZoomSupported(false);
+        }
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -260,7 +297,23 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   };
 
   const updateCameraZoom = (value: number) => {
-    setCameraZoom(clampCameraZoom(value));
+    const nextZoom = Math.min(
+      cameraZoomRange.max,
+      Math.max(cameraZoomRange.min, Number(value.toFixed(2))),
+    );
+    setCameraZoom(nextZoom);
+
+    if (isCameraHardwareZoomSupported) {
+      void setQrCameraZoom(streamRef.current, nextZoom);
+    }
+  };
+  const toggleCameraTorch = async () => {
+    const nextTorchState = !isTorchOn;
+    const applied = await setQrCameraTorch(streamRef.current, nextTorchState);
+
+    if (applied) {
+      setIsTorchOn(nextTorchState);
+    }
   };
   const cameraZoomLabel =
     language === 'bs' ? 'Zoom kamere' : language === 'nl' ? 'Camera zoom' : 'Camera zoom';
@@ -372,7 +425,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   };
 
   return (
-    <div id="scanner-modal" className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto p-3 sm:p-4">
+    <div id="scanner-modal" className={cn('modal-overlay fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4', detectedPallet ? 'overflow-hidden md:overflow-y-auto' : 'overflow-y-auto')}>
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -389,9 +442,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
             </button>
           </div>
 
-          <div className="flex flex-1 flex-col items-center overflow-y-auto bg-white p-5 md:p-8 no-scrollbar">
+          <div className={cn('flex min-h-0 flex-1 flex-col items-center bg-white p-5 md:p-8 no-scrollbar', detectedPallet ? 'overflow-hidden md:overflow-y-auto' : 'overflow-y-auto')}>
             {detectedPallet ? (
-              <div className="w-full max-w-md py-6 space-y-6">
+              <div className="scanner-detected-result w-full max-w-md py-6 space-y-6">
                 <div className="text-center space-y-2">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
                     <CheckCircle2 size={28} />
@@ -612,7 +665,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                           "absolute inset-0 h-full w-full origin-center object-cover transition-[opacity,transform] duration-300",
                           isCameraActive ? "opacity-100" : "opacity-0"
                         )}
-                        style={{ transform: `scale(${cameraZoom})` }}
+                        style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
                       />
                       <div
                         className={cn(
@@ -650,6 +703,18 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                     <Button variant="outline" size="sm" onClick={() => scanImageInputRef.current?.click()}>
                       <QrCode size={15} className="mr-2" /> Scan QR image
                     </Button>
+                    {isTorchSupported && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void toggleCameraTorch()}
+                        aria-pressed={isTorchOn}
+                        className={isTorchOn ? 'border-amber-300 bg-amber-50 text-amber-700' : undefined}
+                      >
+                        {isTorchOn ? <FlashlightOff size={15} className="mr-2" /> : <Flashlight size={15} className="mr-2" />}
+                        {language === 'bs' ? 'Lampa' : language === 'nl' ? 'Lamp' : 'Torch'}
+                      </Button>
+                    )}
                     {(cameraError || scanError) && (
                       <p className="text-center text-xs font-medium text-rose-600">{cameraError || scanError}</p>
                     )}
@@ -667,9 +732,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                     <input
                       id="scanner-camera-zoom"
                       type="range"
-                      min={CAMERA_ZOOM_MIN}
-                      max={CAMERA_ZOOM_MAX}
-                      step={CAMERA_ZOOM_STEP}
+                      min={cameraZoomRange.min}
+                      max={cameraZoomRange.max}
+                      step={cameraZoomRange.step}
                       value={cameraZoom}
                       onChange={(event) => updateCameraZoom(Number(event.target.value))}
                       className="h-2 w-full cursor-pointer accent-[#00A655]"
