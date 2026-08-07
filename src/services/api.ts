@@ -37,28 +37,35 @@ type ApiEnvelope<T> = {
 
 export type ListParams = Record<string, string | number | boolean | undefined>;
 
+export type KvkRegistrationFields = Partial<{
+  kvk: string;
+  name: string;
+  country: string;
+  email: string;
+  phone_number: string;
+  fixed_phone: string;
+  street: string;
+  house_number: string;
+  postal_code: string;
+  city: string;
+  warehouse1_street: string;
+  warehouse1_house_number: string;
+  warehouse1_postal_code: string;
+  warehouse1_city: string;
+  warehouse2_street: string;
+  warehouse2_house_number: string;
+  warehouse2_postal_code: string;
+  warehouse2_city: string;
+}>;
+
 export type KvkRegistrationLookup = {
   source: 'database' | 'kvk';
-  fields: Partial<{
-    kvk: string;
+  company_names: string[];
+  company_options: Array<{
     name: string;
-    country: string;
-    email: string;
-    phone_number: string;
-    fixed_phone: string;
-    street: string;
-    house_number: string;
-    postal_code: string;
-    city: string;
-    warehouse1_street: string;
-    warehouse1_house_number: string;
-    warehouse1_postal_code: string;
-    warehouse1_city: string;
-    warehouse2_street: string;
-    warehouse2_house_number: string;
-    warehouse2_postal_code: string;
-    warehouse2_city: string;
+    fields: KvkRegistrationFields;
   }>;
+  fields: KvkRegistrationFields;
 };
 
 export type PaginationMeta = {

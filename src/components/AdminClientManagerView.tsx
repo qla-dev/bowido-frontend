@@ -24,14 +24,14 @@ import {
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
-import { Button, cn, Input } from './ui';
+import { Button, cn, Input, Select } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, PalletPhoto } from '../types';
 import { getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { KvkLookupControl } from './KvkLookupControl';
-import { apiService } from '../services/api';
+import { apiService, type KvkRegistrationLookup } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
@@ -190,6 +190,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     price_per_day: 2,
     is_active: true,
   });
+  const [newClientCompanyOptions, setNewClientCompanyOptions] = useState<KvkRegistrationLookup['company_options']>([]);
   const {
     headerCellClass,
     headerContentClass,
@@ -752,6 +753,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         warehouse2_street: '', warehouse2_house_number: '', warehouse2_postal_code: '', warehouse2_city: '',
         warehouse_addresses: [], country: 'NL', grace_period_days: 14, price_per_day: 2, is_active: true,
       });
+      setNewClientCompanyOptions([]);
       await appAlert.fire({ icon: 'success', title: labels.createdTitle, text: labels.createdText });
     } catch (error) {
       await appAlert.fire({
@@ -1093,10 +1095,25 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                 <KvkLookupControl
                   className="mt-1"
                   value={newClientDraft.kvk_number || ''}
-                  onChange={(kvk_number) => setNewClientDraft((draft) => ({ ...draft, kvk_number }))}
+                  onChange={(kvk_number) => {
+                    setNewClientDraft((draft) => ({ ...draft, kvk_number, name: '' }));
+                    setNewClientCompanyOptions([]);
+                  }}
                   onResult={(result, kvk_number) => {
-                    const { kvk: _kvk, email, ...fields } = result.fields;
-                    setNewClientDraft((draft) => ({ ...draft, ...fields, kvk_number, billing_email: email ?? draft.billing_email }));
+                    const companyNames = result.company_names ?? [];
+                    const companyOptions = result.company_options?.length > 0
+                      ? result.company_options
+                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } }));
+                    const selectedCompany = companyOptions[0];
+                    const { kvk: _kvk, email, ...fields } = selectedCompany?.fields ?? result.fields;
+                    setNewClientCompanyOptions(companyOptions);
+                    setNewClientDraft((draft) => ({
+                      ...draft,
+                      ...fields,
+                      name: selectedCompany?.name ?? result.fields.name ?? '',
+                      kvk_number,
+                      billing_email: email ?? draft.billing_email,
+                    }));
                   }}
                   placeholder="e.g. 74291836"
                   findLabel={labels.findKvk}
@@ -1110,7 +1127,22 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                 <Input className="mt-1" value={newClientDraft.country || ''} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, country: event.target.value }))} />
               </label>
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.companyName}
-                <Input required className="mt-1" value={newClientDraft.name} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, name: event.target.value }))} />
+                {newClientCompanyOptions.length > 0 ? (
+                  <Select required className="mt-1" value={newClientDraft.name} onChange={(event) => {
+                    const selectedCompany = newClientCompanyOptions.find((option) => option.name === event.target.value);
+                    const { kvk: _kvk, email, ...fields } = selectedCompany?.fields ?? {};
+                    setNewClientDraft((draft) => ({
+                      ...draft,
+                      ...fields,
+                      name: event.target.value,
+                      billing_email: email ?? '',
+                    }));
+                  }}>
+                    {newClientCompanyOptions.map((option) => <option key={option.name} value={option.name}>{option.name}</option>)}
+                  </Select>
+                ) : (
+                  <Input required className="mt-1" value={newClientDraft.name} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, name: event.target.value }))} />
+                )}
               </label>
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.email}
                 <Input
