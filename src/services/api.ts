@@ -667,6 +667,7 @@ const normalizeInvoice = (invoice: ApiRecord): Invoice => ({
 const normalizeInvoiceItem = (item: ApiRecord): InvoiceItem => ({
   id: Number(item.id),
   invoice_id: Number(item.invoice_id),
+  pallet_name: item.pallet_name || item.pallet?.pallet_name || item.pallet?.reference_code || '',
   pallet_qr: item.pallet_qr || item.pallet?.qr_code || '',
   description: item.description,
   quantity: Number(item.quantity ?? item.billed_days ?? 1),
@@ -1074,6 +1075,9 @@ export const apiService = {
         })
       );
     },
+    delete: async (photoId: number): Promise<void> => {
+      await apiData<null>(`/pallet-photos/${photoId}`, { method: 'DELETE' });
+    },
   },
 
   clients: {
@@ -1308,6 +1312,18 @@ export const apiService = {
         },
         normalizePalletPhoto,
       );
+    },
+    list: async (params: ListParams = {}): Promise<PalletPhoto[]> => {
+      const statusId = params.status_id;
+      const normalizedParams = {
+        ...params,
+        status_id:
+          statusId === undefined || statusId === ''
+            ? undefined
+            : toBackendStatusId(Number(statusId)),
+      };
+
+      return (await listAll<ApiRecord>('/gallery', normalizedParams)).map(normalizePalletPhoto);
     },
     image: (url: string) => requestBlob(url),
   },

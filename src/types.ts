@@ -271,6 +271,7 @@ export interface Invoice {
 export interface InvoiceItem {
   id: number;
   invoice_id: number;
+  pallet_name: string;
   pallet_qr: string;
   description: string;
   quantity: number;

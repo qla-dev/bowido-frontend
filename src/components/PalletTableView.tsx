@@ -500,7 +500,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         : {
             date: 'Date',
             term: 'Term',
-            deadline: 'Status',
+            deadline: 'Due',
             emptyValue: '-',
             daysLeft: 'days left',
             daysLate: 'days overdue',
@@ -554,7 +554,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             0,
             Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / msPerDay)
           );
+          const statusSlug = pallet.current_status_slug || '';
           const isWarehouseStatus =
+            ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
             pallet.current_status_id === 1 || pallet.current_status_id === 3;
 
           if (isWarehouseStatus) {
@@ -577,7 +579,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
           let graceDays = 0;
 
-          if (transportStatusIds.includes(pallet.current_status_id)) {
+          if (
+            ['bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih'].includes(statusSlug) ||
+            transportStatusIds.includes(pallet.current_status_id)
+          ) {
             graceDays = pallet.grace_days ?? status?.grace_period_days ?? 3;
           } else if (status?.is_billable) {
             graceDays = pallet.grace_days ?? client?.grace_period_days ?? status?.grace_period_days ?? 0;

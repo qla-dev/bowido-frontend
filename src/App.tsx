@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Sidebar, BottomNav, TopNavbar } from "./components/Navigation";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { ClientTableView } from "./components/ClientTableView";
@@ -23,7 +23,7 @@ import { ThemeSettingsToggle } from "./components/ThemeSettingsToggle";
 import { KvkLookupControl } from "./components/KvkLookupControl";
 import { LandingShell } from "./components/LandingShell";
 import { RoleType, User } from "./types";
-import { Eye, EyeOff, LogIn, X } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff, LogIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./AppContext";
 import { Button, Card, Input, Select, cn } from "./components/ui";
@@ -604,6 +604,8 @@ export default function App() {
     password_confirmation: "",
   });
   const [kvkRegistrationCompanyOptions, setKvkRegistrationCompanyOptions] = useState<KvkRegistrationLookup['company_options']>([]);
+  const [isKvkRegistrationCompanyOpen, setIsKvkRegistrationCompanyOpen] = useState(false);
+  const kvkRegistrationCompanyRef = useRef<HTMLDivElement | null>(null);
   const [kvkRegistrationError, setKvkRegistrationError] = useState<
     string | null
   >(null);
@@ -626,6 +628,17 @@ export default function App() {
 
     return window.matchMedia("(max-width: 767px)").matches;
   });
+
+  useEffect(() => {
+    const closeCompanyDropdown = (event: MouseEvent) => {
+      if (!kvkRegistrationCompanyRef.current?.contains(event.target as Node)) {
+        setIsKvkRegistrationCompanyOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeCompanyDropdown);
+    return () => document.removeEventListener("mousedown", closeCompanyDropdown);
+  }, []);
   const [showLoginLanguageMenu, setShowLoginLanguageMenu] = useState(false);
 
   useEffect(() => {
@@ -1605,25 +1618,50 @@ export default function App() {
                 <label className="block text-xs font-bold dark:text-zinc-200">
                   {kvkFormLabels.company}
                   {kvkRegistrationCompanyOptions.length > 0 ? (
-                    <Select
-                      required
-                      className="mt-1"
-                      value={kvkRegistration.name}
-                      onChange={(event) => {
-                        const selectedCompany = kvkRegistrationCompanyOptions.find((option) => option.name === event.target.value);
-                        setKvkRegistration((form) => ({
-                          ...form,
-                          ...selectedCompany?.fields,
-                          kvk: form.kvk,
-                          name: event.target.value,
-                          email: selectedCompany?.fields.email ?? "",
-                        }));
-                      }}
-                    >
-                      {kvkRegistrationCompanyOptions.map((option) => (
-                        <option key={option.name} value={option.name}>{option.name}</option>
-                      ))}
-                    </Select>
+                    <div ref={kvkRegistrationCompanyRef} className="relative mt-1">
+                      <button
+                        type="button"
+                        role="combobox"
+                        aria-expanded={isKvkRegistrationCompanyOpen}
+                        aria-label={kvkFormLabels.company}
+                        disabled={isKvkRegistrationSubmitting}
+                        onClick={() => setIsKvkRegistrationCompanyOpen((current) => !current)}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-left text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="truncate">{kvkRegistration.name || kvkFormLabels.company}</span>
+                        <ChevronDown size={16} className={cn("shrink-0 text-zinc-400 transition-transform", isKvkRegistrationCompanyOpen && "rotate-180")} />
+                      </button>
+                      {isKvkRegistrationCompanyOpen && (
+                        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[220] w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]">
+                          <div className="max-h-56 space-y-1 overflow-y-auto overscroll-contain">
+                            {kvkRegistrationCompanyOptions.map((option) => {
+                              const isSelected = option.name === kvkRegistration.name;
+
+                              return (
+                                <button
+                                  key={option.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setKvkRegistration((form) => ({
+                                      ...form,
+                                      ...option.fields,
+                                      kvk: form.kvk,
+                                      name: option.name,
+                                      email: option.fields.email ?? "",
+                                    }));
+                                    setIsKvkRegistrationCompanyOpen(false);
+                                  }}
+                                  className={cn("flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold", isSelected ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200" : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5")}
+                                >
+                                  <span className="truncate">{option.name}</span>
+                                  {isSelected && <Check size={14} className="shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <Input
                       required
