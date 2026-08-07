@@ -27,7 +27,7 @@ import { Eye, EyeOff, LogIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./AppContext";
 import { Button, Card, Input, Select, cn } from "./components/ui";
-import { ApiError, apiService } from "./services/api";
+import { ApiError, apiService, type KvkRegistrationLookup } from "./services/api";
 import logoImage from "./assets/logo.png";
 import { languageOptions } from "./i18n";
 
@@ -603,6 +603,7 @@ export default function App() {
     password: "",
     password_confirmation: "",
   });
+  const [kvkRegistrationCompanyOptions, setKvkRegistrationCompanyOptions] = useState<KvkRegistrationLookup['company_options']>([]);
   const [kvkRegistrationError, setKvkRegistrationError] = useState<
     string | null
   >(null);
@@ -1573,17 +1574,27 @@ export default function App() {
                 <KvkLookupControl
                   value={kvkRegistration.kvk}
                   onChange={(kvk) => {
-                    setKvkRegistration({ ...kvkRegistration, kvk });
+                    setKvkRegistration((form) => ({ ...form, kvk, name: "" }));
+                    setKvkRegistrationCompanyOptions([]);
                     setKvkRegistrationError(null);
                   }}
-                  onResult={(result, kvk) => setKvkRegistration((form) => ({
-                    ...form,
-                    ...result.fields,
-                    kvk,
-                    email: result.fields.email ?? "",
-                    password: "",
-                    password_confirmation: "",
-                  }))}
+                  onResult={(result, kvk) => {
+                    const companyNames = result.company_names ?? [];
+                    const companyOptions = result.company_options?.length > 0
+                      ? result.company_options
+                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } }));
+                    const selectedCompany = companyOptions[0];
+                    setKvkRegistrationCompanyOptions(companyOptions);
+                    setKvkRegistration((form) => ({
+                      ...form,
+                      ...(selectedCompany?.fields ?? result.fields),
+                      kvk,
+                      name: selectedCompany?.name ?? result.fields.name ?? "",
+                      email: selectedCompany?.fields.email ?? result.fields.email ?? "",
+                      password: "",
+                      password_confirmation: "",
+                    }));
+                  }}
                   placeholder={kvkFormLabels.kvk}
                   findLabel={kvkRegistrationCopy.find}
                   searchingLabel={kvkRegistrationCopy.searching}
@@ -1593,17 +1604,39 @@ export default function App() {
                 />
                 <label className="block text-xs font-bold dark:text-zinc-200">
                   {kvkFormLabels.company}
-                  <Input
-                    required
-                    className="mt-1"
-                    value={kvkRegistration.name}
-                    onChange={(event) =>
-                      setKvkRegistration({
-                        ...kvkRegistration,
-                        name: event.target.value,
-                      })
-                    }
-                  />
+                  {kvkRegistrationCompanyOptions.length > 0 ? (
+                    <Select
+                      required
+                      className="mt-1"
+                      value={kvkRegistration.name}
+                      onChange={(event) => {
+                        const selectedCompany = kvkRegistrationCompanyOptions.find((option) => option.name === event.target.value);
+                        setKvkRegistration((form) => ({
+                          ...form,
+                          ...selectedCompany?.fields,
+                          kvk: form.kvk,
+                          name: event.target.value,
+                          email: selectedCompany?.fields.email ?? "",
+                        }));
+                      }}
+                    >
+                      {kvkRegistrationCompanyOptions.map((option) => (
+                        <option key={option.name} value={option.name}>{option.name}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input
+                      required
+                      className="mt-1"
+                      value={kvkRegistration.name}
+                      onChange={(event) =>
+                        setKvkRegistration({
+                          ...kvkRegistration,
+                          name: event.target.value,
+                        })
+                      }
+                    />
+                  )}
                 </label>
                 <label className="block text-xs font-bold dark:text-zinc-200">
                   {kvkFormLabels.country}

@@ -362,6 +362,105 @@
   #login-screen .landing-visual-pane {
     display: none;
   }
+
+  /* Keep the post-scan pallet result inside the usable phone viewport. */
+  #driver-app-container main:has(.driver-scan-result) {
+    overflow: hidden;
+  }
+
+  #driver-app-container main > div:has(.driver-scan-result) {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .driver-scan-result .driver-pallet-summary-card {
+    flex-shrink: 1;
+    padding-block: clamp(0.55rem, 1.8dvh, 1rem);
+  }
+
+  .driver-scan-result .driver-scan-result-status {
+    min-height: clamp(7.25rem, 25dvh, 11.8rem);
+    padding-top: clamp(0.6rem, 2dvh, 1.25rem);
+  }
+
+  .driver-scan-result .driver-scan-result-status > p:nth-of-type(2) {
+    font-size: clamp(1.75rem, 5.6dvh, 2.65rem);
+  }
+
+  .driver-scan-result .driver-scan-result-body {
+    margin-top: clamp(0.35rem, 1.4dvh, 0.625rem);
+    gap: clamp(0.35rem, 1.4dvh, 0.625rem);
+  }
+
+  .driver-scan-result .driver-scan-result-details {
+    gap: clamp(0.3rem, 1.2dvh, 0.625rem);
+  }
+
+  .driver-scan-result .driver-scan-result-details > div {
+    padding-block: clamp(0.45rem, 1.5dvh, 1rem);
+  }
+}
+
+@media (max-width: 767px) and (max-height: 680px) {
+  .driver-scan-result .driver-pallet-summary-card {
+    padding-inline: 0.75rem;
+  }
+
+  .driver-scan-result .driver-pallet-summary-card > .grid {
+    gap: 0.75rem;
+  }
+
+  .driver-scan-result .driver-pallet-summary-card p {
+    line-height: 1.125rem;
+  }
+
+  .driver-scan-result .driver-pallet-summary-card > .grid p:last-child {
+    font-size: 0.875rem;
+  }
+
+  .driver-scan-result .driver-scan-result-status button {
+    height: 2rem;
+    margin-top: 0.45rem;
+  }
+
+  .driver-scan-result .driver-scan-result-details p:nth-child(2) {
+    font-size: 0.95rem;
+    line-height: 1.125rem;
+  }
+
+  .driver-scan-result .driver-scan-result-details p:nth-child(n + 3) {
+    font-size: 0.7rem;
+    line-height: 0.875rem;
+  }
+
+  .scanner-detected-result {
+    padding-block: 0.5rem;
+  }
+
+  .scanner-detected-result.space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem;
+  }
+
+  .scanner-detected-result > .text-center > div:first-child {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .scanner-detected-result > .border {
+    padding: 0.75rem;
+  }
+
+  .scanner-detected-result img {
+    height: 8rem;
+  }
+
+  .scanner-detected-result label[for="scan-pallet-photo"] {
+    min-height: 8rem;
+  }
+
+  #scanner-modal > div > div > div:first-child {
+    padding: 1rem;
+  }
 }
 
 html:has(.modal-overlay),

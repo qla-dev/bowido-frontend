@@ -30,7 +30,7 @@ export const DriverPalletSummaryCard: FC<DriverPalletSummaryCardProps> = ({
 }) => (
   <div
     className={cn(
-      'mx-4 flex flex-col rounded-[1.45rem] border px-4 py-4',
+      'driver-pallet-summary-card mx-4 flex flex-col rounded-[1.45rem] border px-4 py-4',
       alignTop ? 'justify-start' : 'justify-center',
       theme.surface,
       theme.border

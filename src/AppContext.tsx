@@ -589,6 +589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       last_status_changed_at: timestamp,
       created_at: timestamp,
       is_ghost: false,
+      is_for_repair: false,
       is_active: true,
     };
   };

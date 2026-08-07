@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Funnel,
   X,
+  Check,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
@@ -162,6 +163,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [filterPallets, setFilterPallets] = useState<Pallet[]>([]);
+  const [isFilterDatasetLoading, setIsFilterDatasetLoading] = useState(true);
+  const [filterDatasetError, setFilterDatasetError] = useState<unknown>(null);
+  const [filterDatasetRequestVersion, setFilterDatasetRequestVersion] = useState(0);
   const [openFilterKey, setOpenFilterKey] = useState<SortKey | null>(null);
   const [openQuickFilter, setOpenQuickFilter] = useState<QuickFilterKey | null>(null);
   const [selectedDeadlineFilters, setSelectedDeadlineFilters] = useState<DeadlineFilter[]>([]);
@@ -185,6 +190,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const fetchPage = useCallback((offset: number) => apiService.pallets.page({
     limit: PALLET_PAGE_SIZE,
     offset,
+    is_ghost: false,
     search: debouncedSearchQuery || undefined,
     sort_by: sortConfig.key,
     sort_direction: sortConfig.direction,
@@ -194,6 +200,39 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     pageSize: PALLET_PAGE_SIZE,
     fetchPage,
   });
+
+  useEffect(() => {
+    let isCurrentRequest = true;
+
+    setIsFilterDatasetLoading(true);
+    setFilterDatasetError(null);
+
+    void apiService.pallets
+      .list({
+        is_ghost: false,
+        search: debouncedSearchQuery || undefined,
+      })
+      .then((allPallets) => {
+        if (isCurrentRequest) {
+          setFilterPallets(allPallets);
+        }
+      })
+      .catch((error) => {
+        if (isCurrentRequest) {
+          setFilterDatasetError(error);
+          setFilterPallets([]);
+        }
+      })
+      .finally(() => {
+        if (isCurrentRequest) {
+          setIsFilterDatasetLoading(false);
+        }
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [debouncedSearchQuery, filterDatasetRequestVersion]);
 
   useEffect(() => {
     if (cachedPallets.length === 0) {
@@ -493,7 +532,11 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const palletTimelineMap = useMemo<Record<number, PalletTimelineInfo>>(
     () =>
       Object.fromEntries(
-        pallets.map((pallet) => {
+        Array.from(
+          new Map(
+            [...filterPallets, ...pallets].map((pallet) => [pallet.id, pallet]),
+          ).values(),
+        ).map((pallet) => {
           const changedAt = new Date(pallet.last_status_changed_at);
           const status = statuses.find((item) => item.id === pallet.current_status_id);
           const client = pallet.user_id
@@ -535,9 +578,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           let graceDays = 0;
 
           if (transportStatusIds.includes(pallet.current_status_id)) {
-            graceDays = status?.grace_period_days ?? 3;
+            graceDays = pallet.grace_days ?? status?.grace_period_days ?? 3;
           } else if (status?.is_billable) {
-            graceDays = client?.grace_period_days ?? status?.grace_period_days ?? 0;
+            graceDays = pallet.grace_days ?? client?.grace_period_days ?? status?.grace_period_days ?? 0;
           }
 
           if (graceDays <= 0) {
@@ -584,7 +627,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           ];
         })
       ),
-    [clients, dateFormatter, pallets, statuses, timelineCopy, transportStatusIds]
+    [clients, dateFormatter, filterPallets, pallets, statuses, timelineCopy, transportStatusIds]
   );
 
   const getTimelineInfo = (pallet: Pallet) => palletTimelineMap[pallet.id];
@@ -733,30 +776,30 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
   const filterOptions = useMemo<Record<SortKey, FilterOption[]>>(
     () => ({
-      qr: Array.from<string>(new Set(pallets.map((pallet) => getPalletDisplayName(pallet))))
+      qr: Array.from<string>(new Set(filterPallets.map((pallet) => getPalletDisplayName(pallet))))
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
       type: Array.from<string>(
-        new Set([...palletTypeValues, ...pallets.map((pallet) => getTypeLabel(pallet))])
+        new Set([...palletTypeValues, ...filterPallets.map((pallet) => getTypeLabel(pallet))])
       )
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
-      client: Array.from<string>(new Set(pallets.map((pallet) => getClientLabel(pallet))))
+      client: Array.from<string>(new Set(filterPallets.map((pallet) => getClientLabel(pallet))))
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
-      status: Array.from<string>(new Set(pallets.map((pallet) => getStatusLabelText(pallet))))
+      status: Array.from<string>(new Set(filterPallets.map((pallet) => getStatusLabelText(pallet))))
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
       lastUpdate: Array.from<string>(
-        new Set(pallets.map((pallet) => getTimelineInfo(pallet).dateFilterValue))
+        new Set(filterPallets.map((pallet) => getTimelineInfo(pallet).dateFilterValue))
       )
         .sort((left, right) => {
           if (left === timelineCopy.emptyValue) {
@@ -774,7 +817,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           label: value === timelineCopy.emptyValue ? value : dateFormatter.format(new Date(value)),
         })),
       dueDate: Array.from<string>(
-        new Set(pallets.map((pallet) => getTimelineInfo(pallet).termFilterValue))
+        new Set(filterPallets.map((pallet) => getTimelineInfo(pallet).termFilterValue))
       )
         .sort((left, right) => {
           if (left === timelineCopy.emptyValue) {
@@ -792,19 +835,19 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           label: value === timelineCopy.emptyValue ? value : dateFormatter.format(new Date(value)),
         })),
       deadline: Array.from<string>(
-        new Set(pallets.map((pallet) => getTimelineInfo(pallet).deadlineFilterValue))
+        new Set(filterPallets.map((pallet) => getTimelineInfo(pallet).deadlineFilterValue))
       )
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
-      location: Array.from<string>(new Set(pallets.map((pallet) => getLocationLabel(pallet))))
+      location: Array.from<string>(new Set(filterPallets.map((pallet) => getLocationLabel(pallet))))
         .sort((left, right) =>
           left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
         )
         .map((value) => ({ value, label: value })),
     }),
-    [clients, dateFormatter, language, pallets, t, timelineCopy.emptyValue]
+    [clients, dateFormatter, filterPallets, language, t, timelineCopy.emptyValue]
   );
 
   const quickStatusOptions = useMemo(
@@ -815,8 +858,18 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     [language, statuses]
   );
 
+  const hasActiveTableFilters = useMemo(
+    () =>
+      selectedDeadlineFilters.length > 0 ||
+      (Object.keys(selectedFilters) as SortKey[]).some(
+        (key) => selectedFilters[key].length > 0,
+      ),
+    [selectedDeadlineFilters, selectedFilters],
+  );
+
   const filteredPallets = useMemo(() => {
-    return pallets.filter((pallet) => {
+    const sourcePallets = hasActiveTableFilters ? filterPallets : pallets;
+    const matchingPallets = sourcePallets.filter((pallet) => {
       const matchesColumnFilters = (Object.keys(selectedFilters) as SortKey[]).every((key) => {
         const selectedValues = selectedFilters[key];
 
@@ -838,7 +891,67 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
       return matchesColumnFilters && matchesDeadlineFilters;
     });
-  }, [clients, language, pallets, selectedDeadlineFilters, selectedFilters, palletTimelineMap]);
+
+    if (!hasActiveTableFilters) {
+      return matchingPallets;
+    }
+
+    const getSortValue = (pallet: Pallet): string | number | null => {
+      const timelineInfo = getTimelineInfo(pallet);
+
+      switch (sortConfig.key) {
+        case 'qr':
+          return getPalletDisplayName(pallet);
+        case 'type':
+          return getTypeLabel(pallet);
+        case 'client':
+          return getClientLabel(pallet);
+        case 'status':
+          return getStatusLabelText(pallet);
+        case 'lastUpdate':
+          return timelineInfo.dateSortValue;
+        case 'dueDate':
+          return timelineInfo.termSortValue;
+        case 'deadline':
+          return timelineInfo.deadlineSortValue;
+        case 'location':
+          return getLocationLabel(pallet);
+        default:
+          return null;
+      }
+    };
+
+    return [...matchingPallets].sort((left, right) => {
+      const leftValue = getSortValue(left);
+      const rightValue = getSortValue(right);
+
+      if (leftValue === null && rightValue === null) {
+        return left.id - right.id;
+      }
+
+      if (leftValue === null) {
+        return 1;
+      }
+
+      if (rightValue === null) {
+        return -1;
+      }
+
+      const comparison =
+        typeof leftValue === 'number' && typeof rightValue === 'number'
+          ? leftValue - rightValue
+          : String(leftValue).localeCompare(String(rightValue), undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            });
+
+      if (comparison !== 0) {
+        return sortConfig.direction === 'asc' ? comparison : -comparison;
+      }
+
+      return left.id - right.id;
+    });
+  }, [clients, filterPallets, hasActiveTableFilters, language, pallets, selectedDeadlineFilters, selectedFilters, sortConfig, palletTimelineMap]);
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) => {
@@ -1464,8 +1577,22 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           </table>
         )}
       />
-      <PageLoadingModal isOpen={isInitialLoading} language={language} />
-      <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
+      <PageLoadingModal
+        isOpen={isInitialLoading || (hasActiveTableFilters && isFilterDatasetLoading)}
+        language={language}
+      />
+      <InfiniteScrollFooter
+        hasMore={!hasActiveTableFilters && hasMore}
+        isLoading={hasActiveTableFilters ? isFilterDatasetLoading : isLoadingMore}
+        error={hasActiveTableFilters ? filterDatasetError : paginationError}
+        onLoadMore={hasActiveTableFilters ? () => undefined : loadMore}
+        onRetry={
+          hasActiveTableFilters
+            ? () => setFilterDatasetRequestVersion((current) => current + 1)
+            : retry
+        }
+        language={language}
+      />
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
