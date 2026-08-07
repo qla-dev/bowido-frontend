@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Building2,
   CalendarClock,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +25,7 @@ import {
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
-import { Button, cn, Input, Select } from './ui';
+import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, PalletPhoto } from '../types';
 import { getStatusLabel } from '../i18n';
@@ -191,6 +192,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     is_active: true,
   });
   const [newClientCompanyOptions, setNewClientCompanyOptions] = useState<KvkRegistrationLookup['company_options']>([]);
+  const [isNewClientCompanyOpen, setIsNewClientCompanyOpen] = useState(false);
+  const newClientCompanyRef = useRef<HTMLDivElement | null>(null);
   const {
     headerCellClass,
     headerContentClass,
@@ -211,6 +214,17 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [photoViewer, selectedRow]);
+
+  useEffect(() => {
+    const closeCompanyDropdown = (event: MouseEvent) => {
+      if (!newClientCompanyRef.current?.contains(event.target as Node)) {
+        setIsNewClientCompanyOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeCompanyDropdown);
+    return () => document.removeEventListener('mousedown', closeCompanyDropdown);
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1128,18 +1142,50 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
               </label>
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.companyName}
                 {newClientCompanyOptions.length > 0 ? (
-                  <Select required className="mt-1" value={newClientDraft.name} onChange={(event) => {
-                    const selectedCompany = newClientCompanyOptions.find((option) => option.name === event.target.value);
-                    const { kvk: _kvk, email, ...fields } = selectedCompany?.fields ?? {};
-                    setNewClientDraft((draft) => ({
-                      ...draft,
-                      ...fields,
-                      name: event.target.value,
-                      billing_email: email ?? '',
-                    }));
-                  }}>
-                    {newClientCompanyOptions.map((option) => <option key={option.name} value={option.name}>{option.name}</option>)}
-                  </Select>
+                  <div ref={newClientCompanyRef} className="relative mt-1">
+                    <button
+                      type="button"
+                      role="combobox"
+                      aria-expanded={isNewClientCompanyOpen}
+                      aria-label={labels.companyName}
+                      disabled={isCreatingClient}
+                      onClick={() => setIsNewClientCompanyOpen((current) => !current)}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-left text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span className="truncate">{newClientDraft.name || labels.companyName}</span>
+                      <ChevronDown size={16} className={cn('shrink-0 text-zinc-400 transition-transform', isNewClientCompanyOpen && 'rotate-180')} />
+                    </button>
+                    {isNewClientCompanyOpen && (
+                      <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[140] w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]">
+                        <div className="max-h-56 space-y-1 overflow-y-auto overscroll-contain">
+                          {newClientCompanyOptions.map((option) => {
+                            const isSelected = option.name === newClientDraft.name;
+
+                            return (
+                              <button
+                                key={option.name}
+                                type="button"
+                                onClick={() => {
+                                  const { kvk: _kvk, email, ...fields } = option.fields ?? {};
+                                  setNewClientDraft((draft) => ({
+                                    ...draft,
+                                    ...fields,
+                                    name: option.name,
+                                    billing_email: email ?? '',
+                                  }));
+                                  setIsNewClientCompanyOpen(false);
+                                }}
+                                className={cn('flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold', isSelected ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5')}
+                              >
+                                <span className="truncate">{option.name}</span>
+                                {isSelected && <Check size={14} className="shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <Input required className="mt-1" value={newClientDraft.name} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, name: event.target.value }))} />
                 )}

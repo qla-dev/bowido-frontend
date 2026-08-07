@@ -13,7 +13,9 @@ import {
   MapPin,
   PackageSearch,
   RefreshCcw,
+  Save,
   Search,
+  Trash2,
 } from "lucide-react";
 import { useApp } from "../AppContext";
 import { ClientDetail, Pallet, RoleType, User } from "../types";
@@ -88,6 +90,15 @@ type ZoomableMediaTrack = MediaStreamTrack & {
 
 type OpenChangeMenu = "client" | "status" | "location" | "gps" | null;
 type DriverLocationMode = "warehouse_1" | "warehouse_2" | "delivery";
+type PalletPhotoDraft = {
+  id: string;
+  file: File;
+  url: string;
+  saved: boolean;
+  uploading: boolean;
+  error: boolean;
+  backendPhotoId?: number;
+};
 
 const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
   min: 1,
@@ -145,6 +156,11 @@ type DriverCopy = {
   capturePalletPhoto: string;
   savePalletPhoto: string;
   palletPhotoSaved: string;
+  palletPhotoGallery: string;
+  palletPhotoCaptureTitle: string;
+  palletPhotoEmpty: string;
+  takeNextPalletPhoto: string;
+  savingPalletPhotos: string;
   reportDamage: string;
   scanNext: string;
   summaryType: string;
@@ -205,6 +221,11 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     capturePalletPhoto: "PHOTOGRAPH PALLET",
     savePalletPhoto: "SAVE PHOTO",
     palletPhotoSaved: "PHOTO SAVED",
+    palletPhotoGallery: "PHOTOS",
+    palletPhotoCaptureTitle: "Pallet photos",
+    palletPhotoEmpty: "Take the first photo for this pallet.",
+    takeNextPalletPhoto: "TAKE NEXT",
+    savingPalletPhotos: "SAVING...",
     reportDamage: "REPORT DAMAGE",
     scanNext: "Scan next pallet",
     summaryType: "Type",
@@ -264,6 +285,11 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     capturePalletPhoto: "Foto maken",
     savePalletPhoto: "Foto opslaan",
     palletPhotoSaved: "Foto opgeslagen",
+    palletPhotoGallery: "FOTO'S",
+    palletPhotoCaptureTitle: "Foto's van de bok",
+    palletPhotoEmpty: "Maak de eerste foto van deze bok.",
+    takeNextPalletPhoto: "VOLGENDE FOTO",
+    savingPalletPhotos: "OPSLAAN...",
     reportDamage: "SCHADE MELDEN",
     scanNext: "Scan volgende",
     summaryType: "Type",
@@ -314,6 +340,11 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     updateGpsLocation: "GPS-locatie bijwerken",
   },
   bs: {
+    palletPhotoGallery: "FOTOGRAFIJE",
+    palletPhotoCaptureTitle: "Fotografije palete",
+    palletPhotoEmpty: "Napravite prvu fotografiju ove palete.",
+    takeNextPalletPhoto: "SLJEDEĆA FOTO",
+    savingPalletPhotos: "CUVANJE...",
     title: "Scan QR code",
     resultLabel: "Skenirana paleta",
     palletNameLabel: "Paleta",
@@ -488,9 +519,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     setInternalSelectedPalletId(palletId);
     onSelectedPalletIdChange?.(palletId);
   };
-  const [palletPhoto, setPalletPhoto] = useState<File | null>(null);
-  const [palletPhotoUrl, setPalletPhotoUrl] = useState<string | null>(null);
-  const [isPalletPhotoSaved, setIsPalletPhotoSaved] = useState(false);
+  const [palletPhotoDrafts, setPalletPhotoDrafts] = useState<PalletPhotoDraft[]>([]);
+  const [activePalletPhotoId, setActivePalletPhotoId] = useState<string | null>(null);
+  const [isPalletPhotoModeOpen, setIsPalletPhotoModeOpen] = useState(false);
   const [damagePhotoUrl, setDamagePhotoUrl] = useState<string | null>(null);
   const [damagePhoto, setDamagePhoto] = useState<File | null>(null);
   const [damageDescription, setDamageDescription] = useState("");
@@ -546,8 +577,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const scanImageInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const damagePhotoInputRef = useRef<HTMLInputElement | null>(null);
-  const palletPhotoUrlRef = useRef<string | null>(null);
-  const palletPhotoUploadedRef = useRef(false);
+  const palletPhotoUrlsRef = useRef<string[]>([]);
+  const palletPhotoUploadIdsRef = useRef(new Set<string>());
+  const palletPhotoSequenceRef = useRef(0);
   const damagePhotoUrlRef = useRef<string | null>(null);
   const qrDetectorRef = useRef<NativeQrDetector | null>(null);
   const palletsRef = useRef(pallets);
@@ -978,6 +1010,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     selectedPallet?.current_status_slug || "",
   );
   const shouldShowPalletPhotoAction = user.role_name !== RoleType.KLIJENT;
+  const activePalletPhoto =
+    palletPhotoDrafts.find((photo) => photo.id === activePalletPhotoId) ||
+    palletPhotoDrafts[palletPhotoDrafts.length - 1] ||
+    null;
+  const unsavedPalletPhotoCount = palletPhotoDrafts.filter(
+    (photo) => !photo.saved,
+  ).length;
+  const isPalletPhotoUploadInProgress = palletPhotoDrafts.some(
+    (photo) => photo.uploading,
+  );
   const shouldTopAlignSummaryCard = [
     "bowido-bih",
     "bowido-nl",
@@ -1105,9 +1147,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   useEffect(() => {
     return () => {
-      if (palletPhotoUrlRef.current) {
-        URL.revokeObjectURL(palletPhotoUrlRef.current);
-      }
+      palletPhotoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
 
       if (damagePhotoUrlRef.current) {
         URL.revokeObjectURL(damagePhotoUrlRef.current);
@@ -1476,27 +1516,30 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const clearPalletPhoto = () => {
-    if (palletPhotoUrlRef.current) {
-      URL.revokeObjectURL(palletPhotoUrlRef.current);
-      palletPhotoUrlRef.current = null;
-    }
+    palletPhotoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    palletPhotoUrlsRef.current = [];
+    palletPhotoUploadIdsRef.current.clear();
 
     if (palletPhotoInputRef.current) {
       palletPhotoInputRef.current.value = "";
     }
 
-    setPalletPhotoUrl(null);
-    setPalletPhoto(null);
-    setIsPalletPhotoSaved(false);
-    palletPhotoUploadedRef.current = false;
+    setPalletPhotoDrafts([]);
+    setActivePalletPhotoId(null);
+    setIsPalletPhotoModeOpen(false);
   };
 
-  const uploadPalletPhoto = async (
+  const uploadPalletPhotos = async (
     pallet: Pallet,
     nextStatusId: number,
     nextClientId?: number,
   ) => {
-    if (!palletPhoto || palletPhotoUploadedRef.current) {
+    const photosToUpload = palletPhotoDrafts.filter(
+      (photo) =>
+        !photo.saved && !palletPhotoUploadIdsRef.current.has(photo.id),
+    );
+
+    if (photosToUpload.length === 0) {
       return;
     }
 
@@ -1506,18 +1549,57 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         ? pallet.user_id
         : undefined;
 
-    palletPhotoUploadedRef.current = true;
+    photosToUpload.forEach((photo) =>
+      palletPhotoUploadIdsRef.current.add(photo.id),
+    );
+    setPalletPhotoDrafts((current) =>
+      current.map((photo) =>
+        photosToUpload.some((candidate) => candidate.id === photo.id)
+          ? { ...photo, uploading: true, error: false }
+          : photo,
+      ),
+    );
 
-    try {
-      await apiService.palletPhotos.uploadScan(pallet.id, palletPhoto, {
-        old_status_id: pallet.current_status_id,
-        new_status_id: nextStatusId,
-        client_id: photoClientId,
-      });
-      setIsPalletPhotoSaved(true);
-    } catch (error) {
-      palletPhotoUploadedRef.current = false;
-      console.error("Failed to upload driver pallet photo", error);
+    const results = await Promise.allSettled(
+      photosToUpload.map((photo) =>
+        apiService.palletPhotos.uploadScan(pallet.id, photo.file, {
+          old_status_id: pallet.current_status_id,
+          new_status_id: nextStatusId,
+          client_id: photoClientId,
+        }),
+      ),
+    );
+
+    const savedPhotos = new Map<string, number>();
+    const failedIds = new Set<string>();
+    results.forEach((result, index) => {
+      const photoId = photosToUpload[index].id;
+      palletPhotoUploadIdsRef.current.delete(photoId);
+      if (result.status === "fulfilled") {
+        savedPhotos.set(photoId, result.value.id);
+      } else {
+        failedIds.add(photoId);
+        console.error("Failed to upload driver pallet photo", result.reason);
+      }
+    });
+
+    setPalletPhotoDrafts((current) =>
+      current.map((photo) =>
+        savedPhotos.has(photo.id)
+          ? {
+              ...photo,
+              saved: true,
+              uploading: false,
+              error: false,
+              backendPhotoId: savedPhotos.get(photo.id),
+            }
+          : failedIds.has(photo.id)
+            ? { ...photo, uploading: false, error: true }
+            : photo,
+      ),
+    );
+
+    if (failedIds.size > 0) {
       showFlash(
         text.capturePalletPhoto,
         text.scanImageFallbackDetail,
@@ -1560,7 +1642,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   const handleScanNext = () => {
     if (selectedPallet) {
-      uploadPalletPhoto(
+      void uploadPalletPhotos(
         selectedPallet,
         selectedPallet.current_status_id,
         selectedPallet.user_id,
@@ -1599,7 +1681,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       : undefined;
     const nextStatus = statuses.find((status) => status.id === nextStatusId);
 
-    await uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
+    await uploadPalletPhotos(selectedPallet, nextStatusId, nextClientId);
 
     updatePalletStatus(
       selectedPallet.id,
@@ -1744,6 +1826,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const openPalletPhotoPicker = () => {
+    setIsPalletPhotoModeOpen(true);
     palletPhotoInputRef.current?.click();
   };
 
@@ -1760,18 +1843,78 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     try {
       const compressed = await compressPhotoForUpload(file);
-      if (palletPhotoUrlRef.current) {
-        URL.revokeObjectURL(palletPhotoUrlRef.current);
-      }
-
       const nextPhotoUrl = URL.createObjectURL(compressed);
-      palletPhotoUrlRef.current = nextPhotoUrl;
-      palletPhotoUploadedRef.current = false;
-      setIsPalletPhotoSaved(false);
-      setPalletPhoto(compressed);
-      setPalletPhotoUrl(nextPhotoUrl);
+      const nextPhotoId = `${Date.now()}-${palletPhotoSequenceRef.current++}`;
+      palletPhotoUrlsRef.current.push(nextPhotoUrl);
+      setPalletPhotoDrafts((current) => [
+        ...current,
+        {
+          id: nextPhotoId,
+          file: compressed,
+          url: nextPhotoUrl,
+          saved: false,
+          uploading: false,
+          error: false,
+        },
+      ]);
+      setActivePalletPhotoId(nextPhotoId);
+      setIsPalletPhotoModeOpen(true);
     } catch (error) {
       console.error("Failed to compress driver pallet photo", error);
+    }
+  };
+
+  const removePalletPhoto = async (photo: PalletPhotoDraft) => {
+    if (photo.uploading) {
+      return;
+    }
+
+    if (photo.backendPhotoId) {
+      setPalletPhotoDrafts((current) =>
+        current.map((candidate) =>
+          candidate.id === photo.id
+            ? { ...candidate, uploading: true, error: false }
+            : candidate,
+        ),
+      );
+
+      try {
+        await apiService.palletPhotos.delete(photo.backendPhotoId);
+      } catch (error) {
+        console.error("Failed to delete driver pallet photo", error);
+        setPalletPhotoDrafts((current) =>
+          current.map((candidate) =>
+            candidate.id === photo.id
+              ? { ...candidate, uploading: false, error: true }
+              : candidate,
+          ),
+        );
+        return;
+      }
+    }
+
+    URL.revokeObjectURL(photo.url);
+    palletPhotoUrlsRef.current = palletPhotoUrlsRef.current.filter(
+      (url) => url !== photo.url,
+    );
+    setPalletPhotoDrafts((current) =>
+      current.filter((candidate) => candidate.id !== photo.id),
+    );
+
+    if (activePalletPhotoId === photo.id) {
+      const currentIndex = palletPhotoDrafts.findIndex(
+        (candidate) => candidate.id === photo.id,
+      );
+      const remainingPhotos = palletPhotoDrafts.filter(
+        (candidate) => candidate.id !== photo.id,
+      );
+      const nextPhoto =
+        remainingPhotos[Math.min(currentIndex, remainingPhotos.length - 1)] ||
+        null;
+      setActivePalletPhotoId(nextPhoto?.id || null);
+
+      if (remainingPhotos.length === 0) {
+      }
     }
   };
 
@@ -2052,7 +2195,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         selectedPallet && "driver-scan-result-active h-full min-h-0 overflow-hidden",
         isScannerOpen
           ? "gap-4 pb-0"
-          : "gap-2 pb-[calc(env(safe-area-inset-bottom)+4.75rem)]",
+          : "gap-0 pb-[calc(env(safe-area-inset-bottom)+4rem)]",
       )}
     >
       {isScannerOpen && (
@@ -2347,7 +2490,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="driver-scan-result mx-auto flex h-full min-h-0 w-full max-w-md flex-col overflow-hidden bg-white pt-1 dark:bg-[#070b0a]"
+            className="driver-scan-result relative mx-auto flex h-full min-h-0 w-full max-w-md flex-col overflow-hidden bg-white pt-1 dark:bg-[#070b0a]"
           >
             <Card
               noPadding
@@ -2560,7 +2703,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                       {text.currentStatus}
                     </p>
-                    <p className="mt-3 break-words text-[2.65rem] font-black uppercase leading-[0.94] tracking-[-0.05em] text-emerald-950 dark:text-white">
+                    <p className="driver-scan-result-status-value mt-2 flex min-h-[4.75rem] items-center justify-center break-words text-[2.65rem] font-black uppercase leading-[0.94] tracking-[-0.05em] text-emerald-950 dark:text-white">
                       {getDriverStatusLabel(selectedPallet.current_status_name)}
                     </p>
                     <button
@@ -2592,7 +2735,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                         "driver-scan-result-details grid min-h-0 flex-[1.12] auto-rows-fr text-left",
                         isCustomer ? "gap-1.5" : "gap-2.5",
                         selectedClientName && showSelectedLocationSummary
-                          ? "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"
+                          ? "grid-rows-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
                           : "grid-rows-[minmax(0,1fr)]",
                       )}
                     >
@@ -2603,7 +2746,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                                 {text.summaryClient}
                               </p>
-                              <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
+                              <p className="mt-1 line-clamp-2 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
                                 {selectedClientName}
                               </p>
                             </div>
@@ -2653,7 +2796,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                                 {text.summaryLocation}
                               </p>
-                              <p className="mt-1 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
+                              <p className="mt-1 line-clamp-2 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
                                 {isTransportStatus
                                   ? transportLocationLabel
                                   : fixedWarehouseLocationMeta
@@ -2661,12 +2804,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                                     : selectedLocationMeta.label}
                               </p>
                               {fixedWarehouseLocationMeta?.address && (
-                                <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
+                                <p className="mt-1 line-clamp-2 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
                                   {fixedWarehouseLocationMeta.address}
                                 </p>
                               )}
                               {!isLocationChangeDisabled && (
-                                <p className="mt-1 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
+                                <p className="mt-1 line-clamp-2 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
                                   {selectedLocationMeta.address}
                                 </p>
                               )}
@@ -2713,36 +2856,99 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 onChange={handlePalletPhotoChange}
               />
 
-              {palletPhotoUrl && (
-                <div className="px-0 pb-3 pt-0.5">
-                  <div className="w-full overflow-hidden rounded-[1.45rem] bg-white p-2 dark:bg-[#101715]">
-                    <div className="relative overflow-hidden rounded-[1.3rem] bg-emerald-50 dark:bg-[#151d1a]">
-                      <img
-                        src={palletPhotoUrl}
-                        alt={text.capturePalletPhoto}
-                        className="h-28 w-full object-cover"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedPallet) {
-                          void uploadPalletPhoto(
-                            selectedPallet,
-                            selectedPallet.current_status_id,
-                            selectedPallet.user_id,
-                          );
-                        }
-                      }}
-                      disabled={!selectedPallet || isPalletPhotoSaved}
-                      className="mt-2 w-full rounded-xl bg-[#00A655] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isPalletPhotoSaved ? text.palletPhotoSaved : text.savePalletPhoto}
-                    </button>
-                  </div>
-                </div>
-              )}
             </Card>
+
+            {isPalletPhotoModeOpen && (
+              <div className="absolute inset-0 z-20 flex min-h-0 flex-col bg-white px-3 pb-2 pt-1 dark:bg-[#070b0a]">
+                <div className="flex shrink-0 items-center justify-between px-1 py-2">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
+                      {text.palletPhotoCaptureTitle}
+                    </p>
+                    <p className="mt-0.5 text-sm font-black text-emerald-950 dark:text-white">
+                      {getPalletDisplayName(selectedPallet)} · {palletPhotoDrafts.length}
+                    </p>
+                  </div>
+                  {palletPhotoDrafts.length > 0 && (
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:bg-white/10 dark:text-emerald-100">
+                      {palletPhotoDrafts.filter((photo) => photo.saved).length}/{palletPhotoDrafts.length} {text.palletPhotoSaved}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col gap-2">
+                  <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.5rem] bg-emerald-50 dark:bg-[#101715]">
+                    {activePalletPhoto ? (
+                      <>
+                        <img
+                          src={activePalletPhoto.url}
+                          alt={text.palletPhotoCaptureTitle}
+                          className="h-full w-full object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void removePalletPhoto(activePalletPhoto)}
+                          disabled={activePalletPhoto.uploading}
+                          className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg disabled:opacity-50"
+                          aria-label={text.damageModalRemove}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center px-8 text-center">
+                        <Camera size={42} className="text-emerald-500" />
+                        <p className="mt-4 text-sm font-black text-emerald-950 dark:text-white">
+                          {text.palletPhotoEmpty}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {palletPhotoDrafts.length > 0 && (
+                    <div className="h-[5.75rem] shrink-0 snap-x snap-mandatory touch-pan-x overflow-x-auto overscroll-x-contain rounded-[1.25rem] bg-emerald-50 p-2 no-scrollbar dark:bg-[#101715]">
+                      <div className="flex h-full min-w-max gap-2">
+                        {palletPhotoDrafts.map((photo, index) => (
+                          <div
+                            key={photo.id}
+                            className={cn(
+                              "relative h-full w-[5.75rem] shrink-0 snap-start overflow-hidden rounded-[0.9rem] border-2 bg-white",
+                              photo.id === activePalletPhoto?.id
+                                ? "border-[#00A655]"
+                                : "border-transparent",
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setActivePalletPhotoId(photo.id)}
+                              className="h-full w-full"
+                            >
+                              <img
+                                src={photo.url}
+                                alt={`${text.palletPhotoCaptureTitle} ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute bottom-1 left-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-black text-white">
+                                {index + 1}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void removePalletPhoto(photo)}
+                              disabled={photo.uploading}
+                              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-rose-600 text-white shadow-md disabled:opacity-50"
+                              aria-label={text.damageModalRemove}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -2840,6 +3046,68 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     {noQrPickupCopy.buttonTitle}
                   </button>
                 )}
+              </div>
+            ) : isPalletPhotoModeOpen ? (
+              <div className="grid h-full grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPalletPhotoModeOpen(false);
+                  }}
+                  className={cn(
+                    actionButtonClass,
+                    "hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  <ChevronLeft size={20} className="shrink-0" />
+                  {text.back}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedPallet) {
+                      return;
+                    }
+
+                    void uploadPalletPhotos(
+                      selectedPallet,
+                      selectedPallet.current_status_id,
+                      selectedPallet.user_id,
+                    );
+                  }}
+                  disabled={
+                    unsavedPalletPhotoCount === 0 ||
+                    isPalletPhotoUploadInProgress
+                  }
+                  className={cn(
+                    actionButtonClass,
+                    unsavedPalletPhotoCount === 0 ||
+                      isPalletPhotoUploadInProgress
+                      ? "cursor-not-allowed text-white/45 active:scale-100"
+                      : "hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  <Save size={20} className="shrink-0" />
+                  {isPalletPhotoUploadInProgress
+                    ? text.savingPalletPhotos
+                    : unsavedPalletPhotoCount === 0 && palletPhotoDrafts.length > 0
+                      ? text.palletPhotoSaved
+                      : text.savePalletPhoto}
+                </button>
+                <button
+                  type="button"
+                  onClick={openPalletPhotoPicker}
+                  disabled={isPalletPhotoUploadInProgress}
+                  className={cn(
+                    actionButtonClass,
+                    isPalletPhotoUploadInProgress
+                      ? "cursor-not-allowed text-white/45 active:scale-100"
+                      : "hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  <Camera size={20} className="shrink-0" />
+                  {text.takeNextPalletPhoto}
+                </button>
               </div>
             ) : (
               <div
@@ -3089,7 +3357,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                           {repairListCopy.pallet} {index + 1}
                         </p>
                         <p className="mt-1 truncate text-[13px] font-black uppercase tracking-tight text-emerald-900 dark:text-white">
-                          {pallet.qr_code}
+                          {getPalletDisplayName(pallet)}
                         </p>
                       </div>
                       <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-amber-50 px-2 text-[11px] font-black text-amber-700 dark:bg-amber-500/10 dark:text-amber-100">
@@ -3516,7 +3784,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     >
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-black uppercase tracking-tight text-emerald-950 dark:text-white">
-                          {pallet.qr_code}
+                          {getPalletDisplayName(pallet)}
                         </p>
                         {getVisibleClientName(
                           pallet.current_status_id,

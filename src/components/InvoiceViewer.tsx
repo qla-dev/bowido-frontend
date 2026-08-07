@@ -54,15 +54,19 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
   };
 
   return (
-    <div className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="modal-overlay fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-4xl"
+        className="my-auto w-full max-w-4xl"
       >
-        <Card noPadding className="shadow-[0_40px_80px_-20px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col max-h-[90vh] rounded-[3rem]">
+        <Card
+          noPadding
+          className="flex h-[calc(100dvh-1.5rem)] max-h-[90vh] flex-col overflow-hidden rounded-[2rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.2)] sm:h-[calc(100dvh-2rem)] sm:rounded-[3rem]"
+          contentClassName="flex min-h-0 flex-1 flex-col"
+        >
           {/* Header */}
-          <div className="p-8 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/20">
+          <div className="shrink-0 border-b border-zinc-100 bg-zinc-50/20 p-5 sm:p-8 flex justify-between items-center">
             <div className="space-y-0.5">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 bg-black rounded-2xl flex items-center justify-center shadow-lg shadow-black/10">
@@ -77,7 +81,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
             </button>
           </div>
 
-          <div className="p-6 md:p-8 overflow-y-auto no-scrollbar space-y-8">
+          <div className="min-h-0 flex-1 space-y-8 overflow-y-auto p-6 md:p-8">
             {/* Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-6">
@@ -131,7 +135,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-zinc-50 text-[9px] font-black uppercase tracking-widest text-zinc-400 border-b border-zinc-100">
-                         <th className="px-6 py-5">{t('palletLabel')} QR</th>
+                         <th className="px-6 py-5">{t('palletLabel')} Name</th>
                          <th className="px-6 py-5">Description</th>
                          <th className="px-6 py-5 text-center">Qty</th>
                          <th className="px-6 py-5 text-right">Unit Price</th>
@@ -148,7 +152,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                       )}
                       {items.map(item => (
                         <tr key={item.id} className="group hover:bg-zinc-50/20 transition-colors">
-                          <td className="px-6 py-5 font-mono text-zinc-950">{item.pallet_qr || '-'}</td>
+                          <td className="px-6 py-5 text-zinc-950">{item.pallet_name || '-'}</td>
                           <td className="px-6 py-5 text-zinc-500 truncate max-w-[200px]">{item.description}</td>
                           <td className="px-6 py-5 text-center text-zinc-950">{item.quantity}</td>
                           <td className="px-6 py-5 text-right text-zinc-400 whitespace-nowrap">€{item.unit_price.toFixed(2)}</td>
@@ -169,7 +173,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
 
           {/* Footer Actions */}
           {actionMessage && <p className="px-8 pt-4 text-sm font-bold text-emerald-700">{actionMessage}</p>}
-          <div className="p-8 bg-zinc-50/20 border-t border-zinc-100 flex flex-wrap gap-4">
+          <div className="shrink-0 border-t border-zinc-100 bg-zinc-50/20 p-5 sm:p-8 flex flex-wrap gap-4">
              <Button variant="outline" className="flex-1 rounded-full" onClick={openPreview} disabled={Boolean(actionLoading)}>
                 <Printer size={16} className="mr-2" /> {t('previewInvoice')}
              </Button>

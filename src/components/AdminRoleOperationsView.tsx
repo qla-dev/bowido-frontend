@@ -624,14 +624,14 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       />
 
       {selectedRow && (
-        <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setSelectedRow(null)}>
+        <div className="modal-overlay fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4" onClick={() => setSelectedRow(null)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className={cn(
               'relative max-h-[88vh] w-full overflow-y-auto bg-white shadow-2xl no-scrollbar dark:bg-[#0f1513]',
               mode === 'service' && selectedRow.pallet
-                ? 'max-w-3xl overflow-hidden rounded-[2.5rem] p-0'
+                ? 'my-auto flex h-[calc(100dvh-1.5rem)] max-h-[88vh] max-w-3xl flex-col overflow-hidden rounded-[2.5rem] p-0 sm:h-[calc(100dvh-2rem)]'
                 : mode === 'warehouse' && selectedRow.pallet
                 ? 'max-w-xl overflow-hidden rounded-[3rem] p-8'
                 : 'max-w-2xl rounded-[2.5rem] p-7'
@@ -642,7 +642,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               <>
                 <div className="h-2 w-full bg-[#00A655]" />
 
-                <div className="p-6 sm:p-8">
+                <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
                   <div className="mb-7 flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
@@ -793,6 +793,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                     </div>
                   </div>
 
+                </div>
+                <div className="shrink-0 border-t border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#0f1513] sm:p-6">
                   <Button
                     type="button"
                     className="mt-6 w-full py-4"

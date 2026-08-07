@@ -46,7 +46,12 @@ type PalletRow = {
   typeLabel: string;
   statusLabel: string;
   lastUpdateLabel: string;
-  lastUpdateValue: number;
+  lastUpdateValue: number | null;
+  returnLabel: string;
+  returnValue: number | null;
+  deadlineLabel: string;
+  deadlineValue: number | null;
+  deadlineTone: 'muted' | 'success' | 'warning' | 'danger';
   locationLabel: string;
   daysOut: number;
   overdueDays: number;
@@ -257,8 +262,28 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         .filter((pallet) => pallet.user_id === client.user_id)
         .map((pallet) => {
           const status = statuses.find((item) => item.id === pallet.current_status_id);
-          const daysOut = getDaysSince(pallet.last_status_changed_at);
-          const graceDays = status?.is_billable ? client.grace_period_days : 0;
+          const changedAt = new Date(pallet.last_status_changed_at);
+          const hasValidChangeDate = !Number.isNaN(changedAt.getTime());
+          const statusSlug = pallet.current_status_slug || '';
+          const isWarehouseStatus =
+            ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
+            pallet.current_status_id === 1 || pallet.current_status_id === 3;
+          const hasSentDate = hasValidChangeDate && !isWarehouseStatus;
+          const daysOut = hasSentDate ? getDaysSince(pallet.last_status_changed_at) : 0;
+          const graceDays = (
+            ['bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih'].includes(statusSlug) ||
+            [2, 6].includes(pallet.current_status_id)
+          )
+            ? pallet.grace_days ?? status?.grace_period_days ?? 3
+            : status?.is_billable
+              ? pallet.grace_days ?? client.grace_period_days ?? status.grace_period_days ?? 0
+              : 0;
+          const hasDueDate = hasSentDate && graceDays > 0;
+          const dueDate = hasDueDate
+            ? new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate())
+            : null;
+          dueDate?.setDate(dueDate.getDate() + graceDays);
+          const remainingDays = hasDueDate ? graceDays - daysOut : null;
           const overdueDays = graceDays > 0 ? Math.max(daysOut - graceDays, 0) : 0;
           const debt = overdueDays * client.price_per_day;
 
@@ -267,8 +292,23 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             palletLabel: getPalletDisplayName(pallet),
             typeLabel: getPalletTypeLabel(pallet.type, language),
             statusLabel: getStatusLabel(pallet.current_status_name, language),
-            lastUpdateLabel: dateFormatter.format(new Date(pallet.last_status_changed_at)),
-            lastUpdateValue: new Date(pallet.last_status_changed_at).getTime(),
+            lastUpdateLabel: hasSentDate ? dateFormatter.format(changedAt) : '-',
+            lastUpdateValue: hasSentDate ? changedAt.getTime() : null,
+            returnLabel: dueDate ? dateFormatter.format(dueDate) : '-',
+            returnValue: dueDate?.getTime() ?? null,
+            deadlineLabel: remainingDays === null
+              ? '-'
+              : remainingDays < 0
+                ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}`
+                : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}`,
+            deadlineValue: dueDate?.getTime() ?? null,
+            deadlineTone: remainingDays === null
+              ? 'muted'
+              : remainingDays < 0
+                ? 'danger'
+                : remainingDays <= 2
+                  ? 'warning'
+                  : 'success',
             locationLabel: pallet.current_location || '-',
             daysOut,
             overdueDays,
@@ -292,9 +332,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       case 'location':
         return row.locationLabel;
       case 'daysOut':
-        return String(row.daysOut);
+        return row.returnLabel;
       case 'overdueDays':
-        return String(row.overdueDays);
+        return row.deadlineLabel;
       case 'debt':
         return row.debtLabel;
     }
@@ -305,9 +345,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       case 'lastUpdate':
         return row.lastUpdateValue;
       case 'daysOut':
-        return row.daysOut;
+        return row.returnValue;
       case 'overdueDays':
-        return row.overdueDays;
+        return row.deadlineValue;
       case 'debt':
         return row.debt;
       default:
@@ -341,6 +381,11 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     nextRows.sort((left, right) => {
       const leftValue = getSortValue(left, sortConfig.key);
       const rightValue = getSortValue(right, sortConfig.key);
+
+      if (leftValue === null && rightValue === null) return left.pallet.id - right.pallet.id;
+      if (leftValue === null) return 1;
+      if (rightValue === null) return -1;
+
       const comparison =
         typeof leftValue === 'number' && typeof rightValue === 'number'
           ? leftValue - rightValue
@@ -409,20 +454,10 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   };
 
   const getTimelineInfo = (row: PalletRow) => {
-    const status = statuses.find((item) => item.id === row.pallet.current_status_id);
-    const graceDays = status?.is_billable ? client.grace_period_days : 0;
-    if (graceDays <= 0) return { returnLabel: '-', deadlineLabel: '-', tone: 'muted' as const };
-
-    const changedAt = new Date(row.pallet.last_status_changed_at);
-    const dueDate = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
-    dueDate.setDate(dueDate.getDate() + graceDays);
-    const remainingDays = graceDays - row.daysOut;
     return {
-      returnLabel: dateFormatter.format(dueDate),
-      deadlineLabel: remainingDays < 0
-        ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}`
-        : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}`,
-      tone: remainingDays < 0 ? 'danger' as const : remainingDays <= 2 ? 'warning' as const : 'success' as const,
+      returnLabel: row.returnLabel,
+      deadlineLabel: row.deadlineLabel,
+      tone: row.deadlineTone,
     };
   };
 
