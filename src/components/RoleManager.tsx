@@ -46,7 +46,7 @@ export const RoleManager: React.FC = () => {
     offset,
     search: debouncedSearchQuery || undefined,
   }), [debouncedSearchQuery]);
-  const { items: roles, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry } = useInfinitePagination({
+  const { items: roles, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setRoles } = useInfinitePagination({
     queryKey: `${debouncedSearchQuery}|${reloadKey}`,
     pageSize: ROLE_PAGE_SIZE,
     fetchPage,
@@ -88,6 +88,7 @@ export const RoleManager: React.FC = () => {
 
     try {
       await deleteRole(pendingDeleteRole.id);
+      setRoles((current) => current.filter((role) => role.id !== pendingDeleteRole.id));
       setReloadKey((current) => current + 1);
       setPendingDeleteRole(null);
     } catch {

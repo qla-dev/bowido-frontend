@@ -495,6 +495,7 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     id: Number(client.id),
     user_id: Number(client.user_id),
     name: client.name || client.company_name || client.user?.name || 'Client',
+    contact_person: client.contact_person || undefined,
     kvk_number: client.kvk_number || client.kvk || client.tax_number || undefined,
     phone_number: client.user?.phone_number || undefined,
     fixed_phone: client.fixed_phone || undefined,
@@ -596,6 +597,18 @@ const normalizePalletDashboardStats = (stats: ApiRecord): PalletDashboardStats =
   total_pallets: Number(stats.total_pallets ?? 0),
   in_transport: Number(stats.in_transport ?? 0),
   overdue_units: Number(stats.overdue_units ?? 0),
+  customer_pickup_units: Number(stats.customer_pickup_units ?? 0),
+  top_overdue_clients: Array.isArray(stats.top_overdue_clients)
+    ? stats.top_overdue_clients.map((client) => {
+        const record = client as ApiRecord;
+        return {
+          user_id: record.user_id == null ? null : Number(record.user_id),
+          client_name: String(record.client_name ?? ''),
+          overdue_pallets: Number(record.overdue_pallets ?? 0),
+          debt_eur: Number(record.debt_eur ?? 0),
+        };
+      })
+    : [],
 });
 
 const normalizeAuditLog = (log: ApiRecord): AuditLog => {
@@ -638,6 +651,10 @@ const normalizeInvoiceStatus = (invoice: ApiRecord): Invoice['status'] => {
     return 'draft';
   }
 
+  if (invoice.status === 'issued') {
+    return 'issued';
+  }
+
   if (invoice.due_date || invoice.due_at) {
     const dueDate = new Date(invoice.due_date || invoice.due_at);
     if (!Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now() && !invoice.paid_at) {
@@ -662,6 +679,8 @@ const normalizeInvoice = (invoice: ApiRecord): Invoice => ({
   due_date: invoice.due_date || invoice.due_at || '',
   total_amount: Number(invoice.total_amount ?? 0),
   status: normalizeInvoiceStatus(invoice),
+  created_at: invoice.created_at || invoice.issued_at || new Date().toISOString(),
+  mailed_at: invoice.mailed_at || undefined,
 });
 
 const normalizeInvoiceItem = (item: ApiRecord): InvoiceItem => ({
@@ -761,6 +780,7 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
   return {
     user_id: client.user_id,
     company_name: client.name || 'New Client',
+    contact_person: client.contact_person || null,
     country: client.country || 'NL',
     province: client.province || null,
     kvk: client.kvk_number || null,
@@ -788,7 +808,9 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
 };
 
 const toPalletPayload = (pallet: Partial<Pallet>) => ({
-  user_id: pallet.user_id,
+  // `undefined` is omitted by JSON.stringify. Send null explicitly so an
+  // admin can clear an existing client assignment.
+  user_id: pallet.user_id ?? null,
   current_status_id: toBackendStatusId(Number(pallet.current_status_id ?? 8)),
   type: pallet.type || pallet.asset_type || 'invullen!',
   asset_type: pallet.asset_type || pallet.type || 'invullen!',
@@ -1223,7 +1245,7 @@ export const apiService = {
     list: async (params: ListParams = {}): Promise<ServiceReport[]> =>
       (await listAll<ApiRecord>('/service_reports', params)).map(normalizeServiceReport),
     create: async (
-      data: { pallet_id: number; problem_description: string; image?: File }
+      data: { pallet_id: number; problem_description: string; images?: File[] }
     ): Promise<ServiceReport> => {
       const formData = new FormData();
       formData.append('pallet_id', String(data.pallet_id));
@@ -1231,9 +1253,7 @@ export const apiService = {
       formData.append('issue_type', 'damage');
       formData.append('description', data.problem_description);
 
-      if (data.image) {
-        formData.append('image', data.image);
-      }
+      data.images?.forEach((image) => formData.append('images[]', image));
 
       return normalizeServiceReport(
         await apiData<ApiRecord>('/service_reports', {

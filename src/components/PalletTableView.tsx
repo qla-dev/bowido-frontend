@@ -32,11 +32,13 @@ import {
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDate } from '../lib/dateFormat';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { rankSearchResults } from '../lib/searchRanking';
 
 interface PalletTableViewProps {
   onAddPallet?: () => void;
   onEditPallet?: (pallet: Pallet) => void;
   onDeletePallet?: (pallet: Pallet) => void;
+  deletedPalletId?: number | null;
 }
 
 type SortKey =
@@ -131,6 +133,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   onAddPallet,
   onEditPallet,
   onDeletePallet,
+  deletedPalletId,
 }) => {
   const { pallets: cachedPallets, statuses, clients, t, language, updatePalletRepairStatus } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
@@ -243,6 +246,31 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       current.map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
     );
   }, [cachedPallets]);
+
+  useEffect(() => {
+    if (deletedPalletId === null || deletedPalletId === undefined) return;
+
+    setPagedPallets((current) => current.filter((pallet) => pallet.id !== deletedPalletId));
+    setFilterPallets((current) => current.filter((pallet) => pallet.id !== deletedPalletId));
+  }, [deletedPalletId, setPagedPallets]);
+
+  const togglePalletService = (pallet: Pallet) => {
+    const nextIsForRepair = !pallet.is_for_repair;
+
+    // This table is independently paginated, so update its row immediately instead of
+    // waiting for the API response to reach the shared pallet cache.
+    setPagedPallets((current) => current.map((item) =>
+      item.id === pallet.id ? { ...item, is_for_repair: nextIsForRepair } : item
+    ));
+    setFilterPallets((current) => current.map((item) =>
+      item.id === pallet.id ? { ...item, is_for_repair: nextIsForRepair } : item
+    ));
+
+    void updatePalletRepairStatus(pallet.id, nextIsForRepair).catch(() => {
+      setPagedPallets((current) => current.map((item) => item.id === pallet.id ? pallet : item));
+      setFilterPallets((current) => current.map((item) => item.id === pallet.id ? pallet : item));
+    });
+  };
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -1222,17 +1250,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       return null;
     }
 
-    const currentQuery = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter((option) => {
-      if (!currentQuery) {
-        return true;
-      }
-
-      return (
-        option.label.toLowerCase().includes(currentQuery) ||
-        option.value.toLowerCase().includes(currentQuery)
-      );
-    });
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
+    );
 
     return (
       <div
@@ -1550,7 +1573,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                             )}
                             onClick={(event) => {
                               event.stopPropagation();
-                              updatePalletRepairStatus(pallet.id, !pallet.is_for_repair);
+                              togglePalletService(pallet);
                             }}
                             title={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
                             aria-label={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}

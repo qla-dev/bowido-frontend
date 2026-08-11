@@ -9,6 +9,7 @@ import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecode
 import { createNativeQrDetector, NativeQrDetector } from '../lib/nativeQrDetector';
 import { apiService } from '../services/api';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import { rankSearchResults } from '../lib/searchRanking';
 import { compressPhotoForUpload } from '../lib/imageCompression';
 import {
   configureQrCamera,
@@ -611,7 +612,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-2 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
-                        {clients.filter((client) => client.name.toLowerCase().includes(clientSearch.toLowerCase())).map((client) => (
+                        {rankSearchResults(clients, clientSearch, (client) => client.name).map((client) => (
                           <button
                             key={client.id}
                             onClick={() => setSelectedClientId(client.user_id)}

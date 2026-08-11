@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   AuditLog,
   ClientDetail,
@@ -17,6 +17,7 @@ import { apiService, setApiLocale } from "./services/api";
 import {
   AppLanguage,
   defaultLanguage,
+  formatServiceReportDescription,
   isAppLanguage,
   LANGUAGE_STORAGE_KEY,
   translate,
@@ -52,11 +53,11 @@ interface AppContextType {
     note?: string,
     clientId?: number,
   ) => void;
-  updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => void;
+  updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
   addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
-  updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => void;
+  updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => Promise<Pallet>;
   savePalletDeliveryLocation: (
     palletId: number,
     data: DeliveryLocationInput,
@@ -80,7 +81,7 @@ interface AppContextType {
   reportDamage: (report: {
     pallet_id: number;
     problem_description: string;
-    image?: File;
+    images?: File[];
   }) => Promise<void>;
   resolveService: (reportId: number, userId: number, note: string) => void;
   reportGhostPallets: (
@@ -198,6 +199,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
+  const palletLoadGenerationRef = useRef(0);
 
   useEffect(() => {
     setApiLocale(language);
@@ -207,15 +209,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [language]);
 
-  const setLanguage = (lang: AppLanguage) => {
-    setApiLocale(lang);
-    setLanguageState(lang);
-  };
-
   const buildNotifications = (
     nextAuditLogs: AuditLog[],
     nextServiceReports: ServiceReport[],
     nextInvoices: Invoice[],
+    nextLanguage: AppLanguage = language,
   ): AppNotification[] => {
     const invoiceNotifications = nextInvoices
       .filter((invoice) => invoice.status === "overdue")
@@ -245,7 +243,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .map((report, index) => ({
         id: 3000 + index,
         title: "Service Required",
-        message: report.problem_description,
+        message: formatServiceReportDescription(
+          report.problem_description,
+          nextLanguage,
+        ),
         type: "alert" as const,
         read: false,
         created_at: report.created_at,
@@ -264,7 +265,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .slice(0, 10);
   };
 
+  const setLanguage = (lang: AppLanguage) => {
+    setApiLocale(lang);
+    setLanguageState(lang);
+    setNotifications(buildNotifications(auditLogs, serviceReports, invoices, lang));
+  };
+
   const resetData = () => {
+    palletLoadGenerationRef.current += 1;
     clearAppDataCache();
     setPallets([]);
     setStatuses([]);
@@ -283,6 +291,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       resetData();
       return;
     }
+
+    const palletLoadGeneration = ++palletLoadGenerationRef.current;
 
     const safeLoad = async <T,>(
       loader: () => Promise<T>,
@@ -325,15 +335,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       items: [],
       meta: { total: 0, limit: 50, offset: 0, count: 0 },
     };
-    const emptyClientPage = {
-      items: [],
-      meta: { total: 0, limit: 50, offset: 0, count: 0 },
-    };
-
     const [
       statusesData,
       palletsPage,
-      clientsPage,
+      clientsData,
       auditLogsData,
       serviceReportsData,
       invoicesData,
@@ -343,7 +348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     ] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
       safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
-      safeLoad(() => apiService.clients.page({ limit: 50 }), emptyClientPage),
+      safeLoad(() => apiService.clients.list(), []),
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
       canLoadInvoices
@@ -359,7 +364,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     ]);
     const rolesData = rolesPage.items;
     const palletsData = palletsPage.items;
-    const clientsData = clientsPage.items;
 
     setStatuses(statusesData);
     setPallets(palletsData);
@@ -384,6 +388,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       permissions: permissionsData,
       palletDashboardStats: dashboardStatsData,
     });
+
+    // Keep the initial dashboard responsive, then complete the shared pallet
+    // cache in the background. Some views operate on this cache, so stopping
+    // at the first page makes older pallets appear to be missing.
+    if (palletsPage.meta.total > palletsData.length) {
+      void safeLoad(() => apiService.pallets.list(), []).then((allPallets) => {
+        if (
+          palletLoadGeneration !== palletLoadGenerationRef.current ||
+          allPallets.length <= palletsData.length
+        ) {
+          return;
+        }
+
+        setPallets(allPallets);
+        writeAppDataCache({ pallets: allPallets });
+      });
+    }
   };
 
   const fetchInvoices = async () => {
@@ -664,10 +685,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .catch((error) => console.error("Failed to create pallet batch", error));
   };
 
-  const updatePallet = (
+  const updatePallet = async (
     pallet: Pallet,
     actor?: { id: number; name: string },
-  ) => {
+  ): Promise<Pallet> => {
     const normalizedQrCode = normalizeQrCodeForStorage(pallet.qr_code);
     const previousPallet = pallets.find((item) => item.id === pallet.id);
     const normalizedPallet: Pallet = {
@@ -708,11 +729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((item) => (item.id === pallet.id ? nextPallet : item)),
     );
 
-    if (!previousPallet) {
-      return;
-    }
-
-    if (hasStatusChange) {
+    if (previousPallet && hasStatusChange) {
       pushNotification(
         "Status Update",
         `${nextPallet.qr_code} moved to ${nextPallet.current_status_name}${actor?.name ? ` by ${actor.name}` : ""}.`,
@@ -720,7 +737,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     }
 
-    if (hasQrCodeChange) {
+    if (previousPallet && hasQrCodeChange) {
       pushNotification(
         "QR Version Update",
         `${previousPallet.qr_code} updated to ${nextPallet.qr_code}.`,
@@ -728,17 +745,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     }
 
-    void apiService.pallets
-      .update(nextPallet.id, nextPallet)
-      .then((updatedPallet) => {
+    try {
+      const updatedPallet = await apiService.pallets.update(nextPallet.id, nextPallet);
+      setPallets((prev) => {
+        const exists = prev.some((item) => item.id === updatedPallet.id);
+
+        return exists
+          ? prev.map((item) => item.id === updatedPallet.id ? updatedPallet : item)
+          : [updatedPallet, ...prev];
+      });
+      void fetchAuditLogs();
+      void apiService.pallets.stats().then(setPalletDashboardStats).catch(() => undefined);
+
+      return updatedPallet;
+    } catch (error) {
+      if (previousPallet) {
         setPallets((prev) =>
-          prev.map((item) =>
-            item.id === updatedPallet.id ? updatedPallet : item,
-          ),
+          prev.map((item) => item.id === previousPallet.id ? previousPallet : item),
         );
-        void fetchAuditLogs();
-      })
-      .catch((error) => console.error("Failed to update pallet", error));
+      }
+      throw error;
+    }
   };
 
   const deletePallet = (id: number) => {
@@ -800,27 +827,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     return pallet;
   };
 
-  const updatePalletRepairStatus = (palletId: number, isForRepair: boolean) => {
+  const updatePalletRepairStatus = async (palletId: number, isForRepair: boolean): Promise<Pallet> => {
     const pallet = pallets.find((item) => item.id === palletId);
-    if (!pallet) return;
 
-    setPallets((previous) => previous.map((item) =>
-      item.id === palletId ? { ...item, is_for_repair: isForRepair } : item
-    ));
+    if (pallet) {
+      setPallets((previous) => previous.map((item) =>
+        item.id === palletId ? { ...item, is_for_repair: isForRepair } : item
+      ));
+    }
 
-    void apiService.pallets.updateRepairStatus(palletId, isForRepair)
-      .then((updatedPallet) => {
-        setPallets((previous) => previous.map((item) =>
-          item.id === updatedPallet.id ? updatedPallet : item
-        ));
-        void fetchAuditLogs();
-      })
-      .catch((error) => {
-        console.error('Failed to update pallet repair status', error);
+    try {
+      const updatedPallet = await apiService.pallets.updateRepairStatus(palletId, isForRepair);
+      upsertPalletInState(updatedPallet);
+      // Refresh the activity log in the background so the button result is not delayed by a second request.
+      void fetchAuditLogs();
+      console.info('Pallet service status updated', {
+        palletId: updatedPallet.id,
+        qrCode: updatedPallet.qr_code,
+        admittedToService: isForRepair,
+      });
+      return updatedPallet;
+    } catch (error) {
+      console.error('Failed to update pallet repair status', error);
+      if (pallet) {
         setPallets((previous) => previous.map((item) =>
           item.id === palletId ? pallet : item
         ));
-      });
+      }
+      throw error;
+    }
   };
 
   const scanPalletByQr = async (qrCode: string, scannedCandidates: string[]): Promise<Pallet> => {
@@ -846,7 +881,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const reportDamage = (report: {
     pallet_id: number;
     problem_description: string;
-    image?: File;
+    images?: File[];
   }) => {
     return apiService.serviceReports.create(report).then((createdReport) => {
       setServiceReports((prev) => [
