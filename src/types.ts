@@ -245,6 +245,7 @@ export interface ClientDetail {
   warehouse2_postal_code?: string;
   warehouse2_city?: string;
   warehouse_scope?: "warehouse_nl" | "warehouse_bih";
+  invoice_count?: number;
 }
 
 export interface GhostPalletReportEntry {

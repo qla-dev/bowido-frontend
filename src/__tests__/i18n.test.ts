@@ -30,13 +30,13 @@ describe("driver status translations", () => {
 
 describe("system note translations", () => {
   it("renders saved no-QR note labels in the viewer's language", () => {
-    const bosnianNote = "Poslano preko mobilne no-QR forme | Dostupno za preuzimanje: Odmah preuzeti | Komentar: Leave at the gate";
+    const bosnianNote = "Poslano preko mobilne no-QR forme | Lokacija 1 | Vlastiti magacin | Dostupno za preuzimanje: Odmah preuzeti | Komentar: Leave at the gate";
 
     expect(formatSystemNote(bosnianNote, "en")).toBe(
-      "Submitted from mobile no-QR form | Available for pickup: Direct pickup | Comment: Leave at the gate",
+      "Submitted from mobile no-QR form | Location 1 | Own warehouse | Available for pickup: Direct pickup | Comment: Leave at the gate",
     );
     expect(formatSystemNote(bosnianNote, "nl")).toBe(
-      "Verstuurd via mobiel formulier zonder QR | Beschikbaar voor het ophalen: Direct ophalen | Commentaar: Leave at the gate",
+      "Verstuurd via mobiel formulier zonder QR | Locatie 1 | Eigen magazijn | Beschikbaar voor het ophalen: Direct ophalen | Commentaar: Leave at the gate",
     );
   });
 });

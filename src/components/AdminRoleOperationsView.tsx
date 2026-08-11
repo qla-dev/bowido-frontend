@@ -465,7 +465,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         columnOrder={columns.map((column) => column.key)}
         initialColumnWidths={COLUMN_WIDTHS}
         minColumnWidths={MIN_WIDTHS}
-        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni sirinu kolone' : 'Resize column'}
+        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni širinu kolone' : 'Resize column'}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
         isEmpty={visibleRows.length === 0}

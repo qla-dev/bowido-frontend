@@ -401,7 +401,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         columnOrder={AUDIT_TABLE_COLUMN_ORDER}
         initialColumnWidths={AUDIT_INITIAL_COLUMN_WIDTHS}
         minColumnWidths={AUDIT_MIN_COLUMN_WIDTHS}
-        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni sirinu kolone' : 'Resize column'}
+        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni širinu kolone' : 'Resize column'}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
         isEmpty={!isInitialLoading && filteredLogs.length === 0}

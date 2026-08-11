@@ -212,7 +212,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const noHistoryLabel = language === 'bs' ? 'Nema historije kretanja.' : language === 'nl' ? 'Geen bewegingsgeschiedenis.' : 'No movement history.';
   const resizeAriaLabel =
     language === 'bs'
-      ? 'Promijeni sirinu kolone'
+      ? 'Promijeni širinu kolone'
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';

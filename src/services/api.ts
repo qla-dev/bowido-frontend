@@ -516,6 +516,7 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     warehouse2_postal_code: client.warehouse2_postal_code || undefined,
     warehouse2_city: client.warehouse2_city || undefined,
     warehouse_scope: client.warehouse_scope || undefined,
+    invoice_count: Number(client.invoice_count ?? 0),
     grace_period_days: Number(client.grace_period_days ?? 0),
     price_per_day: Number(client.price_per_day ?? client.default_price_per_day ?? 0),
     is_active: Boolean(client.is_active),

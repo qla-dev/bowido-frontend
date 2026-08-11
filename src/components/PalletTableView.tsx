@@ -502,7 +502,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const transportStatusIds = [2, 6];
   const resizeAriaLabel =
     language === 'bs'
-      ? 'Promijeni sirinu kolone'
+      ? 'Promijeni širinu kolone'
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';

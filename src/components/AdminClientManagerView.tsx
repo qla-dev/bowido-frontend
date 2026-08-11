@@ -45,6 +45,7 @@ type SortKey =
   | 'address'
   | 'warehouse1'
   | 'warehouse2'
+  | 'invoiceCount'
   | 'totalPallets'
   | 'overduePallets'
   | 'rate'
@@ -62,6 +63,7 @@ type ClientManagerRow = {
   addressLabel: string;
   warehouse1Label: string;
   warehouse2Label: string;
+  invoiceCount: number;
   warehouses: string[];
   totalPallets: number;
   overduePallets: number;
@@ -88,6 +90,7 @@ const COLUMN_ORDER = [
   'address',
   'warehouse1',
   'warehouse2',
+  'invoiceCount',
   'totalPallets',
   'overduePallets',
   'rate',
@@ -103,6 +106,7 @@ const INITIAL_COLUMN_WIDTHS: Record<SortKey, number> = {
   address: 240,
   warehouse1: 240,
   warehouse2: 240,
+  invoiceCount: 130,
   totalPallets: 145,
   overduePallets: 145,
   rate: 155,
@@ -118,6 +122,7 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   address: 190,
   warehouse1: 190,
   warehouse2: 190,
+  invoiceCount: 115,
   totalPallets: 125,
   overduePallets: 125,
   rate: 125,
@@ -141,6 +146,7 @@ const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
   address: 'address',
   warehouse1: 'warehouse1',
   warehouse2: 'warehouse2',
+  invoiceCount: 'invoiceCount',
   rate: 'rate',
   gracePeriod: 'gracePeriod',
 };
@@ -161,6 +167,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   description,
 }) => {
   const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
+  const tableColumns: SortKey[] = readOnly
+    ? COLUMN_ORDER.filter((key) => key !== 'warehouse1' && key !== 'warehouse2')
+    : [...COLUMN_ORDER];
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -345,6 +354,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       language === 'bs' ? 'Magacin 1' : language === 'nl' ? 'Magazijn 1' : 'Warehouse 1',
     warehouse2:
       language === 'bs' ? 'Magacin 2' : language === 'nl' ? 'Magazijn 2' : 'Warehouse 2',
+    invoiceCount:
+      language === 'bs' ? 'Broj faktura' : language === 'nl' ? 'Facturen' : 'Invoices',
     palletsAtClient:
       language === 'bs' ? 'Palete kod kupca' : language === 'nl' ? 'Bokken bij klant' : 'Pallets at client',
     lastInvoices:
@@ -370,7 +381,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       language === 'bs' ? 'Izvoz fakture pripremljen za' : language === 'nl' ? 'Factuurexport voorbereid voor' : 'Invoice export prepared for',
     resize:
       language === 'bs'
-        ? 'Promijeni sirinu kolone'
+        ? 'Promijeni širinu kolone'
         : language === 'nl'
           ? 'Kolombreedte aanpassen'
           : 'Resize column',
@@ -495,6 +506,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           addressLabel: formatAddress(client.street, client.house_number, client.postal_code, client.city),
           warehouse1Label,
           warehouse2Label,
+          invoiceCount: client.invoice_count ?? 0,
           warehouses,
           totalPallets: clientPallets.length,
           overduePallets: overdueData.overduePallets,
@@ -534,6 +546,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         return row.warehouse1Label;
       case 'warehouse2':
         return row.warehouse2Label;
+      case 'invoiceCount':
+        return row.invoiceCount;
       default:
         return row.clientName;
     }
@@ -553,19 +567,19 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
   const filterOptions = useMemo<Record<SortKey, AdminTableFilterOption[]>>(
     () => Object.fromEntries(
-      COLUMN_ORDER.map((key) => [
+      tableColumns.map((key) => [
         key,
         Array.from<string>(new Set<string>(rows.map((row) => getFilterValue(row, key))))
           .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
           .map((value) => ({ value, label: value })),
       ])
     ) as Record<SortKey, AdminTableFilterOption[]>,
-    [rows]
+    [rows, tableColumns]
   );
 
   const visibleRows = useMemo(() => {
     const nextRows = rows.filter((row) =>
-      COLUMN_ORDER.every((key) =>
+      tableColumns.every((key) =>
         selectedFilters[key].length === 0 || selectedFilters[key].includes(getFilterValue(row, key))
       )
     );
@@ -585,7 +599,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     });
 
     return nextRows;
-  }, [rows, selectedFilters, sortConfig]);
+  }, [rows, selectedFilters, sortConfig, tableColumns]);
 
   const selectedInvoices = useMemo(() => {
     if (!selectedRow) {
@@ -950,6 +964,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     address: { label: labels.address },
     warehouse1: { label: labels.warehouse1 },
     warehouse2: { label: labels.warehouse2 },
+    invoiceCount: { label: labels.invoiceCount },
     totalPallets: { label: labels.totalPallets },
     overduePallets: { label: labels.overduePallets },
     rate: { label: labels.rate },
@@ -1011,7 +1026,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       </AdminTableStickyToolbar>
 
       <AdminDataTable<SortKey>
-        columnOrder={COLUMN_ORDER}
+        columnOrder={tableColumns}
         initialColumnWidths={INITIAL_COLUMN_WIDTHS}
         minColumnWidths={MIN_COLUMN_WIDTHS}
         resizeAriaLabel={labels.resize}
@@ -1032,13 +1047,13 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             style={{ width: `max(100%, ${totalTableWidth}px)` }}
           >
             <colgroup>
-              {COLUMN_ORDER.map((key) => (
+              {tableColumns.map((key) => (
                 <col key={`admin-client-col-${key}`} style={{ width: columnWidths[key] }} />
               ))}
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-white/5">
               <tr>
-                {COLUMN_ORDER.map((key) => (
+                {tableColumns.map((key) => (
                     <th
                       key={`admin-client-header-${key}`}
                       ref={registerHeaderCell(key)}
@@ -1090,16 +1105,21 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                       <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.addressLabel}</span>
                     </div>
                   </td>
-                  <td className={bodyCellClass}>
+                  {tableColumns.includes('warehouse1') && <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.warehouse1Label}</span>
                     </div>
-                  </td>
-                  <td className={bodyCellClass}>
+                  </td>}
+                  {tableColumns.includes('warehouse2') && <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.warehouse2Label}</span>
                     </div>
-                  </td>
+                  </td>}
+                  {tableColumns.includes('invoiceCount') && <td className={bodyCellClass}>
+                    <div className={bodyCellInnerClass}>
+                      <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-white')}>{row.invoiceCount}</span>
+                    </div>
+                  </td>}
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-white')}>{row.totalPallets}</span>

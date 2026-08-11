@@ -134,7 +134,7 @@ export const NoQrPalletTableView: React.FC = () => {
   const saveLabel =
     language === 'bs' ? 'Sačuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes';
   const deleteLabel =
-    language === 'bs' ? 'Obrisi paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
+    language === 'bs' ? 'Obriši paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
   const deleteConfirmLabel =
     language === 'bs'
       ? 'Obrisati ovu paletu bez QR koda?'
@@ -143,7 +143,7 @@ export const NoQrPalletTableView: React.FC = () => {
         : 'Delete this pallet without a QR code?';
   const resizeAriaLabel =
     language === 'bs'
-      ? 'Promijeni sirinu kolone'
+      ? 'Promijeni širinu kolone'
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';

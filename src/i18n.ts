@@ -2489,12 +2489,12 @@ export const formatServiceReportDescription = (
       aliases: [
         "Driver marked pallet in repair",
         "Chauffeur heeft de bok gemarkeerd voor reparatie",
-        "VozaÄŤ je oznaÄŤio paletu za servis",
+        "Vozač je označio paletu za servis",
       ],
       translations: {
         en: "Driver marked pallet in repair.",
         nl: "Chauffeur heeft de bok gemarkeerd voor reparatie.",
-        bs: "VozaÄŤ je oznaÄŤio paletu za servis.",
+        bs: "Vozač je označio paletu za servis.",
       },
     },
     {
