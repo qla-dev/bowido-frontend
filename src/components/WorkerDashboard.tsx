@@ -6,9 +6,10 @@ import { RoleType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
 import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Truck, Route } from 'lucide-react';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { formatAppDate, formatAppTime } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
+import { SoftHyphenatedText } from './SoftHyphenatedText';
 
 interface WorkerDashboardProps {
   role: RoleType;
@@ -614,7 +615,9 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                              {report && (
                                <div className="p-4 bg-zinc-50 rounded-2xl">
                                   <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{t('damageDescription')}</p>
-                                  <p className="text-[11px] font-bold text-zinc-700 leading-tight">{report.problem_description}</p>
+                                  <SoftHyphenatedText className="block text-[11px] font-bold leading-tight text-zinc-700">
+                                    {formatServiceReportDescription(report.problem_description, language)}
+                                  </SoftHyphenatedText>
                                </div>
                              )}
 

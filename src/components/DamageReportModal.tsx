@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Camera, X, Search, Package, AlertCircle } from 'lucide-react';
 import { useApp } from '../AppContext';
@@ -6,6 +6,11 @@ import { Pallet, User } from '../types';
 import { Button, Card, Input } from './ui';
 import { getPalletTypeLabel } from '../i18n';
 import { compressPhotoForUpload } from '../lib/imageCompression';
+import {
+  DAMAGE_DESCRIPTION_MAX_LENGTH,
+  getDamageDescriptionCharacterCount,
+  limitDamageDescription,
+} from '../lib/damageDescription';
 
 interface DamageReportModalProps {
   onClose: () => void;
@@ -17,8 +22,8 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
   const [search, setSearch] = useState('');
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
   const [description, setDescription] = useState('');
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [images, setImages] = useState<Array<{ file: File; preview: string }>>([]);
+  const imagePreviewsRef = useRef<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredPallets =
@@ -35,7 +40,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
       await reportDamage({
         pallet_id: selectedPallet.id,
         problem_description: description,
-        image: image || undefined,
+        images: images.map((image) => image.file),
       });
       onClose();
     } catch (error) {
@@ -43,6 +48,36 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  useEffect(() => {
+    imagePreviewsRef.current = images.map((image) => image.preview);
+  }, [images]);
+
+  useEffect(() => () => imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview)), []);
+
+  const addImages = async (files: FileList | null) => {
+    if (!files) return;
+
+    try {
+      const preparedImages = await Promise.all(
+        Array.from(files).slice(0, Math.max(0, 10 - images.length)).map(async (file) => {
+          const compressed = await compressPhotoForUpload(file);
+          return { file: compressed, preview: URL.createObjectURL(compressed) };
+        }),
+      );
+      setImages((current) => [...current, ...preparedImages]);
+    } catch (error) {
+      console.error('Failed to compress damage photo', error);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages((current) => {
+      const image = current[index];
+      if (image) URL.revokeObjectURL(image.preview);
+      return current.filter((_, currentIndex) => currentIndex !== index);
+    });
   };
 
   return (
@@ -129,62 +164,58 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
                     className="w-full p-4 bg-zinc-50 border-2 border-transparent focus:border-rose-500 rounded-2xl font-black text-xs h-24 outline-none transition-all resize-none uppercase tracking-tight placeholder:text-zinc-300"
                     placeholder={t('damageIssuePlaceholder')}
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(e) => setDescription(limitDamageDescription(e.target.value))}
                   />
+                  <p className="px-1 text-right text-[9px] font-black uppercase tracking-widest text-zinc-400" aria-live="polite">
+                    {getDamageDescriptionCharacterCount(description)} / {DAMAGE_DESCRIPTION_MAX_LENGTH} {t('characters')}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-1">3. {t('evidencePhoto')}</h4>
-                  {imagePreview ? (
-                    <div className="relative rounded-2xl overflow-hidden group border-2 border-rose-50">
-                      <img src={imagePreview} className="w-full h-40 object-cover" alt="Damage" />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Button variant="danger" size="sm" onClick={() => {
-                          if (imagePreview) URL.revokeObjectURL(imagePreview);
-                          setImage(null);
-                          setImagePreview(null);
-                        }}>
-                          <X size={14} className="mr-2" /> {t('remove')}
-                        </Button>
+                  <div className="space-y-4">
+                    {images.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {images.map((image, index) => (
+                          <div key={image.preview} className="relative overflow-hidden rounded-2xl border-2 border-rose-50">
+                            <img src={image.preview} className="h-28 w-full object-cover" alt={`Damage ${index + 1}`} />
+                            <button type="button" onClick={() => removeImage(index)} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/65 text-white" aria-label={t('remove')}>
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            try {
-                              const compressed = await compressPhotoForUpload(file);
-                              if (imagePreview) URL.revokeObjectURL(imagePreview);
-                              setImage(compressed);
-                              setImagePreview(URL.createObjectURL(compressed));
-                            } catch (error) {
-                              console.error('Failed to compress damage photo', error);
-                            }
-                          }
-                        }}
-                        className="hidden"
-                        id="damage-photo"
-                      />
-                      <label
-                        htmlFor="damage-photo"
-                        className="w-full py-10 bg-zinc-50 border-2 border-dashed border-zinc-100/80 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white hover:border-rose-200 transition-all text-zinc-300 hover:text-rose-600 cursor-pointer group"
-                      >
-                        {isSubmitting ? (
-                          <div className="w-5 h-5 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <Camera size={24} className="group-hover:scale-110 transition-transform" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">{t('evidencePhoto')}</span>
-                          </>
-                        )}
-                      </label>
-                    </div>
-                  )}
+                    )}
+                    {images.length < 10 && (
+                      <>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          multiple
+                          onChange={async (e) => {
+                            await addImages(e.target.files);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                          id="damage-photo"
+                        />
+                        <label
+                          htmlFor="damage-photo"
+                          className="w-full py-10 bg-zinc-50 border-2 border-dashed border-zinc-100/80 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white hover:border-rose-200 transition-all text-zinc-300 hover:text-rose-600 cursor-pointer group"
+                        >
+                          {isSubmitting ? (
+                            <div className="w-5 h-5 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Camera size={24} className="group-hover:scale-110 transition-transform" />
+                              <span className="text-[9px] font-black uppercase tracking-widest">{t('evidencePhoto')}</span>
+                            </>
+                          )}
+                        </label>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -195,7 +226,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
               {t('cancel')}
             </Button>
             <Button
-              disabled={!selectedPallet || !description || !image || isSubmitting}
+              disabled={!selectedPallet || !description || images.length === 0 || isSubmitting}
               onClick={handleSubmit}
               className="flex-[2] bg-rose-600 border-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-900/10"
             >

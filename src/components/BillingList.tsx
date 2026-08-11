@@ -1,133 +1,143 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Filter, FileText, ChevronRight, ArrowLeft, Search } from 'lucide-react';
-import { Button, Card, Badge, Input } from './ui';
+import { X } from 'lucide-react';
+import { Badge, Button, cn } from './ui';
 import { InvoiceViewer } from './InvoiceViewer';
 import { useApp } from '../AppContext';
-import { Invoice } from '../types';
-import { InfiniteScrollFooter } from './InfiniteScrollFooter';
+import { ClientDetail, Invoice } from '../types';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
-import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { formatAppDateTime } from '../lib/dateFormat';
+import { AdminDataTable, adminTableStyles } from './AdminDataTable';
+import { AdminClientManagerView } from './AdminClientManagerView';
 
 interface BillingListProps {
   onBack?: () => void;
   compact?: boolean;
 }
 
-const INVOICE_PAGE_SIZE = 25;
+type SelectedCustomer = {
+  id: number;
+  name: string;
+};
 
-export const BillingList: React.FC<BillingListProps> = ({ onBack, compact = false }) => {
+type InvoiceColumn = 'number' | 'status' | 'created' | 'mailed' | 'amount';
+
+const invoiceColumns: readonly InvoiceColumn[] = ['number', 'status', 'created', 'mailed', 'amount'];
+const invoiceWidths: Record<InvoiceColumn, number> = { number: 220, status: 170, created: 215, mailed: 215, amount: 175 };
+const invoiceMinWidths: Record<InvoiceColumn, number> = { number: 150, status: 130, created: 170, mailed: 170, amount: 130 };
+
+export const BillingList: React.FC<BillingListProps> = () => {
   const { t, language } = useApp();
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<SelectedCustomer | null>(null);
+  const [customerInvoices, setCustomerInvoices] = useState<Invoice[]>([]);
+  const [isInvoicesLoading, setIsInvoicesLoading] = useState(false);
+  const selectionRequestId = useRef(0);
+  const { headerCellClass, headerContentClass, bodyCellClass, bodyCellInnerClass, bodyTextClass } = adminTableStyles;
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery.trim());
-    }, 250);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [searchQuery]);
-
-  const fetchPage = useCallback((offset: number) => apiService.invoices.page({
-    limit: INVOICE_PAGE_SIZE,
-    offset,
-    search: debouncedSearchQuery || undefined,
-  }), [debouncedSearchQuery]);
-  const { items: invoices, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry } = useInfinitePagination({
-    queryKey: debouncedSearchQuery,
-    pageSize: INVOICE_PAGE_SIZE,
-    fetchPage,
-  });
-
-  const getInvoiceStatusLabel = (status: Invoice['status']) => {
+  const statusLabel = (status: Invoice['status']) => {
     if (status === 'paid') return t('paid');
     if (status === 'overdue') return t('overdue');
     if (status === 'sent') return t('sentLabel');
+    if (status === 'issued') return t('issued');
     return status;
   };
-  const searchPlaceholder = t('searchInvoices');
+  const formatAmount = (amount: number) => `€${amount.toFixed(2)}`;
+  const notMailedLabel = t('notMailedYet');
+  const payableAmount = customerInvoices
+    .filter((invoice) => invoice.status !== 'paid')
+    .reduce((total, invoice) => total + invoice.total_amount, 0);
+
+  const openCustomerInvoices = (client: ClientDetail) => {
+    const requestId = selectionRequestId.current + 1;
+    selectionRequestId.current = requestId;
+    setSelectedCustomer({ id: client.user_id, name: client.name });
+    setCustomerInvoices([]);
+    setIsInvoicesLoading(true);
+
+    void apiService.invoices
+      .list({ user_id: client.user_id, sort_by: 'created_at', sort_direction: 'desc' })
+      .then((invoices) => {
+        if (selectionRequestId.current === requestId) setCustomerInvoices(invoices);
+      })
+      .catch((error) => {
+        console.error('Failed to load customer invoices', error);
+        if (selectionRequestId.current === requestId) setCustomerInvoices([]);
+      })
+      .finally(() => {
+        if (selectionRequestId.current === requestId) setIsInvoicesLoading(false);
+      });
+  };
+
+  const closeCustomerInvoices = () => {
+    selectionRequestId.current += 1;
+    setSelectedCustomer(null);
+    setCustomerInvoices([]);
+    setIsInvoicesLoading(false);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className={`flex flex-col gap-3 ${compact ? '' : ''} px-1 sm:px-2 lg:flex-row lg:items-center lg:justify-between`}>
-        <div className="flex flex-wrap items-center gap-2">
-          {onBack && (
-            <Button variant="ghost" size="sm" onClick={onBack} className="h-10 rounded-xl px-3 text-zinc-500">
-              <ArrowLeft size={14} className="mr-2" />
-              {t('dashboard')}
-            </Button>
-          )}
-          {!compact && (
-            <div>
-              <h2 className="text-3xl font-black uppercase tracking-tighter text-black">{t('billing')}</h2>
-              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{t('managePayments')}</p>
-            </div>
-          )}
-        </div>
-        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
-          <div className="relative w-full sm:w-80">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-300" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={searchPlaceholder}
-              className="h-10 bg-white pl-10 normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal"
-            />
-          </div>
-          <Button variant="outline" size="sm" className={`${compact ? 'h-10 self-start sm:self-auto' : ''}`}>
-            <Filter size={14} className="mr-2" /> {t('filter')}
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <AdminClientManagerView
+        readOnly
+        onClientSelect={openCustomerInvoices}
+        title={t('billing')}
+        description={t('managePayments')}
+      />
 
-      <div className="grid grid-cols-1 gap-4">
-        {invoices.map((invoice) => (
-          <motion.div
-            key={invoice.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            whileHover={{ y: -2 }}
-            onClick={() => setSelectedInvoice(invoice)}
-            className="cursor-pointer"
-          >
-            <Card noPadding className="group hover:border-black transition-all">
-              <div className="p-4 md:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-5 w-full sm:w-auto">
-                  <div className="w-12 h-12 bg-zinc-50 group-hover:bg-black rounded-xl flex items-center justify-center transition-all shrink-0">
-                    <FileText className="text-zinc-300 group-hover:text-white" size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-black text-base text-black truncate uppercase tracking-tight">{invoice.invoice_number}</h3>
-                      <Badge variant={invoice.status === 'paid' ? 'success' : 'danger'}>
-                        {getInvoiceStatusLabel(invoice.status)}
-                      </Badge>
-                    </div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest truncate">{invoice.customer_name}</p>
-                  </div>
+      {selectedCustomer && (
+        <div className="modal-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={selectedCustomer.name} onClick={closeCustomerInvoices}>
+          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="my-auto w-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
+            <div className="max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[2rem] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.28)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[3rem]">
+              <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/40 p-5 sm:p-7">
+                <div>
+                  <h2 className="text-lg font-black uppercase tracking-tight text-black">{selectedCustomer.name}</h2>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{customerInvoices.length} {t('invoicesLabel')}</p>
                 </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-10 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0 border-zinc-50">
-                  <div className="text-left sm:text-right">
-                    <p className="text-[9px] font-black text-zinc-300 uppercase tracking-[0.2em] mb-1">{t('payableAmount')}</p>
-                    <p className="text-2xl font-black text-black tracking-tighter">{`\u20AC${invoice.total_amount.toFixed(2)}`}</p>
-                  </div>
-                  <div className="w-10 h-10 border-2 border-zinc-50 group-hover:border-black rounded-full flex items-center justify-center transition-all shrink-0">
-                    <ChevronRight className="text-zinc-200 group-hover:text-black" size={16} />
-                  </div>
+                <div className="flex items-center gap-4">
+                  <p className="hidden text-right text-sm font-black text-black sm:block">{t('payableAmount')}: {formatAmount(payableAmount)}</p>
+                  <Button variant="ghost" size="sm" onClick={closeCustomerInvoices} className="h-10 w-10 rounded-full p-0 text-zinc-400" aria-label={t('close')}><X size={18} /></Button>
                 </div>
               </div>
-            </Card>
+              <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-4 sm:p-6">
+                <p className="mb-4 text-sm font-black text-black sm:hidden">{t('payableAmount')}: {formatAmount(payableAmount)}</p>
+                <AdminDataTable<InvoiceColumn>
+                  columnOrder={invoiceColumns}
+                  initialColumnWidths={invoiceWidths}
+                  minColumnWidths={invoiceMinWidths}
+                  resizeAriaLabel={t('resizeColumn')}
+                  isEmpty={!isInvoicesLoading && customerInvoices.length === 0}
+                  emptyState={<div className="p-16 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">{t('noMatchingResults')}</div>}
+                  renderTable={({ columnWidths, totalTableWidth, registerHeaderCell, renderResizeHandle }) => (
+                    <table className="border-collapse text-left [table-layout:fixed]" style={{ width: `max(100%, ${totalTableWidth}px)` }}>
+                      <colgroup>{invoiceColumns.map((key) => <col key={key} style={{ width: columnWidths[key] }} />)}</colgroup>
+                      <thead className="border-b border-zinc-200 bg-zinc-50/80"><tr>
+                        {invoiceColumns.map((key) => {
+                          const label = key === 'number' ? t('invoiceNumber') : key === 'status' ? t('status') : key === 'created' ? t('createdAt') : key === 'mailed' ? t('mailedAt') : t('payableAmount');
+                          return <th key={key} ref={registerHeaderCell(key)} className={cn(headerCellClass, 'group')}><div className={headerContentClass}><span className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-800">{label}</span></div>{renderResizeHandle(key)}</th>;
+                        })}
+                      </tr></thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {customerInvoices.map((invoice, index) => (
+                          <motion.tr key={invoice.id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.01 }} onClick={() => setSelectedInvoice(invoice)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedInvoice(invoice); } }} tabIndex={0} role="button" className="cursor-pointer transition-colors hover:bg-zinc-50/60 focus-visible:bg-zinc-50 focus-visible:outline-none">
+                            <td className={bodyCellClass}><div className={bodyCellInnerClass}><span className={cn(bodyTextClass, 'text-zinc-900')}>{invoice.invoice_number}</span></div></td>
+                            <td className={bodyCellClass}><div className={bodyCellInnerClass}><Badge variant={invoice.status === 'paid' ? 'success' : 'danger'}>{statusLabel(invoice.status)}</Badge></div></td>
+                            <td className={bodyCellClass}><div className={bodyCellInnerClass}><span className={cn(bodyTextClass, 'text-zinc-500')}>{formatAppDateTime(invoice.created_at, language)}</span></div></td>
+                            <td className={bodyCellClass}><div className={bodyCellInnerClass}><span className={cn(bodyTextClass, 'text-zinc-500')}>{invoice.mailed_at ? formatAppDateTime(invoice.mailed_at, language) : notMailedLabel}</span></div></td>
+                            <td className={bodyCellClass}><div className={bodyCellInnerClass}><span className={cn(bodyTextClass, 'text-zinc-900')}>{formatAmount(invoice.total_amount)}</span></div></td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                />
+                <PageLoadingModal isOpen={isInvoicesLoading} language={language} />
+              </div>
+            </div>
           </motion.div>
-        ))}
-      </div>
-
-      <PageLoadingModal isOpen={isInitialLoading} language={language} />
-      <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />
-
+        </div>
+      )}
       {selectedInvoice && <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
     </div>
   );

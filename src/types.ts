@@ -139,6 +139,13 @@ export interface PalletDashboardStats {
   total_pallets: number;
   in_transport: number;
   overdue_units: number;
+  customer_pickup_units: number;
+  top_overdue_clients: Array<{
+    user_id: number | null;
+    client_name: string;
+    overdue_pallets: number;
+    debt_eur: number;
+  }>;
 }
 
 export interface AuditLog {
@@ -212,6 +219,7 @@ export interface ClientDetail {
   id: number;
   user_id: number;
   name: string;
+  contact_person?: string | null;
   kvk_number?: string;
   phone_number?: string;
   fixed_phone?: string;
@@ -265,7 +273,9 @@ export interface Invoice {
   issue_date: string;
   due_date: string;
   total_amount: number;
-  status: "draft" | "paid" | "overdue" | "sent";
+  status: "draft" | "issued" | "paid" | "overdue" | "sent";
+  created_at: string;
+  mailed_at?: string;
 }
 
 export interface InvoiceItem {

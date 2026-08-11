@@ -70,6 +70,7 @@ import {
   palletTypeValues,
 } from "../i18n";
 import { getPalletDisplayName } from "../lib/palletDisplay";
+import { rankSearchResults } from "../lib/searchRanking";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
@@ -110,21 +111,6 @@ type PalletDetailDropdownOption = {
   label: string;
 };
 
-const searchMatchRank = (value: string, query: string) => {
-  const normalizedValue = value.toLocaleLowerCase();
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-
-  if (!normalizedQuery || normalizedValue.startsWith(normalizedQuery)) {
-    return 0;
-  }
-
-  return normalizedValue
-    .split(/[^\p{L}\p{N}]+/u)
-    .some((word) => word.startsWith(normalizedQuery))
-    ? 0
-    : 1;
-};
-
 const PalletDetailDropdown = ({
   value,
   options,
@@ -144,14 +130,7 @@ const PalletDetailDropdown = ({
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.value === value);
-  const visibleOptions = options
-    .filter((option) =>
-      option.label.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()),
-    )
-    .sort((left, right) => {
-      const rankDifference = searchMatchRank(left.label, searchQuery) - searchMatchRank(right.label, searchQuery);
-      return rankDifference || left.label.localeCompare(right.label, undefined, { sensitivity: 'base' });
-    });
+  const visibleOptions = rankSearchResults(options, searchQuery, (option) => option.label);
 
   const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -398,6 +377,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     label: string;
   } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
+  const [deletedPalletId, setDeletedPalletId] = useState<number | null>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<
     number | null
   >(null);
@@ -761,6 +741,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     if (deleteConfirm.kind === "pallet") {
       deletePallet(deleteConfirm.pallet.id);
+      setDeletedPalletId(deleteConfirm.pallet.id);
       setEditingPallet((current) =>
         current?.id === deleteConfirm.pallet.id ? null : current,
       );
@@ -975,6 +956,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ? getPalletStatusHistory(selectedPallet)
     : [];
   const latestSelectedPalletStatusLog = selectedPalletStatusHistory[0] || null;
+  const canUploadSelectedPalletDeliveryPhoto = Boolean(
+    selectedPallet &&
+      ['bij-de-klant', 'ophalen-klant'].includes(
+        selectedPallet.current_status_slug ||
+          statuses.find((status) => status.id === selectedPallet.current_status_id)?.slug ||
+          '',
+      ),
+  );
   const editingPalletStatusHistory = editingPallet
     ? getPalletStatusHistory(editingPallet)
     : [];
@@ -1015,46 +1004,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       !isEditingPalletTransportStatus &&
       !editingPalletFixedLocation,
   );
-  const filteredEditingPalletClients = React.useMemo(() => {
-    const query = editingPalletClientSearch.trim().toLocaleLowerCase();
-
-    return clients
-      .filter((client) => {
-        if (!query) {
-          return true;
-        }
-
-        return [
-          client.name,
-          client.country,
-          client.kvk_number,
-          String(client.user_id),
-        ].some((value) => value?.toLocaleLowerCase().includes(query));
-      })
-      .sort((left, right) => {
-        const leftRank = Math.min(
-          ...[left.name, left.country, left.kvk_number, String(left.user_id)]
-            .filter(Boolean)
-            .map((value) => searchMatchRank(String(value), query)),
-        );
-        const rightRank = Math.min(
-          ...[right.name, right.country, right.kvk_number, String(right.user_id)]
-            .filter(Boolean)
-            .map((value) => searchMatchRank(String(value), query)),
-        );
-
-        return leftRank - rightRank || left.name.localeCompare(right.name, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-      });
-  }, [clients, editingPalletClientSearch]);
+  const filteredEditingPalletClients = React.useMemo(
+    () => rankSearchResults(
+      clients,
+      editingPalletClientSearch,
+      (client) => client.name,
+      (client, query) => [client.country, client.kvk_number, String(client.user_id)]
+        .some((value) => value?.toLocaleLowerCase().includes(query)),
+    ),
+    [clients, editingPalletClientSearch],
+  );
 
   const renderOverview = () => {
     const overduePallets = pallets.filter((p) => calculateDebt(p) > 0);
-    const topOverduePallets = [...overduePallets]
-      .sort((left, right) => calculateDebt(right) - calculateDebt(left))
-      .slice(0, 10);
     const totalDebt = pallets.reduce((acc, p) => acc + calculateDebt(p), 0);
     const ghostPallets = pallets.filter((p) => p.is_ghost);
     const latestActivityLogs = auditLogs
@@ -1115,6 +1077,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // deliberately small first page, so using it as a fallback briefly shows
     // an incorrect total before the real count arrives.
     const overviewStats = dashboardStats;
+    const topOverdueClients = overviewStats?.top_overdue_clients ?? [];
+    const customerPickupUnits = overviewStats?.customer_pickup_units;
+    const customerPickupAnalysis =
+      customerPickupUnits === undefined
+        ? "—"
+        : language === "bs"
+          ? `${customerPickupUnits} paleta je označeno za preuzimanje kod klijenta.`
+          : language === "nl"
+            ? `${customerPickupUnits} bokken staan gemarkeerd voor ophalen bij de klant.`
+            : `${customerPickupUnits} pallets are marked for customer pickup.`;
 
     return (
       <div className="space-y-4">
@@ -1161,113 +1133,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex items-center gap-2 text-rose-700">
                   <AlertTriangle size={14} />
                   <span className="text-[11px] font-bold tracking-[0.08em]">
-                    {overduePallets.length > 0
-                      ? `${t("actionRequired")} (${overduePallets.length})`
-                      : t("allGood")}
+                    {overviewStats
+                      ? topOverdueClients.length > 0
+                        ? `${t("actionRequired")} (${topOverdueClients.length})`
+                        : t("allGood")
+                      : "—"}
                   </span>
                 </div>
                 <Badge
-                  variant={overduePallets.length > 0 ? "danger" : "success"}
+                  variant={topOverdueClients.length > 0 ? "danger" : "success"}
                 >
-                  {overduePallets.length > 0 ? t("overdue") : t("allGood")}
+                  {topOverdueClients.length > 0 ? t("overdue") : t("allGood")}
                 </Badge>
               </div>
               <div className="overflow-x-auto">
-                {overduePallets.length > 0 ? (
+                {topOverdueClients.length > 0 ? (
                   <table className="w-full">
                     <thead className="border-b border-zinc-200 bg-zinc-50/95 text-center text-[9px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                       <tr>
                         <th className="px-4 py-2.5 align-middle">
-                          {t("palletLabel")}
+                          {t("client")}
                         </th>
                         <th className="px-4 py-2.5 align-middle">
-                          {t("client")}
+                          {t("overdueUnits")}
                         </th>
                         <th className="px-4 py-2.5 align-middle">
                           {t("owed")}
                         </th>
-                        <th className="px-4 py-2.5 align-middle">
-                          <div className="ml-auto min-w-[15rem] max-w-sm text-center">
-                            {t("invoiceLabel")}
-                          </div>
-                        </th>
                       </tr>
                     </thead>
                     <tbody className="text-[11px] divide-y divide-zinc-50">
-                      {topOverduePallets.map((p) => {
-                        const client = clients.find(
-                          (c) => c.user_id === p.user_id,
-                        );
-                        const invoiceWasSent = Boolean(
-                          sentInvoiceTimestamps[p.id],
-                        );
-                        const invoiceIsSending =
-                          sendingInvoicePalletIds.includes(p.id);
-                        return (
-                          <tr
-                            key={p.id}
-                            className="hover:bg-rose-50/30 transition-colors"
-                          >
-                            <td className="px-4 py-2.5 text-center align-middle">
-                              <button
-                                ref={editingPalletClientTriggerRef}
-                                type="button"
-                                onClick={() => openQrPreview(p)}
-                                title={t("showQrCode")}
-                                aria-label={`${t("showQrCode")}: ${getPalletDisplayName(p)}`}
-                                className="rounded-lg px-2 py-1 font-mono font-black text-emerald-700 underline decoration-emerald-300 underline-offset-4 transition-colors hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-                              >
-                                {getPalletDisplayName(p)}
-                              </button>
-                            </td>
-                            <td className="px-4 py-2.5 text-center align-middle">
-                              <p className="font-bold text-zinc-900 leading-none mb-1">
-                                {client?.name || t("inWarehouse")}
-                              </p>
-                              <p className="text-[11px] leading-4 text-zinc-500">
-                                {getLocationLabel(p.current_location, language)}
-                              </p>
-                            </td>
-                            <td className="px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
-                              {"\u20AC"}
-                              {calculateDebt(p).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2.5 text-right align-middle">
-                              <div className="ml-auto grid min-w-[15rem] max-w-sm grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                <Button
-                                  variant="outline"
-                                  size="xs"
-                                  onClick={() =>
-                                    setSelectedOverduePalletId(p.id)
-                                  }
-                                  className="w-full justify-center"
-                                >
-                                  <Eye size={13} className="mr-1.5" />
-                                  {t("viewInvoice")}
-                                </Button>
-                                <Button
-                                  variant={
-                                    invoiceWasSent ? "secondary" : "primary"
-                                  }
-                                  size="xs"
-                                  onClick={() => void handleSendInvoice(p)}
-                                  disabled={invoiceWasSent || invoiceIsSending}
-                                  className="w-full justify-center"
-                                >
-                                  <Send size={13} className="mr-1.5" />
-                                  {invoiceWasSent
-                                    ? t("sentLabel")
-                                    : t("sendInvoice")}
-                                </Button>
-                              </div>
-                            </td>
-                            <td className="hidden px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
-                              {"\u20AC"}
-                              {calculateDebt(p).toFixed(2)}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {topOverdueClients.map((client) => (
+                        <tr
+                          key={client.user_id ?? "no-client"}
+                          className="hover:bg-rose-50/30 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-center align-middle font-bold text-zinc-900">
+                            {client.client_name}
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle font-mono font-black text-zinc-700">
+                            {client.overdue_pallets}
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle font-mono font-black text-rose-600">
+                            {"\u20AC"}
+                            {client.debt_eur.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 ) : (
@@ -1402,51 +1314,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="grid min-w-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
             <Card title={t("quickAnalysis")} noPadding>
-              <div className="space-y-4 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp size={14} className="text-emerald-500" />
-                    <span className="text-[11px] font-bold tracking-[0.08em] text-zinc-500">
-                      {t("utilizationRate")}
+              <div className="p-4">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 gap-3">
+                      <Info size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                      <div>
+                        <p className="text-[11px] font-bold tracking-[0.06em] text-blue-800">
+                          {getStatusLabel("Ophalen klant", language)}
+                        </p>
+                        <p className="mt-1 text-[12px] font-medium leading-5 text-blue-700">
+                          {customerPickupAnalysis}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-2xl font-black text-blue-800">
+                      {customerPickupUnits ?? "—"}
                     </span>
-                  </div>
-                  <span className="text-xs font-black">
-                    {utilizationRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
-                  <div
-                    style={{ width: `${utilizationRate}%` }}
-                    className="h-full bg-black rounded-full"
-                  />
-                </div>
-
-                <div className="space-y-2.5">
-                  <div className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
-                    <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <p className="mb-1 text-[11px] font-bold tracking-[0.06em] text-blue-800">
-                        {t("logisticsNote")}
-                      </p>
-                      <p className="text-[12px] font-medium leading-5 text-blue-700">
-                        {t("logisticsNoteText")}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
-                    <AlertTriangle
-                      size={14}
-                      className="text-amber-600 shrink-0 mt-0.5"
-                    />
-                    <div className="min-w-0">
-                      <p className="mb-1 text-[11px] font-bold tracking-[0.06em] text-amber-800">
-                        {t("overdueWarning")}
-                      </p>
-                      <p className="text-[12px] font-medium leading-5 text-amber-700">
-                        {t("overdueWarningText")}
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1535,6 +1419,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onAddPallet={openAddPalletModal}
         onEditPallet={handleEditPallet}
         onDeletePallet={handleDeletePallet}
+        deletedPalletId={deletedPalletId}
       />
     );
   };
@@ -1964,7 +1849,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              <PalletDeliveryPhotoUpload palletId={selectedPallet.id} />
+              {canUploadSelectedPalletDeliveryPhoto && <PalletDeliveryPhotoUpload palletId={selectedPallet.id} />}
 
               <div className="space-y-4 mb-8">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">
@@ -2769,8 +2654,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {t("cancel")}
                 </button>
                 <button
-                  onClick={() => {
-                    updatePallet(
+                  onClick={async () => {
+                    try {
+                      await updatePallet(
                       {
                         ...editingPallet,
                         current_location:
@@ -2780,12 +2666,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ) || editingPallet.current_location,
                       },
                       { id: user.id, name: user.name },
-                    );
-                    setEditingPallet(null);
+                      );
+                      setEditingPallet(null);
                     setShowEditingPalletDetails(false);
                     setShowEditingPalletDeliveryMap(false);
                     setSelectedPallet(null);
-                    void appAlert.fire({
+                      await appAlert.fire({
                       icon: "success",
                       title: t("saveChanges"),
                       text:
@@ -2794,7 +2680,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           : language === "nl"
                             ? "De bok is succesvol bijgewerkt."
                             : "The pallet was updated successfully.",
-                    });
+                      });
+                    } catch (error) {
+                      console.error("Failed to save pallet", error);
+                      await appAlert.fire({
+                        icon: "error",
+                        title: t("saveChanges"),
+                        text: error instanceof Error ? error.message : "Unable to save the pallet.",
+                      });
+                    }
                   }}
                   className="h-14 rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/20 transition-transform hover:scale-[1.02]"
                 >

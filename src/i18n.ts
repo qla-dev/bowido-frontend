@@ -495,8 +495,8 @@ export const translations = {
     adminFinance: "Finance & Administration",
     settings: "Settings",
     completeDetails: "Complete details",
-    imageGallery: "Image gallery",
-    galleryDescription: "Secure pallet images and operational context.",
+    imageGallery: "Delivery information",
+    galleryDescription: "Delivery photos for pallets leaving Bowido NL.",
     allImageTypes: "All image types",
     statusChangeImage: "Status change",
     damageReportImage: "Damage report",
@@ -798,6 +798,7 @@ export const translations = {
     newStatus: "New Status",
     reportDamage: "Report Damage",
     damageDescription: "Damage Description",
+    characters: "characters",
     evidencePhoto: "Evidence Photo",
     submitReport: "Submit Report",
     selectUnit: "Select Unit",
@@ -919,6 +920,20 @@ export const translations = {
     issued: "Issued",
     invoiceSent: "Invoice sent",
     sendInvoice: "Send Invoice",
+    createdAt: "Created",
+    mailedAt: "Mailed",
+    notMailedYet: "Not mailed yet",
+    billedTo: "Billed to",
+    taxId: "VAT / KVK",
+    invoiceItems: "Invoice items",
+    descriptionLabel: "Description",
+    unitPrice: "Unit price",
+    totalPayable: "Total payable",
+    noInvoiceItems: "No invoice items",
+    invoicePreviewFailed: "The invoice preview could not be opened.",
+    invoiceDownloadFailed: "The invoice download failed.",
+    invoiceSentTo: "Invoice sent to :recipient.",
+    invoiceEmailFailed: "The invoice email could not be sent.",
     defineAccessLevels: "Define system access levels and permissions",
     roleNamePlaceholder: "e.g. Master Logistics",
     roleDescriptionPlaceholder: "Describe the responsibilities of this role...",
@@ -1061,8 +1076,8 @@ export const translations = {
     adminFinance: "Financien en Administratie",
     settings: "Instellingen",
     completeDetails: "Gegevens aanvullen",
-    imageGallery: "Afbeeldingengalerij",
-    galleryDescription: "Beveiligde bokfoto’s met operationele context.",
+    imageGallery: "Leveringsinformatie",
+    galleryDescription: "Leveringsfoto’s van bokken die Bowido NL verlaten.",
     allImageTypes: "Alle afbeeldingstypen",
     statusChangeImage: "Statuswijziging",
     damageReportImage: "Schaderapport",
@@ -1368,6 +1383,7 @@ export const translations = {
     newStatus: "Nieuwe status",
     reportDamage: "Schade melden",
     damageDescription: "Schadebeschrijving",
+    characters: "tekens",
     evidencePhoto: "Bewijsfoto",
     submitReport: "Rapport indienen",
     selectUnit: "Eenheid selecteren",
@@ -1492,6 +1508,20 @@ export const translations = {
     issued: "Uitgegeven",
     invoiceSent: "Factuur verzonden",
     sendInvoice: "Factuur verzenden",
+    createdAt: "Aangemaakt",
+    mailedAt: "Verstuurd",
+    notMailedYet: "Nog niet verstuurd",
+    billedTo: "Gefactureerd aan",
+    taxId: "Btw / KVK",
+    invoiceItems: "Factuurregels",
+    descriptionLabel: "Omschrijving",
+    unitPrice: "Prijs per stuk",
+    totalPayable: "Totaal te betalen",
+    noInvoiceItems: "Geen factuurregels",
+    invoicePreviewFailed: "Het factuurvoorbeeld kon niet worden geopend.",
+    invoiceDownloadFailed: "De factuurdownload is mislukt.",
+    invoiceSentTo: "Factuur verzonden naar :recipient.",
+    invoiceEmailFailed: "De factuur-e-mail kon niet worden verzonden.",
     defineAccessLevels: "Definieer systeemtoegang en permissies",
     roleNamePlaceholder: "bv. Master Logistics",
     roleDescriptionPlaceholder:
@@ -1634,8 +1664,8 @@ export const translations = {
     adminFinance: "Finansije i Administracija",
     settings: "Postavke",
     completeDetails: "Dopuni podatke",
-    imageGallery: "Galerija slika",
-    galleryDescription: "Sigurne slike paleta sa operativnim podacima.",
+    imageGallery: "Informacije o isporuci",
+    galleryDescription: "Fotografije isporuke paleta koje napuštaju Bowido NL.",
     allImageTypes: "Sve vrste slika",
     statusChangeImage: "Promjena statusa",
     damageReportImage: "Prijava oštećenja",
@@ -1939,6 +1969,7 @@ export const translations = {
     newStatus: "Novi status",
     reportDamage: "Prijavi oštećenje",
     damageDescription: "Opis oštećenja",
+    characters: "znakova",
     evidencePhoto: "Fotografija dokaza",
     submitReport: "Pošalji prijavu",
     selectUnit: "Odaberi jedinicu",
@@ -2060,6 +2091,20 @@ export const translations = {
     issued: "Izdato",
     invoiceSent: "Faktura poslana",
     sendInvoice: "Pošalji fakturu",
+    createdAt: "Kreirano",
+    mailedAt: "Poslano",
+    notMailedYet: "Još nije poslano",
+    billedTo: "Fakturisano za",
+    taxId: "PDV / KVK",
+    invoiceItems: "Stavke fakture",
+    descriptionLabel: "Opis",
+    unitPrice: "Cijena po komadu",
+    totalPayable: "Ukupno za plaćanje",
+    noInvoiceItems: "Nema stavki fakture",
+    invoicePreviewFailed: "Pregled fakture nije bilo moguće otvoriti.",
+    invoiceDownloadFailed: "Preuzimanje fakture nije uspjelo.",
+    invoiceSentTo: "Faktura je poslana na :recipient.",
+    invoiceEmailFailed: "E-mail fakture nije bilo moguće poslati.",
     defineAccessLevels: "Definiši nivoe pristupa i permisije u sistemu",
     roleNamePlaceholder: "npr. Master Logistics",
     roleDescriptionPlaceholder: "Opišite odgovornosti ove role...",
@@ -2252,6 +2297,317 @@ export const getLocationLabel = (
   }
 
   return location || "";
+};
+
+/**
+ * System-generated no-QR notes were historically stored as human-readable
+ * text. Keep the entered values intact, but render their known labels in the
+ * language selected by the viewer.
+ */
+export const formatSystemNote = (
+  note: string | null | undefined,
+  language: AppLanguage,
+) => {
+  if (!note?.trim()) {
+    return "";
+  }
+
+  const copy = {
+    en: {
+      source: "Submitted from mobile no-QR form",
+      pickup: "Available for pickup",
+      comment: "Comment",
+      location: "Location",
+      warehouse: "Own warehouse",
+      otherLocation: "Other location",
+      directPickup: "Direct pickup",
+      paired: "Paired from a pallet without a QR code on",
+    },
+    nl: {
+      source: "Verstuurd via mobiel formulier zonder QR",
+      pickup: "Beschikbaar voor het ophalen",
+      comment: "Commentaar",
+      location: "Locatie",
+      warehouse: "Eigen magazijn",
+      otherLocation: "Andere locatie",
+      directPickup: "Direct ophalen",
+      paired: "Gekoppeld vanuit een bok zonder QR-code op",
+    },
+    bs: {
+      source: "Poslano preko mobilne no-QR forme",
+      pickup: "Dostupno za preuzimanje",
+      comment: "Komentar",
+      location: "Lokacija",
+      warehouse: "Vlastiti magacin",
+      otherLocation: "Druga lokacija",
+      directPickup: "Odmah preuzeti",
+      paired: "Upareno s paletom bez QR koda dana",
+    },
+  }[language];
+  const sourceLabels = [
+    "Submitted from mobile no-QR form",
+    "Verstuurd via mobiel formulier zonder QR",
+    "Poslano preko mobilne no-QR forme",
+  ];
+  const pickupLabels = ["Available for pickup", "Beschikbaar voor het ophalen", "Dostupno za preuzimanje"];
+  const commentLabels = ["Comment", "Commentaar", "Komentar"];
+
+  return note
+    .split("|")
+    .map((rawSegment) => {
+      const segment = rawSegment.trim();
+      if (sourceLabels.some((label) => label.toLocaleLowerCase() === segment.toLocaleLowerCase())) {
+        return copy.source;
+      }
+
+      const prefixedLabel = (labels: string[], replacement: string) => {
+        const matched = labels.find((label) => segment.toLocaleLowerCase().startsWith(`${label.toLocaleLowerCase()}:`));
+        if (!matched) {
+          return null;
+        }
+
+        const value = segment.slice(matched.length + 1);
+        const translatedValue = ["Direct pickup", "Direct ophalen", "Odmah preuzeti"]
+          .some((label) => label.toLocaleLowerCase() === value.trim().toLocaleLowerCase())
+          ? ` ${copy.directPickup}`
+          : value;
+
+        return `${replacement}:${translatedValue}`;
+      };
+
+      return prefixedLabel(pickupLabels, copy.pickup)
+        || prefixedLabel(commentLabels, copy.comment)
+        || segment.replace(/^(Location|Locatie|Lokacija)\s+(\d+)$/i, `${copy.location} $2`)
+          .replace(/^(Own warehouse|Eigen magazijn|Vlastiti magacin)$/i, copy.warehouse)
+          .replace(/^(Other location|Andere locatie|Druga lokacija)$/i, copy.otherLocation)
+          .replace(
+            /\(Paired from a pallet without a QR code on\s+([^)]*)\)/i,
+            `(${copy.paired} $1)`,
+          );
+    })
+    .join(" | ");
+};
+
+export const formatServiceReportDescription = (
+  description: string | null | undefined,
+  language: AppLanguage,
+) => {
+  const trimmedDescription = description?.trim();
+  if (!trimmedDescription) {
+    return "";
+  }
+
+  const descriptionLines = trimmedDescription.split(/\r?\n/);
+  if (descriptionLines.length > 1) {
+    return descriptionLines
+      .map((line) => formatServiceReportDescription(line, language))
+      .join("\n");
+  }
+
+  const [firstLine, ...remainingLines] = trimmedDescription.split(/\r?\n/);
+  const remainingDescription = remainingLines.length > 0 ? `\n${remainingLines.join("\n")}` : "";
+
+  const serviceActionPatterns: Array<{
+    pattern: RegExp;
+    action: "admitted" | "removed";
+  }> = [
+    { pattern: /^(.*?) admitted pallet to service\.$/i, action: "admitted" },
+    { pattern: /^(.*?) removed pallet from service\.$/i, action: "removed" },
+    { pattern: /^(.*?) je prijavio paletu u servis\.$/i, action: "admitted" },
+    { pattern: /^(.*?) je uklonio paletu iz servisa\.$/i, action: "removed" },
+    { pattern: /^(.*?) heeft de bok aangemeld voor service\.$/i, action: "admitted" },
+    { pattern: /^(.*?) heeft de bok uit service verwijderd\.$/i, action: "removed" },
+  ];
+
+  for (const { pattern, action } of serviceActionPatterns) {
+    const match = firstLine.match(pattern);
+    if (!match) continue;
+
+    const actor = match[1].trim();
+    const copy = action === "admitted"
+      ? {
+          en: `${actor} admitted pallet to service.`,
+          nl: `${actor} heeft de bok aangemeld voor service.`,
+          bs: `${actor} je prijavio paletu u servis.`,
+        }
+      : {
+          en: `${actor} removed pallet from service.`,
+          nl: `${actor} heeft de bok uit service verwijderd.`,
+          bs: `${actor} je uklonio paletu iz servisa.`,
+        };
+
+    return `${copy[language]}${remainingDescription}`;
+  }
+
+  const generatedDescriptionGroups: Array<{
+    aliases: string[];
+    translations: Record<AppLanguage, string>;
+  }> = [
+    {
+      aliases: ["Pallet admitted to service."],
+      translations: {
+        en: "Pallet admitted to service.",
+        nl: "Bok aangemeld voor service.",
+        bs: "Paleta je prijavljena u servis.",
+      },
+    },
+    {
+      aliases: ["Pallet removed from service."],
+      translations: {
+        en: "Pallet removed from service.",
+        nl: "Bok verwijderd uit service.",
+        bs: "Paleta je uklonjena iz servisa.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet as Bij de klant",
+        "Driver marked pallet as At client",
+        "Chauffeur heeft de bok gemarkeerd als Bij de klant",
+        "Vozač je označio paletu kao Kod klijenta",
+      ],
+      translations: {
+      en: "Driver marked pallet as At client.",
+      nl: "Chauffeur heeft de bok gemarkeerd als Bij de klant.",
+      bs: "Vozač je označio paletu kao Kod klijenta.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet as Ophalen klant",
+        "Driver marked pallet as Customer pickup",
+        "Chauffeur heeft de bok gemarkeerd als Ophalen klant",
+        "Vozač je označio paletu kao Za preuzimanje kod klijenta",
+      ],
+      translations: {
+      en: "Driver marked pallet as Customer pickup.",
+      nl: "Chauffeur heeft de bok gemarkeerd als Ophalen klant.",
+      bs: "Vozač je označio paletu kao Za preuzimanje kod klijenta.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet in repair",
+        "Chauffeur heeft de bok gemarkeerd voor reparatie",
+        "VozaÄŤ je oznaÄŤio paletu za servis",
+      ],
+      translations: {
+        en: "Driver marked pallet in repair.",
+        nl: "Chauffeur heeft de bok gemarkeerd voor reparatie.",
+        bs: "VozaÄŤ je oznaÄŤio paletu za servis.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet in transport",
+        "Chauffeur heeft de bok gemarkeerd als onderweg",
+        "Vozač je označio paletu kao u transportu",
+      ],
+      translations: {
+      en: "Driver marked pallet in transport.",
+      nl: "Chauffeur heeft de bok gemarkeerd als onderweg.",
+      bs: "Vozač je označio paletu kao u transportu.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet in Bowido warehouse",
+        "Chauffeur heeft de bok gemarkeerd als in Bowido-magazijn",
+        "Vozač je označio paletu kao u Bowido magacinu",
+      ],
+      translations: {
+      en: "Driver marked pallet in Bowido warehouse.",
+      nl: "Chauffeur heeft de bok gemarkeerd als in Bowido-magazijn.",
+      bs: "Vozač je označio paletu kao u Bowido magacinu.",
+      },
+    },
+  ];
+
+  const normalizeDescription = (value: string) =>
+    value
+    .replace(/\.+$/u, "")
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+
+  const descriptionKey = normalizeDescription(trimmedDescription);
+  const generatedDescription = generatedDescriptionGroups.find((group) =>
+    group.aliases.some((alias) => normalizeDescription(alias) === descriptionKey),
+  );
+
+  return generatedDescription?.translations[language] || description;
+};
+
+/**
+ * Invoice descriptions are persisted with the invoice so old invoices may have
+ * been created in a different UI language. Translate only recognised generated
+ * descriptions; custom line-item text remains exactly as entered.
+ */
+export const formatInvoiceItemDescription = (
+  description: string | null | undefined,
+  language: AppLanguage,
+) => {
+  const value = description?.trim();
+  if (!value) return "";
+
+  const generatedDescriptionPatterns: Array<{
+    pattern: RegExp;
+    translations: Record<AppLanguage, (value: string) => string>;
+  }> = [
+    {
+      pattern: /^(?:Storage billing for pallet|Opslagfacturatie voor pallet|Obračun skladištenja za paletu)\s+(.+)$/iu,
+      translations: {
+        en: (pallet) => `Storage billing for pallet ${pallet}`,
+        nl: (pallet) => `Opslagfacturatie voor pallet ${pallet}`,
+        bs: (pallet) => `Obračun skladištenja za paletu ${pallet}`,
+      },
+    },
+    {
+      pattern: /^(?:Overdue storage for pallet|Achterstallige opslag voor pallet|Dospjeli obračun skladištenja za paletu)\s+(.+)$/iu,
+      translations: {
+        en: (pallet) => `Overdue storage for pallet ${pallet}`,
+        nl: (pallet) => `Achterstallige opslag voor pallet ${pallet}`,
+        bs: (pallet) => `Dospjeli obračun skladištenja za paletu ${pallet}`,
+      },
+    },
+    {
+      pattern: /^Storage Fee \((\d+) billable days\)$/iu,
+      translations: {
+        en: (days) => `Storage Fee (${days} billable days)`,
+        nl: (days) => `Opslagkosten (${days} factureerbare dagen)`,
+        bs: (days) => `Naknada za skladištenje (${days} obračunska dana)`,
+      },
+    },
+  ];
+
+  for (const { pattern, translations } of generatedDescriptionPatterns) {
+    const match = value.match(pattern);
+    if (match) return translations[language](match[1]);
+  }
+
+  const legacyDescriptions: Record<string, Record<AppLanguage, string>> = {
+    "No-QR return handling": {
+      en: "No-QR return handling",
+      nl: "Afhandeling retour zonder QR-code",
+      bs: "Obrada povrata bez QR koda",
+    },
+    "Pending return handling": {
+      en: "Pending return handling",
+      nl: "Afhandeling openstaande retour",
+      bs: "Obrada povrata na čekanju",
+    },
+    "Storage Fee (frontend demo pallet)": {
+      en: "Storage Fee (frontend demo pallet)",
+      nl: "Opslagkosten (frontend-demopallet)",
+      bs: "Naknada za skladištenje (demo paleta)",
+    },
+    "Return handling (frontend demo pallet)": {
+      en: "Return handling (frontend demo pallet)",
+      nl: "Retourafhandeling (frontend-demopallet)",
+      bs: "Obrada povrata (demo paleta)",
+    },
+  };
+
+  return legacyDescriptions[value]?.[language] || value;
 };
 
 export const getRoleDescription = (

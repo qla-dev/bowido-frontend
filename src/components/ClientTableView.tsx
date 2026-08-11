@@ -20,13 +20,14 @@ import { NoQrReturnFormModal } from './NoQrReturnFormModal';
 import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, RoleType } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
+import { rankSearchResults } from '../lib/searchRanking';
 
 type SortKey =
   | 'client'
@@ -597,17 +598,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
       return null;
     }
 
-    const currentQuery = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter((option) => {
-      if (!currentQuery) {
-        return true;
-      }
-
-      return (
-        option.label.toLowerCase().includes(currentQuery) ||
-        option.value.toLowerCase().includes(currentQuery)
-      );
-    });
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
+    );
 
     return (
       <div
@@ -1013,7 +1009,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                       {mobileCommentLabel}
                     </p>
                     <p className="mt-2 text-[11px] font-bold leading-5 text-zinc-700 dark:text-zinc-200">
-                      {selectedMobilePallet.item.pallet.note || t('notAvailable')}
+                      {formatServiceReportDescription(selectedMobilePallet.item.pallet.note, language) ||
+                        t('notAvailable')}
                     </p>
                   </div>
                 </div>

@@ -27,7 +27,12 @@ import {
   NoQrReturnFormModal,
   getNoQrReturnButtonCopy,
 } from "./NoQrReturnFormModal";
-import { getLocationLabel, getPalletTypeLabel, getStatusLabel } from "../i18n";
+import {
+  formatServiceReportDescription,
+  getLocationLabel,
+  getPalletTypeLabel,
+  getStatusLabel,
+} from "../i18n";
 import { getScannedQrCandidates } from "../lib/palletQrMatching";
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import {
@@ -42,7 +47,13 @@ import {
   getDeliveryLocationAddress,
 } from "../lib/palletLocations";
 import { formatAppDate } from "../lib/dateFormat";
+import { rankSearchResults } from "../lib/searchRanking";
 import { compressPhotoForUpload } from "../lib/imageCompression";
+import {
+  DAMAGE_DESCRIPTION_MAX_LENGTH,
+  getDamageDescriptionCharacterCount,
+  limitDamageDescription,
+} from "../lib/damageDescription";
 import {
   configureQrCamera,
   qrCameraConstraintAttempts,
@@ -186,6 +197,7 @@ type DriverCopy = {
   damageReportedDetail: string;
   damageModalTitle: string;
   damageModalDescription: string;
+  characters: string;
   damageModalPhoto: string;
   damageModalPlaceholder: string;
   damageModalUpload: string;
@@ -251,6 +263,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     damageReportedDetail: "The damage report is saved for this pallet.",
     damageModalTitle: "Report damage",
     damageModalDescription: "Damage description",
+    characters: "characters",
     damageModalPhoto: "Attach photo",
     damageModalPlaceholder: "Write what is damaged on the pallet",
     damageModalUpload: "Add photo",
@@ -315,6 +328,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     damageReportedDetail: "De schademelding is opgeslagen voor deze bok.",
     damageModalTitle: "Schade melden",
     damageModalDescription: "Omschrijving schade",
+    characters: "tekens",
     damageModalPhoto: "Foto toevoegen",
     damageModalPlaceholder: "Beschrijf wat er beschadigd is aan de bok",
     damageModalUpload: "Foto toevoegen",
@@ -380,6 +394,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     damageReportedDetail: "Prijava štete je sačuvana za ovu paletu.",
     damageModalTitle: "Prijavi štetu",
     damageModalDescription: "Opis oštećenja",
+    characters: "znakova",
     damageModalPhoto: "Priloži sliku",
     damageModalPlaceholder: "Napiši šta je oštećeno na paleti",
     damageModalUpload: "Dodaj sliku",
@@ -403,12 +418,6 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     updateGpsLocation: "Ažuriraj GPS lokaciju",
   },
 };
-
-const driverDateLocales = {
-  en: "en-GB",
-  nl: "nl-NL",
-  bs: "bs-BA",
-} as const;
 
 const driverReturnWindowCopy = {
   en: {
@@ -522,8 +531,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [palletPhotoDrafts, setPalletPhotoDrafts] = useState<PalletPhotoDraft[]>([]);
   const [activePalletPhotoId, setActivePalletPhotoId] = useState<string | null>(null);
   const [isPalletPhotoModeOpen, setIsPalletPhotoModeOpen] = useState(false);
-  const [damagePhotoUrl, setDamagePhotoUrl] = useState<string | null>(null);
-  const [damagePhoto, setDamagePhoto] = useState<File | null>(null);
+  const [damagePhotos, setDamagePhotos] = useState<Array<{ file: File; url: string }>>([]);
   const [damageDescription, setDamageDescription] = useState("");
   const [damageDraftPalletId, setDamageDraftPalletId] = useState<number | null>(
     null,
@@ -580,7 +588,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const palletPhotoUrlsRef = useRef<string[]>([]);
   const palletPhotoUploadIdsRef = useRef(new Set<string>());
   const palletPhotoSequenceRef = useRef(0);
-  const damagePhotoUrlRef = useRef<string | null>(null);
+  const damagePhotoUrlsRef = useRef<string[]>([]);
   const qrDetectorRef = useRef<NativeQrDetector | null>(null);
   const palletsRef = useRef(pallets);
   const scanBusyRef = useRef(false);
@@ -1035,37 +1043,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const warehouseCheckInDateLabel = selectedPallet
     ? formatAppDate(selectedPallet.last_status_changed_at, language)
     : "";
-  const filteredClients = (() => {
-    const query = clientSearchTerm.trim().toLocaleLowerCase();
-
-    if (!query) {
-      return clients;
-    }
-
-    return clients
-      .filter(
-        (client) =>
-          client.name.toLocaleLowerCase().includes(query) ||
-          client.country.toLocaleLowerCase().includes(query) ||
-          client.user_id.toString().includes(query),
-      )
-      .sort((left, right) => {
-        const leftStartsWith = left.name.toLocaleLowerCase().startsWith(query);
-        const rightStartsWith = right.name
-          .toLocaleLowerCase()
-          .startsWith(query);
-
-        if (leftStartsWith !== rightStartsWith) {
-          return leftStartsWith ? -1 : 1;
-        }
-
-        return left.name.localeCompare(
-          right.name,
-          driverDateLocales[language] || "en-GB",
-          { sensitivity: "base" },
-        );
-      });
-  })();
+  const filteredClients = rankSearchResults(
+    clients,
+    clientSearchTerm,
+    (client) => client.name,
+    (client, query) => client.country.toLocaleLowerCase().includes(query)
+      || client.user_id.toString().includes(query),
+  );
   const changeModalTitle =
     openChangeMenu === "status"
       ? text.changeStatus
@@ -1081,7 +1065,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   );
   const showDamageModalNavActions = isDamageModalOpen;
   const isDamageReportSubmitDisabled =
-    !damagePhoto ||
+    damagePhotos.length === 0 ||
     !damageDescription.trim() ||
     isDamageReportSubmitting;
 
@@ -1149,9 +1133,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     return () => {
       palletPhotoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
 
-      if (damagePhotoUrlRef.current) {
-        URL.revokeObjectURL(damagePhotoUrlRef.current);
-      }
+      damagePhotoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -1613,30 +1595,22 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       damagePhotoInputRef.current.value = "";
     }
 
-    if (damagePhotoUrlRef.current) {
-      URL.revokeObjectURL(damagePhotoUrlRef.current);
-      damagePhotoUrlRef.current = null;
-    }
-
-    setDamagePhoto(null);
-    setDamagePhotoUrl(null);
+    damagePhotoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    damagePhotoUrlsRef.current = [];
+    setDamagePhotos([]);
     setDamageDescription("");
     setDamageDraftPalletId(null);
     setDamageReportError("");
   };
 
-  const clearDamagePhoto = () => {
-    if (damagePhotoUrlRef.current) {
-      URL.revokeObjectURL(damagePhotoUrlRef.current);
-      damagePhotoUrlRef.current = null;
-    }
-
-    if (damagePhotoInputRef.current) {
-      damagePhotoInputRef.current.value = "";
-    }
-
-    setDamagePhoto(null);
-    setDamagePhotoUrl(null);
+  const clearDamagePhoto = (index: number) => {
+    setDamagePhotos((current) => {
+      const photo = current[index];
+      if (photo) URL.revokeObjectURL(photo.url);
+      const next = current.filter((_, currentIndex) => currentIndex !== index);
+      damagePhotoUrlsRef.current = next.map((item) => item.url);
+      return next;
+    });
     setDamageReportError("");
   };
 
@@ -1957,26 +1931,27 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const handleDamagePhotoChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []) as File[];
     event.target.value = "";
 
-    if (!file) {
+    if (files.length === 0) {
       return;
     }
 
     setDamageReportError("");
 
     try {
-      const compressed = await compressPhotoForUpload(file);
-
-      if (damagePhotoUrlRef.current) {
-        URL.revokeObjectURL(damagePhotoUrlRef.current);
-      }
-
-      const nextPhotoUrl = URL.createObjectURL(compressed);
-      damagePhotoUrlRef.current = nextPhotoUrl;
-      setDamagePhoto(compressed);
-      setDamagePhotoUrl(nextPhotoUrl);
+      const preparedPhotos = await Promise.all(
+        files.slice(0, Math.max(0, 10 - damagePhotos.length)).map(async (file) => {
+          const compressed = await compressPhotoForUpload(file);
+          return { file: compressed, url: URL.createObjectURL(compressed) };
+        }),
+      );
+      setDamagePhotos((current) => {
+        const next = [...current, ...preparedPhotos];
+        damagePhotoUrlsRef.current = next.map((photo) => photo.url);
+        return next;
+      });
     } catch (error) {
       console.error("Failed to compress driver damage photo", error);
       setDamageReportError(text.damagePhotoError);
@@ -1988,7 +1963,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     if (
       !damageTargetPallet ||
-      !damagePhoto ||
+      damagePhotos.length === 0 ||
       !damageDescription.trim() ||
       isDamageReportSubmitting
     ) {
@@ -2002,7 +1977,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       await reportDamage({
         pallet_id: damageTargetPallet.id,
         problem_description: damageDescription.trim(),
-        image: damagePhoto,
+        images: damagePhotos.map((photo) => photo.file),
       });
       showFlash(text.damageReportedTitle, text.damageReportedDetail, "warning");
       clearDamageDraft();
@@ -3393,7 +3368,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                           {repairListCopy.note}
                         </p>
                         <p className="mt-1 line-clamp-3 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
-                          {pallet.note || "-"}
+                          {formatServiceReportDescription(pallet.note, language) || "-"}
                         </p>
                       </div>
                     </div>
@@ -3701,10 +3676,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 </p>
                 <textarea
                   value={damageDescription}
-                  onChange={(event) => setDamageDescription(event.target.value)}
+                  onChange={(event) => setDamageDescription(limitDamageDescription(event.target.value))}
                   placeholder={text.damageModalPlaceholder}
                   className="mt-2 h-28 w-full resize-none rounded-[1.2rem] border border-emerald-100 bg-emerald-50/55 px-4 py-3 text-[16px] font-bold leading-6 text-emerald-950 outline-none transition-colors placeholder:text-zinc-400 md:text-[13px] md:leading-5 focus:border-emerald-300 dark:border-white/10 dark:bg-[#151d1a] dark:text-white dark:placeholder:text-zinc-500"
                 />
+                <p className="mt-1 text-right text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500" aria-live="polite">
+                  {getDamageDescriptionCharacterCount(damageDescription)} / {DAMAGE_DESCRIPTION_MAX_LENGTH} {text.characters}
+                </p>
               </div>
 
               <div>
@@ -3717,28 +3695,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   type="file"
                   accept="image/*"
                   capture="environment"
+                  multiple
                   className="hidden"
                   onChange={handleDamagePhotoChange}
                 />
 
-                {damagePhotoUrl ? (
-                  <div className="mt-2 overflow-hidden rounded-[1.4rem] border border-emerald-100 bg-white p-2 dark:border-white/10 dark:bg-[#101715]">
-                    <div className="relative overflow-hidden rounded-[1.1rem]">
-                      <img
-                        src={damagePhotoUrl}
-                        alt={text.damageModalPhoto}
-                        className="h-40 w-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={clearDamagePhoto}
-                        className="absolute right-3 top-3 rounded-full bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:bg-[#101715]/92 dark:text-emerald-100"
-                      >
-                        {text.damageModalRemove}
-                      </button>
-                    </div>
+                {damagePhotos.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {damagePhotos.map((photo, index) => (
+                      <div key={photo.url} className="relative overflow-hidden rounded-[1.1rem] border border-emerald-100 dark:border-white/10">
+                        <img src={photo.url} alt={`${text.damageModalPhoto} ${index + 1}`} className="h-28 w-full object-cover" />
+                        <button type="button" onClick={() => clearDamagePhoto(index)} className="absolute right-2 top-2 rounded-full bg-white/92 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:bg-[#101715]/92 dark:text-emerald-100">
+                          {text.damageModalRemove}
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ) : (
+                )}
+                {damagePhotos.length < 10 && (
                   <button
                     type="button"
                     onClick={() => damagePhotoInputRef.current?.click()}

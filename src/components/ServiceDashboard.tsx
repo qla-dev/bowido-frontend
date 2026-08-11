@@ -4,8 +4,9 @@ import { ArrowRight, CheckCircle2, ClipboardList, Package, QrCode, Wrench } from
 import { useApp } from '../AppContext';
 import { User } from '../types';
 import { StatCard, Card, Button, Badge } from './ui';
-import { getPalletTypeLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel } from '../i18n';
 import { formatAppTime } from '../lib/dateFormat';
+import { SoftHyphenatedText } from './SoftHyphenatedText';
 
 interface ServiceDashboardProps {
   user: User;
@@ -146,9 +147,11 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
                   </div>
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">{t('damageDescription')}</p>
-                    <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
-                      {leadReport?.problem_description || leadPallet.note || t('serviceDamageHint')}
-                    </p>
+                    <SoftHyphenatedText className="block text-[11px] font-black uppercase tracking-tight text-zinc-900">
+                      {formatServiceReportDescription(leadReport?.problem_description, language) ||
+                        formatServiceReportDescription(leadPallet.note, language) ||
+                        t('serviceDamageHint')}
+                    </SoftHyphenatedText>
                   </div>
                 </div>
               </div>
@@ -177,9 +180,11 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
                       <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
                         {getPalletTypeLabel(pallet.type, language)}
                       </p>
-                      <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                        {report?.problem_description || pallet.note || t('serviceDamageHint')}
-                      </p>
+                      <SoftHyphenatedText className="mt-1 block text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                        {formatServiceReportDescription(report?.problem_description, language) ||
+                          formatServiceReportDescription(pallet.note, language) ||
+                          t('serviceDamageHint')}
+                      </SoftHyphenatedText>
                     </div>
                     <Button size="xs" variant="secondary" onClick={() => handleFix(pallet.id)}>
                       <CheckCircle2 size={12} className="mr-1.5" />
@@ -230,9 +235,9 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
                     <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
                       {pallet ? getPalletTypeLabel(pallet.type, language) : t('service')}
                     </p>
-                    <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                      {report.problem_description}
-                    </p>
+                    <SoftHyphenatedText className="mt-1 block text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                      {formatServiceReportDescription(report.problem_description, language)}
+                    </SoftHyphenatedText>
                   </div>
                   <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-zinc-300">
                     {formatAppTime(report.resolved_at || report.created_at)}

@@ -27,7 +27,7 @@ import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTabl
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { ClientDetail, Pallet, PalletPhoto } from '../types';
+import { ClientDetail, Invoice, Pallet, PalletPhoto } from '../types';
 import { getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -148,11 +148,17 @@ const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
 interface AdminClientManagerViewProps {
   clientIdFilter?: number;
   readOnly?: boolean;
+  onClientSelect?: (client: ClientDetail) => void;
+  title?: string;
+  description?: string;
 }
 
 export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   clientIdFilter,
   readOnly = false,
+  onClientSelect,
+  title,
+  description,
 }) => {
   const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
@@ -168,6 +174,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   );
   const [selectedRow, setSelectedRow] = useState<ClientManagerRow | null>(null);
   const [clientDraft, setClientDraft] = useState<ClientDetail | null>(null);
+  const [selectedClientPallets, setSelectedClientPallets] = useState<Pallet[]>([]);
+  const [isClientPalletsLoading, setIsClientPalletsLoading] = useState(false);
   const [clientPhotos, setClientPhotos] = useState<PalletPhoto[]>([]);
   const [photoViewer, setPhotoViewer] = useState<PhotoViewerState | null>(null);
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
@@ -214,6 +222,40 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [photoViewer, selectedRow]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!selectedRow) {
+      setSelectedClientPallets([]);
+      setIsClientPalletsLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsClientPalletsLoading(true);
+
+    void apiService.pallets
+      .list({ user_id: selectedRow.client.user_id })
+      .then((clientPallets) => {
+        if (isMounted) {
+          setSelectedClientPallets(
+            clientPallets.filter((pallet) => statusIdAllowsCustomer(statuses, pallet.current_status_id))
+          );
+        }
+      })
+      .catch((error) => console.error('Failed to load client pallets', error))
+      .finally(() => {
+        if (isMounted) {
+          setIsClientPalletsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedRow?.client.user_id, statuses]);
 
   useEffect(() => {
     const closeCompanyDropdown = (event: MouseEvent) => {
@@ -565,6 +607,15 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     }));
   }, [currencyFormatter, invoices, language, selectedRow]);
 
+  const invoiceStatusLabel = (status: Invoice['status']) => {
+    if (status === 'paid') return t('paid');
+    if (status === 'overdue') return t('overdue');
+    if (status === 'sent') return t('sentLabel');
+    if (status === 'issued') return t('issued');
+
+    return status;
+  };
+
   const saveInvoicePdf = async (invoiceId: number, invoiceNumber: string) => {
     const blob = await apiService.invoices.download(invoiceId);
     const url = URL.createObjectURL(blob);
@@ -578,10 +629,22 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const generateAndExportSelectedInvoice = async () => {
     if (!selectedRow) return;
     const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const periodEnd = now.toISOString().slice(0, 10);
+    // Invoice only completed calendar months. This also avoids toISOString(),
+    // which shifted a local 1st of the month back one day in UTC+ timezones.
+    const formatLocalDate = (date: Date) => [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+    const periodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
     const due = new Date(now); due.setDate(due.getDate() + 14);
-    const invoice = await apiService.invoices.create({ user_id: selectedRow.client.user_id, period_start: periodStart, period_end: periodEnd, due_at: due.toISOString().slice(0, 10) });
+    const invoice = await apiService.invoices.create({
+      user_id: selectedRow.client.user_id,
+      period_start: formatLocalDate(periodStart),
+      period_end: formatLocalDate(periodEnd),
+      due_at: formatLocalDate(due),
+    });
     await saveInvoicePdf(invoice.id, invoice.invoice_number);
   };
 
@@ -644,6 +707,11 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   }, [clientPhotosByPallet, photoViewer]);
 
   const openClientModal = (row: ClientManagerRow) => {
+    if (onClientSelect) {
+      onClientSelect(row.client);
+      return;
+    }
+
     setSelectedRow(row);
     setClientDraft({
       ...row.client,
@@ -655,6 +723,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const closeClientModal = () => {
     setSelectedRow(null);
     setClientDraft(null);
+    setSelectedClientPallets([]);
     setPhotoViewer(null);
   };
 
@@ -784,6 +853,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     if (!clientPendingDeletion || readOnly) return;
     try {
       await deleteClient(clientPendingDeletion.client.id);
+      setPagedClients((current) =>
+        current.filter((client) => client.id !== clientPendingDeletion.client.id)
+      );
       setClientPendingDeletion(null);
       closeClientModal();
       await appAlert.fire({ icon: 'success', title: labels.deletedTitle, text: labels.deletedText });
@@ -909,10 +981,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">
-              {t('clientManager')}
+              {title || t('clientManager')}
             </p>
             <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-              {readOnly
+              {description || (readOnly
                 ? language === 'bs'
                   ? 'Pregled podataka, paleta i obračuna'
                   : language === 'nl'
@@ -922,7 +994,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                   ? 'Admin pregled i kontrola kupaca'
                   : language === 'nl'
                     ? 'Admin overzicht en beheer van klanten'
-                    : 'Admin overview and client control'}
+                    : 'Admin overview and client control')}
             </p>
           </div>
           </div>
@@ -1075,7 +1147,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
       {clientIdFilter === undefined && <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />}
 
-      {!readOnly && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
+      {!readOnly && !onClientSelect && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
         <button
           type="button"
           onClick={() => setIsAddClientOpen(true)}
@@ -1086,16 +1158,16 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         </button>
       </div>}
 
-      {!readOnly && isAddClientOpen && (
+      {!readOnly && !onClientSelect && isAddClientOpen && (
         <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setIsAddClientOpen(false)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-8 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
+            className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2.5rem] bg-white shadow-2xl dark:bg-[#0f1513]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="absolute left-0 right-0 top-0 h-2 bg-black dark:bg-[#00A655]" />
-            <div className="mb-7 flex items-start justify-between gap-4">
+            <div className="mb-7 flex shrink-0 items-start justify-between gap-4 px-8 pt-8">
               <div>
                 <h3 className="text-2xl font-black uppercase tracking-tighter text-emerald-950 dark:text-white">{labels.newClient}</h3>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">{labels.newClientHint}</p>
@@ -1104,7 +1176,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                 <X size={20} />
               </button>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-6 no-scrollbar">
+              <div className="grid gap-4 sm:grid-cols-2">
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">KVK
                 <KvkLookupControl
                   className="mt-1"
@@ -1222,8 +1295,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
               <label className="text-xs font-bold dark:text-zinc-200">{labels.gracePeriod}
                 <Input type="number" min="0" className="mt-1" value={newClientDraft.grace_period_days} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, grace_period_days: Number(event.target.value) }))} />
               </label>
+              </div>
             </div>
-            <div className="mt-8 flex gap-4">
+            <div className="flex shrink-0 gap-4 border-t border-zinc-100 bg-white px-8 py-5 dark:border-white/10 dark:bg-[#0f1513]">
               <Button type="button" variant="ghost" className="flex-1 justify-center" onClick={() => setIsAddClientOpen(false)}>{t('cancel')}</Button>
               <Button type="button" className="flex-1 justify-center" onClick={() => void createClient()} disabled={!newClientDraft.name.trim() || !newClientDraft.kvk_number?.trim() || !EMAIL_PATTERN.test(newClientDraft.billing_email?.trim() || '') || isCreatingClient}>
                 {isCreatingClient ? '...' : labels.addClient}
@@ -1266,7 +1340,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             </div>
 
             <div className="mb-4 grid auto-rows-fr grid-cols-2 gap-2.5 md:grid-cols-5">
-              {renderMetricCard(labels.totalPallets, selectedRow.totalPallets)}
+              {renderMetricCard(labels.totalPallets, isClientPalletsLoading ? '—' : selectedClientPallets.length)}
               {renderMetricCard(labels.overduePallets, selectedRow.overduePallets, selectedRow.overduePallets > 0)}
               {renderMetricCard(labels.rate, selectedRow.rateLabel)}
               {renderMetricCard(labels.overdueDays, selectedRow.overdueDays, selectedRow.overdueDays > 0)}
@@ -1462,7 +1536,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                     <Trash2 size={14} />
                     {labels.deleteClient}
                   </button>
-                  <Button type="button" className="h-12 w-full justify-center gap-2" onClick={() => void saveClientDraft()}>
+                  <Button type="button" className="h-12 w-full justify-center gap-2 text-[10px]" onClick={() => void saveClientDraft()}>
                     <Save size={15} />
                     {labels.save}
                   </Button>
@@ -1482,8 +1556,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                     <span>{language === 'bs' ? 'Trenutni status' : language === 'nl' ? 'Huidige status' : 'Current status'}</span>
                   </div>
                   <div className="max-h-48 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
-                    {selectedRow.clientPallets.length > 0 ? (
-                      selectedRow.clientPallets.map((pallet) => (
+                    {isClientPalletsLoading ? (
+                      <p className="px-4 py-8 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">
+                        {t('loading')}
+                      </p>
+                    ) : selectedClientPallets.length > 0 ? (
+                      selectedClientPallets.map((pallet) => (
                         <div
                           key={`admin-client-modal-pallet-${pallet.id}`}
                           className="grid min-h-12 grid-cols-2 items-center border-b border-zinc-100 px-3 py-2 text-center last:border-b-0 dark:border-white/10"
@@ -1534,7 +1612,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                               {invoice.number}
                             </p>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">
-                              {invoice.date} · {invoice.status}
+                              {invoice.date} · {invoiceStatusLabel(invoice.status)}
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-3">
@@ -1564,7 +1642,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                   {!readOnly && <Button
                     type="button"
                     variant="outline"
-                    className="mt-3 h-12 w-full justify-center gap-2"
+                    className="mt-auto h-12 w-full justify-center gap-2 text-[10px]"
                     onClick={() => void generateAndExportSelectedInvoice()}
                   >
                     <Download size={15} />

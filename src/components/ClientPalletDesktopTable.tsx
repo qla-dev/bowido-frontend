@@ -16,7 +16,7 @@ import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { AuditLog, ClientDetail, Pallet } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
@@ -25,6 +25,7 @@ import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { DeliveryLocationMap } from './DeliveryLocationMap';
 import { DriverModalShell } from './DriverModalShell';
+import { rankSearchResults } from '../lib/searchRanking';
 
 type SortKey =
   | 'pallet'
@@ -690,12 +691,11 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       return null;
     }
 
-    const query = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter(
-      (option) =>
-        !query ||
-        option.label.toLowerCase().includes(query) ||
-        option.value.toLowerCase().includes(query)
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
     );
 
     return (
@@ -1094,7 +1094,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                 <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-gray-400">
                   {language === 'bs' ? 'Komentar' : language === 'nl' ? 'Commentaar' : 'Comment'}
                 </span>
-                <p className="text-xs font-bold text-zinc-700">{selectedPallet.pallet.note}</p>
+                <p className="text-xs font-bold text-zinc-700">
+                  {formatServiceReportDescription(selectedPallet.pallet.note, language)}
+                </p>
               </div>
             )}
 

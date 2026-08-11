@@ -6,6 +6,7 @@ import { useApp } from '../AppContext';
 import { apiService } from '../services/api';
 import { Button, Card, Badge } from './ui';
 import { formatAppDate } from '../lib/dateFormat';
+import { formatInvoiceItemDescription } from '../i18n';
 
 interface InvoiceViewerProps {
   invoice: Invoice;
@@ -21,6 +22,13 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
   const customerTaxLabel = invoice.customer_vat || invoice.customer_kvk || '-';
   const customerAddress = invoice.billing_address || invoice.delivery_address || '-';
   const customerEmail = invoice.customer_email || '';
+  const getStatusLabel = (status: Invoice['status']) => {
+    if (status === 'paid') return t('paid');
+    if (status === 'overdue') return t('overdue');
+    if (status === 'sent') return t('sentLabel');
+    if (status === 'issued') return t('issued');
+    return status;
+  };
 
   useEffect(() => {
     const loadItems = async () => {
@@ -40,17 +48,17 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
   const openPreview = async () => {
     setActionLoading('preview'); setActionMessage('');
     try { const blob = await apiService.invoices.preview(invoice.id); const url = URL.createObjectURL(blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60000); }
-    catch { setActionMessage('PDF preview could not be opened.'); } finally { setActionLoading(null); }
+    catch { setActionMessage(t('invoicePreviewFailed')); } finally { setActionLoading(null); }
   };
   const downloadPdf = async () => {
     setActionLoading('download'); setActionMessage('');
-    try { const blob = await apiService.invoices.download(invoice.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `Bowido-${invoice.invoice_number}.pdf`; anchor.click(); URL.revokeObjectURL(url); }
-    catch { setActionMessage('PDF download failed.'); } finally { setActionLoading(null); }
+    try { const blob = await apiService.invoices.download(invoice.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `Bowido-${invoice.invoice_number}-NL.pdf`; anchor.click(); URL.revokeObjectURL(url); }
+    catch { setActionMessage(t('invoiceDownloadFailed')); } finally { setActionLoading(null); }
   };
   const sendInvoice = async () => {
     setActionLoading('send'); setActionMessage('');
-    try { const result = await apiService.invoices.send(invoice.id); setActionMessage(`Invoice sent to ${result.recipient}.`); }
-    catch { setActionMessage('Invoice email could not be sent.'); } finally { setActionLoading(null); }
+    try { const result = await apiService.invoices.send(invoice.id); setActionMessage(t('invoiceSentTo').replace(':recipient', result.recipient)); }
+    catch { setActionMessage(t('invoiceEmailFailed')); } finally { setActionLoading(null); }
   };
 
   return (
@@ -86,12 +94,12 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400 mb-2">Billed To</h4>
+                  <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400 mb-2">{t('billedTo')}</h4>
                   <p className="text-lg font-black text-black leading-none uppercase tracking-tight">{invoice.customer_name}</p>
                   {customerEmail && (
                     <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1 break-all">{customerEmail}</p>
                   )}
-                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">VAT/KVK: {customerTaxLabel}</p>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">{t('taxId')}: {customerTaxLabel}</p>
                   <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight leading-relaxed max-w-xs mt-2">{customerAddress}</p>
                 </div>
                 <div className="flex gap-12">
@@ -120,9 +128,8 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                     )}
                     <div>
                       <p className="text-2xl font-black text-black uppercase tracking-tighter leading-none">
-                         {invoice.status === 'paid' ? t('paid') : t('unpaid')}
+                         {getStatusLabel(invoice.status)}
                       </p>
-                      <p className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.15em] mt-2">{invoice.status}</p>
                     </div>
                  </div>
               </div>
@@ -130,30 +137,30 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
 
             {/* Items Table */}
             <div className="space-y-4">
-               <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">Invoice Items</h4>
+               <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">{t('invoiceItems')}</h4>
                <div className="border border-zinc-100 rounded-[1.5rem] overflow-hidden shadow-[0_10px_30px_-5px_rgba(0,0,0,0.02)] overflow-x-auto no-scrollbar font-black text-[11px] uppercase tracking-tight">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-zinc-50 text-[9px] font-black uppercase tracking-widest text-zinc-400 border-b border-zinc-100">
-                         <th className="px-6 py-5">{t('palletLabel')} Name</th>
-                         <th className="px-6 py-5">Description</th>
-                         <th className="px-6 py-5 text-center">Qty</th>
-                         <th className="px-6 py-5 text-right">Unit Price</th>
-                         <th className="px-6 py-5 text-right">Total</th>
+                         <th className="px-6 py-5">{t('palletLabel')}</th>
+                         <th className="px-6 py-5">{t('descriptionLabel')}</th>
+                         <th className="px-6 py-5 text-center">{t('quantity')}</th>
+                         <th className="px-6 py-5 text-right">{t('unitPrice')}</th>
+                         <th className="px-6 py-5 text-right">{t('totalPayable')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-50">
                       {!loading && items.length === 0 && (
                         <tr>
                           <td colSpan={5} className="px-6 py-8 text-center text-zinc-300">
-                            No invoice items
+                            {t('noInvoiceItems')}
                           </td>
                         </tr>
                       )}
                       {items.map(item => (
                         <tr key={item.id} className="group hover:bg-zinc-50/20 transition-colors">
                           <td className="px-6 py-5 text-zinc-950">{item.pallet_name || '-'}</td>
-                          <td className="px-6 py-5 text-zinc-500 truncate max-w-[200px]">{item.description}</td>
+                          <td className="px-6 py-5 text-zinc-500 truncate max-w-[200px]">{formatInvoiceItemDescription(item.description, language)}</td>
                           <td className="px-6 py-5 text-center text-zinc-950">{item.quantity}</td>
                           <td className="px-6 py-5 text-right text-zinc-400 whitespace-nowrap">€{item.unit_price.toFixed(2)}</td>
                           <td className="px-6 py-5 text-right text-black whitespace-nowrap">€{item.total.toFixed(2)}</td>
@@ -162,7 +169,7 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
                     </tbody>
                     <tfoot>
                       <tr className="bg-zinc-950 text-white font-black uppercase">
-                        <td colSpan={4} className="px-6 py-6 text-right text-[10px] tracking-[0.25em]">Total Payable</td>
+                        <td colSpan={4} className="px-6 py-6 text-right text-[10px] tracking-[0.25em]">{t('totalPayable')}</td>
                         <td className="px-6 py-6 text-right text-2xl tracking-tighter whitespace-nowrap leading-none">€{invoice.total_amount.toFixed(2)}</td>
                       </tr>
                     </tfoot>

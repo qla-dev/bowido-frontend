@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { getStatusLabel } from '../i18n';
+import { formatSystemNote, getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Pallet } from '../types';
@@ -23,6 +23,7 @@ import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
+import { rankSearchResults } from '../lib/searchRanking';
 
 type NoQrColumnKey =
   | 'serial'
@@ -308,7 +309,7 @@ export const NoQrPalletTableView: React.FC = () => {
           locationLabel: pallet.current_location || t('notAvailable'),
           returnReportedAtLabel: dateFormatter.format(new Date(pallet.created_at)),
           pickupLabel: directPickupLabel,
-          commentLabel: pallet.note?.trim() || emptyValueLabel,
+          commentLabel: formatSystemNote(pallet.note, language) || emptyValueLabel,
         })),
     [clients, dateFormatter, directPickupLabel, language, pallets, t]
   );
@@ -495,17 +496,12 @@ export const NoQrPalletTableView: React.FC = () => {
       return null;
     }
 
-    const currentQuery = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter((option) => {
-      if (!currentQuery) {
-        return true;
-      }
-
-      return (
-        option.label.toLowerCase().includes(currentQuery) ||
-        option.value.toLowerCase().includes(currentQuery)
-      );
-    });
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
+    );
 
     return (
       <div
@@ -933,9 +929,13 @@ export const NoQrPalletTableView: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  updatePallet(editingPallet);
-                  setEditingPallet(null);
+                onClick={async () => {
+                  try {
+                    await updatePallet(editingPallet);
+                    setEditingPallet(null);
+                  } catch (error) {
+                    console.error('Failed to save no-QR pallet', error);
+                  }
                 }}
                 className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#00A655] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform hover:scale-[1.01]"
               >
@@ -957,6 +957,7 @@ export const NoQrPalletTableView: React.FC = () => {
         onConfirm={() => {
           if (!palletPendingDeletion) return;
           deletePallet(palletPendingDeletion.id);
+          setPagedPallets((current) => current.filter((pallet) => pallet.id !== palletPendingDeletion.id));
           setEditingPallet(null);
           setPalletPendingDeletion(null);
         }}
