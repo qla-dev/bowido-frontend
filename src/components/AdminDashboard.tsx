@@ -62,6 +62,7 @@ import {
   QrCode,
 } from "lucide-react";
 import {
+  formatSystemNote,
   getCountryLabel,
   getLocationLabel,
   getPalletTypeLabel,
@@ -1388,7 +1389,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {ghostPallet.client_name || t("unknownClient")}
                             </p>
                             <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 mt-1 truncate">
-                              {ghostPallet.current_location}
+                              {formatSystemNote(ghostPallet.current_location, language)}
                             </p>
                           </div>
                           <Badge variant="warning">{t("withoutQr")}</Badge>

@@ -596,7 +596,17 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             [...filterPallets, ...pallets].map((pallet) => [pallet.id, pallet]),
           ).values(),
         ).map((pallet) => {
-          const changedAt = new Date(pallet.last_status_changed_at);
+          // A pickup request closes the customer timer. Its original start and
+          // frozen finish are supplied by the API, while older pallets fall
+          // back to their status-change timestamp.
+          const statusSlug = pallet.current_status_slug || '';
+          const usesCustomerTimer = ['bij-de-klant', 'ophalen-klant'].includes(statusSlug);
+          const changedAt = new Date(
+            usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
+          );
+          const frozenAt = usesCustomerTimer && pallet.customer_timer_frozen_at
+            ? new Date(pallet.customer_timer_frozen_at)
+            : null;
           const status = statuses.find((item) => item.id === pallet.current_status_id);
           const client = pallet.user_id
             ? clients.find((item) => item.user_id === pallet.user_id)
@@ -609,11 +619,16 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           const today = new Date();
           const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
           const msPerDay = 24 * 60 * 60 * 1000;
+          const counterEnd = frozenAt && !Number.isNaN(frozenAt.getTime()) ? frozenAt : today;
+          const counterEndAtMidnight = new Date(
+            counterEnd.getFullYear(),
+            counterEnd.getMonth(),
+            counterEnd.getDate(),
+          );
           const daysSinceChange = Math.max(
             0,
-            Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / msPerDay)
+            Math.floor((counterEndAtMidnight.getTime() - changedAtMidnight.getTime()) / msPerDay)
           );
-          const statusSlug = pallet.current_status_slug || '';
           const isWarehouseStatus =
             ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
             pallet.current_status_id === 1 || pallet.current_status_id === 3;
@@ -643,7 +658,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             transportStatusIds.includes(pallet.current_status_id)
           ) {
             graceDays = pallet.grace_days ?? status?.grace_period_days ?? 3;
-          } else if (status?.is_billable) {
+          } else if (status?.is_billable || frozenAt) {
             graceDays = pallet.grace_days ?? client?.grace_period_days ?? status?.grace_period_days ?? 0;
           }
 
@@ -669,6 +684,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           dueDate.setDate(dueDate.getDate() + graceDays);
           const remainingDays = graceDays - daysSinceChange;
           const isOverdue = remainingDays < 0;
+          const frozenLabel = frozenAt
+            ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}`
+            : '';
 
           return [
             pallet.id,
@@ -679,12 +697,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
               termLabel: dateFormatter.format(dueDate),
               termFilterValue: formatDateFilterValue(dueDate),
               termSortValue: dueDate.getTime(),
-              deadlineLabel: isOverdue
+              deadlineLabel: `${isOverdue
                 ? `${Math.abs(remainingDays)} ${timelineCopy.daysLate}`
-                : `${remainingDays} ${timelineCopy.daysLeft}`,
-              deadlineFilterValue: isOverdue
+                : `${remainingDays} ${timelineCopy.daysLeft}`}${frozenLabel}`,
+              deadlineFilterValue: `${isOverdue
                 ? `${Math.abs(remainingDays)} ${timelineCopy.daysLate}`
-                : `${remainingDays} ${timelineCopy.daysLeft}`,
+                : `${remainingDays} ${timelineCopy.daysLeft}`}${frozenLabel}`,
               deadlineSortValue: remainingDays,
               tone: isOverdue ? 'danger' : remainingDays <= 2 ? 'warning' : 'success',
             },
@@ -695,15 +713,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   );
 
   const getTimelineInfo = (pallet: Pallet) => palletTimelineMap[pallet.id];
-  const getDaysSinceStatusChange = (dateString: string) => {
+  const getDaysSinceStatusChange = (dateString: string, frozenAt?: string) => {
     const changedAt = new Date(dateString);
     const changedAtMidnight = new Date(
       changedAt.getFullYear(),
       changedAt.getMonth(),
       changedAt.getDate()
     );
-    const today = new Date();
-    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endDate = frozenAt ? new Date(frozenAt) : new Date();
+    const todayAtMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
 
     return Math.max(
       0,
@@ -741,7 +759,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         return;
       }
 
-      const daysAtClient = getDaysSinceStatusChange(pallet.last_status_changed_at);
+      const timerStartedAt = pallet.customer_timer_started_at || pallet.last_status_changed_at;
+      const frozenAt = pallet.customer_timer_frozen_at;
+      const daysAtClient = getDaysSinceStatusChange(timerStartedAt, frozenAt);
       const graceDays = client?.grace_period_days ?? status.grace_period_days ?? 0;
       const ratePerDay = client?.price_per_day ?? status.price_per_day ?? 0;
       const overdueDays = Math.max(daysAtClient - graceDays, 0);
@@ -750,7 +770,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         palletName: getPalletDisplayName(pallet),
         palletType: getTypeLabel(pallet),
         statusLabel: getStatusLabelText(pallet),
-        sentDate: dateFormatter.format(new Date(pallet.last_status_changed_at)),
+        sentDate: dateFormatter.format(new Date(timerStartedAt)),
         daysAtClient,
         graceDays,
         overdueDays,

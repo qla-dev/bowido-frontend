@@ -249,10 +249,10 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     );
   }, [cachedPallets]);
 
-  const getDaysSince = (date: string) => {
+  const getDaysSince = (date: string, frozenAt?: string) => {
     const changedAt = new Date(date);
     const changedAtMidnight = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
-    const today = new Date();
+    const today = frozenAt ? new Date(frozenAt) : new Date();
     const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     return Math.max(0, Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / (24 * 60 * 60 * 1000)));
   };
@@ -263,20 +263,28 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         .filter((pallet) => pallet.user_id === client.user_id)
         .map((pallet) => {
           const status = statuses.find((item) => item.id === pallet.current_status_id);
-          const changedAt = new Date(pallet.last_status_changed_at);
-          const hasValidChangeDate = !Number.isNaN(changedAt.getTime());
           const statusSlug = pallet.current_status_slug || '';
+          const usesCustomerTimer = ['bij-de-klant', 'ophalen-klant'].includes(statusSlug);
+          const changedAt = new Date(
+            usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
+          );
+          const hasValidChangeDate = !Number.isNaN(changedAt.getTime());
           const isWarehouseStatus =
             ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
             pallet.current_status_id === 1 || pallet.current_status_id === 3;
           const hasSentDate = hasValidChangeDate && !isWarehouseStatus;
-          const daysOut = hasSentDate ? getDaysSince(pallet.last_status_changed_at) : 0;
+          const daysOut = hasSentDate
+            ? getDaysSince(
+                usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
+                usesCustomerTimer ? pallet.customer_timer_frozen_at : undefined,
+              )
+            : 0;
           const graceDays = (
             ['bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih'].includes(statusSlug) ||
             [2, 6].includes(pallet.current_status_id)
           )
             ? pallet.grace_days ?? status?.grace_period_days ?? 3
-            : status?.is_billable
+            : status?.is_billable || (usesCustomerTimer && Boolean(pallet.customer_timer_frozen_at))
               ? pallet.grace_days ?? client.grace_period_days ?? status.grace_period_days ?? 0
               : 0;
           const hasDueDate = hasSentDate && graceDays > 0;
@@ -300,8 +308,8 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             deadlineLabel: remainingDays === null
               ? '-'
               : remainingDays < 0
-                ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}`
-                : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}`,
+                ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`
+                : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
             deadlineValue: dueDate?.getTime() ?? null,
             deadlineTone: remainingDays === null
               ? 'muted'
