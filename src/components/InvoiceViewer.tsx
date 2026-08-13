@@ -11,9 +11,10 @@ import { formatInvoiceItemDescription } from '../i18n';
 interface InvoiceViewerProps {
   invoice: Invoice;
   onClose: () => void;
+  allowSending?: boolean;
 }
 
-export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }) => {
+export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose, allowSending = true }) => {
   const { t, language } = useApp();
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,9 +185,11 @@ export const InvoiceViewer: React.FC<InvoiceViewerProps> = ({ invoice, onClose }
              <Button variant="outline" className="flex-1 rounded-full" onClick={openPreview} disabled={Boolean(actionLoading)}>
                 <Printer size={16} className="mr-2" /> {t('previewInvoice')}
              </Button>
-             <Button variant="outline" className="flex-1 rounded-full" onClick={sendInvoice} disabled={Boolean(actionLoading)}>
-                <Send size={16} className="mr-2" /> {t('sendInvoice')}
-             </Button>
+             {allowSending && (
+               <Button variant="outline" className="flex-1 rounded-full" onClick={sendInvoice} disabled={Boolean(actionLoading)}>
+                  <Send size={16} className="mr-2" /> {t('sendInvoice')}
+               </Button>
+             )}
              <Button className="flex-1 shadow-lg shadow-black/10 rounded-full" onClick={downloadPdf} disabled={Boolean(actionLoading)}>
                 <Download size={16} className="mr-2" /> {t('exportInvoice')}
              </Button>

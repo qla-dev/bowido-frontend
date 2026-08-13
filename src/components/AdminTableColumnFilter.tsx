@@ -14,6 +14,7 @@ interface AdminTableColumnFilterProps {
   options: AdminTableFilterOption[];
   selectedValues: string[];
   onToggle: (value: string) => void;
+  onSelectAll: () => void;
   onClear: () => void;
   filterLabel: string;
   searchLabel: string;
@@ -26,6 +27,7 @@ export const AdminTableColumnFilter: React.FC<AdminTableColumnFilterProps> = ({
   options,
   selectedValues,
   onToggle,
+  onSelectAll,
   onClear,
   filterLabel,
   searchLabel,
@@ -105,7 +107,11 @@ export const AdminTableColumnFilter: React.FC<AdminTableColumnFilterProps> = ({
           <button
             type="button"
             onClick={() => {
-              onClear();
+              if (options.length > 0 && options.every((option) => selectedValues.includes(option.value))) {
+                onClear();
+              } else {
+                onSelectAll();
+              }
               setQuery('');
             }}
             className="mt-2 flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-white"

@@ -406,27 +406,51 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
 const roleDescriptionCatalog: Record<AppLanguage, Record<string, string>> = {
   en: {
     "Full access": "Full access",
+    "Platform administrator": "Platform administrator",
+    "Warehouse operations": "Warehouse operations",
+    "Customer account": "Customer account",
+    Transport: "Transport",
+    "Service and repair": "Service and repair",
+    "Limited access": "Limited access",
+    "Operational user": "Operational user",
   },
   nl: {
     "Full access": "Volledige toegang",
+    "Platform administrator": "Platformbeheerder",
+    "Warehouse operations": "Magazijnactiviteiten",
+    "Customer account": "Klantaccount",
+    Transport: "Transport",
+    "Service and repair": "Service en reparatie",
+    "Limited access": "Beperkte toegang",
+    "Operational user": "Operationele gebruiker",
   },
   bs: {
     "Full access": "Potpuni pristup",
+    "Platform administrator": "Administrator platforme",
+    "Warehouse operations": "Magacinske operacije",
+    "Customer account": "Korisnički račun klijenta",
+    Transport: "Transport",
+    "Service and repair": "Servis i popravke",
+    "Limited access": "Ograničen pristup",
+    "Operational user": "Operativni korisnik",
   },
 };
 
 const permissionLabelCatalog: Record<AppLanguage, Record<string, string>> = {
   en: {
+    pallets: "Pallet tracking", customers: "Customers", roles: "Roles", invoices: "Invoices", invoice_items: "Invoice items", knowledge_base: "Knowledge base", statuses: "Statuses", audit_logs: "Audit log", qr_versions: "QR versions", services: "Service and repairs", users: "Users", ghost_pallet_reports: "Pallets without QR codes", image_gallery: "Delivery information",
     "pallets:read": "Read Pallets",
     "pallets:write": "Write Pallets",
     "users:manage": "Manage Users",
   },
   nl: {
+    pallets: "Bokken volgen", customers: "Klanten", roles: "Rollen", invoices: "Facturen", invoice_items: "Factuurregels", knowledge_base: "Kennisbank", statuses: "Statussen", audit_logs: "Auditlog", qr_versions: "QR-versies", services: "Service en reparaties", users: "Gebruikers", ghost_pallet_reports: "Bokken zonder QR-code", image_gallery: "Afleverinformatie",
     "pallets:read": "Bokken lezen",
     "pallets:write": "Bokken bewerken",
     "users:manage": "Gebruikers beheren",
   },
   bs: {
+    pallets: "Praćenje paleta", customers: "Klijenti", roles: "Uloge", invoices: "Fakture", invoice_items: "Stavke fakture", knowledge_base: "Baza znanja", statuses: "Statusi", audit_logs: "Evidencija aktivnosti", qr_versions: "QR verzije", services: "Servis i popravke", users: "Korisnici", ghost_pallet_reports: "Palete bez QR koda", image_gallery: "Informacije o isporuci",
     "pallets:read": "Pregled paleta",
     "pallets:write": "Uređivanje paleta",
     "users:manage": "Upravljanje korisnicima",
@@ -438,16 +462,19 @@ const permissionDescriptionCatalog: Record<
   Record<string, string>
 > = {
   en: {
+    pallets: "Pallet tracking and lifecycle management.", customers: "Customer management based on customer details records.", roles: "Role and access management.", invoices: "Invoice management.", invoice_items: "Invoice line item management.", knowledge_base: "Role-aware knowledge base content.", statuses: "Status changes, including QR-driven scanning flows.", audit_logs: "Audit trail and activity history.", qr_versions: "QR version management.", services: "Service and repair workflows.", users: "User administration.", ghost_pallet_reports: "Reporting and pairing pallets without QR codes.", image_gallery: "Delivery photos for pallets leaving the Bowido NL warehouse.",
     "pallets:read": "Can view pallet list",
     "pallets:write": "Can create and edit pallets",
     "users:manage": "Full user control",
   },
   nl: {
+    pallets: "Bokken volgen en de volledige levenscyclus beheren.", customers: "Klanten beheren op basis van klantdetailgegevens.", roles: "Rollen en toegangsrechten beheren.", invoices: "Facturen beheren.", invoice_items: "Factuurregels beheren.", knowledge_base: "Kennisbankinhoud op basis van rollen.", statuses: "Statuswijzigingen, inclusief QR-gestuurde scanprocessen.", audit_logs: "Audittrail en activiteitenhistoriek.", qr_versions: "QR-versies beheren.", services: "Service- en reparatieprocessen.", users: "Gebruikers beheren.", ghost_pallet_reports: "Bokken zonder QR-code melden en koppelen.", image_gallery: "Afleverfoto's van bokken die het Bowido NL-magazijn verlaten.",
     "pallets:read": "Kan de bokkenlijst bekijken",
     "pallets:write": "Kan bokken aanmaken en bewerken",
     "users:manage": "Volledige gebruikerscontrole",
   },
   bs: {
+    pallets: "Praćenje paleta i upravljanje njihovim životnim ciklusom.", customers: "Upravljanje klijentima na osnovu podataka o klijentima.", roles: "Upravljanje ulogama i pristupom.", invoices: "Upravljanje fakturama.", invoice_items: "Upravljanje stavkama fakture.", knowledge_base: "Sadržaj baze znanja prilagođen ulozi.", statuses: "Promjene statusa, uključujući QR skeniranje.", audit_logs: "Evidencija aktivnosti i historija promjena.", qr_versions: "Upravljanje QR verzijama.", services: "Tokovi rada servisa i popravki.", users: "Administracija korisnika.", ghost_pallet_reports: "Prijava i povezivanje paleta bez QR koda.", image_gallery: "Fotografije isporuke paleta koje napuštaju magacin Bowido NL.",
     "pallets:read": "Može pregledati listu paleta",
     "pallets:write": "Može kreirati i uređivati palete",
     "users:manage": "Potpuna kontrola korisnika",
@@ -494,6 +521,8 @@ export const translations = {
     adminWarehouse: "Admin Warehouse",
     adminFinance: "Finance & Administration",
     settings: "Settings",
+    backToScan: "Back to scan",
+    informationSettings: "Information settings",
     completeDetails: "Complete details",
     imageGallery: "Delivery information",
     galleryDescription: "Delivery photos for pallets leaving Bowido NL.",
@@ -1037,6 +1066,11 @@ export const translations = {
     noRolesFound: "No roles found.",
     deleting: "Deleting...",
     roleSaving: "Saving...",
+    roleAbilityList: "List",
+    roleAbilityView: "View",
+    roleAbilityCreate: "Create",
+    roleAbilityUpdate: "Update",
+    roleAbilityDelete: "Delete",
     allImages: "Admin / all images",
     showAll: "Show all",
     warehouseAddresses: "Warehouse addresses",
@@ -1075,6 +1109,8 @@ export const translations = {
     adminWarehouse: "Admin Magazijn",
     adminFinance: "Financien en Administratie",
     settings: "Instellingen",
+    backToScan: "Terug naar scannen",
+    informationSettings: "Informatie-instellingen",
     completeDetails: "Gegevens aanvullen",
     imageGallery: "Leveringsinformatie",
     galleryDescription: "Leveringsfoto’s van bokken die Bowido NL verlaten.",
@@ -1625,6 +1661,11 @@ export const translations = {
     noRolesFound: "Geen rollen gevonden.",
     deleting: "Verwijderen...",
     roleSaving: "Opslaan...",
+    roleAbilityList: "Lijst",
+    roleAbilityView: "Bekijken",
+    roleAbilityCreate: "Aanmaken",
+    roleAbilityUpdate: "Bijwerken",
+    roleAbilityDelete: "Verwijderen",
     allImages: "Admin / alle afbeeldingen",
     showAll: "Alles tonen",
     warehouseAddresses: "Magazijnadressen",
@@ -1663,6 +1704,8 @@ export const translations = {
     adminWarehouse: "Admin Magacin",
     adminFinance: "Finansije i Administracija",
     settings: "Postavke",
+    backToScan: "Nazad na skeniranje",
+    informationSettings: "Postavke informacija",
     completeDetails: "Dopuni podatke",
     imageGallery: "Informacije o isporuci",
     galleryDescription: "Fotografije isporuke paleta koje napuštaju Bowido NL.",
@@ -2207,6 +2250,11 @@ export const translations = {
     noRolesFound: "Nema uloga u bazi.",
     deleting: "Brisanje...",
     roleSaving: "Spremanje...",
+    roleAbilityList: "Lista",
+    roleAbilityView: "Pregled",
+    roleAbilityCreate: "Kreiraj",
+    roleAbilityUpdate: "Ažuriraj",
+    roleAbilityDelete: "Obriši",
     allImages: "Admin / sve slike",
     showAll: "Prikaži sve",
     warehouseAddresses: "Adrese magacina",
@@ -2261,8 +2309,28 @@ export const translate = (language: AppLanguage, key: string) => {
   return language === "nl" ? useDutchBokTerminology(value) : value;
 };
 
-export const getRoleLabel = (role: RoleType, language: AppLanguage) =>
-  roleLabels[language][role] || roleLabels.en[role] || role;
+const roleTypeAliases: Record<string, RoleType> = {
+  admin: RoleType.ADMIN,
+  admin_service: RoleType.ADMIN_SERVICE,
+  "admin service": RoleType.ADMIN_SERVICE,
+  admin_servis: RoleType.ADMIN_SERVICE,
+  "admin servis": RoleType.ADMIN_SERVICE,
+  admin_warehouse: RoleType.ADMIN_WAREHOUSE,
+  "admin warehouse": RoleType.ADMIN_WAREHOUSE,
+  admin_magacin: RoleType.ADMIN_WAREHOUSE,
+  "admin magacin": RoleType.ADMIN_WAREHOUSE,
+  finance_administration: RoleType.FINANCE_ADMINISTRATION,
+  "finance & administration": RoleType.FINANCE_ADMINISTRATION,
+  driver: RoleType.VOZAC,
+  warehouse_operator: RoleType.MAGACINER,
+  customer: RoleType.KLIJENT,
+  technician: RoleType.SERVISER,
+};
+
+export const getRoleLabel = (role: RoleType | string, language: AppLanguage) => {
+  const normalizedRole = roleTypeAliases[role.trim().toLocaleLowerCase()] || role as RoleType;
+  return roleLabels[language][normalizedRole] || roleLabels.en[normalizedRole] || role;
+};
 
 export const getRolePermissions = (role: RoleType, language: AppLanguage) =>
   rolePermissionCatalog[language][role] || rolePermissionCatalog.en[role] || [];

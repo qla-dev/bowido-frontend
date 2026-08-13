@@ -87,7 +87,11 @@ const NO_QR_MIN_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
 
 const NO_QR_PAGE_SIZE = 25;
 
-export const NoQrPalletTableView: React.FC = () => {
+interface NoQrPalletTableViewProps {
+  readOnly?: boolean;
+}
+
+export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOnly = false }) => {
   const { pallets: cachedPallets, clients, statuses, updatePallet, deletePallet, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -529,7 +533,12 @@ export const NoQrPalletTableView: React.FC = () => {
         <div className="mt-2 flex min-h-0 flex-1 flex-col space-y-1">
           <button
             type="button"
-            onClick={() => clearColumnFilter(key)}
+            onClick={() => setSelectedFilters((current) => ({
+              ...current,
+              [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+                ? []
+                : filterOptions[key].map((option) => option.value),
+            }))}
             className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
           >
             <span>{showAllLabel}</span>
@@ -679,19 +688,24 @@ export const NoQrPalletTableView: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.01 }}
                   onClick={() => {
+                    if (readOnly) return;
                     setOpenFilterKey(null);
                     setEditingPallet(row.pallet);
                   }}
                   onKeyDown={(event) => {
+                    if (readOnly) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       setOpenFilterKey(null);
                       setEditingPallet(row.pallet);
                     }
                   }}
-                  tabIndex={0}
-                  role="button"
-                  className="cursor-pointer transition-colors hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none"
+                  tabIndex={readOnly ? -1 : 0}
+                  role={readOnly ? undefined : "button"}
+                  className={cn(
+                    'transition-colors',
+                    readOnly ? 'hover:bg-zinc-50/60' : 'cursor-pointer hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none'
+                  )}
                 >
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>

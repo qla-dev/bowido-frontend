@@ -23,6 +23,7 @@ import { apiService } from '../services/api';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { ServiceReportPhotoLightbox } from './ServiceReportPhotoLightbox';
 import { SoftHyphenatedText } from './SoftHyphenatedText';
+import { RepairCompletionUndoModal } from './RepairCompletionUndoModal';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
@@ -40,6 +41,11 @@ type OperationRow = {
   metric: string;
   amount: string;
   sortValues: Record<string, string | number>;
+};
+
+type RepairCompletionUndo = {
+  pallet: Pallet;
+  completionPromise: Promise<Pallet>;
 };
 
 const COLUMN_WIDTHS: Record<string, number> = {
@@ -78,6 +84,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const [isServiceReportImageLoading, setIsServiceReportImageLoading] = useState(false);
   const [serviceReportImageFailed, setServiceReportImageFailed] = useState(false);
   const [isServiceReportPhotoViewerOpen, setIsServiceReportPhotoViewerOpen] = useState(false);
+  const [repairCompletionUndo, setRepairCompletionUndo] = useState<RepairCompletionUndo | null>(null);
   const [visibleCount, setVisibleCount] = useState(ADMIN_ROLE_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: SortDirection }>({
     key: 'primary',
@@ -422,13 +429,42 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     );
   };
 
+  const markPalletAsRepaired = (pallet: Pallet) => {
+    // Remove the job before the request completes so it immediately leaves the technician queue.
+    setRepairPallets((current) => current.filter((item) => item.id !== pallet.id));
+    setSelectedRow((current) => current?.pallet?.id === pallet.id ? null : current);
+
+    const completionPromise = updatePalletRepairStatus(pallet.id, false);
+    setRepairCompletionUndo({ pallet, completionPromise });
+
+    void completionPromise.catch(() => {
+      setRepairCompletionUndo((current) => current?.pallet.id === pallet.id ? null : current);
+      setRepairPallets((current) => current.some((item) => item.id === pallet.id) ? current : [pallet, ...current]);
+    });
+  };
+
+  const undoPalletRepairCompletion = () => {
+    const pendingCompletion = repairCompletionUndo;
+    if (!pendingCompletion) return;
+
+    setRepairCompletionUndo(null);
+    void pendingCompletion.completionPromise
+      .then(() => updatePalletRepairStatus(pendingCompletion.pallet.id, true))
+      .then((restoredPallet) => {
+        setRepairPallets((current) => current.some((item) => item.id === restoredPallet.id)
+          ? current
+          : [restoredPallet, ...current]
+        );
+      })
+      .catch(() => {
+        // The shared pallet state restores itself when a request fails. Keeping the page entry removed
+        // avoids showing a completed job until the next refresh if the undo request did not save.
+      });
+  };
+
   const markServiceResolved = (row: OperationRow) => {
     if (!row.pallet) return;
-    void updatePalletRepairStatus(row.pallet.id, false)
-      .then(() => {
-        setRepairPallets((current) => current.filter((pallet) => pallet.id !== row.pallet!.id));
-        setSelectedRow(null);
-      });
+    markPalletAsRepaired(row.pallet);
   };
   const ModeIcon = mode === 'service' ? Wrench : mode === 'warehouse' ? Warehouse : Banknote;
 
@@ -534,6 +570,10 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                               ? current[column.key].filter((item) => item !== value)
                               : [...current[column.key], value],
                           }))}
+                          onSelectAll={() => setColumnFilters((current) => ({
+                            ...current,
+                            [column.key]: filterOptions[column.key].map((option) => option.value),
+                          }))}
                           onClear={() => setColumnFilters((current) => ({ ...current, [column.key]: [] }))}
                           filterLabel={t('filter')}
                           searchLabel={t('search')}
@@ -608,25 +648,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                           aria-pressed={row.pallet.is_for_repair}
                           onClick={() => {
                             const pallet = row.pallet!;
-                            const nextIsForRepair = !pallet.is_for_repair;
-                            // Remove a completed job immediately; restore it if saving fails.
-                            setRepairPallets((current) => nextIsForRepair
-                              ? current.map((item) => item.id === pallet.id ? { ...item, is_for_repair: true } : item)
-                              : current.filter((item) => item.id !== pallet.id)
-                            );
-                            void updatePalletRepairStatus(pallet.id, nextIsForRepair)
-                              .then((updatedPallet) => {
-                                setRepairPallets((current) => updatedPallet.is_for_repair
-                                  ? current.map((pallet) => pallet.id === updatedPallet.id ? updatedPallet : pallet)
-                                  : current.filter((pallet) => pallet.id !== updatedPallet.id)
-                                );
-                              })
-                              .catch(() => {
-                                setRepairPallets((current) => current.some((item) => item.id === pallet.id)
-                                  ? current
-                                  : [pallet, ...current]
-                                );
-                              });
+                            if (pallet.is_for_repair) {
+                              markPalletAsRepaired(pallet);
+                            }
                           }}
                         >
                           <Check size={15} />
@@ -989,6 +1013,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             )}
           </motion.div>
         </div>
+      )}
+
+      {repairCompletionUndo && (
+        <RepairCompletionUndoModal
+          palletLabel={getPalletDisplayName(repairCompletionUndo.pallet)}
+          language={language}
+          onUndo={undoPalletRepairCompletion}
+          onConfirm={() => setRepairCompletionUndo(null)}
+        />
       )}
     </div>
   );

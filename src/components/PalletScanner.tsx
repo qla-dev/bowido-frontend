@@ -21,10 +21,10 @@ import {
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
 const CAMERA_ZOOM_STEP = 0.1;
-const QR_SCAN_INTERVAL_MS = 100;
-const QR_FALLBACK_MAX_DIMENSION = 960;
-const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1440;
-const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
+const QR_SCAN_INTERVAL_MS = 140;
+const QR_FALLBACK_MAX_DIMENSION = 720;
+const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1280;
+const QR_FALLBACK_DETAIL_PASS_EVERY = 5;
 
 interface ScannerProps {
   onClose: () => void;
@@ -219,7 +219,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       try {
         setCameraError(null);
         fallbackScanAttemptRef.current = 0;
-        const detector = await getQrDetector();
+        // BarcodeDetector is optional and can initialise slowly on mobile.
+        // Start the preview independently so it never blocks camera access.
+        const detectorPromise = getQrDetector().catch(() => null);
         let stream: MediaStream | null = null;
         let lastCameraError: unknown = null;
 
@@ -241,7 +243,6 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           return;
         }
 
-        qrDetectorRef.current = detector;
         streamRef.current = stream;
         const cameraFeatures = await configureQrCamera(stream);
         setIsTorchSupported(cameraFeatures.torchSupported);
@@ -257,13 +258,22 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           setIsCameraHardwareZoomSupported(false);
         }
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => undefined);
+        const video = videoRef.current;
+        if (!video) {
+          throw new Error('Camera preview is unavailable.');
         }
 
+        video.srcObject = stream;
+        await video.play();
         setIsCameraActive(true);
         runDetectionLoop();
+
+        const detector = await detectorPromise;
+        if (cancelled || streamRef.current !== stream) {
+          return;
+        }
+
+        qrDetectorRef.current = detector;
       } catch (error) {
         if (error instanceof DOMException && error.name === 'NotAllowedError') {
           setCameraError('Camera access was blocked. Allow the camera and try again.');

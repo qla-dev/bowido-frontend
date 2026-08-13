@@ -947,6 +947,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             ? current[key].filter((item) => item !== value)
             : [...current[key], value],
         }))}
+        onSelectAll={() => setSelectedFilters((current) => ({
+          ...current,
+          [key]: filterOptions[key].map((option) => option.value),
+        }))}
         onClear={() => setSelectedFilters((current) => ({ ...current, [key]: [] }))}
         filterLabel={t('filter')}
         searchLabel={t('search')}

@@ -631,7 +631,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         <div className="mt-2 flex min-h-0 flex-1 flex-col space-y-1">
           <button
             type="button"
-            onClick={() => clearColumnFilter(key)}
+            onClick={() => setSelectedFilters((current) => ({
+              ...current,
+              [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+                ? []
+                : filterOptions[key].map((option) => option.value),
+            }))}
             className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
           >
             <span>{showAllLabel}</span>

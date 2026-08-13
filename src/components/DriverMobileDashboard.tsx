@@ -22,7 +22,9 @@ import { ClientDetail, Pallet, RoleType, User } from "../types";
 import { Card, cn } from "./ui";
 import { DriverModalShell } from "./DriverModalShell";
 import { DriverPalletSummaryCard } from "./DriverPalletSummaryCard";
+import { RepairCompletionUndoModal } from "./RepairCompletionUndoModal";
 import { DeliveryLocationMap } from "./DeliveryLocationMap";
+import { appAlert } from "./AppAlert";
 import {
   NoQrReturnFormModal,
   getNoQrReturnButtonCopy,
@@ -45,6 +47,7 @@ import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import {
   getClientWarehouseAddress,
   getDeliveryLocationAddress,
+  hasClientWarehouseOneAddress,
 } from "../lib/palletLocations";
 import { formatAppDate } from "../lib/dateFormat";
 import { rankSearchResults } from "../lib/searchRanking";
@@ -82,6 +85,10 @@ type ConfirmationPrompt = {
   tone?: "success" | "warning";
   onConfirm: () => void;
 };
+type RepairCompletionUndo = {
+  pallet: Pallet;
+  completionPromise: Promise<Pallet>;
+};
 type CameraZoomCapabilities = MediaTrackCapabilities & {
   zoom?: {
     min?: number;
@@ -116,10 +123,10 @@ const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
   max: 3,
   step: 0.1,
 };
-const QR_SCAN_INTERVAL_MS = 100;
-const QR_FALLBACK_MAX_DIMENSION = 960;
-const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1440;
-const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
+const QR_SCAN_INTERVAL_MS = 140;
+const QR_FALLBACK_MAX_DIMENSION = 720;
+const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1280;
+const QR_FALLBACK_DETAIL_PASS_EVERY = 5;
 
 const clampDriverCameraZoom = (
   value: number,
@@ -214,11 +221,14 @@ type DriverCopy = {
   warehouseDefault: string;
   warehouseSecondary: string;
   newLocation: string;
+  pickupLocation: string;
   otherDeliveryAddressHint: string;
   noWarehouseSecondary: string;
   gpsLocation: string;
   useGpsLocation: string;
   updateGpsLocation: string;
+  deliveryLocationSavedTitle: string;
+  deliveryLocationSavedDetail: string;
 };
 
 const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
@@ -281,11 +291,14 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     warehouseDefault: "Warehouse 1",
     warehouseSecondary: "Warehouse 2",
     newLocation: "Other delivery address",
+    pickupLocation: "Other pickup address",
     otherDeliveryAddressHint: "Search the full address and choose a suggestion.",
     noWarehouseSecondary: "No warehouse 2",
     gpsLocation: "GPS location",
     useGpsLocation: "Use GPS location",
     updateGpsLocation: "Update GPS location",
+    deliveryLocationSavedTitle: "Delivery location saved",
+    deliveryLocationSavedDetail: "The delivery location has been saved for this pallet.",
   },
   nl: {
     title: "Scan QR code",
@@ -347,11 +360,14 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     warehouseDefault: "Magazijn 1",
     warehouseSecondary: "Magazijn 2",
     newLocation: "Andere afleveradres",
+    pickupLocation: "Ander ophaaladres",
     otherDeliveryAddressHint: "Zoek het volledige adres en kies een suggestie.",
     noWarehouseSecondary: "Geen magazijn 2",
     gpsLocation: "GPS-locatie",
     useGpsLocation: "GPS-locatie gebruiken",
     updateGpsLocation: "GPS-locatie bijwerken",
+    deliveryLocationSavedTitle: "Afleverlocatie opgeslagen",
+    deliveryLocationSavedDetail: "De afleverlocatie is opgeslagen voor deze bok.",
   },
   bs: {
     palletPhotoGallery: "FOTOGRAFIJE",
@@ -411,11 +427,14 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     warehouseDefault: "Magacin 1",
     warehouseSecondary: "Magacin 2",
     newLocation: "Druga adresa dostave",
+    pickupLocation: "Druga adresa preuzimanja",
     otherDeliveryAddressHint: "Unesite cijelu adresu i odaberite prijedlog.",
     noWarehouseSecondary: "Nema magacina 2",
     gpsLocation: "GPS lokacija",
     useGpsLocation: "Koristi GPS lokaciju",
     updateGpsLocation: "Ažuriraj GPS lokaciju",
+    deliveryLocationSavedTitle: "Lokacija dostave sačuvana",
+    deliveryLocationSavedDetail: "Lokacija dostave je sačuvana za ovu paletu.",
   },
 };
 
@@ -548,6 +567,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [isRepairListOpen, setIsRepairListOpen] = useState(false);
   const [confirmationPrompt, setConfirmationPrompt] =
     useState<ConfirmationPrompt | null>(null);
+  const [repairCompletionUndo, setRepairCompletionUndo] =
+    useState<RepairCompletionUndo | null>(null);
   const [noQrClientSearch, setNoQrClientSearch] = useState("");
   const [activeScannedPalletId, setActiveScannedPalletId] = useState<
     number | null
@@ -598,6 +619,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
+  const initializedPalletIdRef = useRef<number | null>(null);
 
   const text = driverCopy[language] || driverCopy.en;
   const isCustomer = user.role_name === RoleType.KLIJENT;
@@ -827,6 +849,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     return getStatusLabel(statusName, language);
   };
+  const draftStatus = statuses.find((status) => status.id === draftStatusId);
+  const deliveryLocationLabel = draftStatus?.slug === "ophalen-klant"
+    ? text.pickupLocation
+    : text.newLocation;
   const getLocationMeta = (mode: DriverLocationMode, clientId?: number) => {
     const client = clients.find((item) => item.user_id === clientId);
     const warehouse1Address = getClientWarehouseAddress(client, 1);
@@ -837,7 +863,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         return { label: text.warehouseSecondary, address: warehouse2Address };
       case "delivery":
         return {
-          label: text.newLocation,
+          label: deliveryLocationLabel,
           address: getDeliveryLocationAddress(selectedPallet),
         };
       default:
@@ -847,6 +873,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const activeLocationClientId = statusIdAllowsCustomer(statuses, draftStatusId)
     ? draftClientId
     : undefined;
+  const activeLocationClient = clients.find(
+    (client) => client.user_id === activeLocationClientId,
+  );
+  const hasWarehouse1 = hasClientWarehouseOneAddress(activeLocationClient);
   const isClientChangeDisabled =
     isCustomer || !statusIdAllowsCustomer(statuses, draftStatusId);
   const selectedLocationMeta = getLocationMeta(
@@ -860,7 +890,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const hasWarehouse2 = Boolean(warehouse2Address);
   const savedDeliveryLocationAddress =
     getDeliveryLocationAddress(selectedPallet);
-  const draftStatus = statuses.find((status) => status.id === draftStatusId);
   const fixedWarehouseLocationMeta =
     draftStatus?.slug === "bowido-nl"
       ? {
@@ -1058,12 +1087,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         : openChangeMenu === "location"
           ? text.summaryLocation
           : openChangeMenu === "gps"
-            ? text.newLocation
+            ? deliveryLocationLabel
             : "";
-  const isFullscreenModalOpen = Boolean(
-    openChangeMenu || isDamageModalOpen || isScannedPalletsModalOpen,
+  const isFooterlessModalOpen = Boolean(
+    openChangeMenu || isScannedPalletsModalOpen || isRepairListOpen,
   );
-  const showDamageModalNavActions = isDamageModalOpen;
   const isDamageReportSubmitDisabled =
     damagePhotos.length === 0 ||
     !damageDescription.trim() ||
@@ -1079,8 +1107,17 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   useEffect(() => {
     if (!selectedPallet) {
+      initializedPalletIdRef.current = null;
       return;
     }
+
+    // A poll replaces pallet objects. Initialize the editor when a pallet is
+    // opened, not each time the same pallet is refreshed in the background.
+    if (initializedPalletIdRef.current === selectedPallet.id) {
+      return;
+    }
+
+    initializedPalletIdRef.current = selectedPallet.id;
 
     setOpenChangeMenu(null);
     setDraftStatusId(
@@ -1102,7 +1139,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         : selectedPallet.current_location === warehouse2Address &&
             warehouse2Address
           ? "warehouse_2"
-          : "warehouse_1";
+          : hasClientWarehouseOneAddress(client)
+            ? "warehouse_1"
+            : "delivery";
     setDraftLocationMode(nextLocationMode);
   }, [selectedPallet, clients, isCustomer, user.id]);
 
@@ -1377,7 +1416,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       }
 
       try {
-        const detector = await getQrDetector();
+        // Request the camera first. Some mobile browsers can take a long time
+        // to initialise BarcodeDetector (or never resolve it), which must not
+        // prevent the camera preview from starting.
+        const detectorPromise = getQrDetector().catch(() => null);
         fallbackScanAttemptRef.current = 0;
         const cameraAttempts = qrCameraConstraintAttempts;
         let stream: MediaStream | null = null;
@@ -1407,17 +1449,25 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         setIsTorchOn(false);
         syncCameraZoomCapabilities(stream);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => undefined);
+        const video = videoRef.current;
+        if (!video) {
+          throw new Error("Camera preview is unavailable.");
+        }
+
+        video.srcObject = stream;
+        await video.play();
+
+        setCameraState("ready");
+        runDetectionLoop();
+
+        const detector = await detectorPromise;
+        if (cancelled || streamRef.current !== stream) {
+          return;
         }
 
         if (!detector) {
           qrDetectorRef.current = null;
         }
-
-        setCameraState("ready");
-        runDetectionLoop();
       } catch (error) {
         if (cancelled) {
           return;
@@ -1475,6 +1525,38 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       flashTimeoutRef.current = null;
       setFlashMessage(null);
     }, durationMs);
+  };
+
+  const markPalletAsRepaired = (pallet: Pallet) => {
+    const completionPromise = updatePalletRepairStatus(pallet.id, false);
+    setRepairCompletionUndo({ pallet, completionPromise });
+
+    void completionPromise.catch(() => {
+      setRepairCompletionUndo((current) =>
+        current?.pallet.id === pallet.id ? null : current,
+      );
+      showFlash(
+        repairListCopy.successTitle,
+        "The repair status could not be updated.",
+        "danger",
+      );
+    });
+  };
+
+  const undoPalletRepairCompletion = () => {
+    const pendingCompletion = repairCompletionUndo;
+    if (!pendingCompletion) return;
+
+    setRepairCompletionUndo(null);
+    void pendingCompletion.completionPromise
+      .then(() => updatePalletRepairStatus(pendingCompletion.pallet.id, true))
+      .catch(() => {
+        showFlash(
+          repairListCopy.successTitle,
+          "The repair status could not be restored.",
+          "danger",
+        );
+      });
   };
 
   const simulateScan = () => {
@@ -1727,6 +1809,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
+    const nextClient = clients.find(
+      (client) => client.user_id === nextClientId,
+    );
+    if (
+      statusIdAllowsCustomer(statuses, statusId) &&
+      !hasClientWarehouseOneAddress(nextClient)
+    ) {
+      setDraftLocationMode("delivery");
+      setOpenChangeMenu("location");
+      return;
+    }
+
     persistDriverStatus(statusId, nextClientId, nextLocation);
   };
 
@@ -1744,6 +1838,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       const nextClient = clients.find(
         (client) => client.user_id === nextClientId,
       );
+      if (!hasClientWarehouseOneAddress(nextClient)) {
+        setDraftLocationMode("delivery");
+        setOpenChangeMenu("location");
+        return;
+      }
       const nextLocationMode =
         draftLocationMode === "warehouse_2" &&
         !getClientWarehouseAddress(nextClient, 2)
@@ -1765,6 +1864,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const handleLocationSelection = async (mode: DriverLocationMode) => {
+    if (mode !== "delivery" && !hasWarehouse1) {
+      return;
+    }
+
     setOpenChangeMenu(null);
     setDraftLocationMode(mode);
     const nextLocation = getLocationMeta(mode, activeLocationClientId).address;
@@ -2153,6 +2256,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
+    if (isRepairListOpen) {
+      setIsRepairListOpen(false);
+      return;
+    }
+
     if (openChangeMenu) {
       setOpenChangeMenu(null);
     }
@@ -2161,7 +2269,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const isBottomNavVisible =
     (isScannerOpen || Boolean(selectedPallet)) && !isDamageModalOpen;
   const scannerBottomActionCount =
-    1 + (showNoQrReturnAction ? 1 : 0) + (showNoQrPickupAction ? 1 : 0);
+    1 +
+    (showRepairListAction ? 1 : 0) +
+    (showNoQrReturnAction ? 1 : 0) +
+    (showNoQrPickupAction ? 1 : 0);
 
   return (
     <div
@@ -2352,22 +2463,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             )}
           </div>
 
-          {showRepairListAction && (
-            <button
-              type="button"
-              onClick={() => setIsRepairListOpen(true)}
-              className="mt-4 flex min-h-20 w-full items-center gap-3 rounded-[1.8rem] border border-amber-200 bg-amber-50 px-4 py-4 text-left transition-all active:scale-[0.99] dark:border-amber-500/20 dark:bg-amber-500/10"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-white text-amber-600 dark:border-amber-500/25 dark:bg-[#101715] dark:text-amber-200">
-                <PackageSearch size={18} />
-              </div>
-              <div className="flex min-h-11 min-w-0 flex-1 items-center">
-                <p className="text-[11px] font-black uppercase leading-4 tracking-[0.16em] text-amber-700 dark:text-amber-100">
-                  {repairListCopy.buttonTitle}
-                </p>
-              </div>
-            </button>
-          )}
         </div>
       )}
 
@@ -2935,12 +3030,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
               "pointer-events-auto mx-auto grid min-h-16 w-full max-w-md items-center border-t border-transparent bg-[#00A655] px-2 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] shadow-[0_-12px_36px_rgba(0,166,85,0.35)]",
             )}
           >
-            {isFullscreenModalOpen ? (
+            {isFooterlessModalOpen ? (
               <div
-                className={cn(
-                  "grid h-full gap-1",
-                  showDamageModalNavActions ? "grid-cols-2" : "grid-cols-1",
-                )}
+                className="grid h-full grid-cols-1 gap-1"
               >
                 <button
                   type="button"
@@ -2953,24 +3045,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <ChevronLeft size={20} className="shrink-0" />
                   {text.back}
                 </button>
-                {showDamageModalNavActions && (
-                  <button
-                    type="button"
-                    onClick={handleDamageReportSubmit}
-                    disabled={isDamageReportSubmitDisabled}
-                    className={cn(
-                      modalNavButtonClass,
-                      isDamageReportSubmitDisabled
-                        ? "cursor-not-allowed text-white/45 active:scale-100"
-                        : "hover:bg-white/10 hover:text-white",
-                    )}
-                  >
-                    <Check size={20} className="shrink-0" />
-                    {isDamageReportSubmitting
-                      ? text.damageModalSaving
-                      : text.damageModalSubmit}
-                  </button>
-                )}
               </div>
             ) : isScannerOpen ? (
               <div
@@ -2995,6 +3069,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <History size={20} className="shrink-0" />
                   {text.historyPallets}
                 </button>
+                {showRepairListAction && (
+                  <button
+                    type="button"
+                    onClick={() => setIsRepairListOpen(true)}
+                    className={cn(
+                      actionButtonClass,
+                      "hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    <PackageSearch size={20} className="shrink-0" />
+                    {repairListCopy.buttonTitle}
+                  </button>
+                )}
                 {showNoQrReturnAction && (
                   <button
                     type="button"
@@ -3026,9 +3113,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
               <div className="grid h-full grid-cols-3 gap-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsPalletPhotoModeOpen(false);
-                  }}
+                  onClick={() => setIsPalletPhotoModeOpen(false)}
                   className={cn(
                     actionButtonClass,
                     "hover:bg-white/10 hover:text-white",
@@ -3040,15 +3125,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (!selectedPallet) {
-                      return;
+                    if (selectedPallet) {
+                      void uploadPalletPhotos(
+                        selectedPallet,
+                        selectedPallet.current_status_id,
+                        selectedPallet.user_id,
+                      );
                     }
-
-                    void uploadPalletPhotos(
-                      selectedPallet,
-                      selectedPallet.current_status_id,
-                      selectedPallet.user_id,
-                    );
                   }}
                   disabled={
                     unsavedPalletPhotoCount === 0 ||
@@ -3093,11 +3176,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
               >
                 <button
                   type="button"
+                  onClick={handleScanNext}
                   className={cn(
                     actionButtonClass,
                     "hover:bg-white/10 hover:text-white",
                   )}
-                  onClick={handleScanNext}
                 >
                   <RefreshCcw size={20} className="shrink-0" />
                   {text.scanNext}
@@ -3138,6 +3221,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       <AnimatePresence>
         {isNoQrReturnFormOpen && (
           <NoQrReturnFormModal
+            key="no-qr-return-form"
             currentUser={user}
             onClose={() => setIsNoQrReturnFormOpen(false)}
             onSubmitted={(clientName, count) =>
@@ -3152,6 +3236,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
         {confirmationPrompt && (
           <DriverModalShell
+            key="driver-confirmation"
             onClose={() => setConfirmationPrompt(null)}
             title={confirmationPrompt.title}
             width="sm"
@@ -3198,6 +3283,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
         {isNoQrPickupListOpen && (
           <DriverModalShell
+            key="no-qr-pickup-list"
             onClose={() => {
               setIsNoQrPickupListOpen(false);
               setNoQrClientSearch("");
@@ -3312,15 +3398,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
         {isRepairListOpen && (
           <DriverModalShell
+            key="repair-list"
             onClose={() => setIsRepairListOpen(false)}
             title={repairListCopy.title}
-            width="md"
-            overlayClassName="z-[110] items-center p-3"
-            contentClassName="h-auto max-h-[88dvh] rounded-[1.75rem] border border-amber-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
+            width="sm"
             bodyClassName="bg-zinc-50/80 px-4 py-4 dark:bg-[#070b0a]"
           >
             {repairPallets.length > 0 ? (
-              <div className="max-h-[68dvh] space-y-3 overflow-y-auto pr-1 no-scrollbar">
+              <div className="space-y-3">
                 {repairPallets.map((pallet, index) => (
                   <div
                     key={`service-repair-pallet-${pallet.id}`}
@@ -3376,35 +3461,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setConfirmationPrompt({
-                          title: repairListCopy.successTitle,
-                          message:
-                            language === "bs"
-                              ? "Oznaciti paletu kao popravljenu?"
-                              : repairListCopy.confirm,
-                          confirmLabel:
-                            language === "bs"
-                              ? "Oznaci kao popravljeno"
-                              : repairListCopy.repaired,
-                          tone: "success",
-                          onConfirm: () => {
-                            updatePalletRepairStatus(pallet.id, false);
-                            showFlash(
-                              repairListCopy.successTitle,
-                              language === "bs"
-                                ? "Paleta je vracena iz servisa."
-                                : repairListCopy.successDetail,
-                              "success",
-                            );
-                          },
-                        });
+                        markPalletAsRepaired(pallet);
                       }}
                       className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00A655] px-4 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform active:scale-[0.99]"
                     >
                       <CheckCircle2 size={16} />
-                      {language === "bs"
-                        ? "Oznaci kao popravljeno"
-                        : repairListCopy.repaired}
+                      {repairListCopy.repaired}
                     </button>
                   </div>
                 ))}
@@ -3425,6 +3487,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
         {openChangeMenu && selectedPallet && (
           <DriverModalShell
+            key="pallet-change-menu"
             onClose={() => setOpenChangeMenu(null)}
             header={
               openChangeMenu === "client" ? (
@@ -3527,54 +3590,56 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
             {openChangeMenu === "location" && !isLocationChangeDisabled && (
               <div className="space-y-2.5 p-5">
-                <button
-                  type="button"
-                  onClick={() => handleLocationSelection("warehouse_1")}
-                  className={cn(
-                    "flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all",
-                    draftLocationMode === "warehouse_1"
-                      ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
-                      : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
-                  )}
-                >
-                  <span className="text-[13px] font-black uppercase tracking-tight">
-                    {text.warehouseDefault}
-                  </span>
-                  <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
-                    {
-                      getLocationMeta("warehouse_1", activeLocationClientId)
-                        .address
-                    }
-                  </span>
-                </button>
-                {hasWarehouse2 ? (
+                {hasWarehouse1 && <>
                   <button
                     type="button"
-                    onClick={() => handleLocationSelection("warehouse_2")}
+                    onClick={() => handleLocationSelection("warehouse_1")}
                     className={cn(
                       "flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all",
-                      draftLocationMode === "warehouse_2"
+                      draftLocationMode === "warehouse_1"
                         ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
                         : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
                     )}
                   >
                     <span className="text-[13px] font-black uppercase tracking-tight">
-                      {text.warehouseSecondary}
+                      {text.warehouseDefault}
                     </span>
                     <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
-                      {warehouse2Address}
+                      {
+                        getLocationMeta("warehouse_1", activeLocationClientId)
+                          .address
+                      }
                     </span>
                   </button>
-                ) : (
-                  <div className="flex w-full flex-col items-start rounded-[1rem] bg-zinc-100 px-4 py-4 text-left text-zinc-400 dark:bg-white/5 dark:text-zinc-500">
-                    <span className="text-[13px] font-black uppercase tracking-tight">
-                      {text.warehouseSecondary}
-                    </span>
-                    <span className="mt-1 text-[11px] font-bold normal-case leading-4">
-                      {text.noWarehouseSecondary}
-                    </span>
-                  </div>
-                )}
+                  {hasWarehouse2 ? (
+                    <button
+                      type="button"
+                      onClick={() => handleLocationSelection("warehouse_2")}
+                      className={cn(
+                        "flex w-full flex-col items-start rounded-[1rem] px-4 py-4 text-left transition-all",
+                        draftLocationMode === "warehouse_2"
+                          ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
+                          : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                      )}
+                    >
+                      <span className="text-[13px] font-black uppercase tracking-tight">
+                        {text.warehouseSecondary}
+                      </span>
+                      <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-70">
+                        {warehouse2Address}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex w-full flex-col items-start rounded-[1rem] bg-zinc-100 px-4 py-4 text-left text-zinc-400 dark:bg-white/5 dark:text-zinc-500">
+                      <span className="text-[13px] font-black uppercase tracking-tight">
+                        {text.warehouseSecondary}
+                      </span>
+                      <span className="mt-1 text-[11px] font-bold normal-case leading-4">
+                        {text.noWarehouseSecondary}
+                      </span>
+                    </div>
+                  )}
+                </>}
                 <button
                   type="button"
                   onClick={() => setOpenChangeMenu("gps")}
@@ -3582,7 +3647,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 >
                   <span className="flex items-center gap-2 text-[13px] font-black uppercase tracking-tight">
                     <MapPin size={16} />
-                    {text.newLocation}
+                    {deliveryLocationLabel}
                   </span>
                   <span className="mt-1 text-[11px] font-bold normal-case leading-4 opacity-80">
                     {savedDeliveryLocationAddress || text.otherDeliveryAddressHint}
@@ -3598,6 +3663,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   language={language}
                   initialLocation={selectedPallet.delivery_location}
                   initialLocationIsSaved={!isCustomer}
+                  showSaveSuccessMessage={false}
                   onSave={async (palletId, data) => {
                     if (isCustomer) {
                       const streetLine = [data.street, data.house_number]
@@ -3621,6 +3687,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     }
                     const savedLocation = await savePalletDeliveryLocation(palletId, data);
                     setDraftLocationMode("delivery");
+                    await appAlert.fire({
+                      icon: "success",
+                      title: text.deliveryLocationSavedTitle,
+                      text: text.deliveryLocationSavedDetail,
+                    });
+                    setOpenChangeMenu(null);
                     return savedLocation;
                   }}
                 />
@@ -3629,6 +3701,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
           </DriverModalShell>
         )}
       </AnimatePresence>
+
+      {repairCompletionUndo && (
+        <RepairCompletionUndoModal
+          palletLabel={getPalletDisplayName(repairCompletionUndo.pallet)}
+          language={language}
+          onUndo={undoPalletRepairCompletion}
+          onConfirm={() => setRepairCompletionUndo(null)}
+        />
+      )}
 
       <AnimatePresence>
         {isDamageModalOpen && damageTargetPallet && (

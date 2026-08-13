@@ -714,7 +714,12 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         />
         <button
           type="button"
-          onClick={() => clearColumnFilter(key)}
+          onClick={() => setSelectedFilters((current) => ({
+            ...current,
+            [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+              ? []
+              : filterOptions[key].map((option) => option.value),
+          }))}
           className="mt-2 flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 hover:bg-zinc-50"
         >
           <span>{showAllLabel}</span>
