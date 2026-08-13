@@ -665,6 +665,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() =>
     readStoredActiveTab(currentUser),
   );
+  const [isRegistrationDetailsOpen, setIsRegistrationDetailsOpen] =
+    useState(false);
   const [isNightMode, setIsNightMode] = useState(readStoredTheme);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<
     number | null
@@ -1130,7 +1132,8 @@ export default function App() {
     storeCurrentUser(updatedUser);
 
     if (reviewCustomerDetails && updatedUser.role_name === RoleType.KLIJENT) {
-      setActiveTab("customer-details");
+      setIsRegistrationDetailsOpen(true);
+      setActiveTab("settings");
     }
   };
 
@@ -2208,7 +2211,13 @@ export default function App() {
           <LanguagePicker />
           <PasswordChangeForm />
           {currentUser.role_name === RoleType.KLIJENT && (
-            <details className="group mt-4 overflow-hidden rounded-2xl border border-emerald-100 bg-white dark:border-emerald-500/20 dark:bg-[#101715]">
+            <details
+              className="group mt-4 overflow-hidden rounded-2xl border border-emerald-100 bg-white dark:border-emerald-500/20 dark:bg-[#101715]"
+              open={isRegistrationDetailsOpen}
+              onToggle={(event) =>
+                setIsRegistrationDetailsOpen(event.currentTarget.open)
+              }
+            >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-left [&::-webkit-details-marker]:hidden">
                 <span>
                   <span className="block text-xs font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-100">
