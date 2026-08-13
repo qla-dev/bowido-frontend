@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronLeft,
   History,
+  ImagePlus,
   Flashlight,
   FlashlightOff,
   MapPin,
@@ -178,6 +179,7 @@ type DriverCopy = {
   palletPhotoCaptureTitle: string;
   palletPhotoEmpty: string;
   takeNextPalletPhoto: string;
+  choosePalletPhotos: string;
   savingPalletPhotos: string;
   reportDamage: string;
   scanNext: string;
@@ -247,6 +249,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     palletPhotoCaptureTitle: "Pallet photos",
     palletPhotoEmpty: "Take the first photo for this pallet.",
     takeNextPalletPhoto: "TAKE NEXT",
+    choosePalletPhotos: "CHOOSE PHOTOS",
     savingPalletPhotos: "SAVING...",
     reportDamage: "REPORT DAMAGE",
     scanNext: "Scan next pallet",
@@ -315,6 +318,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     palletPhotoCaptureTitle: "Foto's van de bok",
     palletPhotoEmpty: "Maak de eerste foto van deze bok.",
     takeNextPalletPhoto: "VOLGENDE FOTO",
+    choosePalletPhotos: "FOTO'S KIEZEN",
     savingPalletPhotos: "OPSLAAN...",
     reportDamage: "SCHADE MELDEN",
     scanNext: "Scan volgende",
@@ -370,6 +374,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     deliveryLocationSavedDetail: "De afleverlocatie is opgeslagen voor deze bok.",
   },
   bs: {
+    choosePalletPhotos: "ODABERI FOTOGRAFIJE",
     palletPhotoGallery: "FOTOGRAFIJE",
     palletPhotoCaptureTitle: "Fotografije palete",
     palletPhotoEmpty: "Napravite prvu fotografiju ove palete.",
@@ -447,7 +452,7 @@ const driverReturnWindowCopy = {
     withinDeadline: "Within deadline",
     overdue: "Overdue",
     daysLeft: "days left",
-    daysLate: "days late",
+    daysLate: "days overdue",
   },
   nl: {
     sentAt: "Verzonden",
@@ -456,8 +461,8 @@ const driverReturnWindowCopy = {
     deadlineStatus: "Termijn",
     withinDeadline: "Binnen termijn",
     overdue: "Over tijd",
-    daysLeft: "dagen over",
-    daysLate: "dagen te laat",
+    daysLeft: "dagen resterend",
+    daysLate: "dagen over",
   },
   bs: {
     sentAt: "Poslana",
@@ -466,8 +471,8 @@ const driverReturnWindowCopy = {
     deadlineStatus: "Rok",
     withinDeadline: "U roku",
     overdue: "Van roka",
-    daysLeft: "dana do isteka",
-    daysLate: "dana van roka",
+    daysLeft: "dana u roku",
+    daysLate: "dana preko",
   },
 } as const;
 
@@ -605,6 +610,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const scanImageInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const palletPhotoGalleryInputRef = useRef<HTMLInputElement | null>(null);
   const damagePhotoInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoUrlsRef = useRef<string[]>([]);
   const palletPhotoUploadIdsRef = useRef(new Set<string>());
@@ -918,7 +924,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return null;
     }
 
-    const sentDate = new Date(pallet.last_status_changed_at);
+    const sentDate = new Date(pallet.customer_timer_started_at || pallet.last_status_changed_at);
+    const frozenAt = pallet.customer_timer_frozen_at
+      ? new Date(pallet.customer_timer_frozen_at)
+      : null;
     const dateFormatter = {
       format: (value: string | number | Date) =>
         formatAppDate(value, language),
@@ -942,7 +951,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       sentDate.getMonth(),
       sentDate.getDate(),
     );
-    const today = new Date();
+    const today = frozenAt && !Number.isNaN(frozenAt.getTime()) ? frozenAt : new Date();
     const todayAtMidnight = new Date(
       today.getFullYear(),
       today.getMonth(),
@@ -964,11 +973,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       statusChangedAtLabel: dateFormatter.format(sentDate),
       dueDateLabel: dateFormatter.format(dueDate),
       deadlineLabel: returnWindowText.deadlineStatus,
-      deadlineText: isOverdue
-        ? language === "bs"
-          ? `${Math.abs(remainingDays)} dana`
-          : `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
-        : `${remainingDays} ${returnWindowText.daysLeft}`,
+      deadlineText: `${isOverdue
+        ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
+        : `${remainingDays} ${returnWindowText.daysLeft}`}${frozenAt ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
       isOverdue,
     };
   };
@@ -1018,9 +1025,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       dueDateLabel: dateFormatter.format(dueDate),
       deadlineLabel: returnWindowText.deadlineStatus,
       deadlineText: isOverdue
-        ? language === "bs"
-          ? `${Math.abs(remainingDays)} dana`
-          : `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
+        ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
         : `${remainingDays} ${returnWindowText.daysLeft}`,
       isOverdue,
     };
@@ -1587,6 +1592,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     if (palletPhotoInputRef.current) {
       palletPhotoInputRef.current.value = "";
     }
+    if (palletPhotoGalleryInputRef.current) {
+      palletPhotoGalleryInputRef.current.value = "";
+    }
 
     setPalletPhotoDrafts([]);
     setActivePalletPhotoId(null);
@@ -1907,34 +1915,45 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     palletPhotoInputRef.current?.click();
   };
 
+  const openPalletPhotoGallery = () => {
+    setIsPalletPhotoModeOpen(true);
+    palletPhotoGalleryInputRef.current?.click();
+  };
+
   const handlePalletPhotoChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const file = event.target.files?.[0];
+    const files = (Array.from(event.target.files ?? []) as File[]).filter((file) =>
+      file.type.startsWith("image/"),
+    );
+    event.target.value = "";
 
-    if (!file) {
+    if (files.length === 0) {
       return;
     }
 
-    event.target.value = "";
-
     try {
-      const compressed = await compressPhotoForUpload(file);
-      const nextPhotoUrl = URL.createObjectURL(compressed);
-      const nextPhotoId = `${Date.now()}-${palletPhotoSequenceRef.current++}`;
-      palletPhotoUrlsRef.current.push(nextPhotoUrl);
+      const preparedPhotos = await Promise.all(
+        files.map(async (file) => {
+          const compressed = await compressPhotoForUpload(file);
+          const url = URL.createObjectURL(compressed);
+
+          return {
+            id: `${Date.now()}-${palletPhotoSequenceRef.current++}`,
+            file: compressed,
+            url,
+            saved: false,
+            uploading: false,
+            error: false,
+          } satisfies PalletPhotoDraft;
+        }),
+      );
+      palletPhotoUrlsRef.current.push(...preparedPhotos.map((photo) => photo.url));
       setPalletPhotoDrafts((current) => [
         ...current,
-        {
-          id: nextPhotoId,
-          file: compressed,
-          url: nextPhotoUrl,
-          saved: false,
-          uploading: false,
-          error: false,
-        },
+        ...preparedPhotos,
       ]);
-      setActivePalletPhotoId(nextPhotoId);
+      setActivePalletPhotoId(preparedPhotos.at(-1)?.id || null);
       setIsPalletPhotoModeOpen(true);
     } catch (error) {
       console.error("Failed to compress driver pallet photo", error);
@@ -2925,6 +2944,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 className="hidden"
                 onChange={handlePalletPhotoChange}
               />
+              <input
+                ref={palletPhotoGalleryInputRef}
+                id="driver-pallet-photo-gallery"
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePalletPhotoChange}
+              />
 
             </Card>
 
@@ -3110,7 +3138,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 )}
               </div>
             ) : isPalletPhotoModeOpen ? (
-              <div className="grid h-full grid-cols-3 gap-1">
+              <div className="grid h-full grid-cols-4 gap-1">
                 <button
                   type="button"
                   onClick={() => setIsPalletPhotoModeOpen(false)}
@@ -3166,6 +3194,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <Camera size={20} className="shrink-0" />
                   {text.takeNextPalletPhoto}
                 </button>
+                <button
+                  type="button"
+                  onClick={openPalletPhotoGallery}
+                  disabled={isPalletPhotoUploadInProgress}
+                  className={cn(
+                    actionButtonClass,
+                    isPalletPhotoUploadInProgress
+                      ? "cursor-not-allowed text-white/45 active:scale-100"
+                      : "hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  <ImagePlus size={20} className="shrink-0" />
+                  {text.choosePalletPhotos}
+                </button>
               </div>
             ) : (
               <div
@@ -3186,17 +3228,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   {text.scanNext}
                 </button>
                 {shouldShowPalletPhotoAction && (
-                  <button
-                    type="button"
-                    onClick={openPalletPhotoPicker}
-                    className={cn(
-                      actionButtonClass,
-                      "hover:bg-white/10 hover:text-white",
-                    )}
-                  >
-                    <Camera size={20} className="shrink-0" />
-                    {text.capturePalletPhoto}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={openPalletPhotoPicker}
+                      className={cn(
+                        actionButtonClass,
+                        "hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      <Camera size={20} className="shrink-0" />
+                      {text.capturePalletPhoto}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"

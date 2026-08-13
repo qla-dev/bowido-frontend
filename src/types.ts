@@ -42,6 +42,9 @@ export interface User {
   role_name: RoleType;
   backend_role_name?: string;
   phone_number?: string;
+  first_time_login?: boolean;
+  credential_email_sent?: boolean;
+  credential_email_warning?: string | null;
   customer_detail?: {
     name?: string;
     company_name?: string;
@@ -124,6 +127,8 @@ export interface Pallet {
   is_for_repair: boolean;
   is_active: boolean;
   last_status_changed_at: string;
+  customer_timer_started_at?: string;
+  customer_timer_frozen_at?: string;
   days_at_customer?: number;
   grace_days?: number;
   overdue_days?: number;
@@ -195,6 +200,7 @@ export interface PalletPhoto {
   client_id?: number;
   service_report_id?: number;
   type: "scan" | "status_change" | "damage_report" | "service_report" | "no_qr_report" | "delivery_photo";
+  delivery_started_at?: string;
   warehouse_scope?: "warehouse_nl" | "warehouse_bih";
   original_name?: string;
   mime_type: string;
@@ -246,6 +252,8 @@ export interface ClientDetail {
   warehouse2_city?: string;
   warehouse_scope?: "warehouse_nl" | "warehouse_bih";
   invoice_count?: number;
+  credential_email_sent?: boolean;
+  credential_email_warning?: string | null;
 }
 
 export interface GhostPalletReportEntry {

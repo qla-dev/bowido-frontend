@@ -469,6 +469,9 @@ const normalizeUser = (user: ApiRecord): ManagedUser => {
     role_name: roleType,
     backend_role_name: String(role?.name || user.role_name || ''),
     phone_number: user.phone_number || undefined,
+    first_time_login: toBoolean(user.first_time_login),
+    credential_email_sent: user.credential_email_sent === undefined ? undefined : toBoolean(user.credential_email_sent),
+    credential_email_warning: user.credential_email_warning || null,
     permission_codes: Array.isArray(user.permission_codes) ? user.permission_codes : [],
     customer_detail: user.customer_detail
       ? {
@@ -517,6 +520,8 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     warehouse2_city: client.warehouse2_city || undefined,
     warehouse_scope: client.warehouse_scope || undefined,
     invoice_count: Number(client.invoice_count ?? 0),
+    credential_email_sent: client.credential_email_sent === undefined ? undefined : toBoolean(client.credential_email_sent),
+    credential_email_warning: client.credential_email_warning || null,
     grace_period_days: Number(client.grace_period_days ?? 0),
     price_per_day: Number(client.price_per_day ?? client.default_price_per_day ?? 0),
     is_active: Boolean(client.is_active),
@@ -553,6 +558,8 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     is_for_repair: toBoolean(pallet.is_for_repair),
     is_active: toBoolean(pallet.is_active),
     last_status_changed_at: pallet.last_status_changed_at || pallet.updated_at || new Date().toISOString(),
+    customer_timer_started_at: pallet.customer_timer_started_at || undefined,
+    customer_timer_frozen_at: pallet.customer_timer_frozen_at || undefined,
     days_at_customer: pallet.days_at_customer == null ? undefined : Number(pallet.days_at_customer),
     grace_days: pallet.grace_days == null ? undefined : Number(pallet.grace_days),
     overdue_days: pallet.overdue_days == null ? undefined : Number(pallet.overdue_days),
@@ -719,6 +726,7 @@ const normalizePalletPhoto = (photo: ApiRecord): PalletPhoto => ({
   client_id: photo.client_id ? Number(photo.client_id) : undefined,
   service_report_id: photo.service_report_id ? Number(photo.service_report_id) : undefined,
   type: photo.type,
+  delivery_started_at: photo.delivery_started_at || undefined,
   warehouse_scope: photo.warehouse_scope || undefined,
   original_name: photo.original_name || undefined,
   mime_type: photo.mime_type || 'application/octet-stream',
@@ -872,9 +880,15 @@ export const apiService = {
       };
     },
     loginDemoUser: async (user: User) => apiService.auth.login({ email: user.email, password: DEMO_PASSWORD }),
+    forgotPassword: (email: string) =>
+      apiData<null>('/auth/forgot-password', { method: 'POST', body: jsonBody({ email }) }),
     me: async () => normalizeUser(await apiData<ApiRecord>('/auth/me')),
     changePassword: (data: { current_password: string; password: string; password_confirmation: string }) =>
       apiData<null>('/auth/change-password', { method: 'PUT', body: jsonBody(data) }),
+    completeFirstLogin: async (data: { password: string; password_confirmation: string }) =>
+      normalizeUser(await apiData<ApiRecord>('/auth/first-login/password', { method: 'PUT', body: jsonBody(data) })),
+    keepFirstLoginPassword: async () =>
+      normalizeUser(await apiData<ApiRecord>('/auth/first-login/keep-password', { method: 'POST' })),
     logout: async () => {
       try {
         await apiData<null>('/auth/logout', { method: 'POST' });
@@ -1150,14 +1164,17 @@ export const apiService = {
           name,
           email: clientData.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
           phone_number: clientData.phone_number || undefined,
-          password: DEMO_PASSWORD,
           is_active: true,
           customer_details: toCustomerPayload(clientData),
         }),
       });
 
       if (user.customer_detail) {
-        return normalizeClient(user.customer_detail);
+        return normalizeClient({
+          ...user.customer_detail,
+          credential_email_sent: user.credential_email_sent,
+          credential_email_warning: user.credential_email_warning,
+        });
       }
 
       const clients = await apiService.clients.list({ user_id: Number(user.id), limit: 1 });
@@ -1187,7 +1204,7 @@ export const apiService = {
     page: (params: ListParams = {}) => listPage<ManagedUser>('/users', params, normalizeUser),
     list: async (params: ListParams = {}): Promise<ManagedUser[]> =>
       (await listAll<ApiRecord>('/users', params)).map(normalizeUser),
-    create: async (data: Pick<ManagedUser, 'email' | 'password' | 'role_name'>): Promise<ManagedUser> => {
+    create: async (data: Pick<ManagedUser, 'email' | 'role_name'>): Promise<ManagedUser> => {
       const roleId = await resolveRoleId(data.role_name);
       return normalizeUser(
         await apiData<ApiRecord>('/users', {
@@ -1196,7 +1213,6 @@ export const apiService = {
             role_id: roleId,
             name: formatUserName(data.email),
             email: data.email.trim(),
-            password: data.password,
             is_active: true,
           }),
         })
@@ -1235,6 +1251,14 @@ export const apiService = {
     delete: async (id: number): Promise<void> => {
       await apiData<null>(`/users/${id}`, { method: 'DELETE' });
     },
+    sendLoginDetails: (userIds: number[]) =>
+      apiData<{
+        sent: Array<{ id: number; name: string }>;
+        failed: Array<{ id: number; name: string; message: string }>;
+      }>('/users/send-login-details', {
+        method: 'POST',
+        body: jsonBody({ user_ids: userIds }),
+      }),
   },
 
   auditLogs: {

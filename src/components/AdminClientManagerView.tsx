@@ -14,6 +14,7 @@ import {
   FileText,
   Hash,
   MapPin,
+  Mail,
   Package,
   Plus,
   Search,
@@ -37,6 +38,7 @@ import { getPalletDisplayName } from '../lib/palletDisplay';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
+import { CredentialDistributionModal } from './CredentialDistributionModal';
 
 type SortKey =
   | 'client'
@@ -188,6 +190,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const [clientPhotos, setClientPhotos] = useState<PalletPhoto[]>([]);
   const [photoViewer, setPhotoViewer] = useState<PhotoViewerState | null>(null);
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+  const [isCredentialDistributionOpen, setIsCredentialDistributionOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [clientPendingDeletion, setClientPendingDeletion] = useState<ClientManagerRow | null>(null);
   const [newClientDraft, setNewClientDraft] = useState<Omit<ClientDetail, 'id' | 'user_id'>>({
@@ -386,6 +389,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           ? 'Kolombreedte aanpassen'
           : 'Resize column',
     addClient: language === 'bs' ? 'Dodaj klijenta' : language === 'nl' ? 'Klant toevoegen' : 'Add client',
+    sendLoginDetails: language === 'bs' ? 'Pošalji podatke za prijavu' : language === 'nl' ? 'Inloggegevens versturen' : 'Send login details',
     newClient: language === 'bs' ? 'Novi klijent' : language === 'nl' ? 'Nieuwe klant' : 'New client',
     newClientHint:
       language === 'bs'
@@ -823,7 +827,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
     setIsCreatingClient(true);
     try {
-      await addClient({
+      const createdClient = await addClient({
         ...newClientDraft,
         name,
         kvk_number: kvk,
@@ -851,7 +855,13 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         warehouse_addresses: [], country: 'NL', grace_period_days: 14, price_per_day: 2, is_active: true,
       });
       setNewClientCompanyOptions([]);
-      await appAlert.fire({ icon: 'success', title: labels.createdTitle, text: labels.createdText });
+      await appAlert.fire({
+        icon: createdClient.credential_email_sent === false ? 'warning' : 'success',
+        title: labels.createdTitle,
+        text: createdClient.credential_email_sent === false
+          ? createdClient.credential_email_warning || labels.createFailedText
+          : labels.createdText,
+      });
     } catch (error) {
       await appAlert.fire({
         icon: 'error',
@@ -1171,7 +1181,15 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
       {clientIdFilter === undefined && <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />}
 
-      {!readOnly && !onClientSelect && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
+      {!readOnly && !onClientSelect && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex flex-col items-stretch gap-3 md:bottom-20 md:right-8 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={() => setIsCredentialDistributionOpen(true)}
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#00A655] px-5 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform hover:scale-[1.02]"
+        >
+          <Mail size={16} />
+          {labels.sendLoginDetails}
+        </button>
         <button
           type="button"
           onClick={() => setIsAddClientOpen(true)}
@@ -1181,6 +1199,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           {labels.addClient}
         </button>
       </div>}
+
+      {!readOnly && !onClientSelect && isCredentialDistributionOpen && (
+        <CredentialDistributionModal language={language} onClose={() => setIsCredentialDistributionOpen(false)} />
+      )}
 
       {!readOnly && !onClientSelect && isAddClientOpen && (
         <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setIsAddClientOpen(false)}>
@@ -1212,9 +1234,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                   }}
                   onResult={(result, kvk_number) => {
                     const companyNames = result.company_names ?? [];
-                    const companyOptions = result.company_options?.length > 0
+                    const companyOptions = (result.company_options?.length > 0
                       ? result.company_options
-                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } }));
+                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } })))
+                      .filter((option) => option.name.trim() !== '');
                     const selectedCompany = companyOptions[0];
                     const { kvk: _kvk, email, ...fields } = selectedCompany?.fields ?? result.fields;
                     setNewClientCompanyOptions(companyOptions);
@@ -1255,12 +1278,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                     {isNewClientCompanyOpen && (
                       <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[140] w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]">
                         <div className="max-h-56 space-y-1 overflow-y-auto overscroll-contain">
-                          {newClientCompanyOptions.map((option) => {
+                          {newClientCompanyOptions.map((option, index) => {
                             const isSelected = option.name === newClientDraft.name;
 
                             return (
                               <button
-                                key={option.name}
+                                key={`kvk-company-${option.name}-${index}`}
                                 type="button"
                                 onClick={() => {
                                   const { kvk: _kvk, email, ...fields } = option.fields ?? {};

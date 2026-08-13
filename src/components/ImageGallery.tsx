@@ -11,6 +11,7 @@ import { formatAppDateTime } from '../lib/dateFormat';
 import { FlatpickrDateInput } from './FlatpickrDateInput';
 import { rankSearchResults } from '../lib/searchRanking';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
+import { groupDeliveryPhotos } from '../lib/deliveryPhotoGroups';
 
 function SecureGalleryImage({
   photo,
@@ -164,7 +165,7 @@ export function ImageGallery() {
   const [galleryClients, setGalleryClients] = useState<ClientDetail[]>(cachedClients);
   const [clientSearch, setClientSearch] = useState('');
   const [isClientFilterOpen, setIsClientFilterOpen] = useState(false);
-  const [selectedPalletId, setSelectedPalletId] = useState<number | null>(null);
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
   const [selectedPalletPhotos, setSelectedPalletPhotos] = useState<PalletPhoto[]>([]);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
   const [selectedPhotoZoom, setSelectedPhotoZoom] = useState(1);
@@ -218,19 +219,19 @@ export function ImageGallery() {
   }, []);
 
   useEffect(() => {
-    if (selectedPalletId === null) {
+    if (selectedDeliveryId === null) {
       return;
     }
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setSelectedPalletId(null);
+        closePalletGallery();
       }
     };
 
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [selectedPalletId]);
+  }, [selectedDeliveryId]);
 
   const fetchPage = useCallback(
     (offset: number) => apiService.gallery.page({ ...debouncedFilters, limit: 12, offset }),
@@ -239,26 +240,12 @@ export function ImageGallery() {
   const { items: photos, hasMore, isInitialLoading, isLoadingMore, error, loadMore, retry } = useInfinitePagination({
     queryKey: JSON.stringify(debouncedFilters), pageSize: 12, fetchPage,
   });
-  const palletPhotoGroups = useMemo(() => {
-    const groups = new Map<number, PalletPhoto[]>();
-
-    photos.forEach((photo) => {
-      const group = groups.get(photo.pallet_id) || [];
-      group.push(photo);
-      groups.set(photo.pallet_id, group);
-    });
-
-    return Array.from(groups.entries()).map(([palletId, palletPhotos]) => ({
-      palletId,
-      photos: palletPhotos,
-      cover: palletPhotos[0],
-    }));
-  }, [photos]);
+  const deliveryPhotoGroups = useMemo(() => groupDeliveryPhotos(photos), [photos]);
 
   const selectedPhoto = selectedPalletPhotos[selectedPhotoIndex] || null;
 
   const closePalletGallery = () => {
-    setSelectedPalletId(null);
+    setSelectedDeliveryId(null);
     setSelectedPalletPhotos([]);
     setSelectedPhotoIndex(0);
     setSelectedPhotoZoom(1);
@@ -267,8 +254,8 @@ export function ImageGallery() {
     setIsPalletGalleryLoading(false);
   };
 
-  const openPalletGallery = async (palletId: number, initiallyLoaded: PalletPhoto[]) => {
-    setSelectedPalletId(palletId);
+  const openDeliveryGallery = async (deliveryId: string, palletId: number, initiallyLoaded: PalletPhoto[]) => {
+    setSelectedDeliveryId(deliveryId);
     setSelectedPalletPhotos(initiallyLoaded);
     setSelectedPhotoIndex(0);
     setSelectedPhotoZoom(1);
@@ -277,8 +264,10 @@ export function ImageGallery() {
 
     try {
       const allPalletPhotos = await apiService.gallery.list({ pallet_id: palletId });
-      if (allPalletPhotos.length > 0) {
-        setSelectedPalletPhotos(allPalletPhotos);
+      const deliveryPhotos = groupDeliveryPhotos(allPalletPhotos)
+        .find((group) => group.id === deliveryId)?.photos;
+      if (deliveryPhotos?.length) {
+        setSelectedPalletPhotos(deliveryPhotos);
         setSelectedPhotoIndex(0);
         setSelectedPhotoZoom(1);
         setSelectedPhotoOffset({ x: 0, y: 0 });
@@ -474,21 +463,21 @@ export function ImageGallery() {
     </Card>
     {isInitialLoading ? (
       <p className="py-16 text-center text-zinc-400">{t('loading')}</p>
-    ) : palletPhotoGroups.length === 0 ? (
+  ) : deliveryPhotoGroups.length === 0 ? (
       <Card className="py-16 text-center dark:bg-[#101715]">
         <ImageIcon className="mx-auto mb-3 text-zinc-300" />
         <p>{t('galleryEmpty')}</p>
       </Card>
     ) : (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {palletPhotoGroups.map((group) => {
+        {deliveryPhotoGroups.map((group) => {
           const photo = group.cover;
 
           return (
-            <Card key={group.palletId} noPadding className="overflow-hidden dark:bg-[#101715]">
+            <Card key={group.id} noPadding className="overflow-hidden dark:bg-[#101715]">
               <button
                 type="button"
-                onClick={() => void openPalletGallery(group.palletId, group.photos)}
+                onClick={() => void openDeliveryGallery(group.id, group.palletId, group.photos)}
                 className="group relative aspect-video w-full bg-zinc-100 text-left dark:bg-black/20"
                 aria-label={`${photo.pallet?.name || 'Pallet'} - ${group.photos.length} ${palletPhotosLabel}`}
               >
@@ -518,7 +507,7 @@ export function ImageGallery() {
     )}
     <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={error} onLoadMore={loadMore} onRetry={retry} language={language} />
 
-    {selectedPalletId !== null && (
+    {selectedDeliveryId !== null && (
       <div className="modal-overlay fixed inset-0 z-[2200] flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={closePalletGallery}>
         <div className="relative flex h-full max-h-[calc(100dvh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <button type="button" onClick={closePalletGallery} className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label={t('close')}><X size={20} /></button>

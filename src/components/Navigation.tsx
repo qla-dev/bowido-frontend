@@ -540,7 +540,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
         { id: 'invoices', label: t('billing'), icon: <ClipboardList /> }
         ,{ id: 'gallery', label: t('imageGallery'), icon: <Images /> }
       );
-    } else if (role === RoleType.VOZAC || role === RoleType.MAGACINER) {
+    } else if (role === RoleType.MAGACINER || role === RoleType.ADMIN_WAREHOUSE) {
+      items.push(
+        { id: 'no-qr-pallets', label: t('sidebarNoQrPallets'), icon: <NoQrCodeIcon /> },
+        { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
+      );
+    } else if (role === RoleType.VOZAC) {
     } else if (role === RoleType.SERVISER) {
     }
 

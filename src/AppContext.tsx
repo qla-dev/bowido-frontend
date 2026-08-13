@@ -625,6 +625,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   ) => {
     const pallet = pallets.find((item) => item.id === palletId);
     const status = statuses.find((item) => item.id === statusId);
+    const previousStatus = pallet
+      ? statuses.find((item) => item.id === pallet.current_status_id)
+      : undefined;
     const preserveClientAssignment = statusAllowsCustomer(status);
 
     if (!pallet || !status) {
@@ -645,6 +648,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           pallet.client_name
         : pallet.client_name
       : undefined;
+    const timestamp = new Date().toISOString();
+    const freezesCustomerTimer = previousStatus?.slug === 'bij-de-klant' && status.slug === 'ophalen-klant';
+    const startsCustomerTimer = previousStatus?.slug !== 'bij-de-klant' && status.slug === 'bij-de-klant';
 
     setPallets((prev) =>
       prev.map((item) => {
@@ -656,8 +662,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ...item,
           current_status_id: statusId,
           current_status_name: status.name,
+          current_status_slug: status.slug,
           current_location: nextLocation,
-          last_status_changed_at: new Date().toISOString(),
+          last_status_changed_at: timestamp,
+          customer_timer_started_at: startsCustomerTimer
+            ? timestamp
+            : item.customer_timer_started_at || (freezesCustomerTimer ? item.last_status_changed_at : undefined),
+          customer_timer_frozen_at: freezesCustomerTimer
+            ? timestamp
+            : startsCustomerTimer
+              ? undefined
+              : item.customer_timer_frozen_at,
           user_id: nextClientId,
           client_name: nextClientName,
           note: note || item.note,

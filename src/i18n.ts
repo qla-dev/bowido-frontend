@@ -875,16 +875,16 @@ export const translations = {
     editUser: "Edit User",
     createUser: "Create User",
     accountUpdate: "Account Update",
-    newDemoAccount: "New Demo Account",
+    newDemoAccount: "New Account",
     updateUserDescription:
       "Change the user email, role and password if needed.",
     createUserDescription:
-      "Add a user with email, password and a selected role.",
+      "Add a user with an email and role. A secure temporary password will be emailed automatically.",
     password: "Password",
     keepPasswordHint: "Leave empty to keep the current password",
     newPasswordHint: "Enter a temporary password",
     emailRequired: "Email is required.",
-    passwordRequiredNew: "Password is required for a new user.",
+    passwordRequiredNew: "A temporary password is generated automatically.",
     changesNotSaved: "Changes were not saved. Try again.",
     usersCannotLoad: "Users cannot be loaded right now.",
     activeSessionCannotEdit:
@@ -1472,12 +1472,12 @@ export const translations = {
     updateUserDescription:
       "Wijzig het e-mailadres, de rol en indien nodig het wachtwoord.",
     createUserDescription:
-      "Voeg een gebruiker toe met e-mail, wachtwoord en een gekozen rol.",
+      "Voeg een gebruiker toe met e-mail en rol. Een veilig tijdelijk wachtwoord wordt automatisch per e-mail verstuurd.",
     password: "Wachtwoord",
     keepPasswordHint: "Leeg laten om het huidige wachtwoord te behouden",
     newPasswordHint: "Voer een tijdelijk wachtwoord in",
     emailRequired: "E-mail is verplicht.",
-    passwordRequiredNew: "Wachtwoord is verplicht voor een nieuwe gebruiker.",
+    passwordRequiredNew: "Een tijdelijk wachtwoord wordt automatisch gegenereerd.",
     changesNotSaved: "Wijzigingen zijn niet opgeslagen. Probeer opnieuw.",
     usersCannotLoad: "Gebruikers kunnen momenteel niet worden geladen.",
     activeSessionCannotEdit:
@@ -2064,12 +2064,12 @@ export const translations = {
     updateUserDescription:
       "Promijeni email, rolu i po potrebi lozinku korisnika.",
     createUserDescription:
-      "Dodaj korisnika sa email adresom, lozinkom i odabranom rolom.",
+      "Dodaj korisnika sa email adresom i rolom. Sigurna privremena lozinka se automatski šalje e-mailom.",
     password: "Lozinka",
     keepPasswordHint: "Ostavi prazno za zadržavanje postojeće lozinke",
     newPasswordHint: "Unesi privremenu lozinku",
     emailRequired: "Email je obavezan.",
-    passwordRequiredNew: "Lozinka je obavezna za novog korisnika.",
+    passwordRequiredNew: "Privremena lozinka se generiše automatski.",
     changesNotSaved: "Promjene nisu sačuvane. Pokušaj ponovo.",
     usersCannotLoad: "Korisnici se trenutno ne mogu učitati.",
     activeSessionCannotEdit:

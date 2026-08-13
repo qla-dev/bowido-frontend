@@ -130,6 +130,33 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     pageSize: ADMIN_ROLE_PAGE_SIZE,
     fetchPage: repairPalletPage,
   });
+  const warehousePalletPage = useMemo(
+    () => (offset: number) => mode === 'warehouse'
+      ? apiService.pallets.page({
+          limit: ADMIN_ROLE_PAGE_SIZE,
+          offset,
+          sort_by: 'pallet_name',
+          sort_direction: 'asc',
+        })
+      : Promise.resolve({
+          items: [],
+          meta: { total: 0, limit: ADMIN_ROLE_PAGE_SIZE, offset, count: 0 },
+        }),
+    [mode],
+  );
+  const {
+    items: warehousePallets,
+    hasMore: hasMoreWarehousePallets,
+    isInitialLoading: isWarehousePalletsLoading,
+    isLoadingMore: isLoadingMoreWarehousePallets,
+    error: warehousePalletsError,
+    loadMore: loadMoreWarehousePallets,
+    retry: retryWarehousePallets,
+  } = useInfinitePagination({
+    queryKey: `warehouse-pallets-${mode}`,
+    pageSize: ADMIN_ROLE_PAGE_SIZE,
+    fetchPage: warehousePalletPage,
+  });
   const {
     headerCellClass,
     headerContentClass,
@@ -316,21 +343,49 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     const relevantPallets =
       mode === 'service'
         ? repairPallets
-        : pallets.filter((pallet) => [1, 2, 3, 5, 6, 8].includes(pallet.current_status_id));
+        : mode === 'warehouse'
+          ? warehousePallets
+          : pallets;
 
     return relevantPallets.map((pallet) => {
       const openReport = serviceReports.find((report) => report.pallet_id === pallet.id && !report.resolved_at);
       const days = getDaysSince(pallet.last_status_changed_at);
       const serviceDescription = formatServiceReportDescription(openReport?.problem_description, language);
       const palletNote = formatServiceReportDescription(pallet.note, language);
+      const activityLabels =
+        language === 'bs'
+          ? {
+              returnPickup: 'Preuzimanje povrata',
+              transport: 'Transport',
+              atClient: 'Kod klijenta',
+              warehouseStock: 'Zaliha u magacinu',
+            }
+          : language === 'nl'
+            ? {
+                returnPickup: 'Retour ophalen',
+                transport: 'Transport',
+                atClient: 'Bij klant',
+                warehouseStock: 'Magazijnvoorraad',
+              }
+            : {
+                returnPickup: 'Return pickup',
+                transport: 'Transport',
+                atClient: 'At client',
+                warehouseStock: 'Warehouse stock',
+              };
+      const isAtClient =
+        pallet.current_status_id === 4 ||
+        ['bij-de-klant', 'at_customer', 'at-client'].includes(pallet.current_status_slug || '');
       const activity =
         mode === 'service'
           ? serviceDescription || palletNote || '-'
-          : pallet.current_status_id === 5
-            ? 'Return pickup'
+          : isAtClient
+            ? activityLabels.atClient
+            : pallet.current_status_id === 5
+            ? activityLabels.returnPickup
             : pallet.current_status_id === 2 || pallet.current_status_id === 6
-              ? 'Transport lane'
-              : 'Warehouse stock';
+              ? activityLabels.transport
+              : activityLabels.warehouseStock;
 
       return {
         id: `${mode}-${pallet.id}`,
@@ -354,7 +409,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         },
       };
     });
-  }, [clients, currencyFormatter, invoices, language, mode, pallets, repairPallets, serviceReports, statuses]);
+  }, [clients, currencyFormatter, invoices, language, mode, pallets, repairPallets, serviceReports, statuses, warehousePallets]);
 
   const getOperationValue = (row: OperationRow, key: OperationColumnKey) => key === 'actions' ? '' : row[key];
   const filterOptions = useMemo<Record<OperationColumnKey, AdminTableFilterOption[]>>(
@@ -665,9 +720,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         )}
       />
       <InfiniteScrollFooter
-        hasMore={paginatedRows.length < visibleRows.length || (mode === 'service' && hasMoreRepairPallets)}
-        isLoading={mode === 'service' && (isRepairPalletsLoading || isLoadingMoreRepairPallets)}
-        error={mode === 'service' ? repairPalletsError : undefined}
+        hasMore={paginatedRows.length < visibleRows.length || (mode === 'service' && hasMoreRepairPallets) || (mode === 'warehouse' && hasMoreWarehousePallets)}
+        isLoading={(mode === 'service' && (isRepairPalletsLoading || isLoadingMoreRepairPallets)) || (mode === 'warehouse' && (isWarehousePalletsLoading || isLoadingMoreWarehousePallets))}
+        error={mode === 'service' ? repairPalletsError : mode === 'warehouse' ? warehousePalletsError : undefined}
         onLoadMore={() => {
           if (paginatedRows.length < visibleRows.length) {
             setVisibleCount((current) => Math.min(current + ADMIN_ROLE_PAGE_SIZE, visibleRows.length));
@@ -676,8 +731,11 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
           if (mode === 'service') {
             loadMoreRepairPallets();
           }
+          if (mode === 'warehouse') {
+            loadMoreWarehousePallets();
+          }
         }}
-        onRetry={mode === 'service' ? retryRepairPallets : undefined}
+        onRetry={mode === 'service' ? retryRepairPallets : mode === 'warehouse' ? retryWarehousePallets : undefined}
         language={language}
       />
 
