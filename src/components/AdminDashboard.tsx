@@ -74,6 +74,7 @@ import { rankSearchResults } from "../lib/searchRanking";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
+import { PasswordChangeForm } from "./PasswordChangeForm";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
 import { DeliveryLocationMap } from "./DeliveryLocationMap";
 import { DriverModalShell } from "./DriverModalShell";
@@ -1463,6 +1464,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onLabel={t("on")}
           offLabel={t("off")}
         />
+        <PasswordChangeForm />
       </Card>
 
       <Card title={t("statusConfiguratorTitle")}>

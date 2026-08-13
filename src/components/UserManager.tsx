@@ -543,6 +543,10 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
             ? current[key].filter((item) => item !== value)
             : [...current[key], value],
         }))}
+        onSelectAll={() => setColumnFilters((current) => ({
+          ...current,
+          [key]: userFilterOptions[key].map((option) => option.value),
+        }))}
         onClear={() => setColumnFilters((current) => ({ ...current, [key]: [] }))}
         filterLabel={t('filter')}
         searchLabel={t('search')}

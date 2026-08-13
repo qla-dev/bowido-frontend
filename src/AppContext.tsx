@@ -113,6 +113,16 @@ export interface AppNotification {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const APP_DATA_CACHE_KEY = "trackpal_app_data_cache";
+// Active users see remote changes within 30 seconds. Background tabs do not need
+// fresh UI data, so polling pauses until the tab is visible again.
+const DATA_POLL_INTERVAL_MS = 30_000;
+const DATA_POLL_RESUME_DELAY_MS = 15_000;
+
+// Polling returns freshly-deserialized data on every request. Keeping the
+// existing value when nothing changed prevents an otherwise identical poll
+// from re-rendering the active mobile workflow.
+const keepCurrentValueWhenEqual = <T,>(current: T, next: T): T =>
+  JSON.stringify(current) === JSON.stringify(next) ? current : next;
 
 interface AppDataCache {
   pallets: Pallet[];
@@ -200,6 +210,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
   const palletLoadGenerationRef = useRef(0);
+  // Do not swap a populated pallet cache for the first page while a full
+  // refresh is still loading; mobile views should keep showing their current
+  // data until the complete replacement is ready.
+  const hasVisiblePalletDataRef = useRef(pallets.length > 0);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const lastPollStartedAtRef = useRef(0);
 
   useEffect(() => {
     setApiLocale(language);
@@ -284,32 +301,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setServiceReports([]);
     setPalletDashboardStats(null);
     setNotifications([]);
+    hasVisiblePalletDataRef.current = false;
   };
 
-  const refreshData = async () => {
-    if (!apiService.hasToken()) {
-      resetData();
-      return;
+  const refreshData = (): Promise<void> => {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
 
-    const palletLoadGeneration = ++palletLoadGenerationRef.current;
-
-    const safeLoad = async <T,>(
-      loader: () => Promise<T>,
-      fallback: T,
-    ): Promise<T> => {
-      try {
-        return await loader();
-      } catch (error) {
-        const status = (error as { status?: number }).status;
-        if (!status || status >= 500) {
-          console.error("Failed to load API data", error);
-        }
-        return fallback;
+    const refreshRequest = (async () => {
+      if (!apiService.hasToken()) {
+        resetData();
+        return;
       }
-    };
 
-    const storedUser =
+      const palletLoadGeneration = ++palletLoadGenerationRef.current;
+
+      const safeLoad = async <T,>(
+        loader: () => Promise<T>,
+        fallback: T,
+      ): Promise<T> => {
+        try {
+          return await loader();
+        } catch (error) {
+          const status = (error as { status?: number }).status;
+          if (!status || status >= 500) {
+            console.error("Failed to load API data", error);
+          }
+          return fallback;
+        }
+      };
+
+      const storedUser =
       typeof window === "undefined"
         ? null
         : (() => {
@@ -321,21 +344,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
               return null;
             }
           })();
-    const accessCodes = storedUser?.permission_codes || [];
-    const canLoadAccessSettings =
+      const accessCodes = storedUser?.permission_codes || [];
+      const canLoadAccessSettings =
       accessCodes.includes("*") ||
       (accessCodes.includes("roles") && accessCodes.includes("modules"));
-    const canLoadInvoices =
+      const canLoadInvoices =
       storedUser?.role_name === "Admin" || storedUser?.role_name === "Klijent";
-    const emptyRolesPage = {
+      const emptyRolesPage = {
       items: [],
       meta: { total: 0, limit: 100, offset: 0, count: 0 },
     };
-    const emptyPalletPage = {
+      const emptyPalletPage = {
       items: [],
       meta: { total: 0, limit: 50, offset: 0, count: 0 },
     };
-    const [
+      const [
       statusesData,
       palletsPage,
       clientsData,
@@ -345,7 +368,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       rolesPage,
       permissionsData,
       dashboardStatsData,
-    ] = await Promise.all([
+      ] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
       safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
       safeLoad(() => apiService.clients.list(), []),
@@ -362,50 +385,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         : Promise.resolve([]),
       safeLoad(() => apiService.pallets.stats(), null),
     ]);
-    const rolesData = rolesPage.items;
-    const palletsData = palletsPage.items;
+      const rolesData = rolesPage.items;
+      const palletsData = palletsPage.items;
+      const shouldReplacePalletsWithPage =
+        palletsPage.meta.total <= palletsData.length ||
+        !hasVisiblePalletDataRef.current;
 
-    setStatuses(statusesData);
-    setPallets(palletsData);
-    setClients(clientsData);
-    setAuditLogs(auditLogsData);
-    setServiceReports(serviceReportsData);
-    setInvoices(invoicesData);
-    setRoles(rolesData);
-    setPermissions(permissionsData);
-    setPalletDashboardStats(dashboardStatsData);
-    setNotifications(
-      buildNotifications(auditLogsData, serviceReportsData, invoicesData),
-    );
-    writeAppDataCache({
-      statuses: statusesData,
-      pallets: palletsData,
-      clients: clientsData,
-      auditLogs: auditLogsData,
-      serviceReports: serviceReportsData,
-      invoices: invoicesData,
-      roles: rolesData,
-      permissions: permissionsData,
-      palletDashboardStats: dashboardStatsData,
-    });
-
-    // Keep the initial dashboard responsive, then complete the shared pallet
-    // cache in the background. Some views operate on this cache, so stopping
-    // at the first page makes older pallets appear to be missing.
-    if (palletsPage.meta.total > palletsData.length) {
-      void safeLoad(() => apiService.pallets.list(), []).then((allPallets) => {
-        if (
-          palletLoadGeneration !== palletLoadGenerationRef.current ||
-          allPallets.length <= palletsData.length
-        ) {
-          return;
-        }
-
-        setPallets(allPallets);
-        writeAppDataCache({ pallets: allPallets });
+      setStatuses((current) => keepCurrentValueWhenEqual(current, statusesData));
+      if (shouldReplacePalletsWithPage) {
+        setPallets((current) => keepCurrentValueWhenEqual(current, palletsData));
+        hasVisiblePalletDataRef.current = palletsData.length > 0;
+      }
+      setClients((current) => keepCurrentValueWhenEqual(current, clientsData));
+      setAuditLogs((current) => keepCurrentValueWhenEqual(current, auditLogsData));
+      setServiceReports((current) =>
+        keepCurrentValueWhenEqual(current, serviceReportsData),
+      );
+      setInvoices((current) => keepCurrentValueWhenEqual(current, invoicesData));
+      setRoles((current) => keepCurrentValueWhenEqual(current, rolesData));
+      setPermissions((current) =>
+        keepCurrentValueWhenEqual(current, permissionsData),
+      );
+      setPalletDashboardStats((current) =>
+        keepCurrentValueWhenEqual(current, dashboardStatsData),
+      );
+      setNotifications((current) =>
+        keepCurrentValueWhenEqual(
+          current,
+          buildNotifications(auditLogsData, serviceReportsData, invoicesData),
+        ),
+      );
+      writeAppDataCache({
+        statuses: statusesData,
+        ...(shouldReplacePalletsWithPage ? { pallets: palletsData } : {}),
+        clients: clientsData,
+        auditLogs: auditLogsData,
+        serviceReports: serviceReportsData,
+        invoices: invoicesData,
+        roles: rolesData,
+        permissions: permissionsData,
+        palletDashboardStats: dashboardStatsData,
       });
-    }
+
+      // Keep the initial dashboard responsive, then complete the shared pallet
+      // cache in the background. Some views operate on this cache, so stopping
+      // at the first page makes older pallets appear to be missing.
+      if (palletsPage.meta.total > palletsData.length) {
+        void safeLoad(() => apiService.pallets.list(), []).then((allPallets) => {
+          if (
+            palletLoadGeneration !== palletLoadGenerationRef.current ||
+            allPallets.length <= palletsData.length
+          ) {
+            return;
+          }
+
+          setPallets((current) =>
+            keepCurrentValueWhenEqual(current, allPallets),
+          );
+          hasVisiblePalletDataRef.current = allPallets.length > 0;
+          writeAppDataCache({ pallets: allPallets });
+        });
+      }
+    })();
+
+    refreshInFlightRef.current = refreshRequest;
+    void refreshRequest.then(
+      () => {
+        if (refreshInFlightRef.current === refreshRequest) {
+          refreshInFlightRef.current = null;
+        }
+      },
+      () => {
+        if (refreshInFlightRef.current === refreshRequest) {
+          refreshInFlightRef.current = null;
+        }
+      },
+    );
+
+    return refreshRequest;
   };
+
+  useEffect(() => {
+    refreshDataRef.current = refreshData;
+  }, [refreshData]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    let timeoutId: number | undefined;
+    let isDisposed = false;
+
+    const scheduleNextPoll = (delay = DATA_POLL_INTERVAL_MS) => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(runPoll, delay);
+    };
+
+    const runPoll = () => {
+      if (isDisposed || document.visibilityState !== "visible" || !apiService.hasToken()) {
+        return;
+      }
+
+      lastPollStartedAtRef.current = Date.now();
+      void refreshDataRef.current().finally(() => {
+        if (!isDisposed && document.visibilityState === "visible") {
+          scheduleNextPoll();
+        }
+      });
+    };
+
+    const resumePolling = () => {
+      if (document.visibilityState !== "visible" || !apiService.hasToken()) {
+        window.clearTimeout(timeoutId);
+        return;
+      }
+
+      const elapsed = Date.now() - lastPollStartedAtRef.current;
+      scheduleNextPoll(elapsed >= DATA_POLL_RESUME_DELAY_MS ? 0 : DATA_POLL_RESUME_DELAY_MS - elapsed);
+    };
+
+    document.addEventListener("visibilitychange", resumePolling);
+    window.addEventListener("online", resumePolling);
+    resumePolling();
+
+    return () => {
+      isDisposed = true;
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", resumePolling);
+      window.removeEventListener("online", resumePolling);
+    };
+  }, []);
 
   const fetchInvoices = async () => {
     try {

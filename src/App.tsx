@@ -19,14 +19,17 @@ import { AdminClientManagerView } from "./components/AdminClientManagerView";
 import { RoleManager } from "./components/RoleManager";
 import { UserManager } from "./components/UserManager";
 import { BillingList } from "./components/BillingList";
+import { NoQrPalletTableView } from "./components/NoQrPalletTableView";
 import { ThemeSettingsToggle } from "./components/ThemeSettingsToggle";
+import { PasswordChangeForm } from "./components/PasswordChangeForm";
+import { LanguagePicker } from "./components/LanguagePicker";
 import { KvkLookupControl } from "./components/KvkLookupControl";
 import { LandingShell } from "./components/LandingShell";
 import { RoleType, User } from "./types";
 import { Check, ChevronDown, Eye, EyeOff, LogIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./AppContext";
-import { Button, Card, Input, Select, cn } from "./components/ui";
+import { Button, Card, Input, cn } from "./components/ui";
 import { ApiError, apiService, type KvkRegistrationLookup } from "./services/api";
 import logoImage from "./assets/logo.png";
 import { languageOptions } from "./i18n";
@@ -86,6 +89,7 @@ const customerActiveTabs = new Set([
   "dashboard",
   "settings",
   "client-table",
+  "no-qr-pallets",
   "invoices",
 ]);
 const basicActiveTabs = new Set(["dashboard", "settings"]);
@@ -1997,18 +2001,25 @@ export default function App() {
     if (activeTab === "roles") return <RoleManager />;
     if (activeTab === "korisnici")
       return <UserManager currentUser={currentUser} />;
-    if (activeTab === "invoices") return <BillingList />;
+    if (activeTab === "invoices") {
+      return (
+        <BillingList
+          customer={{
+            id: currentUser.id,
+            name: currentUser.customer_detail?.company_name || currentUser.name,
+          }}
+          onBack={() => setActiveTab("dashboard")}
+        />
+      );
+    }
+    if (activeTab === "no-qr-pallets" && currentUser.role_name === RoleType.KLIJENT) {
+      return <NoQrPalletTableView readOnly />;
+    }
     // Keep the admin sidebar on the same standalone repair queue used by the
     // Admin Service role. Rendering it inside AdminDashboard can leave its
     // internal view state empty during sidebar transitions.
     if (activeTab === "admin-service")
       return <AdminRoleOperationsView mode="service" />;
-    if (
-      activeTab === "customer-details" &&
-      currentUser.role_name === RoleType.KLIJENT
-    ) {
-      return <CustomerDetailsPage />;
-    }
     if (
       activeTab === "settings" &&
       (currentUser.role_name !== RoleType.ADMIN || usesRoleMobileShell)
@@ -2022,25 +2033,26 @@ export default function App() {
             onLabel={t("on")}
             offLabel={t("off")}
           />
-          <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 text-left dark:border-emerald-500/20 dark:bg-emerald-900/20">
-            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
-              {t("language")}
-            </span>
-            <div className="mt-3">
-              <Select
-                value={language}
-                onChange={(event) =>
-                  setLanguage(event.target.value as typeof language)
-                }
-              >
-                {languageOptions.map((option) => (
-                  <option key={option.code} value={option.code}>
-                    {option.nativeLabel}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
+          <LanguagePicker />
+          <PasswordChangeForm />
+          {currentUser.role_name === RoleType.KLIJENT && (
+            <details className="group mt-4 overflow-hidden rounded-2xl border border-emerald-100 bg-white dark:border-emerald-500/20 dark:bg-[#101715]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-left [&::-webkit-details-marker]:hidden">
+                <span>
+                  <span className="block text-xs font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-100">
+                    {t("informationSettings")}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                    {t("completeDetails")}
+                  </span>
+                </span>
+                <ChevronDown size={18} className="shrink-0 text-emerald-700 transition-transform group-open:rotate-180 dark:text-emerald-200" />
+              </summary>
+              <div className="border-t border-emerald-100 p-4 dark:border-white/10">
+                <CustomerDetailsPage embedded />
+              </div>
+            </details>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -2177,10 +2189,9 @@ export default function App() {
               activeTab === "client-table" ? "dashboard" : "client-table",
             )
           }
-          showDetailsIcon={currentUser.role_name === RoleType.KLIJENT}
-          detailsActive={activeTab === "customer-details"}
-          onDetailsIconClick={() => setActiveTab("customer-details")}
-          showClientMenu={currentUser.role_name === RoleType.KLIJENT}
+          showBackToScan={activeTab !== "dashboard"}
+          backToScanLabel={t("backToScan")}
+          onBackToScan={() => setActiveTab("dashboard")}
         >
           <AnimatePresence mode="wait">
             <motion.div

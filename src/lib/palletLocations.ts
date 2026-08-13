@@ -34,6 +34,36 @@ export const getClientWarehouseAddress = (
   return structuredAddress || client?.warehouse_addresses?.[warehouse - 1] || "";
 };
 
+/**
+ * Checks whether the client can use the primary warehouse as a location.
+ *
+ * Structured warehouse data takes precedence over the legacy address list.
+ * This prevents a client's Warehouse 2 from shifting into index 0 when
+ * Warehouse 1 is empty. For records that only contain legacy addresses, the
+ * first address remains the primary warehouse for backward compatibility.
+ */
+export const hasClientWarehouseOneAddress = (
+  client: ClientDetail | undefined,
+) => {
+  const hasWarehouseOneFields = [
+    client?.warehouse1_street,
+    client?.warehouse1_house_number,
+    client?.warehouse1_postal_code,
+    client?.warehouse1_city,
+  ].some((field) => Boolean(field?.trim()));
+  const hasWarehouseTwoFields = [
+    client?.warehouse2_street,
+    client?.warehouse2_house_number,
+    client?.warehouse2_postal_code,
+    client?.warehouse2_city,
+  ].some((field) => Boolean(field?.trim()));
+
+  return hasWarehouseOneFields || (
+    !hasWarehouseTwoFields &&
+    Boolean(client?.warehouse_addresses?.[0]?.trim())
+  );
+};
+
 export const getDeliveryLocationAddress = (pallet?: Pallet | null) => {
   const location = pallet?.delivery_location;
 

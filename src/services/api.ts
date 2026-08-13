@@ -873,6 +873,8 @@ export const apiService = {
     },
     loginDemoUser: async (user: User) => apiService.auth.login({ email: user.email, password: DEMO_PASSWORD }),
     me: async () => normalizeUser(await apiData<ApiRecord>('/auth/me')),
+    changePassword: (data: { current_password: string; password: string; password_confirmation: string }) =>
+      apiData<null>('/auth/change-password', { method: 'PUT', body: jsonBody(data) }),
     logout: async () => {
       try {
         await apiData<null>('/auth/logout', { method: 'POST' });

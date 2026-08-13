@@ -615,7 +615,7 @@ export function ImageGallery() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-black">{selectedPhoto.pallet?.name || `#${selectedPhoto.pallet_id}`}</p>
-                  <p className="mt-1 text-xs text-zinc-400">{selectedPhoto.pallet?.customer || '-'} / {photoTypeLabel(selectedPhoto.type)} / {formatAppDateTime(selectedPhoto.created_at, language)}</p>
+                  <p className="mt-1 text-xs font-semibold text-white/85">{selectedPhoto.pallet?.customer || '-'} / {photoTypeLabel(selectedPhoto.type)} / {formatAppDateTime(selectedPhoto.created_at, language)}</p>
                 </div>
                 <span className="shrink-0 text-xs font-black text-zinc-300">
                   {selectedPhotoIndex + 1} / {selectedPalletPhotos.length}

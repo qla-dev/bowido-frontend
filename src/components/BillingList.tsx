@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { Badge, Button, cn } from './ui';
@@ -14,6 +14,7 @@ import { AdminClientManagerView } from './AdminClientManagerView';
 interface BillingListProps {
   onBack?: () => void;
   compact?: boolean;
+  customer?: SelectedCustomer;
 }
 
 type SelectedCustomer = {
@@ -27,7 +28,7 @@ const invoiceColumns: readonly InvoiceColumn[] = ['number', 'status', 'created',
 const invoiceWidths: Record<InvoiceColumn, number> = { number: 220, status: 170, created: 215, mailed: 215, amount: 175 };
 const invoiceMinWidths: Record<InvoiceColumn, number> = { number: 150, status: 130, created: 170, mailed: 170, amount: 130 };
 
-export const BillingList: React.FC<BillingListProps> = () => {
+export const BillingList: React.FC<BillingListProps> = ({ onBack, customer }) => {
   const { t, language } = useApp();
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<SelectedCustomer | null>(null);
@@ -75,33 +76,53 @@ export const BillingList: React.FC<BillingListProps> = () => {
     setSelectedCustomer(null);
     setCustomerInvoices([]);
     setIsInvoicesLoading(false);
+    onBack?.();
   };
+
+  useEffect(() => {
+    if (customer) {
+      openCustomerInvoices({ user_id: customer.id, name: customer.name } as ClientDetail);
+    }
+  }, [customer?.id]);
 
   return (
     <div className="space-y-4">
-      <AdminClientManagerView
-        readOnly
-        onClientSelect={openCustomerInvoices}
-        title={t('billing')}
-        description={t('managePayments')}
-      />
+      {!customer && (
+        <AdminClientManagerView
+          readOnly
+          onClientSelect={openCustomerInvoices}
+          title={t('billing')}
+          description={t('managePayments')}
+        />
+      )}
 
       {selectedCustomer && (
-        <div className="modal-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={selectedCustomer.name} onClick={closeCustomerInvoices}>
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="my-auto w-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
-            <div className="max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[2rem] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.28)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[3rem]">
+        <div
+          className={customer ? 'w-full' : 'modal-overlay fixed inset-0 z-40 flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4'}
+          role={customer ? undefined : 'dialog'}
+          aria-modal={customer ? undefined : true}
+          aria-label={selectedCustomer.name}
+          onClick={customer ? undefined : closeCustomerInvoices}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: customer ? 1 : 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={customer ? 'w-full' : 'my-auto w-full max-w-6xl'}
+            onClick={customer ? undefined : (event) => event.stopPropagation()}
+          >
+            <div className={customer ? 'overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_18px_48px_-26px_rgba(0,0,0,0.24)] dark:border-white/10 dark:bg-[#101715]' : 'max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[2rem] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.28)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[3rem]'}>
               <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/40 p-5 sm:p-7">
                 <div>
-                  <h2 className="text-lg font-black uppercase tracking-tight text-black">{selectedCustomer.name}</h2>
+                  <h2 className="text-lg font-black uppercase tracking-tight text-black dark:text-white">{customer ? t('billing') : selectedCustomer.name}</h2>
                   <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{customerInvoices.length} {t('invoicesLabel')}</p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <p className="hidden text-right text-sm font-black text-black sm:block">{t('payableAmount')}: {formatAmount(payableAmount)}</p>
-                  <Button variant="ghost" size="sm" onClick={closeCustomerInvoices} className="h-10 w-10 rounded-full p-0 text-zinc-400" aria-label={t('close')}><X size={18} /></Button>
+                  <p className="hidden text-right text-sm font-black text-black dark:text-white sm:block">{t('payableAmount')}: {formatAmount(payableAmount)}</p>
+                  {!customer && <Button variant="ghost" size="sm" onClick={closeCustomerInvoices} className="h-10 w-10 rounded-full p-0 text-zinc-400" aria-label={t('close')}><X size={18} /></Button>}
                 </div>
               </div>
-              <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto p-4 sm:p-6">
-                <p className="mb-4 text-sm font-black text-black sm:hidden">{t('payableAmount')}: {formatAmount(payableAmount)}</p>
+              <div className={customer ? 'p-4 sm:p-6' : 'max-h-[calc(100dvh-8rem)] overflow-y-auto p-4 sm:p-6'}>
+                <p className="mb-4 text-sm font-black text-black dark:text-white sm:hidden">{t('payableAmount')}: {formatAmount(payableAmount)}</p>
                 <AdminDataTable<InvoiceColumn>
                   columnOrder={invoiceColumns}
                   initialColumnWidths={invoiceWidths}
@@ -138,7 +159,7 @@ export const BillingList: React.FC<BillingListProps> = () => {
           </motion.div>
         </div>
       )}
-      {selectedInvoice && <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />}
+      {selectedInvoice && <InvoiceViewer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} allowSending={!customer} />}
     </div>
   );
 };
