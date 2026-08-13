@@ -119,7 +119,7 @@ export function CustomerDetailsPage({ embedded = false }: { embedded?: boolean }
                 <Input value={form.phone_number} onChange={(event) => setField('phone_number', event.target.value)} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
               </label>
               <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-3 xl:col-span-3">{t('phone')}
-                <Input required value={form.fixed_phone} onChange={(event) => setField('fixed_phone', event.target.value)} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
+                <Input value={form.fixed_phone} onChange={(event) => setField('fixed_phone', event.target.value)} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
               </label>
             </div>
           </section>
