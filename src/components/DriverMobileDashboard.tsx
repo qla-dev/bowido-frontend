@@ -61,6 +61,7 @@ import {
   getDamageDescriptionCharacterCount,
   limitDamageDescription,
 } from "../lib/damageDescription";
+import { resolveSelectedPallet } from "../lib/palletSelection";
 import {
   configureQrCamera,
   createQrCameraZoomController,
@@ -549,6 +550,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [internalSelectedPalletId, setInternalSelectedPalletId] = useState<
     number | null
   >(null);
+  const [selectedPalletSnapshot, setSelectedPalletSnapshot] =
+    useState<Pallet | null>(null);
   const selectedPalletId =
     controlledSelectedPalletId === undefined
       ? internalSelectedPalletId
@@ -811,9 +814,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     return legacyComment || "-";
   };
-  const selectedPallet = selectedPalletId
-    ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
-    : null;
+  const selectedPallet = resolveSelectedPallet(
+    allDriverPallets,
+    selectedPalletId,
+    selectedPalletSnapshot,
+  );
   const driverStatusOptions = DRIVER_STATUS_SLUG_ORDER.map((slug) =>
     statuses.find((item) => item.slug === slug) ||
     // Preserve the option when a cached response or an older API still uses
@@ -1137,6 +1142,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   }, [selectedPalletId]);
 
   useEffect(() => {
+    if (selectedPalletId === null || selectedPallet) {
+      return;
+    }
+
+    // Recover from a genuinely stale externally controlled selection. A
+    // freshly scanned customer pallet is retained by selectedPalletSnapshot
+    // until the claim finishes, even when restricted polling omits it.
+    selectedPalletIdRef.current = null;
+    setOpenChangeMenu(null);
+    setSelectedPalletId(null);
+  }, [selectedPallet, selectedPalletId]);
+
+  useEffect(() => {
     if (!selectedPallet) {
       initializedPalletIdRef.current = null;
       return;
@@ -1343,6 +1361,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     const nextPallet = matchedPallet;
 
+    setSelectedPalletSnapshot(nextPallet);
     setScannedPalletIds((current) => [
       nextPallet.id,
       ...current.filter((item) => item !== nextPallet.id),
@@ -1601,6 +1620,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     window.setTimeout(() => {
       scanIndexRef.current = (scanIndexRef.current + 1) % pallets.length;
       const nextPallet = pallets[scanIndexRef.current];
+      setSelectedPalletSnapshot(nextPallet);
       setScannedPalletIds((current) => [
         nextPallet.id,
         ...current.filter((item) => item !== nextPallet.id),
@@ -1744,6 +1764,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     clearDamageDraft();
     setIsDamageModalOpen(false);
     setOpenChangeMenu(null);
+    setSelectedPalletSnapshot(null);
     selectedPalletIdRef.current = null;
     setSelectedPalletId(null);
     lastScanAtRef.current = 0;
@@ -1958,19 +1979,61 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const handleChangeMenuClose = () => {
-    const shouldSaveWithoutLocation =
+    const shouldSaveStatusWithoutChangingLocation =
       (openChangeMenu === "location" || openChangeMenu === "gps") &&
-      !isCustomer &&
       !statusSaveInProgressRef.current &&
       Boolean(selectedPallet) &&
-      statusIdAllowsCustomer(statuses, draftStatusId) &&
-      Boolean(draftClientId);
+      draftStatusId !== selectedPallet.current_status_id &&
+      (isCustomer ||
+        (statusIdAllowsCustomer(statuses, draftStatusId) &&
+          Boolean(draftClientId)));
+
+    const unchangedLocation = selectedPallet?.current_location || "";
 
     setOpenChangeMenu(null);
 
-    if (shouldSaveWithoutLocation) {
-      void persistDriverStatus(draftStatusId, draftClientId, "");
+    if (!shouldSaveStatusWithoutChangingLocation) {
+      return;
     }
+
+    if (isCustomer && selectedPallet) {
+      void (async () => {
+        statusSaveInProgressRef.current = true;
+        setIsStatusSaving(true);
+
+        try {
+          await claimCustomerPossessionPallet(
+            selectedPallet.id,
+            draftStatusId,
+            unchangedLocation,
+          );
+          showFlash(
+            text.statusUpdatedTitle,
+            statuses.find((status) => status.id === draftStatusId)?.slug ===
+              "ophalen-klant"
+              ? text.statusSavedDetailReturn
+              : text.statusSavedDetailAtClient,
+            "success",
+            1500,
+          );
+        } catch (error) {
+          showFlash(
+            text.statusUpdatedTitle,
+            error instanceof Error
+              ? error.message
+              : text.scanImageNotRecognizedDetail,
+            "warning",
+            2200,
+          );
+        } finally {
+          statusSaveInProgressRef.current = false;
+          setIsStatusSaving(false);
+        }
+      })();
+      return;
+    }
+
+    void persistDriverStatus(draftStatusId, draftClientId, unchangedLocation);
   };
 
   const openPalletPhotoPicker = () => {
