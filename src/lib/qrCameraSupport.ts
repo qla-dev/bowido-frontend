@@ -143,3 +143,40 @@ export const setQrCameraZoom = async (
     return false;
   }
 };
+
+/**
+ * Camera drivers usually process `applyConstraints` calls serially. A range
+ * input can produce dozens of values per second, so issuing every value makes
+ * the preview catch up long after the user's finger has stopped. Keep just the
+ * newest requested value while a camera update is in flight instead.
+ */
+export const createQrCameraZoomController = (
+  applyZoom: typeof setQrCameraZoom = setQrCameraZoom,
+) => {
+  let pending: { stream: MediaStream | null | undefined; zoom: number } | null = null;
+  let isApplying = false;
+
+  const flush = async () => {
+    if (isApplying) {
+      return;
+    }
+
+    isApplying = true;
+    while (pending) {
+      const next = pending;
+      pending = null;
+      await applyZoom(next.stream, next.zoom);
+    }
+    isApplying = false;
+  };
+
+  return {
+    request: (stream: MediaStream | null | undefined, zoom: number) => {
+      pending = { stream, zoom };
+      void flush();
+    },
+    clear: () => {
+      pending = null;
+    },
+  };
+};

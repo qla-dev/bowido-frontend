@@ -63,6 +63,7 @@ import {
 } from "../lib/damageDescription";
 import {
   configureQrCamera,
+  createQrCameraZoomController,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
 } from "../lib/qrCameraSupport";
@@ -127,10 +128,10 @@ const DEFAULT_CAMERA_ZOOM_RANGE: CameraZoomRange = {
   max: 3,
   step: 0.1,
 };
-const QR_SCAN_INTERVAL_MS = 140;
-const QR_FALLBACK_MAX_DIMENSION = 720;
-const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1280;
-const QR_FALLBACK_DETAIL_PASS_EVERY = 5;
+const QR_SCAN_INTERVAL_MS = 260;
+const QR_FALLBACK_MAX_DIMENSION = 540;
+const QR_FALLBACK_DETAIL_MAX_DIMENSION = 720;
+const QR_FALLBACK_DETAIL_PASS_EVERY = 8;
 
 const clampDriverCameraZoom = (
   value: number,
@@ -627,6 +628,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const lastScanAttemptAtRef = useRef(0);
   const lastScanAtRef = useRef(0);
   const fallbackScanAttemptRef = useRef(0);
+  const isCameraControlInteractingRef = useRef(false);
+  const cameraInteractionUntilRef = useRef(0);
+  const cameraZoomControllerRef = useRef(createQrCameraZoomController());
   const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
@@ -1061,8 +1065,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const isDraftTransportStatus = ["bih-nl-transport", "nl-bih-transport"].includes(
     draftStatus?.slug || "",
   );
+  const isDraftUnknownStatus = draftStatus?.slug === "onbekend";
   const isLocationChangeDisabled =
     isDraftTransportStatus ||
+    isDraftUnknownStatus ||
     Boolean(fixedWarehouseLocationMeta) ||
     (isCustomer && !statusIdAllowsCustomer(statuses, draftStatusId));
   const isWarehouseStatus = ["bowido-bih", "bowido-nl"].includes(
@@ -1201,27 +1207,27 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     };
   }, []);
 
-  const applyCameraTrackZoom = (zoom: number) => {
-    const track = streamRef.current?.getVideoTracks()[0] as
-      | ZoomableMediaTrack
-      | undefined;
-    const zoomCapabilities = (
-      track?.getCapabilities?.() as CameraZoomCapabilities | undefined
-    )?.zoom;
-
-    if (!track || !zoomCapabilities) {
-      return;
-    }
-
-    void track
-      .applyConstraints({ advanced: [{ zoom }] })
-      .catch(() => undefined);
-  };
-
   const updateCameraZoom = (value: number, range = cameraZoomRange) => {
     const nextZoom = clampDriverCameraZoom(value, range);
     setCameraZoom(nextZoom);
-    applyCameraTrackZoom(nextZoom);
+
+    if (isCameraHardwareZoomSupported) {
+      cameraZoomControllerRef.current.request(streamRef.current, nextZoom);
+    }
+  };
+
+  const pauseCameraDetectionForControl = () => {
+    isCameraControlInteractingRef.current = true;
+  };
+
+  const resumeCameraDetectionAfterControl = () => {
+    isCameraControlInteractingRef.current = false;
+  };
+
+  const deferCameraDetectionForInteraction = () => {
+    // A fallback QR pass is synchronous. Give app navigation and scanner
+    // controls time to paint before starting one.
+    cameraInteractionUntilRef.current = performance.now() + 180;
   };
 
   const toggleCameraTorch = async () => {
@@ -1273,6 +1279,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const stopCamera = () => {
+    cameraZoomControllerRef.current.clear();
+
     if (scanFrameRef.current) {
       window.cancelAnimationFrame(scanFrameRef.current);
       scanFrameRef.current = null;
@@ -1355,7 +1363,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     if (
       video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
       scanBusyRef.current ||
-      selectedPalletIdRef.current !== null
+      selectedPalletIdRef.current !== null ||
+      isCameraControlInteractingRef.current ||
+      performance.now() < cameraInteractionUntilRef.current
     ) {
       return;
     }
@@ -1390,14 +1400,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         const isDetailPass =
           fallbackScanAttemptRef.current % QR_FALLBACK_DETAIL_PASS_EVERY === 0;
 
-        // Do not constrain the QR to the centre of the camera frame. Fast
-        // passes process the complete frame at a lower resolution; every
-        // fourth pass restores full detail for smaller or farther-away codes.
+        // Keep the synchronous fallback bounded. Native BarcodeDetector is
+        // preferred; this compatibility path must never hold up navigation.
         rawValue = decodeQrFromVideo(video, scanCanvasRef, {
           maxDimension: isDetailPass ? QR_FALLBACK_DETAIL_MAX_DIMENSION : QR_FALLBACK_MAX_DIMENSION,
           inversionAttempts: isDetailPass ? "attemptBoth" : "dontInvert",
-          multiPass: isDetailPass,
-          enhanceContrast: isDetailPass,
         });
       }
 
@@ -1952,7 +1959,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   const handleChangeMenuClose = () => {
     const shouldSaveWithoutLocation =
-      openChangeMenu === "location" &&
+      (openChangeMenu === "location" || openChangeMenu === "gps") &&
       !isCustomer &&
       !statusSaveInProgressRef.current &&
       Boolean(selectedPallet) &&
@@ -2360,7 +2367,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       )}
     >
       {isScannerOpen && (
-        <div className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-1 pt-0 transition-all duration-500">
+        <div
+          onPointerDownCapture={deferCameraDetectionForInteraction}
+          onKeyDownCapture={deferCameraDetectionForInteraction}
+          className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-1 pt-0 transition-all duration-500"
+        >
           <input
             ref={scanImageInputRef}
             type="file"
@@ -2531,7 +2542,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   onChange={(event) =>
                     updateCameraZoom(Number(event.target.value))
                   }
-                  className="h-2 w-full cursor-pointer accent-[#00A655]"
+                  onPointerDown={pauseCameraDetectionForControl}
+                  onPointerUp={resumeCameraDetectionAfterControl}
+                  onPointerCancel={resumeCameraDetectionAfterControl}
+                  onFocus={pauseCameraDetectionForControl}
+                  onBlur={resumeCameraDetectionAfterControl}
+                  className="h-2 w-full touch-none cursor-pointer accent-[#00A655]"
                   aria-label={language === "bs" ? "Zoom kamere" : "Camera zoom"}
                 />
               </div>
@@ -3755,7 +3771,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
               </div>
             )}
 
-            {openChangeMenu === "gps" && (
+            {openChangeMenu === "gps" && !isLocationChangeDisabled && (
               <div className="p-3">
                 <DeliveryLocationMap
                   palletId={selectedPallet.id}

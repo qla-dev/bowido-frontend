@@ -113,9 +113,9 @@ export interface AppNotification {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const APP_DATA_CACHE_KEY = "trackpal_app_data_cache";
-// Active users see remote changes within 30 seconds. Background tabs do not need
+// Active users see remote changes within two seconds. Background tabs do not need
 // fresh UI data, so polling pauses until the tab is visible again.
-const DATA_POLL_INTERVAL_MS = 30_000;
+const DATA_POLL_INTERVAL_MS = 2_000;
 const DATA_POLL_RESUME_DELAY_MS = 15_000;
 
 // Polling returns freshly-deserialized data on every request. Keeping the
@@ -637,9 +637,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const nextClientId = preserveClientAssignment
       ? (clientId ?? pallet.user_id)
       : undefined;
-    const nextLocation = ["bih-nl-transport", "nl-bih-transport"].includes(
-      status.slug,
-    )
+    const nextLocation = status.slug === "onbekend"
+      ? ""
+      : ["bih-nl-transport", "nl-bih-transport"].includes(status.slug)
       ? "Na putu"
       : location ?? pallet.current_location;
     const nextClientName = preserveClientAssignment

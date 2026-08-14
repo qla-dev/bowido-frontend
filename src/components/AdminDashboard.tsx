@@ -1036,6 +1036,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ["bih-nl-transport", "nl-bih-transport"].includes(
       editingPalletStatus?.slug || "",
     );
+  const isEditingPalletUnknownStatus = editingPalletStatus?.slug === "onbekend";
   const editingPalletFixedLocation = editingPallet
     ? getFixedWarehouseLocation(
         editingPallet.current_status_id,
@@ -2183,7 +2184,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     ? editingPallet.client_name
                                     : undefined,
                                   current_status_name: sname,
-                                  current_location: isTransportStatus
+                                  current_location: selectedStatus?.slug === "onbekend"
+                                    ? ""
+                                    : isTransportStatus
                                     ? "Na putu"
                                     : needsClientAssignment
                                       ? ""
@@ -2498,12 +2501,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               value={
                                 isEditingPalletTransportStatus
                                   ? getLocationLabel("Na putu", language)
+                                  : isEditingPalletUnknownStatus
+                                    ? ""
                                   : editingPalletFixedLocation ||
                                     editingPallet.current_location
                               }
                               disabled={Boolean(
-                                editingPalletFixedLocation ||
-                                  isEditingPalletTransportStatus,
+                                  editingPalletFixedLocation ||
+                                  isEditingPalletTransportStatus ||
+                                  isEditingPalletUnknownStatus,
                               )}
                               onChange={(e) =>
                                 setEditingPallet({

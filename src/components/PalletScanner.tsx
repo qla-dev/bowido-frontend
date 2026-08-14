@@ -16,9 +16,9 @@ import { rankSearchResults } from '../lib/searchRanking';
 import { compressPhotoForUpload } from '../lib/imageCompression';
 import {
   configureQrCamera,
+  createQrCameraZoomController,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
-  setQrCameraZoom,
 } from '../lib/qrCameraSupport';
 
 const CAMERA_ZOOM_MIN = 1;
@@ -72,6 +72,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const lastScanAttemptAtRef = React.useRef(0);
   const lastDetectedAtRef = React.useRef(0);
   const fallbackScanAttemptRef = React.useRef(0);
+  const isCameraControlInteractingRef = React.useRef(false);
+  const cameraInteractionUntilRef = React.useRef(0);
+  const cameraZoomControllerRef = React.useRef(createQrCameraZoomController());
 
   const getAllowedStatusIds = () => {
     return statuses.map((status) => status.id);
@@ -132,6 +135,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       // current stream. Mobile browsers may resolve a previous request after a
       // tab has been backgrounded, otherwise reviving a stale preview.
       cameraSessionId += 1;
+      cameraZoomControllerRef.current.clear();
 
       if (scanFrameRef.current) {
         window.cancelAnimationFrame(scanFrameRef.current);
@@ -159,7 +163,14 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       const detector = qrDetectorRef.current;
       const video = videoRef.current;
 
-      if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || scanBusyRef.current || detectedPallet) {
+      if (
+        !video ||
+        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+        scanBusyRef.current ||
+        detectedPallet ||
+        isCameraControlInteractingRef.current ||
+        performance.now() < cameraInteractionUntilRef.current
+      ) {
         return;
       }
 
@@ -379,8 +390,19 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     setCameraZoom(nextZoom);
 
     if (isCameraHardwareZoomSupported) {
-      void setQrCameraZoom(streamRef.current, nextZoom);
+      cameraZoomControllerRef.current.request(streamRef.current, nextZoom);
     }
+  };
+  const pauseCameraDetectionForControl = () => {
+    isCameraControlInteractingRef.current = true;
+  };
+  const resumeCameraDetectionAfterControl = () => {
+    isCameraControlInteractingRef.current = false;
+  };
+  const deferCameraDetectionForInteraction = () => {
+    // Leave the main thread free to paint button feedback before a synchronous
+    // jsQR fallback pass is allowed to begin.
+    cameraInteractionUntilRef.current = performance.now() + 180;
   };
   const toggleCameraTorch = async () => {
     const nextTorchState = !isTorchOn;
@@ -506,7 +528,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         animate={{ opacity: 1, scale: 1 }}
         className="my-auto flex w-full max-w-4xl items-center justify-center"
       >
-        <Card noPadding className="mx-auto flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] md:h-auto md:max-h-[85vh]">
+        <Card
+          noPadding
+          onPointerDownCapture={deferCameraDetectionForInteraction}
+          onKeyDownCapture={deferCameraDetectionForInteraction}
+          className="mx-auto flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] md:h-auto md:max-h-[85vh]"
+        >
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-zinc-950 text-white shrink-0">
             <div className="flex items-center gap-2">
               <QrCode size={18} />
@@ -749,17 +776,17 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         muted
                         playsInline
                         className={cn(
-                          "absolute inset-0 h-full w-full origin-center object-cover transition-[opacity,transform] duration-300",
+                          "absolute inset-0 h-full w-full origin-center object-cover transition-opacity duration-300",
                           isCameraActive ? "opacity-100" : "opacity-0"
                         )}
                         style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
                       />
                       <div
                         className={cn(
-                          "absolute inset-0 origin-center transition-[opacity,transform] duration-300 ease-out",
+                          "absolute inset-0 origin-center transition-opacity duration-300 ease-out",
                           isCameraActive ? "opacity-20" : "opacity-100"
                         )}
-                        style={{ transform: `scale(${cameraZoom})` }}
+                        style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
                       >
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,166,85,0.2),transparent_48%),linear-gradient(135deg,rgba(255,255,255,0.12),transparent_36%),#07110d]" />
                         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.16)_1px,transparent_1px)] [background-size:28px_28px]" />
@@ -824,7 +851,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                       step={cameraZoomRange.step}
                       value={cameraZoom}
                       onChange={(event) => updateCameraZoom(Number(event.target.value))}
-                      className="h-2 w-full cursor-pointer accent-[#00A655]"
+                      onPointerDown={pauseCameraDetectionForControl}
+                      onPointerUp={resumeCameraDetectionAfterControl}
+                      onPointerCancel={resumeCameraDetectionAfterControl}
+                      onFocus={pauseCameraDetectionForControl}
+                      onBlur={resumeCameraDetectionAfterControl}
+                      className="h-2 w-full touch-none cursor-pointer accent-[#00A655]"
                       aria-label={cameraZoomLabel}
                     />
                   </div>
