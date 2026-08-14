@@ -343,17 +343,15 @@ const statusUiByName: Record<string, { id: number; name: string }> = {
   Onbekend: statusUiBySlug.unknown,
 };
 
-// Older installations can still return the original API status slugs.  The
-// driver workflow uses the canonical slugs below to decide which options are
-// shown, so retain that compatibility at the API boundary instead of letting a
-// valid status disappear from the status picker.
+// Older installations can still return their original API status slugs. The
+// driver workflow uses the canonical underscore slugs below to decide which
+// options are shown, so normalize them at the API boundary.
 const canonicalStatusSlugByLegacySlug: Record<string, string> = {
   bowido_warehouse: 'bowido-bih',
   bowido_nl: 'bowido-nl',
   transport: 'bih-nl-transport',
   transport_bih_nl: 'bih-nl-transport',
   at_customer: 'bij-de-klant',
-  bij_de_klant: 'bij-de-klant',
   pending_return: 'ophalen-klant',
   transport_nl_bih: 'nl-bih-transport',
   unknown: 'onbekend',

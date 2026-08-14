@@ -2,9 +2,7 @@ import type { PalletStatus } from '../types';
 
 export const AT_CUSTOMER_STATUS_SLUGS = new Set([
   'bij-de-klant',
-  // Kept while older cached/API records are being normalized.
   'at_customer',
-  'bij_de_klant',
 ]);
 
 export const CUSTOMER_ASSIGNABLE_STATUS_SLUGS = new Set([

@@ -826,7 +826,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     // api.ts, but this keeps the picker usable during that refresh as well.
     (slug === "bij-de-klant"
       ? statuses.find((item) =>
-          ["at_customer", "bij_de_klant"].includes(item.slug),
+          ["at_customer", "bij-de-klant"].includes(item.slug),
         )
       : undefined),
   ).filter((status): status is NonNullable<typeof status> =>

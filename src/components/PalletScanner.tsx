@@ -128,7 +128,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
     let cancelled = false;
     let restartTimer: number | null = null;
+    let startupWatchdogTimer: number | null = null;
     let cameraSessionId = 0;
+    let hasRetriedFrozenCamera = false;
 
     const stopCamera = () => {
       // Invalidate any in-flight getUserMedia/play request before releasing the
@@ -136,6 +138,11 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       // tab has been backgrounded, otherwise reviving a stale preview.
       cameraSessionId += 1;
       cameraZoomControllerRef.current.clear();
+
+      if (startupWatchdogTimer !== null) {
+        window.clearTimeout(startupWatchdogTimer);
+        startupWatchdogTimer = null;
+      }
 
       if (scanFrameRef.current) {
         window.cancelAnimationFrame(scanFrameRef.current);
@@ -305,6 +312,29 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         setIsCameraActive(true);
         runDetectionLoop();
 
+        // Chrome can restore a tab with a live MediaStream whose preview has
+        // stopped advancing. Confirm that the newly attached video actually
+        // receives frames, then reacquire it once when it does not. The retry
+        // is deliberately capped at one per tab return to avoid a restart
+        // loop if the camera is genuinely unavailable.
+        const initialVideoTime = video.currentTime;
+        startupWatchdogTimer = window.setTimeout(() => {
+          startupWatchdogTimer = null;
+
+          if (
+            !isCurrentSession() ||
+            videoRef.current !== video ||
+            video.currentTime > initialVideoTime + 0.01 ||
+            hasRetriedFrozenCamera
+          ) {
+            return;
+          }
+
+          hasRetriedFrozenCamera = true;
+          stopCamera();
+          void startCamera();
+        }, 1_500);
+
         const detector = await detectorPromise;
         if (!isCurrentSession() || streamRef.current !== stream) {
           return;
@@ -336,6 +366,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           return;
         }
 
+        hasRetriedFrozenCamera = false;
         stopCamera();
         void startCamera();
       }, 150);
@@ -350,9 +381,21 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       restartCameraWhenVisible();
     };
 
+    const handlePageHide = () => {
+      // Some Chrome tab-close and app-switch paths emit pagehide without a
+      // visibility event. Release the camera so pageshow always gets a clean
+      // stream instead of attempting to revive a frozen one.
+      if (restartTimer !== null) {
+        window.clearTimeout(restartTimer);
+        restartTimer = null;
+      }
+      stopCamera();
+    };
+
     void startCamera();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', restartCameraWhenVisible);
+    window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('pageshow', restartCameraWhenVisible);
 
     return () => {
@@ -362,6 +405,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', restartCameraWhenVisible);
+      window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('pageshow', restartCameraWhenVisible);
       stopCamera();
     };
