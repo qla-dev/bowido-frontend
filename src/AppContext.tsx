@@ -75,7 +75,7 @@ interface AppContextType {
   ) => Promise<ClientDetail>;
   deleteClient: (id: number) => Promise<void>;
   updateClient: (client: ClientDetail) => void;
-  updateStatusSettings: (status: PalletStatus) => void;
+  updateStatusSettings: (status: PalletStatus) => Promise<void>;
   addStatus: (status: Omit<PalletStatus, "id">) => void;
   deleteStatus: (id: number) => void;
   reportDamage: (report: {
@@ -741,6 +741,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       current_location: "",
       last_status_changed_at: timestamp,
       created_at: timestamp,
+      has_qr_code: normalizedQrCode !== '',
       is_ghost: false,
       is_for_repair: false,
       is_active: true,
@@ -1219,20 +1220,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setClients((current) => current.filter((client) => client.id !== id));
   };
 
-  const updateStatusSettings = (status: PalletStatus) => {
+  const updateStatusSettings = async (status: PalletStatus): Promise<void> => {
+    const previousStatus = statuses.find((item) => item.id === status.id);
+    const shouldSyncClientBilling = Boolean(
+      previousStatus && (
+        previousStatus.grace_period_days !== status.grace_period_days
+        || previousStatus.price_per_day !== status.price_per_day
+      ),
+    );
+
     setStatuses((prev) =>
       prev.map((item) => (item.id === status.id ? status : item)),
     );
-    void apiService.statuses
-      .update(status)
-      .then((updatedStatus) => {
+    try {
+      const updatedStatus = await apiService.statuses.update(status);
+      setStatuses((prev) =>
+        prev.map((item) =>
+          item.id === updatedStatus.id ? updatedStatus : item,
+        ),
+      );
+      if (shouldSyncClientBilling) {
+        setClients((prev) =>
+          prev.map((client) => ({
+            ...client,
+            grace_period_days: updatedStatus.grace_period_days,
+            price_per_day: updatedStatus.price_per_day,
+          })),
+        );
+      }
+    } catch (error) {
+      if (previousStatus) {
         setStatuses((prev) =>
           prev.map((item) =>
-            item.id === updatedStatus.id ? updatedStatus : item,
+            item.id === previousStatus.id ? previousStatus : item,
           ),
         );
-      })
-      .catch((error) => console.error("Failed to update status", error));
+      }
+
+      throw error;
+    }
   };
 
   const addStatus = (status: Omit<PalletStatus, "id">) => {

@@ -123,6 +123,7 @@ export interface Pallet {
   type: string;
   asset_type?: string;
   current_location: string;
+  has_qr_code: boolean;
   is_ghost: boolean;
   is_for_repair: boolean;
   is_active: boolean;

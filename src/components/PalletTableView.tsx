@@ -220,7 +220,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const fetchPage = useCallback((offset: number) => apiService.pallets.page({
     limit: PALLET_PAGE_SIZE,
     offset,
-    is_ghost: false,
+    has_qr_code: true,
     search: debouncedSearchQuery || undefined,
     sort_by: sortConfig.key,
     sort_direction: sortConfig.direction,
@@ -239,7 +239,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
     void apiService.pallets
       .list({
-        is_ghost: false,
+        has_qr_code: true,
         search: debouncedSearchQuery || undefined,
       })
       .then((allPallets) => {
@@ -270,7 +270,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     }
 
     setPagedPallets((current) =>
-      current.map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+      current
+        .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+        .filter((pallet) => pallet.has_qr_code)
     );
   }, [cachedPallets]);
 

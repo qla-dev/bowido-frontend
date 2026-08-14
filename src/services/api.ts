@@ -343,6 +343,22 @@ const statusUiByName: Record<string, { id: number; name: string }> = {
   Onbekend: statusUiBySlug.unknown,
 };
 
+// Older installations can still return the original API status slugs.  The
+// driver workflow uses the canonical slugs below to decide which options are
+// shown, so retain that compatibility at the API boundary instead of letting a
+// valid status disappear from the status picker.
+const canonicalStatusSlugByLegacySlug: Record<string, string> = {
+  bowido_warehouse: 'bowido-bih',
+  bowido_nl: 'bowido-nl',
+  transport: 'bih-nl-transport',
+  transport_bih_nl: 'bih-nl-transport',
+  at_customer: 'bij-de-klant',
+  bij_de_klant: 'bij-de-klant',
+  pending_return: 'ophalen-klant',
+  transport_nl_bih: 'nl-bih-transport',
+  unknown: 'onbekend',
+};
+
 const backendStatusIdByUiId = new Map<number, number>();
 const uiStatusIdByBackendId = new Map<number, number>();
 
@@ -361,12 +377,14 @@ const rememberStatusMapping = (uiId: number, backendId: number, slug?: string) =
 
 const normalizeStatus = (status: ApiRecord): PalletStatus => {
   const backendId = Number(status.id);
-  const uiStatus = statusUiBySlug[status.slug] || statusUiByName[status.name] || {
+  const rawSlug = status.slug || '';
+  const slug = canonicalStatusSlugByLegacySlug[rawSlug] || rawSlug;
+  const uiStatus = statusUiBySlug[rawSlug] || statusUiBySlug[slug] || statusUiByName[status.name] || {
     id: uiStatusIdByBackendId.get(backendId) || backendId,
     name: status.name || 'Onbekend',
   };
 
-  rememberStatusMapping(uiStatus.id, backendId, status.slug);
+  rememberStatusMapping(uiStatus.id, backendId, slug);
 
   return {
     id: uiStatus.id,
@@ -375,7 +393,7 @@ const normalizeStatus = (status: ApiRecord): PalletStatus => {
     is_billable: Boolean(status.is_billable),
     grace_period_days: Number(status.grace_period_days ?? 0),
     price_per_day: Number(status.price_per_day ?? 0),
-    slug: status.slug || '',
+    slug,
   };
 };
 
@@ -554,6 +572,7 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     client_deleted: toBoolean(pallet.client_deleted),
     type: pallet.type || pallet.asset_type || 'invullen!',
     current_location: pallet.current_location || '',
+    has_qr_code: toBoolean(pallet.has_qr_code) || (typeof pallet.qr_code === 'string' && pallet.qr_code.trim() !== ''),
     is_ghost: toBoolean(pallet.is_ghost),
     is_for_repair: toBoolean(pallet.is_for_repair),
     is_active: toBoolean(pallet.is_active),

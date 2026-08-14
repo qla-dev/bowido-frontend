@@ -191,7 +191,7 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
   const fetchPage = useCallback((offset: number) => apiService.pallets.page({
     limit: NO_QR_PAGE_SIZE,
     offset,
-    is_ghost: true,
+    has_qr_code: false,
     search: debouncedSearchQuery || undefined,
     sort_by: 'created_at',
     sort_direction: 'desc',
@@ -210,7 +210,7 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
     setPagedPallets((current) =>
       current
         .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
-        .filter((pallet) => pallet.is_ghost)
+        .filter((pallet) => !pallet.has_qr_code)
     );
   }, [cachedPallets]);
 
@@ -291,7 +291,7 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
   const rows = useMemo<NoQrTableRow[]>(
     () =>
       pallets
-        .filter((pallet) => pallet.is_ghost)
+        .filter((pallet) => !pallet.has_qr_code)
         .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
         .map((pallet, index) => ({
           pallet,
@@ -301,7 +301,7 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
             clients.find((client) => client.user_id === pallet.user_id)?.name ||
             pallet.client_name ||
             t('unknownClient'),
-          statusLabel: getStatusLabel('Voor retour', language),
+          statusLabel: getStatusLabel(pallet.current_status_name, language),
           returnReportedAtLabel: dateFormatter.format(new Date(pallet.created_at)),
           pickupLabel: directPickupLabel,
           commentLabel: formatSystemNote(pallet.note, language) || emptyValueLabel,

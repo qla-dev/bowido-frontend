@@ -324,6 +324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | "adminFinance"
   >(initialView);
   const [editingStatus, setEditingStatus] = useState<PalletStatus | null>(null);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [newStatusData, setNewStatusData] = useState<Omit<PalletStatus, "id">>({
     name: "",
@@ -762,6 +763,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleDeleteStatus = (status: PalletStatus) => {
     setDeleteConfirm({ kind: "status", status });
+  };
+
+  const handleSaveStatusSettings = async () => {
+    if (!editingStatus || isSavingStatus) {
+      return;
+    }
+
+    setIsSavingStatus(true);
+
+    try {
+      await updateStatusSettings(editingStatus);
+      setEditingStatus(null);
+      await appAlert.fire({
+        icon: "success",
+        title: t("settingsSaved"),
+        text: t("settingsSavedDetails"),
+      });
+    } catch (error) {
+      console.error("Failed to save status settings", error);
+      await appAlert.fire({
+        icon: "error",
+        title: t("changesNotSaved"),
+      });
+    } finally {
+      setIsSavingStatus(false);
+    }
   };
 
   const confirmDeleteAction = () => {
@@ -1751,18 +1778,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex gap-3 mt-8">
               <button
                 onClick={() => setEditingStatus(null)}
+                disabled={isSavingStatus}
                 className="flex-1 py-3 font-bold text-gray-400 hover:text-black transition-colors uppercase text-xs"
               >
                 {t("cancel")}
               </button>
               <button
-                onClick={() => {
-                  updateStatusSettings(editingStatus);
-                  setEditingStatus(null);
-                }}
-                className="flex-1 py-3 bg-black text-white rounded-xl font-black uppercase text-xs shadow-xl shadow-black/10"
+                onClick={() => void handleSaveStatusSettings()}
+                disabled={isSavingStatus}
+                className="flex-1 py-3 bg-black text-white rounded-xl font-black uppercase text-xs shadow-xl shadow-black/10 disabled:cursor-wait disabled:opacity-60"
               >
-                {t("saveRules")}
+                {isSavingStatus ? t("saving") : t("saveRules")}
               </button>
             </div>
           </div>

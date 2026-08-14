@@ -44,7 +44,10 @@ import {
 } from "../lib/videoQrDecoder";
 import { createNativeQrDetector, NativeQrDetector } from "../lib/nativeQrDetector";
 import { apiService } from "../services/api";
-import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
+import {
+  statusIdAllowsCustomer,
+  statusIdIsAtCustomer,
+} from "../lib/palletCustomerAssignment";
 import {
   getClientWarehouseAddress,
   getDeliveryLocationAddress,
@@ -808,7 +811,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     ? allDriverPallets.find((item) => item.id === selectedPalletId) || null
     : null;
   const driverStatusOptions = DRIVER_STATUS_SLUG_ORDER.map((slug) =>
-    statuses.find((item) => item.slug === slug),
+    statuses.find((item) => item.slug === slug) ||
+    // Preserve the option when a cached response or an older API still uses
+    // the original status slug.  Fresh API responses are canonicalized in
+    // api.ts, but this keeps the picker usable during that refresh as well.
+    (slug === "bij-de-klant"
+      ? statuses.find((item) =>
+          ["at_customer", "bij_de_klant"].includes(item.slug),
+        )
+      : undefined),
   ).filter((status): status is NonNullable<typeof status> =>
     Boolean(status) && (!isCustomer || ['bij-de-klant', 'ophalen-klant'].includes(status.slug)));
   const scannedPallets = scannedPalletIds
@@ -1044,8 +1055,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const isTransportStatus = ["bih-nl-transport", "nl-bih-transport"].includes(
     selectedPallet?.current_status_slug || "",
   );
+  // The location picker belongs to the status currently being selected, not
+  // the pallet's status before the change.  In particular, a pallet leaving
+  // transport for "Bij de klant" must still offer its client location.
+  const isDraftTransportStatus = ["bih-nl-transport", "nl-bih-transport"].includes(
+    draftStatus?.slug || "",
+  );
   const isLocationChangeDisabled =
-    isTransportStatus ||
+    isDraftTransportStatus ||
     Boolean(fixedWarehouseLocationMeta) ||
     (isCustomer && !statusIdAllowsCustomer(statuses, draftStatusId));
   const isWarehouseStatus = ["bowido-bih", "bowido-nl"].includes(
@@ -1816,13 +1833,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       setOpenChangeMenu("location");
       return;
     }
-    const isEnteringCustomerStatus =
-      statusIdAllowsCustomer(statuses, statusId) &&
-      !statusIdAllowsCustomer(statuses, selectedPallet?.current_status_id);
+    const isEnteringAtCustomerStatus =
+      statusIdIsAtCustomer(statuses, statusId) &&
+      !statusIdIsAtCustomer(statuses, selectedPallet?.current_status_id);
 
-    if (isEnteringCustomerStatus) {
-      // A pallet leaving a Bowido location must be explicitly assigned. Do
-      // not reuse a stale client from an earlier trip.
+    if (isEnteringAtCustomerStatus) {
+      // Each new "Bij de klant" period requires an explicit assignment,
+      // including when a pallet returns from "Ophalen klant". Do not reuse a
+      // stale client from an earlier trip.
       setDraftClientId(undefined);
       setDraftLocationMode("delivery");
       setOpenChangeMenu("client");

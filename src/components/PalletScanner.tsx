@@ -8,7 +8,10 @@ import { getScannedQrCandidates } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 import { createNativeQrDetector, NativeQrDetector } from '../lib/nativeQrDetector';
 import { apiService } from '../services/api';
-import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import {
+  statusIdAllowsCustomer,
+  statusIdIsAtCustomer,
+} from '../lib/palletCustomerAssignment';
 import { rankSearchResults } from '../lib/searchRanking';
 import { compressPhotoForUpload } from '../lib/imageCompression';
 import {
@@ -654,20 +657,20 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         <button
                           key={status.id}
                           onClick={() => {
-                            const isEnteringCustomerStatus =
-                              statusIdAllowsCustomer(statuses, status.id) &&
-                              !statusIdAllowsCustomer(
+                            const isEnteringAtCustomerStatus =
+                              statusIdIsAtCustomer(statuses, status.id) &&
+                              !statusIdIsAtCustomer(
                                 statuses,
                                 selectedStatusId,
                               );
                             setSelectedStatusId(status.id);
                             if (
                               !statusIdAllowsCustomer(statuses, status.id) ||
-                              isEnteringCustomerStatus
+                              isEnteringAtCustomerStatus
                             ) {
                               setSelectedClientId(undefined);
                             }
-                            if (isEnteringCustomerStatus) setLocation("");
+                            if (isEnteringAtCustomerStatus) setLocation("");
                           }}
                           className={cn(
                             'p-3 rounded-2xl border-2 transition-all text-left group',
