@@ -575,7 +575,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const getClientLabel = (pallet: Pallet) =>
     clients.find((client) => client.user_id === pallet.user_id)?.name ||
     pallet.client_name?.trim() ||
-    t('inStock');
+    '-';
   const isDeletedClientLabel = (pallet: Pallet) =>
     pallet.client_deleted &&
     !clients.some((client) => client.user_id === pallet.user_id);

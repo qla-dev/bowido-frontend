@@ -578,6 +578,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setShowAddPallet(false);
   };
 
+  React.useEffect(() => {
+    if (!showAddPallet) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAddPalletModal();
+      }
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [showAddPallet]);
+
   const buildBulkQrCodes = () => {
     if (
       !hasValidBulkRange ||
@@ -3090,10 +3106,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-pallet-modal-title"
             >
-              <h3 className="text-xl font-black uppercase mb-6">
-                {t("newPalletEntry")}
-              </h3>
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <h3 id="add-pallet-modal-title" className="text-xl font-black uppercase">
+                  {t("newPalletEntry")}
+                </h3>
+                <button
+                  type="button"
+                  onClick={closeAddPalletModal}
+                  className="-mr-2 -mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                  aria-label={t("cancel")}
+                  title={t("cancel")}
+                >
+                  <X size={20} aria-hidden="true" />
+                </button>
+              </div>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -3216,8 +3246,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                     {t("palletType")}
                   </label>
-                  <select
-                    className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                  <Select
+                    className="rounded-2xl bg-[var(--surface-input)] p-4 pr-12 text-sm font-black uppercase tracking-[0.08em]"
                     value={newPalletType}
                     onChange={(event) => setNewPalletType(event.target.value)}
                   >
@@ -3226,7 +3256,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {getPalletTypeLabel(palletType, language)}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
               <div className="flex gap-4 mt-8">
