@@ -999,14 +999,16 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         {getMobilePalletDate(selectedMobilePallet.item)}
                       </p>
                     </div>
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
-                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                        {t('location')}
-                      </p>
-                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
-                      </p>
-                    </div>
+                    {!selectedMobilePallet.item.pallet.is_ghost && (
+                      <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
+                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                          {t('location')}
+                        </p>
+                        <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                          {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">

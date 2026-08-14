@@ -52,7 +52,7 @@ interface AppContextType {
     location?: string,
     note?: string,
     clientId?: number,
-  ) => void;
+  ) => Promise<Pallet | undefined>;
   updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
@@ -614,7 +614,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const updatePalletStatus = (
+  const updatePalletStatus = async (
     palletId: number,
     statusId: number,
     userId: number,
@@ -631,7 +631,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const preserveClientAssignment = statusAllowsCustomer(status);
 
     if (!pallet || !status) {
-      return;
+      return undefined;
     }
 
     const nextClientId = preserveClientAssignment
@@ -641,12 +641,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       status.slug,
     )
       ? "Na putu"
-      : location || pallet.current_location;
+      : location ?? pallet.current_location;
     const nextClientName = preserveClientAssignment
       ? nextClientId
         ? clients.find((client) => client.user_id === nextClientId)?.name ||
           pallet.client_name
-        : pallet.client_name
+        : undefined
       : undefined;
     const timestamp = new Date().toISOString();
     const freezesCustomerTimer = previousStatus?.slug === 'bij-de-klant' && status.slug === 'ophalen-klant';
@@ -697,25 +697,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return [newNotification, ...prev];
     });
 
-    void apiService.pallets
-      .update(palletId, {
+    try {
+      const updatedPallet = await apiService.pallets.update(palletId, {
         ...pallet,
         current_status_id: statusId,
         current_status_name: status.name,
         current_location: nextLocation,
-        user_id: nextClientId ?? pallet.user_id,
-        client_name: nextClientName ?? pallet.client_name,
+        user_id: nextClientId,
+        client_name: nextClientName,
         note: note || pallet.note,
-      })
-      .then((updatedPallet) => {
-        setPallets((prev) =>
-          prev.map((item) =>
-            item.id === updatedPallet.id ? updatedPallet : item,
-          ),
-        );
-        void fetchAuditLogs();
-      })
-      .catch((error) => console.error("Failed to update pallet status", error));
+      });
+      setPallets((prev) =>
+        prev.map((item) =>
+          item.id === updatedPallet.id ? updatedPallet : item,
+        ),
+      );
+      void fetchAuditLogs();
+      void apiService.pallets.stats().then(setPalletDashboardStats).catch(() => undefined);
+
+      return updatedPallet;
+    } catch (error) {
+      setPallets((prev) =>
+        prev.map((item) => (item.id === pallet.id ? pallet : item)),
+      );
+      console.error("Failed to update pallet status", error);
+      throw error;
+    }
   };
 
   const buildNewPallet = (id: number, qrCode: string, type: string): Pallet => {

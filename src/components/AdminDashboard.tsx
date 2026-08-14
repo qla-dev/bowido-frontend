@@ -406,6 +406,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.addEventListener("mousedown", closeOnOutsideClick);
     return () => document.removeEventListener("mousedown", closeOnOutsideClick);
   }, [isEditingPalletClientListOpen]);
+
+  React.useEffect(() => {
+    if (!isEditingPalletClientListOpen) return;
+
+    const updatePosition = () => {
+      const rect = editingPalletClientTriggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      setIsEditingPalletClientListOpeningUpward(false);
+      setEditingPalletClientListMaxHeight(
+        Math.max(140, Math.min(300, window.innerHeight - rect.bottom - 12)),
+      );
+      setEditingPalletClientMenuPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    const frameId = window.requestAnimationFrame(updatePosition);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isEditingPalletClientListOpen, editingPallet?.current_status_id]);
   const [palletAuditLogsById, setPalletAuditLogsById] = useState<
     Record<number, AuditLog[]>
   >({});
@@ -477,7 +505,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const calculateDebt = (p: Pallet) => {
     const status = statuses.find((s) => s.id === p.current_status_id);
-    if (!status || !status.is_billable) return 0;
+    if (!p.user_id || !status || !status.is_billable) return 0;
 
     const client = clients.find((c) => c.user_id === p.user_id);
     const graceDays = client?.grace_period_days ?? status.grace_period_days;
@@ -2093,39 +2121,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   statuses,
                                   sid,
                                 );
-                                const selectedClient = allowsCustomer
-                                  ? clients.find(
-                                      (client) =>
-                                        client.user_id ===
-                                        editingPallet.user_id,
-                                    )
-                                  : undefined;
+                                const wasAssignedToCustomer =
+                                  statusIdAllowsCustomer(
+                                    statuses,
+                                    editingPallet.current_status_id,
+                                  );
+                                const needsClientAssignment =
+                                  allowsCustomer && !wasAssignedToCustomer;
+                                const selectedClient =
+                                  allowsCustomer && !needsClientAssignment
+                                    ? clients.find(
+                                        (client) =>
+                                          client.user_id ===
+                                          editingPallet.user_id,
+                                      )
+                                    : undefined;
                                 setEditingPalletClientSearch(
-                                  allowsCustomer
+                                  allowsCustomer && !needsClientAssignment
                                     ? selectedClient?.name ||
                                         editingPallet.client_name ||
                                         ""
                                     : "",
                                 );
-                                setIsEditingPalletClientListOpen(false);
+                                setIsEditingPalletClientListOpen(
+                                  needsClientAssignment,
+                                );
                                 setShowEditingPalletDeliveryMap(false);
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
-                                  user_id: allowsCustomer
+                                  user_id: allowsCustomer && !needsClientAssignment
                                     ? editingPallet.user_id
                                     : undefined,
-                                  client_name: allowsCustomer
+                                  client_name: allowsCustomer && !needsClientAssignment
                                     ? editingPallet.client_name
                                     : undefined,
                                   current_status_name: sname,
                                   current_location: isTransportStatus
                                     ? "Na putu"
-                                    : allowsCustomer
-                                      ? getClientWarehouseAddress(
-                                          selectedClient,
-                                          1,
-                                        )
+                                    : needsClientAssignment
+                                      ? ""
+                                      : allowsCustomer
+                                        ? editingPallet.current_location
                                       : getFixedWarehouseLocation(sid, sname) ||
                                         editingPallet.current_location,
                                 });
@@ -2282,16 +2319,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                               event.preventDefault()
                                             }
                                             onClick={() => {
-                                              setEditingPallet({
-                                                ...editingPallet,
-                                                user_id: client.user_id,
-                                                client_name: client.name,
-                                                current_location:
-                                                  getClientWarehouseAddress(
-                                                    client,
-                                                    1,
-                                                  ),
-                                              });
+                                          setEditingPallet({
+                                            ...editingPallet,
+                                            user_id: client.user_id,
+                                            client_name: client.name,
+                                          });
                                               setEditingPalletClientSearch("");
                                               setIsEditingPalletClientListOpen(
                                                 false,

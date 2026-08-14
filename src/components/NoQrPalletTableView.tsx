@@ -29,7 +29,6 @@ type NoQrColumnKey =
   | 'serial'
   | 'client'
   | 'status'
-  | 'location'
   | 'reportedAt'
   | 'pickup'
   | 'comment';
@@ -46,7 +45,6 @@ type NoQrTableRow = {
   serial: number;
   clientName: string;
   statusLabel: string;
-  locationLabel: string;
   returnReportedAtLabel: string;
   pickupLabel: string;
   commentLabel: string;
@@ -59,7 +57,6 @@ const NO_QR_TABLE_COLUMN_ORDER = [
   'serial',
   'client',
   'status',
-  'location',
   'reportedAt',
   'pickup',
   'comment',
@@ -69,7 +66,6 @@ const NO_QR_INITIAL_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
   serial: 184,
   client: 184,
   status: 184,
-  location: 184,
   reportedAt: 184,
   pickup: 184,
   comment: 184,
@@ -79,7 +75,6 @@ const NO_QR_MIN_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
   serial: 88,
   client: 152,
   status: 140,
-  location: 180,
   reportedAt: 152,
   pickup: 128,
   comment: 200,
@@ -163,7 +158,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
     serial: [],
     client: [],
     status: [],
-    location: [],
     reportedAt: [],
     pickup: [],
     comment: [],
@@ -172,7 +166,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
     serial: '',
     client: '',
     status: '',
-    location: '',
     reportedAt: '',
     pickup: '',
     comment: '',
@@ -258,7 +251,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
           case 'serial':
             return 216;
           case 'client':
-          case 'location':
           case 'comment':
             return 288;
           case 'status':
@@ -310,7 +302,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
             pallet.client_name ||
             t('unknownClient'),
           statusLabel: getStatusLabel('Voor retour', language),
-          locationLabel: pallet.current_location || t('notAvailable'),
           returnReportedAtLabel: dateFormatter.format(new Date(pallet.created_at)),
           pickupLabel: directPickupLabel,
           commentLabel: formatSystemNote(pallet.note, language) || emptyValueLabel,
@@ -326,8 +317,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
         return row.clientName;
       case 'status':
         return row.statusLabel;
-      case 'location':
-        return row.locationLabel;
       case 'reportedAt':
         return row.returnReportedAtLabel;
       case 'pickup':
@@ -349,8 +338,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
         return row.clientName;
       case 'status':
         return row.statusLabel;
-      case 'location':
-        return row.locationLabel;
       case 'pickup':
         return row.pickupLabel;
       case 'comment':
@@ -367,9 +354,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
         .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
         .map((value) => ({ value, label: value })),
       status: Array.from<string>(new Set(rows.map((row) => row.statusLabel)))
-        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
-        .map((value) => ({ value, label: value })),
-      location: Array.from<string>(new Set(rows.map((row) => row.locationLabel)))
         .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
         .map((value) => ({ value, label: value })),
       reportedAt: Array.from<string>(new Set(rows.map((row) => row.returnReportedAtLabel)))
@@ -629,7 +613,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
               <col style={{ width: columnWidths.serial }} />
               <col style={{ width: columnWidths.client }} />
               <col style={{ width: columnWidths.status }} />
-              <col style={{ width: columnWidths.location }} />
               <col style={{ width: columnWidths.reportedAt }} />
               <col style={{ width: columnWidths.pickup }} />
               <col style={{ width: columnWidths.comment }} />
@@ -653,12 +636,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                     {renderSortButton('status', t('status'))}
                   </div>
                   {renderResizeHandle('status')}
-                </th>
-                <th ref={registerHeaderCell('location')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>
-                    {renderSortButton('location', t('location'))}
-                  </div>
-                  {renderResizeHandle('location')}
                 </th>
                 <th ref={registerHeaderCell('reportedAt')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
@@ -725,11 +702,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                       >
                         {row.statusLabel}
                       </Badge>
-                    </div>
-                  </td>
-                  <td className={bodyCellClass}>
-                    <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, 'text-zinc-500')}>{row.locationLabel}</span>
                     </div>
                   </td>
                   <td className={bodyCellClass}>
@@ -891,8 +863,19 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                       ...editingPallet,
                       current_status_id: statusId,
                       current_status_name: statusName,
-                      user_id: statusIdAllowsCustomer(statuses, statusId) ? editingPallet.user_id : undefined,
-                      client_name: statusIdAllowsCustomer(statuses, statusId) ? editingPallet.client_name : undefined,
+                      user_id:
+                        statusIdAllowsCustomer(statuses, statusId) &&
+                        statusIdAllowsCustomer(statuses, editingPallet.current_status_id)
+                          ? editingPallet.user_id
+                          : undefined,
+                      client_name:
+                        statusIdAllowsCustomer(statuses, statusId) &&
+                        statusIdAllowsCustomer(statuses, editingPallet.current_status_id)
+                          ? editingPallet.client_name
+                          : undefined,
+                      current_location: statusIdAllowsCustomer(statuses, statusId)
+                        ? ''
+                        : editingPallet.current_location,
                     });
                   }}
                   className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"
@@ -904,19 +887,6 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                {t('location')}
-              </label>
-              <Input
-                value={editingPallet.current_location}
-                onChange={(event) =>
-                  setEditingPallet({ ...editingPallet, current_location: event.target.value })
-                }
-                className="bg-zinc-50"
-              />
             </div>
 
             <div className="mt-4 space-y-2">

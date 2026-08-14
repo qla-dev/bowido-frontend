@@ -738,7 +738,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       filterPallets.forEach((pallet) => {
         const status = statuses.find((item) => item.id === pallet.current_status_id);
 
-      if (!status?.is_billable) {
+      if (!pallet.user_id || !status?.is_billable) {
         return;
       }
 
@@ -753,8 +753,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       // not belong in the customer report or its selector.
       if (
         !normalizedClientName ||
-        normalizedClientName === 'na stanju' ||
-        normalizedClientName === 'no client'
+        normalizedClientName === 'na stanju'
       ) {
         return;
       }

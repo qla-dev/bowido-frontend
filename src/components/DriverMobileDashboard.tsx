@@ -256,7 +256,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     summaryType: "Type",
     summaryClient: "Client",
     summaryLocation: "Location",
-    clientEmpty: "No client",
+    clientEmpty: "-",
     emptyStatus: "No status",
     selectClient: "Select client",
     searchClientPlaceholder: "Search client",
@@ -325,7 +325,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     summaryType: "Type",
     summaryClient: "Klant",
     summaryLocation: "Locatie",
-    clientEmpty: "Geen klant",
+    clientEmpty: "-",
     emptyStatus: "Geen status",
     selectClient: "Klant kiezen",
     searchClientPlaceholder: "Zoek klant",
@@ -395,7 +395,7 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     summaryType: "Tip",
     summaryClient: "Klijent",
     summaryLocation: "Lokacija",
-    clientEmpty: "Bez klijenta",
+    clientEmpty: "-",
     emptyStatus: "Bez statusa",
     selectClient: "Odaberi klijenta",
     searchClientPlaceholder: "Pretraži klijenta",
@@ -539,6 +539,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     reportDamage,
     statuses,
     language,
+    t,
   } = useApp();
   const [isScanning, setIsScanning] = useState(false);
   const [internalSelectedPalletId, setInternalSelectedPalletId] = useState<
@@ -562,6 +563,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   );
   const [isDamageReportSubmitting, setIsDamageReportSubmitting] =
     useState(false);
+  const [isStatusSaving, setIsStatusSaving] = useState(false);
   const [damageReportError, setDamageReportError] = useState("");
   const [scannedPalletIds, setScannedPalletIds] = useState<number[]>([]);
   const [isScannedPalletsModalOpen, setIsScannedPalletsModalOpen] =
@@ -626,6 +628,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
   const initializedPalletIdRef = useRef<number | null>(null);
+  const statusSaveInProgressRef = useRef(false);
 
   const text = driverCopy[language] || driverCopy.en;
   const isCustomer = user.role_name === RoleType.KLIJENT;
@@ -1727,6 +1730,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     clientId?: number,
     nextLocation = selectedLocationMeta.address,
   ) => {
+    if (statusSaveInProgressRef.current) {
+      return;
+    }
+
     if (
       !selectedPallet ||
       (statusIdAllowsCustomer(statuses, nextStatusId) &&
@@ -1735,6 +1742,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     ) {
       return;
     }
+
+    statusSaveInProgressRef.current = true;
+    setIsStatusSaving(true);
 
     const preserveClientAssignment = statusIdAllowsCustomer(
       statuses,
@@ -1745,9 +1755,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       : undefined;
     const nextStatus = statuses.find((status) => status.id === nextStatusId);
 
-    await uploadPalletPhotos(selectedPallet, nextStatusId, nextClientId);
+    try {
+      await uploadPalletPhotos(selectedPallet, nextStatusId, nextClientId);
 
-    updatePalletStatus(
+    await updatePalletStatus(
       selectedPallet.id,
       nextStatusId,
       user.id,
@@ -1775,9 +1786,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       "success",
       1500,
     );
+    } catch (error) {
+      showFlash(
+        text.statusUpdatedTitle,
+        error instanceof Error ? error.message : text.scanImageNotRecognizedDetail,
+        "warning",
+        2200,
+      );
+    } finally {
+      statusSaveInProgressRef.current = false;
+      setIsStatusSaving(false);
+    }
   };
 
   const handleStatusSelection = (statusId: number) => {
+    if (statusSaveInProgressRef.current) {
+      return;
+    }
+
     setOpenChangeMenu(null);
     setDraftStatusId(statusId);
     const nextStatus = statuses.find((status) => status.id === statusId);
@@ -1790,6 +1816,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       setOpenChangeMenu("location");
       return;
     }
+    const isEnteringCustomerStatus =
+      statusIdAllowsCustomer(statuses, statusId) &&
+      !statusIdAllowsCustomer(statuses, selectedPallet?.current_status_id);
+
+    if (isEnteringCustomerStatus) {
+      // A pallet leaving a Bowido location must be explicitly assigned. Do
+      // not reuse a stale client from an earlier trip.
+      setDraftClientId(undefined);
+      setDraftLocationMode("delivery");
+      setOpenChangeMenu("client");
+      return;
+    }
+
     const nextClientId = statusIdAllowsCustomer(statuses, statusId)
       ? (draftClientId ?? selectedPallet?.user_id)
       : undefined;
@@ -1829,49 +1868,32 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    persistDriverStatus(statusId, nextClientId, nextLocation);
+    void persistDriverStatus(statusId, nextClientId, nextLocation);
   };
 
   const handleClientSelection = (value: string) => {
-    if (isCustomer || isClientChangeDisabled) {
+    if (statusSaveInProgressRef.current || isCustomer || isClientChangeDisabled) {
       setOpenChangeMenu(null);
       return;
     }
 
     const nextClientId = value ? Number(value) : undefined;
-    setOpenChangeMenu(null);
     setDraftClientId(nextClientId);
 
     if (statusIdAllowsCustomer(statuses, draftStatusId) && nextClientId) {
-      const nextClient = clients.find(
-        (client) => client.user_id === nextClientId,
-      );
-      if (!hasClientWarehouseOneAddress(nextClient)) {
-        setDraftLocationMode("delivery");
-        setOpenChangeMenu("location");
-        return;
-      }
-      const nextLocationMode =
-        draftLocationMode === "warehouse_2" &&
-        !getClientWarehouseAddress(nextClient, 2)
-          ? "warehouse_1"
-          : draftLocationMode;
-      const nextLocation = getLocationMeta(
-        nextLocationMode,
-        nextClientId,
-      ).address;
-      setDraftLocationMode(nextLocationMode);
-
-      if (draftStatus?.slug === "ophalen-klant") {
-        setOpenChangeMenu("location");
-        return;
-      }
-
-      persistDriverStatus(draftStatusId, nextClientId, nextLocation);
+      // A location is optional, but it is always offered after assigning a
+      // client. Closing that next step saves the status and client with no
+      // location instead of abandoning the transition.
+      setDraftLocationMode("delivery");
+      setOpenChangeMenu("location");
     }
   };
 
   const handleLocationSelection = async (mode: DriverLocationMode) => {
+    if (statusSaveInProgressRef.current) {
+      return;
+    }
+
     if (mode !== "delivery" && !hasWarehouse1) {
       return;
     }
@@ -1900,13 +1922,29 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
 
     if (selectedPallet) {
-      persistDriverStatus(
+      void persistDriverStatus(
         draftStatusId,
         statusIdAllowsCustomer(statuses, draftStatusId)
           ? draftClientId
           : undefined,
         nextLocation,
       );
+    }
+  };
+
+  const handleChangeMenuClose = () => {
+    const shouldSaveWithoutLocation =
+      openChangeMenu === "location" &&
+      !isCustomer &&
+      !statusSaveInProgressRef.current &&
+      Boolean(selectedPallet) &&
+      statusIdAllowsCustomer(statuses, draftStatusId) &&
+      Boolean(draftClientId);
+
+    setOpenChangeMenu(null);
+
+    if (shouldSaveWithoutLocation) {
+      void persistDriverStatus(draftStatusId, draftClientId, "");
     }
   };
 
@@ -2797,6 +2835,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     </p>
                     <button
                       type="button"
+                      disabled={isStatusSaving}
                       onClick={() =>
                         setOpenChangeMenu((current) =>
                           current === "status" ? null : "status",
@@ -2805,6 +2844,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       className={cn(
                         changeTriggerClass,
                         "mt-3 h-10 self-center px-4 text-[12px]",
+                        isStatusSaving && "cursor-wait opacity-55",
                       )}
                     >
                       {text.changeStatus}
@@ -2842,9 +2882,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                             {!isCustomer && (
                               <button
                                 type="button"
-                                disabled={isClientChangeDisabled}
+                                disabled={isClientChangeDisabled || isStatusSaving}
                                 onClick={() => {
-                                  if (isClientChangeDisabled) {
+                                  if (isClientChangeDisabled || isStatusSaving) {
                                     return;
                                   }
 
@@ -2890,6 +2930,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                                   ? transportLocationLabel
                                   : fixedWarehouseLocationMeta
                                     ? fixedWarehouseLocationMeta.label
+                                    : !selectedPallet.current_location?.trim()
+                                      ? t("notAvailable")
                                     : selectedLocationMeta.label}
                               </p>
                               {fixedWarehouseLocationMeta?.address && (
@@ -2897,7 +2939,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                                   {fixedWarehouseLocationMeta.address}
                                 </p>
                               )}
-                              {!isLocationChangeDisabled && (
+                              {!isLocationChangeDisabled && selectedPallet.current_location?.trim() && (
                                 <p className="mt-1 line-clamp-2 break-words text-[14px] font-bold leading-5 text-zinc-600 dark:text-[#cce0d3]">
                                   {selectedLocationMeta.address}
                                 </p>
@@ -2906,6 +2948,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                             {!isLocationChangeDisabled && (
                               <button
                                 type="button"
+                                disabled={isStatusSaving}
                                 onClick={() =>
                                   setOpenChangeMenu((current) =>
                                     current === "location" ? null : "location",
@@ -2914,6 +2957,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                                 className={cn(
                                   changeTriggerClass,
                                   "shrink-0 self-center",
+                                  isStatusSaving && "cursor-wait opacity-55",
                                 )}
                               >
                                 {text.changeLabel}
@@ -3375,17 +3419,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       </div>
 
                       <div className="mt-4 grid gap-3">
-                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
-                          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                            {noQrPickupCopy.location}
-                          </p>
-                          <p className="mt-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-200">
-                            {getLocationLabel(
-                              pallet.current_location,
-                              language,
-                            ) || "-"}
-                          </p>
-                        </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                             <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
@@ -3532,7 +3565,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         {openChangeMenu && selectedPallet && (
           <DriverModalShell
             key="pallet-change-menu"
-            onClose={() => setOpenChangeMenu(null)}
+            onClose={handleChangeMenuClose}
             header={
               openChangeMenu === "client" ? (
                 <div className="relative min-w-0 flex-1">
@@ -3582,12 +3615,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <button
                     key={status.id}
                     type="button"
+                    disabled={isStatusSaving}
                     onClick={() => handleStatusSelection(status.id)}
                     className={cn(
                       "flex w-full items-center justify-center rounded-[1rem] px-4 py-3.5 text-center text-[13px] font-black uppercase tracking-tight transition-all",
                       draftStatusId === status.id
                         ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
                         : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                      isStatusSaving && "cursor-wait opacity-55",
                     )}
                   >
                     {getDriverStatusLabel(status.name)}
@@ -3605,6 +3640,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       <button
                         key={client.id}
                         type="button"
+                        disabled={isStatusSaving}
                         onClick={() =>
                           handleClientSelection(client.user_id.toString())
                         }
@@ -3613,6 +3649,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                           draftClientId === client.user_id
                             ? "bg-emerald-50 text-emerald-800 dark:bg-white/10 dark:text-emerald-100"
                             : "bg-white text-zinc-700 hover:bg-emerald-50/70 dark:bg-[#101715] dark:text-zinc-200 dark:hover:bg-white/5",
+                          isStatusSaving && "cursor-wait opacity-55",
                         )}
                       >
                         <div className="min-w-0 text-left">
@@ -3731,6 +3768,41 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     }
                     const savedLocation = await savePalletDeliveryLocation(palletId, data);
                     setDraftLocationMode("delivery");
+
+                    // Saving a custom delivery address is the final step of a
+                    // driver status change. Previously this branch only saved
+                    // the map pin, so a selected client and "At client" status
+                    // were never submitted to the pallet update endpoint.
+                    if (!isCustomer) {
+                      const streetLine = [
+                        savedLocation.street,
+                        savedLocation.house_number,
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim();
+                      const localityLine = [
+                        savedLocation.postal_code,
+                        savedLocation.city,
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim();
+                      const deliveryAddress =
+                        [streetLine, localityLine].filter(Boolean).join(", ") ||
+                        savedLocation.formatted_address ||
+                        selectedPallet.current_location ||
+                        "";
+
+                      await persistDriverStatus(
+                        draftStatusId,
+                        statusIdAllowsCustomer(statuses, draftStatusId)
+                          ? draftClientId
+                          : undefined,
+                        deliveryAddress,
+                      );
+                    }
+
                     await appAlert.fire({
                       icon: "success",
                       title: text.deliveryLocationSavedTitle,

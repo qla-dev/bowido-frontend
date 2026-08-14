@@ -121,8 +121,15 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     }
 
     let cancelled = false;
+    let restartTimer: number | null = null;
+    let cameraSessionId = 0;
 
     const stopCamera = () => {
+      // Invalidate any in-flight getUserMedia/play request before releasing the
+      // current stream. Mobile browsers may resolve a previous request after a
+      // tab has been backgrounded, otherwise reviving a stale preview.
+      cameraSessionId += 1;
+
       if (scanFrameRef.current) {
         window.cancelAnimationFrame(scanFrameRef.current);
         scanFrameRef.current = null;
@@ -212,9 +219,13 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         return;
       }
 
-      if (cancelled) {
+      if (cancelled || document.visibilityState === 'hidden') {
         return;
       }
+
+      const sessionId = cameraSessionId + 1;
+      cameraSessionId = sessionId;
+      const isCurrentSession = () => !cancelled && sessionId === cameraSessionId;
 
       try {
         setCameraError(null);
@@ -238,13 +249,17 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           throw lastCameraError;
         }
 
-        if (cancelled) {
+        if (!isCurrentSession()) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
 
         streamRef.current = stream;
         const cameraFeatures = await configureQrCamera(stream);
+        if (!isCurrentSession()) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         setIsTorchSupported(cameraFeatures.torchSupported);
         setIsTorchOn(false);
 
@@ -265,11 +280,19 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
         video.srcObject = stream;
         await video.play();
+        if (!isCurrentSession()) {
+          if (video.srcObject === stream) {
+            video.pause();
+            video.srcObject = null;
+          }
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
         setIsCameraActive(true);
         runDetectionLoop();
 
         const detector = await detectorPromise;
-        if (cancelled || streamRef.current !== stream) {
+        if (!isCurrentSession() || streamRef.current !== stream) {
           return;
         }
 
@@ -280,14 +303,52 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         } else {
           setCameraError('The camera could not be started. Scan a QR image instead.');
         }
-        stopCamera();
+        if (isCurrentSession()) {
+          stopCamera();
+        }
       }
     };
 
+    const restartCameraWhenVisible = () => {
+      if (cancelled || document.visibilityState === 'hidden' || restartTimer !== null) {
+        return;
+      }
+
+      // Reacquire a fresh stream after returning to the browser. iOS and some
+      // Android WebViews can leave a backgrounded MediaStream live but frozen.
+      restartTimer = window.setTimeout(() => {
+        restartTimer = null;
+        if (cancelled || document.visibilityState === 'hidden') {
+          return;
+        }
+
+        stopCamera();
+        void startCamera();
+      }, 150);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stopCamera();
+        return;
+      }
+
+      restartCameraWhenVisible();
+    };
+
     void startCamera();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', restartCameraWhenVisible);
+    window.addEventListener('pageshow', restartCameraWhenVisible);
 
     return () => {
       cancelled = true;
+      if (restartTimer !== null) {
+        window.clearTimeout(restartTimer);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', restartCameraWhenVisible);
+      window.removeEventListener('pageshow', restartCameraWhenVisible);
       stopCamera();
     };
   }, [detectedPallet, getQrDetector, handleDetectedCode, scanMode]);
@@ -593,8 +654,20 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         <button
                           key={status.id}
                           onClick={() => {
+                            const isEnteringCustomerStatus =
+                              statusIdAllowsCustomer(statuses, status.id) &&
+                              !statusIdAllowsCustomer(
+                                statuses,
+                                selectedStatusId,
+                              );
                             setSelectedStatusId(status.id);
-                            if (!statusIdAllowsCustomer(statuses, status.id)) setSelectedClientId(undefined);
+                            if (
+                              !statusIdAllowsCustomer(statuses, status.id) ||
+                              isEnteringCustomerStatus
+                            ) {
+                              setSelectedClientId(undefined);
+                            }
+                            if (isEnteringCustomerStatus) setLocation("");
                           }}
                           className={cn(
                             'p-3 rounded-2xl border-2 transition-all text-left group',

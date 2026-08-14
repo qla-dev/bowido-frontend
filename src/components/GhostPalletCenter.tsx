@@ -59,7 +59,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
     }
 
     return ghostPallets.filter(pallet =>
-      [pallet.qr_code, pallet.client_name, pallet.current_location, pallet.note]
+      [pallet.qr_code, pallet.client_name, pallet.note]
         .filter(Boolean)
         .some(value => value!.toLowerCase().includes(normalizedSearch))
     );
@@ -276,9 +276,6 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                               <h3 className="text-sm font-black uppercase tracking-tight text-emerald-950">
                                 {ghostPallet.client_name || t('unknownClient')}
                               </h3>
-                              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400 mt-1">
-                                {ghostPallet.current_location}
-                              </p>
                               <p className="text-[11px] font-bold text-zinc-600 mt-3 leading-relaxed">
                                 {ghostPallet.note || t('noAdditionalNote')}
                               </p>

@@ -1022,7 +1022,7 @@ export const translations = {
     editUnit: "Edit Unit",
     globalStatus: "Status",
     assignedClient: "Assigned Client",
-    noClient: "No Client",
+    noClient: "-",
     physicalLocation: "Location",
     confirmDeleteUnit:
       "Are you sure you want to delete this unit? All history will be lost.",
@@ -1617,7 +1617,7 @@ export const translations = {
     editUnit: "Eenheid bewerken",
     globalStatus: "Status",
     assignedClient: "Toegewezen klant",
-    noClient: "Geen klant",
+    noClient: "-",
     physicalLocation: "Locatie",
     confirmDeleteUnit:
       "Weet je zeker dat je deze eenheid wilt verwijderen? Alle historiek gaat verloren.",
@@ -2192,7 +2192,7 @@ export const translations = {
     fullFleetManagement: "Potpuno upravljanje flotom",
     idQr: "ID / QR",
     inStock: "Na stanju",
-    notAvailable: "N/A",
+    notAvailable: "N/D",
     noMatchingResults: "Nema odgovarajućih rezultata",
     noMatchingUnitsFound: "Nema odgovarajućih jedinica",
     noPalletsFound: "Nema pronađenih paleta",
@@ -2206,7 +2206,7 @@ export const translations = {
     editUnit: "Uredi jedinicu",
     globalStatus: "Status",
     assignedClient: "Dodijeljeni klijent",
-    noClient: "Bez klijenta",
+    noClient: "-",
     physicalLocation: "Lokacija",
     confirmDeleteUnit:
       "Jeste li sigurni da želite obrisati ovu jedinicu? Sva historija će biti izgubljena.",
