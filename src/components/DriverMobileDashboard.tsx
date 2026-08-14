@@ -1776,7 +1776,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     nextLocation = selectedLocationMeta.address,
   ) => {
     if (statusSaveInProgressRef.current) {
-      return;
+      return false;
     }
 
     if (
@@ -1785,7 +1785,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         !clientId &&
         !selectedPallet.user_id)
     ) {
-      return;
+      return false;
     }
 
     statusSaveInProgressRef.current = true;
@@ -1801,36 +1801,40 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     const nextStatus = statuses.find((status) => status.id === nextStatusId);
 
     try {
+      // Commit the operational status before uploading supporting photos.
+      // The upload still receives both the original and next status IDs, so
+      // its audit metadata remains accurate after this transition.
+      await updatePalletStatus(
+        selectedPallet.id,
+        nextStatusId,
+        user.id,
+        user.name,
+        nextLocation,
+        nextStatus?.slug === "bij-de-klant"
+          ? "Driver marked pallet as Bij de klant."
+          : nextStatus?.slug === "ophalen-klant"
+            ? "Driver marked pallet as Ophalen klant."
+            : transportStatusIds.includes(nextStatusId)
+                ? "Driver marked pallet in transport."
+                : "Driver marked pallet in Bowido warehouse.",
+        nextClientId,
+      );
+
       await uploadPalletPhotos(selectedPallet, nextStatusId, nextClientId);
 
-    await updatePalletStatus(
-      selectedPallet.id,
-      nextStatusId,
-      user.id,
-      user.name,
-      nextLocation,
-      nextStatus?.slug === "bij-de-klant"
-        ? "Driver marked pallet as Bij de klant."
-        : nextStatus?.slug === "ophalen-klant"
-          ? "Driver marked pallet as Ophalen klant."
-          : transportStatusIds.includes(nextStatusId)
-              ? "Driver marked pallet in transport."
-              : "Driver marked pallet in Bowido warehouse.",
-      nextClientId,
-    );
-
-    showFlash(
-      text.statusUpdatedTitle,
-      nextStatus?.slug === "bij-de-klant"
-        ? text.statusSavedDetailAtClient
-        : nextStatus?.slug === "ophalen-klant"
-          ? text.statusSavedDetailReturn
-          : transportStatusIds.includes(nextStatusId)
-              ? text.statusSavedDetailTransport
-              : text.statusSavedDetailWarehouse,
-      "success",
-      1500,
-    );
+      showFlash(
+        text.statusUpdatedTitle,
+        nextStatus?.slug === "bij-de-klant"
+          ? text.statusSavedDetailAtClient
+          : nextStatus?.slug === "ophalen-klant"
+            ? text.statusSavedDetailReturn
+            : transportStatusIds.includes(nextStatusId)
+                ? text.statusSavedDetailTransport
+                : text.statusSavedDetailWarehouse,
+        "success",
+        1500,
+      );
+      return true;
     } catch (error) {
       showFlash(
         text.statusUpdatedTitle,
@@ -1838,6 +1842,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         "warning",
         2200,
       );
+      return false;
     } finally {
       statusSaveInProgressRef.current = false;
       setIsStatusSaving(false);
@@ -3843,62 +3848,45 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   initialLocationIsSaved={!isCustomer}
                   showSaveSuccessMessage={false}
                   onSave={async (palletId, data) => {
-                    if (isCustomer) {
-                      const streetLine = [data.street, data.house_number]
-                        .map((part) => part.trim())
-                        .filter(Boolean)
-                        .join(" ");
-                      const localityLine = [data.postal_code, data.city]
-                        .map((part) => part.trim())
-                        .filter(Boolean)
-                        .join(" ");
-                      const claimLocation =
-                        [streetLine, localityLine].filter(Boolean).join(", ") ||
-                        selectedPallet.current_location?.trim() ||
-                        `${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`;
+                    const streetLine = [data.street, data.house_number]
+                      .map((part) => part.trim())
+                      .filter(Boolean)
+                      .join(" ");
+                    const localityLine = [data.postal_code, data.city]
+                      .map((part) => part.trim())
+                      .filter(Boolean)
+                      .join(" ");
+                    const selectedDeliveryAddress =
+                      [streetLine, localityLine].filter(Boolean).join(", ") ||
+                      selectedPallet.current_location?.trim() ||
+                      `${data.latitude.toFixed(6)}, ${data.longitude.toFixed(6)}`;
 
+                    if (isCustomer) {
                       await claimCustomerPossessionPallet(
                         palletId,
                         draftStatusId,
-                        claimLocation,
+                        selectedDeliveryAddress,
                       );
-                    }
-                    const savedLocation = await savePalletDeliveryLocation(palletId, data);
-                    setDraftLocationMode("delivery");
-
-                    // Saving a custom delivery address is the final step of a
-                    // driver status change. Previously this branch only saved
-                    // the map pin, so a selected client and "At client" status
-                    // were never submitted to the pallet update endpoint.
-                    if (!isCustomer) {
-                      const streetLine = [
-                        savedLocation.street,
-                        savedLocation.house_number,
-                      ]
-                        .filter(Boolean)
-                        .join(" ")
-                        .trim();
-                      const localityLine = [
-                        savedLocation.postal_code,
-                        savedLocation.city,
-                      ]
-                        .filter(Boolean)
-                        .join(" ")
-                        .trim();
-                      const deliveryAddress =
-                        [streetLine, localityLine].filter(Boolean).join(", ") ||
-                        savedLocation.formatted_address ||
-                        selectedPallet.current_location ||
-                        "";
-
-                      await persistDriverStatus(
+                    } else {
+                      // The delivery-location endpoint rejects unknown pallets.
+                      // Commit the selected status first so a pallet moving from
+                      // "Onbekend" to "Bij de klant" can save its pin in the
+                      // same driver workflow.
+                      const statusSaved = await persistDriverStatus(
                         draftStatusId,
                         statusIdAllowsCustomer(statuses, draftStatusId)
                           ? draftClientId
                           : undefined,
-                        deliveryAddress,
+                        selectedDeliveryAddress,
                       );
+
+                      if (!statusSaved) {
+                        throw new Error("The pallet status could not be saved. Try again before saving the delivery location.");
+                      }
                     }
+
+                    const savedLocation = await savePalletDeliveryLocation(palletId, data);
+                    setDraftLocationMode("delivery");
 
                     await appAlert.fire({
                       icon: "success",
