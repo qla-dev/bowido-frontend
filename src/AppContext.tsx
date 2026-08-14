@@ -116,7 +116,6 @@ const APP_DATA_CACHE_KEY = "trackpal_app_data_cache";
 // Active users see remote changes within two seconds. Background tabs do not need
 // fresh UI data, so polling pauses until the tab is visible again.
 const DATA_POLL_INTERVAL_MS = 2_000;
-const DATA_POLL_RESUME_DELAY_MS = 15_000;
 
 // Polling returns freshly-deserialized data on every request. Keeping the
 // existing value when nothing changed prevents an otherwise identical poll
@@ -215,8 +214,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   // data until the complete replacement is ready.
   const hasVisiblePalletDataRef = useRef(pallets.length > 0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const liveRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  const lastPollStartedAtRef = useRef(0);
+  const refreshLiveDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const invoicesRef = useRef(invoices);
+
+  useEffect(() => {
+    invoicesRef.current = invoices;
+  }, [invoices]);
 
   useEffect(() => {
     setApiLocale(language);
@@ -469,6 +474,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     refreshDataRef.current = refreshData;
   }, [refreshData]);
 
+  // Poll only the data that changes during day-to-day pallet operations. The
+  // complete refresh above is still used after login and after local mutations,
+  // but repeatedly loading every client, invoice, role and every pallet page
+  // turns a two-second poll into hundreds of requests.
+  const refreshLiveData = (): Promise<void> => {
+    if (liveRefreshInFlightRef.current) {
+      return liveRefreshInFlightRef.current;
+    }
+
+    const liveRefreshRequest = (async () => {
+      if (!apiService.hasToken()) {
+        return;
+      }
+
+      const safeLoad = async <T,>(loader: () => Promise<T>, fallback: T): Promise<T> => {
+        try {
+          return await loader();
+        } catch (error) {
+          const status = (error as { status?: number }).status;
+          if (!status || status >= 500) {
+            console.error("Failed to load live API data", error);
+          }
+          return fallback;
+        }
+      };
+
+      const emptyPalletPage = {
+        items: [],
+        meta: { total: 0, limit: 50, offset: 0, count: 0 },
+      };
+      const [palletsPage, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
+        safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
+        safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
+        safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
+        safeLoad(() => apiService.pallets.stats(), null),
+      ]);
+      const shouldReplacePallets =
+        palletsPage.meta.total <= palletsPage.items.length || !hasVisiblePalletDataRef.current;
+
+      // Do not replace a full pallet cache with its first page. Merge its live
+      // changes instead, so currently visible pallet rows update immediately.
+      if (shouldReplacePallets) {
+        setPallets((current) => keepCurrentValueWhenEqual(current, palletsPage.items));
+        hasVisiblePalletDataRef.current = palletsPage.items.length > 0;
+      } else {
+        setPallets((current) => {
+          const livePalletsById = new Map(palletsPage.items.map((pallet) => [pallet.id, pallet]));
+          const mergedPallets = current.map((pallet) => livePalletsById.get(pallet.id) || pallet);
+          const knownPalletIds = new Set(current.map((pallet) => pallet.id));
+          const newPallets = palletsPage.items.filter((pallet) => !knownPalletIds.has(pallet.id));
+
+          return keepCurrentValueWhenEqual(current, [...newPallets, ...mergedPallets]);
+        });
+      }
+      setAuditLogs((current) => keepCurrentValueWhenEqual(current, auditLogsData));
+      setServiceReports((current) => keepCurrentValueWhenEqual(current, serviceReportsData));
+      setPalletDashboardStats((current) => keepCurrentValueWhenEqual(current, dashboardStatsData));
+      setNotifications((current) =>
+        keepCurrentValueWhenEqual(
+          current,
+          buildNotifications(auditLogsData, serviceReportsData, invoicesRef.current),
+        ),
+      );
+      writeAppDataCache({
+        ...(shouldReplacePallets ? { pallets: palletsPage.items } : {}),
+        auditLogs: auditLogsData,
+        serviceReports: serviceReportsData,
+        palletDashboardStats: dashboardStatsData,
+      });
+    })();
+
+    liveRefreshInFlightRef.current = liveRefreshRequest;
+    void liveRefreshRequest.finally(() => {
+      if (liveRefreshInFlightRef.current === liveRefreshRequest) {
+        liveRefreshInFlightRef.current = null;
+      }
+    });
+
+    return liveRefreshRequest;
+  };
+
+  useEffect(() => {
+    refreshLiveDataRef.current = refreshLiveData;
+  }, [refreshLiveData]);
+
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") {
       return;
@@ -487,8 +577,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      lastPollStartedAtRef.current = Date.now();
-      void refreshDataRef.current().finally(() => {
+      void refreshLiveDataRef.current().finally(() => {
         if (!isDisposed && document.visibilityState === "visible") {
           scheduleNextPoll();
         }
@@ -501,8 +590,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      const elapsed = Date.now() - lastPollStartedAtRef.current;
-      scheduleNextPoll(elapsed >= DATA_POLL_RESUME_DELAY_MS ? 0 : DATA_POLL_RESUME_DELAY_MS - elapsed);
+      // A foregrounded tab should not wait for the old 15-second cooldown.
+      // refreshLiveData coalesces in-flight requests, so this remains safe
+      // when the browser emits both visibilitychange and online together.
+      scheduleNextPoll(0);
     };
 
     document.addEventListener("visibilitychange", resumePolling);

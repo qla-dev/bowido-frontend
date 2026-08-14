@@ -73,7 +73,7 @@ import {
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import { rankSearchResults } from "../lib/searchRanking";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
-import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
+import { formatAppDate, formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 import { PasswordChangeForm } from "./PasswordChangeForm";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
@@ -935,6 +935,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     format: (value: string | number | Date) =>
       formatAppDateTime(value, language, notAvailableLabel),
   };
+  const palletTimelineDateFormatter = {
+    format: (value: string | number | Date) =>
+      formatAppDate(value, language, notAvailableLabel),
+  };
   const buildFallbackStatusLog = (pallet: Pallet): AuditLog => {
     return {
       id: -pallet.id,
@@ -1031,11 +1035,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const editingPalletStatus = statuses.find(
     (status) => status.id === editingPallet?.current_status_id,
   );
+  const editingPalletClient = clients.find(
+    (client) => client.user_id === editingPallet?.user_id,
+  );
+  const editingPalletStatusSlug = editingPallet?.current_status_slug || editingPalletStatus?.slug || "";
+  const editingPalletUsesCustomerTimer = ["bij-de-klant", "ophalen-klant"].includes(
+    editingPalletStatusSlug,
+  );
   const isEditingPalletTransportStatus =
     [2, 6].includes(editingPallet?.current_status_id || 0) ||
-    ["bih-nl-transport", "nl-bih-transport"].includes(
-      editingPalletStatus?.slug || "",
+    ["bih-nl-transport", "nl-bih-transport", "transport", "transport_bih_nl", "transport_nl_bih"].includes(
+      editingPalletStatusSlug,
     );
+  const editingPalletChangedAt = editingPallet
+    ? new Date(
+        editingPalletUsesCustomerTimer
+          ? editingPallet.customer_timer_started_at || editingPallet.last_status_changed_at
+          : editingPallet.last_status_changed_at,
+      )
+    : null;
+  const editingPalletIsAtWarehouse = Boolean(
+    editingPallet &&
+      (getFixedWarehouseLocation(
+        editingPallet.current_status_id,
+        editingPallet.current_status_name,
+      ) || ["bowido-nl", "bowido-bih", "bowido_warehouse", "bowido_nl"].includes(editingPalletStatusSlug)),
+  );
+  const editingPalletHasSentDate = Boolean(
+    editingPalletChangedAt &&
+      !Number.isNaN(editingPalletChangedAt.getTime()) &&
+      !editingPalletIsAtWarehouse,
+  );
+  const editingPalletFrozenAt = editingPalletUsesCustomerTimer && editingPallet?.customer_timer_frozen_at
+    ? new Date(editingPallet.customer_timer_frozen_at)
+    : null;
+  const editingPalletHasFrozenTimer = Boolean(
+    editingPalletFrozenAt && !Number.isNaN(editingPalletFrozenAt.getTime()),
+  );
+  const editingPalletGraceDays = editingPallet
+    ? editingPalletIsAtWarehouse
+      ? 0
+      : isEditingPalletTransportStatus
+        ? editingPallet.grace_days ?? editingPalletStatus?.grace_period_days ?? 3
+        : editingPalletStatus?.is_billable || editingPalletHasFrozenTimer
+          ? editingPallet.grace_days ?? editingPalletClient?.grace_period_days ?? editingPalletStatus?.grace_period_days ?? 0
+          : 0
+    : 0;
+  const editingPalletReturnDate =
+    editingPalletHasSentDate && editingPalletChangedAt && editingPalletGraceDays > 0
+      ? (() => {
+          const dueDate = new Date(
+            editingPalletChangedAt.getFullYear(),
+            editingPalletChangedAt.getMonth(),
+            editingPalletChangedAt.getDate(),
+          );
+          dueDate.setDate(dueDate.getDate() + editingPalletGraceDays);
+          return dueDate;
+        })()
+      : null;
+  const editingPalletTermDays =
+    editingPalletHasSentDate && editingPalletChangedAt && editingPalletGraceDays > 0
+      ? (() => {
+          const counterEnd = editingPalletHasFrozenTimer ? editingPalletFrozenAt! : new Date();
+          const changedAtMidnight = new Date(
+            editingPalletChangedAt.getFullYear(),
+            editingPalletChangedAt.getMonth(),
+            editingPalletChangedAt.getDate(),
+          );
+          const counterEndMidnight = new Date(
+            counterEnd.getFullYear(),
+            counterEnd.getMonth(),
+            counterEnd.getDate(),
+          );
+          const elapsedDays = Math.max(
+            0,
+            Math.floor((counterEndMidnight.getTime() - changedAtMidnight.getTime()) / (1000 * 60 * 60 * 24)),
+          );
+          return editingPalletGraceDays - elapsedDays;
+        })()
+      : null;
   const isEditingPalletUnknownStatus = editingPalletStatus?.slug === "onbekend";
   const editingPalletFixedLocation = editingPallet
     ? getFixedWarehouseLocation(
@@ -1043,9 +1121,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         editingPallet.current_status_name,
       )
     : undefined;
-  const editingPalletClient = clients.find(
-    (client) => client.user_id === editingPallet?.user_id,
-  );
   const editingPalletWarehouseOne = getClientWarehouseAddress(
     editingPalletClient,
     1,
@@ -2522,31 +2597,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
 
                         <div className="border-t border-gray-100 pt-6">
-                          <div className="grid gap-4 md:grid-cols-2">
+                          <div className="grid gap-4 md:grid-cols-3">
                             <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                {daysOutsideLabel}
+                                {language === "bs" ? "Datum" : language === "nl" ? "Verzonden" : "Date"}
                               </p>
                               <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                                {formatDaysOutsideValue(
-                                  calculateDays(
-                                    editingPallet.last_status_changed_at,
-                                  ),
-                                )}
+                                {editingPalletHasSentDate && editingPalletChangedAt
+                                  ? palletTimelineDateFormatter.format(editingPalletChangedAt)
+                                  : notAvailableLabel}
                               </p>
                             </div>
                             <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                {t("timestamp")}
+                                {t("returnLabel")}
                               </p>
                               <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                                {latestEditingPalletStatusLog
-                                  ? detailDateFormatter.format(
-                                      new Date(
-                                        latestEditingPalletStatusLog.created_at,
-                                      ),
-                                    )
+                                {editingPalletReturnDate
+                                  ? palletTimelineDateFormatter.format(editingPalletReturnDate)
                                   : notAvailableLabel}
+                              </p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {t("termLabel")}
+                              </p>
+                              <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                                {editingPalletTermDays === null
+                                  ? notAvailableLabel
+                                  : `${editingPalletTermDays < 0
+                                      ? `${Math.abs(editingPalletTermDays)} ${language === "bs" ? "dana preko" : language === "nl" ? "dagen over" : "days overdue"}`
+                                      : `${editingPalletTermDays} ${language === "bs" ? "dana u roku" : language === "nl" ? "dagen resterend" : "days left"}`}${editingPalletHasFrozenTimer ? ` - ${language === "bs" ? "zaustavljeno" : language === "nl" ? "bevroren" : "frozen"}` : ""}`}
                               </p>
                             </div>
                           </div>
