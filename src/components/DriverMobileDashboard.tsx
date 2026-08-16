@@ -209,6 +209,8 @@ type DriverCopy = {
   statusSavedDetailTransport: string;
   statusSavedDetailWarehouse: string;
   statusSavedDetailRepair: string;
+  clientUpdatedTitle: string;
+  clientUpdatedDetail: string;
   damageReportedTitle: string;
   damageReportedDetail: string;
   damageModalTitle: string;
@@ -279,6 +281,8 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     statusSavedDetailTransport: "The pallet is marked in transport.",
     statusSavedDetailWarehouse: "The pallet is marked at Bowido warehouse.",
     statusSavedDetailRepair: "The pallet is marked in repair.",
+    clientUpdatedTitle: "Client updated",
+    clientUpdatedDetail: "The client and return deadline have been updated.",
     damageReportedTitle: "Damage reported",
     damageReportedDetail: "The damage report is saved for this pallet.",
     damageModalTitle: "Report damage",
@@ -348,6 +352,8 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     statusSavedDetailTransport: "De bok staat nu in transport.",
     statusSavedDetailWarehouse: "De bok staat nu in Bowido magazijn.",
     statusSavedDetailRepair: "De bok staat nu in reparatie.",
+    clientUpdatedTitle: "Klant bijgewerkt",
+    clientUpdatedDetail: "De klant en retourtermijn zijn bijgewerkt.",
     damageReportedTitle: "Schade gemeld",
     damageReportedDetail: "De schademelding is opgeslagen voor deze bok.",
     damageModalTitle: "Schade melden",
@@ -418,6 +424,8 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     statusSavedDetailTransport: "Paleta je označena u transportu.",
     statusSavedDetailWarehouse: "Paleta je označena u Bowido magacinu.",
     statusSavedDetailRepair: "Paleta je označena za reparaciju.",
+    clientUpdatedTitle: "Klijent ažuriran",
+    clientUpdatedDetail: "Klijent i rok povrata su ažurirani.",
     damageReportedTitle: "Šteta prijavljena",
     damageReportedDetail: "Prijava štete je sačuvana za ovu paletu.",
     damageModalTitle: "Prijavi štetu",
@@ -1915,19 +1923,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   const persistDriverStatus = async (
     nextStatusId: number,
-    clientId?: number,
+    clientId?: number | null,
     nextLocation = selectedLocationMeta.address,
+    successMessage?: { title: string; detail: string },
   ) => {
     if (statusSaveInProgressRef.current) {
       return false;
     }
 
-    if (
-      !selectedPallet ||
-      (statusIdAllowsCustomer(statuses, nextStatusId) &&
-        !clientId &&
-        !selectedPallet.user_id)
-    ) {
+    if (!selectedPallet) {
       return false;
     }
 
@@ -1939,7 +1943,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       nextStatusId,
     );
     const nextClientId = preserveClientAssignment
-      ? (clientId ?? selectedPallet.user_id)
+      ? (clientId === undefined ? selectedPallet.user_id : clientId)
       : undefined;
     const nextStatus = statuses.find((status) => status.id === nextStatusId);
 
@@ -1970,14 +1974,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       await uploadPalletPhotos(selectedPallet, nextStatusId, nextClientId);
 
       showFlash(
-        text.statusUpdatedTitle,
-        nextStatus?.slug === "bij-de-klant"
-          ? text.statusSavedDetailAtClient
-          : nextStatus?.slug === "ophalen-klant"
-            ? text.statusSavedDetailReturn
-            : transportStatusIds.includes(nextStatusId)
+        successMessage?.title ?? text.statusUpdatedTitle,
+        successMessage?.detail ??
+          (nextStatus?.slug === "bij-de-klant"
+            ? text.statusSavedDetailAtClient
+            : nextStatus?.slug === "ophalen-klant"
+              ? text.statusSavedDetailReturn
+              : transportStatusIds.includes(nextStatusId)
                 ? text.statusSavedDetailTransport
-                : text.statusSavedDetailWarehouse,
+                : text.statusSavedDetailWarehouse),
         "success",
         1500,
       );
@@ -2060,10 +2065,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       );
     }
 
-    if (
-      nextStatus?.slug === "ophalen-klant" ||
-      (statusIdAllowsCustomer(statuses, statusId) && !nextClientId)
-    ) {
+    if (nextStatus?.slug === "ophalen-klant") {
+      // A pickup must always ask for a fresh client choice. Keeping the
+      // pallet's previous client here makes the close button accidentally
+      // save that client even though the driver never selected one.
+      setDraftClientId(undefined);
+      setOpenChangeMenu("client");
+      return;
+    }
+
+    if (statusIdAllowsCustomer(statuses, statusId) && !nextClientId) {
       setOpenChangeMenu("client");
       return;
     }
@@ -2091,6 +2102,28 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     const nextClientId = value ? Number(value) : undefined;
     setDraftClientId(nextClientId);
+
+    const isClientOnlyChange =
+      Boolean(selectedPallet) &&
+      draftStatusId === selectedPallet?.current_status_id &&
+      nextClientId !== selectedPallet?.user_id;
+
+    if (isClientOnlyChange && selectedPallet) {
+      // A client selection from the after-scan card can be the only change.
+      // Save it immediately rather than opening the location step, so the
+      // server resets the customer timer and the return/deadline card redraws.
+      setOpenChangeMenu(null);
+      void persistDriverStatus(
+        draftStatusId,
+        nextClientId,
+        selectedPallet.current_location || "",
+        {
+          title: text.clientUpdatedTitle,
+          detail: text.clientUpdatedDetail,
+        },
+      );
+      return;
+    }
 
     if (statusIdAllowsCustomer(statuses, draftStatusId) && nextClientId) {
       // A location is optional, but it is always offered after assigning a
@@ -2149,14 +2182,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const handleChangeMenuClose = () => {
+    const isClosingUnassignedClientStep =
+      openChangeMenu === "client" &&
+      !isCustomer &&
+      statusIdAllowsCustomer(statuses, draftStatusId);
     const shouldSaveStatusWithoutChangingLocation =
-      (openChangeMenu === "location" || openChangeMenu === "gps") &&
+      (openChangeMenu === "location" ||
+        openChangeMenu === "gps" ||
+        isClosingUnassignedClientStep) &&
       !statusSaveInProgressRef.current &&
       Boolean(selectedPallet) &&
       draftStatusId !== selectedPallet.current_status_id &&
       (isCustomer ||
-        (statusIdAllowsCustomer(statuses, draftStatusId) &&
-          Boolean(draftClientId)));
+        isClosingUnassignedClientStep ||
+        (statusIdAllowsCustomer(statuses, draftStatusId) && Boolean(draftClientId)));
 
     const unchangedLocation = selectedPallet?.current_location || "";
 
@@ -2203,7 +2242,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    void persistDriverStatus(draftStatusId, draftClientId, unchangedLocation);
+    // Leaving customer selection without choosing one still commits the
+    // status. Passing null clears any old client assignment; the existing
+    // location is intentionally retained and no new delivery location is
+    // created.
+    void persistDriverStatus(
+      draftStatusId,
+      isClosingUnassignedClientStep ? null : draftClientId,
+      unchangedLocation,
+    );
   };
 
   const openPalletPhotoPicker = () => {
@@ -2593,7 +2640,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
 
     if (openChangeMenu) {
-      setOpenChangeMenu(null);
+      handleChangeMenuClose();
     }
   };
 

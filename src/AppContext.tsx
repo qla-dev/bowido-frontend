@@ -51,7 +51,7 @@ interface AppContextType {
     userName: string,
     location?: string,
     note?: string,
-    clientId?: number,
+    clientId?: number | null,
   ) => Promise<Pallet | null>;
   updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
@@ -220,6 +220,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const hasVisiblePalletDataRef = useRef(pallets.length > 0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const liveRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const livePalletSyncCursorRef = useRef<string | null>(null);
   const refreshDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const refreshLiveDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const invoicesRef = useRef(invoices);
@@ -509,29 +510,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         items: [],
         meta: { total: 0, limit: 50, offset: 0, count: 0 },
       };
-      const [palletsPage, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
-        safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
+      const syncStartedAt = new Date().toISOString();
+      const palletCursor = livePalletSyncCursorRef.current;
+      let palletSyncSucceeded = true;
+      const loadLivePallets = async (): Promise<{ items: Pallet[]; total?: number }> => {
+        try {
+          if (palletCursor) {
+            return {
+              items: await apiService.pallets.list({
+                updated_since: palletCursor,
+                sort_by: 'updated_at',
+                sort_direction: 'asc',
+              }),
+            };
+          }
+
+          const firstPage = await apiService.pallets.page({ limit: 50 });
+          return { items: firstPage.items, total: firstPage.meta.total };
+        } catch (error) {
+          palletSyncSucceeded = false;
+          const status = (error as { status?: number }).status;
+          if (!status || status >= 500) {
+            console.error("Failed to load live pallet data", error);
+          }
+          return { items: [] };
+        }
+      };
+      const [livePalletResult, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
+        loadLivePallets(),
         safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
         safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
         safeLoad(() => apiService.pallets.stats(), null),
       ]);
+      const livePallets = livePalletResult.items;
       const shouldReplacePallets =
-        palletsPage.meta.total <= palletsPage.items.length || !hasVisiblePalletDataRef.current;
+        !palletCursor &&
+        ((livePalletResult.total ?? 0) <= livePallets.length || !hasVisiblePalletDataRef.current);
 
       // Do not replace a full pallet cache with its first page. Merge its live
       // changes instead, so currently visible pallet rows update immediately.
       if (shouldReplacePallets) {
-        setPallets((current) => keepCurrentValueWhenEqual(current, palletsPage.items));
-        hasVisiblePalletDataRef.current = palletsPage.items.length > 0;
+        setPallets((current) => keepCurrentValueWhenEqual(current, livePallets));
+        hasVisiblePalletDataRef.current = livePallets.length > 0;
       } else {
         setPallets((current) => {
-          const livePalletsById = new Map(palletsPage.items.map((pallet) => [pallet.id, pallet]));
+          const livePalletsById = new Map(livePallets.map((pallet) => [pallet.id, pallet]));
           const mergedPallets = current.map((pallet) => livePalletsById.get(pallet.id) || pallet);
           const knownPalletIds = new Set(current.map((pallet) => pallet.id));
-          const newPallets = palletsPage.items.filter((pallet) => !knownPalletIds.has(pallet.id));
+          const newPallets = livePallets.filter((pallet) => !knownPalletIds.has(pallet.id));
 
           return keepCurrentValueWhenEqual(current, [...newPallets, ...mergedPallets]);
         });
+      }
+      if (palletSyncSucceeded) {
+        livePalletSyncCursorRef.current = syncStartedAt;
       }
       setAuditLogs((current) => keepCurrentValueWhenEqual(current, auditLogsData));
       setServiceReports((current) => keepCurrentValueWhenEqual(current, serviceReportsData));
@@ -543,7 +575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         ),
       );
       writeAppDataCache({
-        ...(shouldReplacePallets ? { pallets: palletsPage.items } : {}),
+        ...(shouldReplacePallets ? { pallets: livePallets } : {}),
         auditLogs: auditLogsData,
         serviceReports: serviceReportsData,
         palletDashboardStats: dashboardStatsData,
@@ -717,7 +749,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     userName: string,
     location?: string,
     note?: string,
-    clientId?: number,
+    clientId?: number | null,
   ) => {
     const pallet = pallets.find((item) => item.id === palletId);
     const status = statuses.find((item) => item.id === statusId);
@@ -730,8 +762,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return null;
     }
 
+    // `undefined` means leave the current client as-is; `null` explicitly
+    // clears it. The driver can complete a status transition without choosing
+    // a client, which must display as "-" rather than retaining a stale one.
     const nextClientId = preserveClientAssignment
-      ? (clientId ?? pallet.user_id)
+      ? (clientId === undefined ? pallet.user_id : clientId)
       : undefined;
     const nextLocation = status.slug === "onbekend"
       ? ""
@@ -747,6 +782,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const timestamp = new Date().toISOString();
     const freezesCustomerTimer = previousStatus?.slug === 'bij-de-klant' && status.slug === 'ophalen-klant';
     const startsCustomerTimer = previousStatus?.slug !== 'bij-de-klant' && status.slug === 'bij-de-klant';
+    const restartsCustomerTimer =
+      nextClientId !== pallet.user_id &&
+      ['bij-de-klant', 'at_customer'].includes(status.slug);
 
     setPallets((prev) =>
       prev.map((item) => {
@@ -760,13 +798,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           current_status_name: status.name,
           current_status_slug: status.slug,
           current_location: nextLocation,
-          last_status_changed_at: timestamp,
-          customer_timer_started_at: startsCustomerTimer
+          last_status_changed_at: startsCustomerTimer || restartsCustomerTimer || previousStatus?.id !== status.id
+            ? timestamp
+            : item.last_status_changed_at,
+          customer_timer_started_at: startsCustomerTimer || restartsCustomerTimer
             ? timestamp
             : item.customer_timer_started_at || (freezesCustomerTimer ? item.last_status_changed_at : undefined),
           customer_timer_frozen_at: freezesCustomerTimer
             ? timestamp
-            : startsCustomerTimer
+            : startsCustomerTimer || restartsCustomerTimer
               ? undefined
               : item.customer_timer_frozen_at,
           user_id: nextClientId,
