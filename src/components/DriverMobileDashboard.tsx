@@ -648,6 +648,30 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const statusSaveInProgressRef = useRef(false);
 
   const text = driverCopy[language] || driverCopy.en;
+  const cameraInteractionCopy =
+    language === "bs"
+      ? {
+          ready: "Dodirnite bilo gdje u području skeniranja za osvježavanje",
+          loading: "Ponovno pokretanje kamere...",
+          inactive: "Kamera nije aktivna. Dodirnite područje skeniranja za ponovno pokretanje.",
+          denied: "Pristup kameri je blokiran. Omogućite kameru pa dodirnite područje skeniranja.",
+          unsupported: "Kamera nije podržana u ovom pregledniku.",
+        }
+      : language === "nl"
+        ? {
+            ready: "Tik ergens in het scangebied om te vernieuwen",
+            loading: "Camera wordt opnieuw gestart...",
+            inactive: "Camera is niet actief. Tik op het scangebied om opnieuw te starten.",
+            denied: "Cameratoegang is geblokkeerd. Sta camera toe en tik op het scangebied.",
+            unsupported: "Camera wordt niet ondersteund in deze browser.",
+          }
+        : {
+            ready: "Tap anywhere in the scan area to refresh",
+            loading: "Restarting camera...",
+            inactive: "Camera is inactive. Tap the scan area to restart.",
+            denied: "Camera access is blocked. Allow it, then tap the scan area.",
+            unsupported: "Camera is not supported in this browser.",
+          };
   const isCustomer = user.role_name === RoleType.KLIJENT;
   const noQrReturnCopy = getNoQrReturnButtonCopy(language);
   const allDriverPallets = pallets;
@@ -2390,8 +2414,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    return;
+    if (cameraState === "unsupported") {
+      return;
+    }
+
+    setCameraState("loading");
+    setCameraRestartKey((current) => current + 1);
   };
+
+  const cameraInteractionMessage =
+    cameraState === "ready" || cameraState === "preview"
+      ? cameraInteractionCopy.ready
+      : cameraState === "loading"
+        ? cameraInteractionCopy.loading
+        : cameraState === "unsupported"
+          ? cameraInteractionCopy.unsupported
+          : cameraState === "denied"
+            ? cameraInteractionCopy.denied
+          : cameraInteractionCopy.inactive;
 
   const handleScannerFrameKeyDown = (
     event: React.KeyboardEvent<HTMLDivElement>,
@@ -2600,8 +2640,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key="scanner-view"
-                role="button"
-                tabIndex={0}
+                 role="button"
+                 tabIndex={0}
+                 aria-label={cameraInteractionMessage}
+                 title={cameraInteractionMessage}
                 onClick={handleScannerFrameClick}
                 onKeyDown={handleScannerFrameKeyDown}
                 onTouchStart={handleScannerFrameTouchStart}
@@ -2654,7 +2696,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     repeat: Infinity,
                     ease: "easeInOut",
                   }}
-                  className="absolute left-7 top-7 h-14 w-14 rounded-tl-[1.2rem] border-l-4 border-t-4 border-emerald-400/95"
+                  className="absolute left-7 top-12 h-14 w-14 rounded-tl-[1.2rem] border-l-4 border-t-4 border-emerald-400/95"
                 />
                 <motion.div
                   animate={{ opacity: [0.8, 1, 0.8] }}
@@ -2664,7 +2706,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     ease: "easeInOut",
                     delay: 0.12,
                   }}
-                  className="absolute right-7 top-7 h-14 w-14 rounded-tr-[1.2rem] border-r-4 border-t-4 border-emerald-400/95"
+                  className="absolute right-7 top-12 h-14 w-14 rounded-tr-[1.2rem] border-r-4 border-t-4 border-emerald-400/95"
                 />
                 <motion.div
                   animate={{ opacity: [0.8, 1, 0.8] }}
@@ -2688,6 +2730,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 />
 
                 <div className="trackpal-scan-line" />
+
+                <div
+                  role="status"
+                  className="camera-refresh-message pointer-events-none absolute left-1/2 top-3 z-20 max-w-[calc(100%-5rem)] -translate-x-1/2 bg-transparent px-1 text-center text-[9px] font-black uppercase leading-3 tracking-[0.08em] text-white"
+                >
+                  {cameraInteractionMessage}
+                </div>
 
                 {isScanning || cameraState === "loading" ? (
                   <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/60">

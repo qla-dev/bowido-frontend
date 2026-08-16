@@ -1200,6 +1200,12 @@ body:has([data-lock-scroll-modal="true"]) #driver-app-container main {
   position: relative;
 }
 
+.camera-refresh-message {
+  text-shadow:
+    0 1px 3px rgb(0 0 0 / 0.95),
+    0 0 10px rgb(0 0 0 / 0.8);
+}
+
 .mobile-pallet-sticky-column {
   display: flex;
   width: calc(100% + 0.75rem);
