@@ -2820,15 +2820,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     {cameraZoom.toFixed(1)}x
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={restartCamera}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-200"
-                      aria-label={cameraRestartLabel}
-                      title={cameraRestartLabel}
-                    >
-                      <RefreshCcw size={13} />
-                    </button>
                     {isTorchSupported && (
                       <button
                         type="button"
