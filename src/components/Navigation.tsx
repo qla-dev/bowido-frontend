@@ -553,6 +553,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
       items.push(
         { id: 'no-qr-pallets', label: t('sidebarNoQrPallets'), icon: <NoQrCodeIcon /> },
         { id: 'invoices', label: t('billing'), icon: <ClipboardList /> },
+        { id: 'gallery', label: t('imageGallery'), icon: <Images /> },
       );
     }
 

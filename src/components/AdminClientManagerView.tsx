@@ -249,11 +249,13 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     setIsClientPalletsLoading(true);
 
     void apiService.pallets
-      .list({ user_id: selectedRow.client.user_id })
+      .list({ user_id: selectedRow.client.user_id, has_qr_code: true })
       .then((clientPallets) => {
         if (isMounted) {
           setSelectedClientPallets(
-            clientPallets.filter((pallet) => statusIdAllowsCustomer(statuses, pallet.current_status_id))
+            clientPallets.filter(
+              (pallet) => !pallet.is_ghost && pallet.has_qr_code && statusIdAllowsCustomer(statuses, pallet.current_status_id),
+            )
           );
         }
       })
@@ -465,7 +467,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     () =>
       clients.map((client, index) => {
         const clientPallets = pallets.filter((pallet) =>
-          pallet.user_id === client.user_id && statusIdAllowsCustomer(statuses, pallet.current_status_id)
+          pallet.user_id === client.user_id
+            && pallet.has_qr_code
+            && !pallet.is_ghost
+            && statusIdAllowsCustomer(statuses, pallet.current_status_id)
         );
         const overdueData = clientPallets.reduce(
           (total, pallet) => {

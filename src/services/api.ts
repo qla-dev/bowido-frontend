@@ -546,6 +546,7 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
 
 const normalizePallet = (pallet: ApiRecord): Pallet => {
   const status = pallet.current_status ? normalizeStatus(pallet.current_status) : undefined;
+  const isGhost = toBoolean(pallet.is_ghost);
   const currentStatusId = status?.id || uiStatusIdByBackendId.get(Number(pallet.current_status_id)) || Number(pallet.current_status_id);
   const currentStatusName = status?.name || pallet.current_status_name || statusUiByName[pallet.current_status_name]?.name || 'Onbekend';
   const palletDisplayName = pallet.pallet_name || pallet.reference_code || pallet.qr_code || '';
@@ -557,9 +558,9 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
 
   return {
     id: Number(pallet.id),
-    // No-QR pallet records deliberately have no qr_code in the database; use
-    // their generated display name in the UI so they remain identifiable.
-    qr_code: pallet.qr_code || palletDisplayName,
+    // A generated pallet name (such as PWNQRC-0002) is only an internal
+    // reference for a no-QR pallet; it must not be presented as a QR code.
+    qr_code: isGhost ? '' : pallet.qr_code || palletDisplayName,
     reference_code: pallet.reference_code || undefined,
     pallet_name: palletDisplayName || undefined,
     current_status_id: currentStatusId,
@@ -570,8 +571,8 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     client_deleted: toBoolean(pallet.client_deleted),
     type: pallet.type || pallet.asset_type || 'invullen!',
     current_location: pallet.current_location || '',
-    has_qr_code: toBoolean(pallet.has_qr_code) || (typeof pallet.qr_code === 'string' && pallet.qr_code.trim() !== ''),
-    is_ghost: toBoolean(pallet.is_ghost),
+    has_qr_code: !isGhost && (toBoolean(pallet.has_qr_code) || (typeof pallet.qr_code === 'string' && pallet.qr_code.trim() !== '')),
+    is_ghost: isGhost,
     is_for_repair: toBoolean(pallet.is_for_repair),
     is_active: toBoolean(pallet.is_active),
     last_status_changed_at: pallet.last_status_changed_at || pallet.updated_at || new Date().toISOString(),
@@ -840,7 +841,7 @@ const toPalletPayload = (pallet: Partial<Pallet>) => ({
   current_status_id: toBackendStatusId(Number(pallet.current_status_id ?? 8)),
   type: pallet.type || pallet.asset_type || 'invullen!',
   asset_type: pallet.asset_type || pallet.type || 'invullen!',
-  qr_code: pallet.qr_code,
+  qr_code: pallet.is_ghost ? null : pallet.qr_code,
   pallet_name: pallet.pallet_name || pallet.reference_code || pallet.qr_code,
   reference_code: pallet.reference_code,
   current_location: pallet.current_location || '',

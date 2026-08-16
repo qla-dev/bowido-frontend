@@ -17,7 +17,9 @@ interface ClientDashboardProps {
 export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTab = 'dashboard', onNavigateHome }) => {
   const { pallets, statuses, clients, setIsGhostReportOpen, setIsScannerOpen, t, updateCustomerPalletTracking, language } = useApp();
 
-  const clientPallets = pallets.filter((pallet) => pallet.user_id === user.id);
+  const clientPallets = pallets.filter(
+    (pallet) => pallet.user_id === user.id && pallet.has_qr_code && !pallet.is_ghost,
+  );
   const clientInfo = clients.find((client) => client.user_id === user.id);
 
   const calculateDays = (dateStr: string, frozenAt?: string) => {

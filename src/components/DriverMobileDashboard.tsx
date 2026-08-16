@@ -662,6 +662,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       : language === "nl"
         ? "Camera opnieuw starten"
         : "Restart camera";
+  const cameraRefreshLabel =
+    language === "bs" ? "Osvježi" : language === "nl" ? "Vernieuwen" : "Refresh";
   const inactiveCameraPrompt =
     language === "bs"
       ? "Dodirnite za skeniranje"
@@ -1815,6 +1817,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       : statusIdAllowsCustomer(statuses, pallet.current_status_id)
         ? pallet.user_id
         : undefined;
+    const photoStatus = statuses.find((status) => status.id === nextStatusId)
+      ?? statuses.find((status) => status.id === pallet.current_status_id);
+    const isDeliveryPhoto = photoStatus?.slug === 'bij-de-klant' && Boolean(photoClientId);
 
     photosToUpload.forEach((photo) =>
       palletPhotoUploadIdsRef.current.add(photo.id),
@@ -1829,11 +1834,13 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     const results = await Promise.allSettled(
       photosToUpload.map((photo) =>
-        apiService.palletPhotos.uploadScan(pallet.id, photo.file, {
-          old_status_id: pallet.current_status_id,
-          new_status_id: nextStatusId,
-          client_id: photoClientId,
-        }),
+        isDeliveryPhoto
+          ? apiService.pallets.uploadDeliveryPhoto(pallet.id, photo.file)
+          : apiService.palletPhotos.uploadScan(pallet.id, photo.file, {
+              old_status_id: pallet.current_status_id,
+              new_status_id: nextStatusId,
+              client_id: photoClientId,
+            }),
       ),
     );
 
@@ -2712,11 +2719,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 <button
                   type="button"
                   onClick={restartCamera}
-                  className="absolute left-5 top-5 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-white/35 bg-emerald-950/55 text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-emerald-800/85 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  className="absolute bottom-4 left-1/2 z-20 flex h-10 -translate-x-1/2 items-center justify-center rounded-xl border border-white/30 bg-emerald-950/55 px-4 font-display text-xs uppercase tracking-[0.14em] text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-emerald-800/85 focus:outline-none focus:ring-2 focus:ring-emerald-300"
                   aria-label={cameraRestartLabel}
                   title={cameraRestartLabel}
                 >
-                  <RefreshCcw size={18} />
+                  {cameraRefreshLabel}
                 </button>
                 {(cameraState === "ready" || cameraState === "preview") && (
                   <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">

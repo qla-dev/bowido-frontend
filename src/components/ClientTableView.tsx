@@ -78,6 +78,17 @@ type MobileClientPalletItem = {
   overdueCost: number;
 };
 
+const isAtClientStatus = (pallet: Pallet) =>
+  pallet.current_status_id === 4 ||
+  ['bij-de-klant', 'at_customer', 'at-client'].includes(pallet.current_status_slug || '');
+
+const isCustomerPickupStatus = (pallet: Pallet) =>
+  pallet.current_status_id === 5 ||
+  ['ophalen-klant', 'pending_return'].includes(pallet.current_status_slug || '');
+
+const isClientPossessionStatus = (pallet: Pallet) =>
+  isAtClientStatus(pallet) || isCustomerPickupStatus(pallet);
+
 const CLIENT_TABLE_COLUMN_ORDER = [
   'kvk',
   'warehouses',
@@ -255,11 +266,13 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const overdueTotalHeaderLabel = t('overdueTotal');
   const atClientHeaderLabel = t('atClientLabel');
   const returnReportsHeaderLabel = t('returnReports');
-  const mobileProfileLabel = t('clientProfile');
+  const mobileGracePeriodLabel = t('gracePeriodLabel');
   const mobileOverviewLabel = t('palletOverview');
   const mobileReportedPalletsLabel = t('reportedPallets');
   const mobileWithQrLabel = t('withQr');
   const mobileWithoutQrLabel = t('withoutQrCode');
+  const mobileInUseLabel = t('inUse');
+  const mobileForPickupLabel = t('forClientPickup');
   const mobilePalletsAtClientLabel = t('palletsAtClient');
   const mobileOverdueDaysLabel = t('totalOverdueDays');
   const mobileTotalDebtLabel = t('totalDebt');
@@ -311,7 +324,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         ? {
             compact: 'Compact',
             full: 'Volledige tabel',
-            search: 'Zoek pallets...',
+            search: 'Zoek bokken...',
             allStatuses: 'Alle statussen',
             timeInStatus: 'Tijd in status',
             days: 'dagen',
@@ -429,8 +442,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const rows = useMemo<ClientTableRow[]>(
     () =>
       filteredClients.map((client) => {
-        const clientPallets = pallets.filter((pallet) => pallet.user_id === client.user_id);
-        const palletsAtClient = clientPallets.filter((pallet) => pallet.current_status_id === 4);
+        const assignedClientPallets = pallets.filter(
+          (pallet) => pallet.user_id === client.user_id,
+        );
+        const clientPallets = pallets.filter(
+          (pallet) => pallet.user_id === client.user_id && pallet.has_qr_code && !pallet.is_ghost,
+        );
         const returnReports = clientPallets.filter((pallet) => pallet.current_status_id === 5);
         const overdueTotalValue = clientPallets.reduce(
           (total, pallet) => total + getPalletOverdueCost(pallet, client),
@@ -448,8 +465,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           rateValue: client.price_per_day,
           overdueTotalLabel: `EUR ${currencyFormatter.format(overdueTotalValue)}`,
           overdueTotalValue,
-          atClientLabel: `${palletsAtClient.length}`,
-          atClientCount: palletsAtClient.length,
+          atClientLabel: `${assignedClientPallets.length}`,
+          atClientCount: assignedClientPallets.length,
           returnReportsLabel: `${returnReports.length}`,
           returnReportsCount: returnReports.length,
         };
@@ -558,7 +575,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     }
 
     return pallets
-      .filter((pallet) => pallet.user_id === mobileClientRow.client.user_id)
+      .filter((pallet) => pallet.user_id === mobileClientRow.client.user_id && pallet.has_qr_code && !pallet.is_ghost)
       .map((pallet) => ({
         pallet,
         daysOutside: getDaysSince(pallet.last_status_changed_at),
@@ -578,14 +595,45 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   }, [mobileClientRow, pallets, statuses]);
 
   const mobileQrPallets = useMemo(
-    () => mobileClientPallets.filter(({ pallet }) => !pallet.is_ghost),
+    () => mobileClientPallets,
     [mobileClientPallets]
   );
 
-  const mobileNoQrPallets = useMemo(
-    () => mobileClientPallets.filter(({ pallet }) => pallet.is_ghost),
-    [mobileClientPallets]
-  );
+  const mobileNoQrPallets = useMemo<MobileClientPalletItem[]>(() => {
+    if (!mobileClientRow) {
+      return [];
+    }
+
+    return pallets
+      .filter(
+        (pallet) =>
+          pallet.user_id === mobileClientRow.client.user_id &&
+          pallet.is_ghost &&
+          isClientPossessionStatus(pallet),
+      )
+      .map((pallet) => ({
+        pallet,
+        daysOutside: getDaysSince(pallet.last_status_changed_at),
+        overdueDays: getPalletOverdueDays(pallet, mobileClientRow.client),
+        overdueCost: getPalletOverdueCost(pallet, mobileClientRow.client),
+      }))
+      .sort(
+        (left, right) =>
+          new Date(right.pallet.last_status_changed_at).getTime() -
+          new Date(left.pallet.last_status_changed_at).getTime(),
+      );
+  }, [mobileClientRow, pallets, statuses]);
+
+  const mobileClientStatusCounts = useMemo(() => {
+    const clientPallets = mobileClientRow
+      ? pallets.filter((pallet) => pallet.user_id === mobileClientRow.client.user_id)
+      : [];
+
+    return {
+      inUse: clientPallets.filter(isAtClientStatus).length,
+      forPickup: clientPallets.filter(isCustomerPickupStatus).length,
+    };
+  }, [mobileClientRow, pallets]);
 
   const mobileTotalOverdueDays = mobileClientPallets.reduce(
     (total, item) => total + item.overdueDays,
@@ -637,7 +685,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const activeMobilePalletTitle =
     activeMobilePalletList === 'withoutQr' ? mobileWithoutQrLabel : mobileWithQrLabel;
   const activeMobilePalletEmptyLabel =
-    activeMobilePalletList === 'withoutQr' ? mobileNoQrListEmptyLabel : mobileWithQrListEmptyLabel;
+    activeMobilePalletList === 'withoutQr' ? mobileNoQrEmptyLabel : mobileWithQrListEmptyLabel;
   const getMobilePalletDate = (item: MobileClientPalletItem) =>
     mobileDateFormatter.format(
       new Date(item.pallet.is_ghost ? item.pallet.created_at : item.pallet.last_status_changed_at)
@@ -845,10 +893,10 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
                 <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                  {mobileProfileLabel}
+                  {mobileGracePeriodLabel}
                 </p>
                 <p className="mt-2 text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                  {mobileClientRow.clientName}
+                  {mobileClientRow.client.grace_period_days} {t('days')}
                 </p>
               </div>
               <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3 dark:border-white/10 dark:bg-[#151d1a]">
@@ -922,6 +970,24 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     {mobileNoQrPallets.length}
                   </span>
                 </button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[#151d1a] dark:text-white">
+                  <span>
+                    {mobileInUseLabel}
+                  </span>
+                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#101715] dark:text-[#d5f1de]">
+                    {mobileClientStatusCounts.inUse}
+                  </span>
+                </div>
+                <div className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[#151d1a] dark:text-white">
+                  <span>
+                    {mobileForPickupLabel}
+                  </span>
+                  <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-700 dark:bg-[#101715] dark:text-[#d5f1de]">
+                    {mobileClientStatusCounts.forPickup}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1061,9 +1127,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     ) : mobilePalletDisplayMode === 'compact' ? (
                       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-2">
                         {activeMobilePalletItems.map((item, index) => {
-                          const statusLabel = item.pallet.is_ghost
-                            ? mobileStatusVoorRetourLabel
-                            : getStatusLabel(item.pallet.current_status_name, language);
+                          const statusLabel = getStatusLabel(item.pallet.current_status_name, language);
                           const isOverdue = item.overdueDays > 0;
 
                           return (
@@ -1147,7 +1211,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                   {index + 1}
                                 </span>
                                 <span className="inline-flex min-h-[1.25rem] items-center justify-center text-center text-[9px] font-bold uppercase leading-none tracking-[0.08em] text-zinc-500 dark:text-[#d8e8de]">
-                                  {mobileStatusVoorRetourLabel}
+                                  {getStatusLabel(item.pallet.current_status_name, language)}
                                 </span>
                                 <span className="inline-flex items-center justify-end text-right text-[10px] font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white">
                                   {getMobilePalletDate(item)}
@@ -1293,9 +1357,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         {t('status')}
                       </p>
                       <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {selectedMobilePallet.view === 'withoutQr'
-                          ? mobileStatusVoorRetourLabel
-                          : getStatusLabel(selectedMobilePallet.item.pallet.current_status_name, language)}
+                        {getStatusLabel(selectedMobilePallet.item.pallet.current_status_name, language)}
                       </p>
                     </div>
                     <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">

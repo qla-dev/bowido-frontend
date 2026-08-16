@@ -24,6 +24,8 @@ import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
 import { rankSearchResults } from '../lib/searchRanking';
+import { SearchableSelect } from './SearchableSelect';
+import { appAlert } from './AppAlert';
 
 type NoQrColumnKey =
   | 'serial'
@@ -132,6 +134,14 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
     language === 'bs' ? 'Dodijeljeni klijent' : language === 'nl' ? 'Toegewezen klant' : 'Assigned client';
   const saveLabel =
     language === 'bs' ? 'Sačuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes';
+  const statusChangedTitle =
+    language === 'bs' ? 'Status je promijenjen' : language === 'nl' ? 'Status gewijzigd' : 'Status changed';
+  const statusChangedText = (status: string) =>
+    language === 'bs'
+      ? `Status palete bez QR koda je promijenjen u „${status}“.`
+      : language === 'nl'
+        ? `De status van de bok zonder QR-code is gewijzigd naar '${status}'.`
+        : `The pallet without a QR code now has status “${status}”.`;
   const deleteLabel =
     language === 'bs' ? 'Obriši paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
   const deleteConfirmLabel =
@@ -179,6 +189,13 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
     width: number;
     maxHeight: number;
   } | null>(null);
+
+  const openPalletEditor = (pallet: Pallet) => {
+    setEditingPallet({
+      ...pallet,
+      note: formatSystemNote(pallet.note, language),
+    });
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -667,14 +684,14 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                   onClick={() => {
                     if (readOnly) return;
                     setOpenFilterKey(null);
-                    setEditingPallet(row.pallet);
+                    openPalletEditor(row.pallet);
                   }}
                   onKeyDown={(event) => {
                     if (readOnly) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       setOpenFilterKey(null);
-                      setEditingPallet(row.pallet);
+                      openPalletEditor(row.pallet);
                     }
                   }}
                   tabIndex={readOnly ? -1 : 0}
@@ -825,11 +842,21 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                 <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
                   {assignedClientLabel}
                 </label>
-                <select
-                  value={editingPallet.user_id || ''}
+                <SearchableSelect
+                  value={String(editingPallet.user_id || '')}
                   disabled={!statusIdAllowsCustomer(statuses, editingPallet.current_status_id)}
-                  onChange={(event) => {
-                    const userId = event.target.value ? Number(event.target.value) : undefined;
+                  ariaLabel={assignedClientLabel}
+                  searchPlaceholder={searchPlaceholder}
+                  noResultsLabel={noResultsLabel}
+                  options={[
+                    { value: '', label: t('noClient') },
+                    ...clients.map((client) => ({
+                      value: String(client.user_id),
+                      label: client.name,
+                    })),
+                  ]}
+                  onChange={(value) => {
+                    const userId = value ? Number(value) : undefined;
                     const clientName = clients.find((client) => client.user_id === userId)?.name;
                     setEditingPallet({
                       ...editingPallet,
@@ -837,55 +864,40 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                       client_name: clientName,
                     });
                   }}
-                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"
-                >
-                  <option value="">{t('noClient')}</option>
-                  {clients.map((client) => (
-                    <option key={`no-qr-edit-client-${client.id}`} value={client.user_id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
                   {t('status')}
                 </label>
-                <select
-                  value={editingPallet.current_status_id}
-                  onChange={(event) => {
-                    const statusId = Number(event.target.value);
+                <SearchableSelect
+                  value={String(editingPallet.current_status_id)}
+                  ariaLabel={t('status')}
+                  searchPlaceholder={searchPlaceholder}
+                  noResultsLabel={noResultsLabel}
+                  options={statuses.map((status) => ({
+                    value: String(status.id),
+                    label: getStatusLabel(status.name, language),
+                  }))}
+                  onChange={(value) => {
+                    const statusId = Number(value);
                     const statusName =
                       statuses.find((status) => status.id === statusId)?.name ||
                       editingPallet.current_status_name;
+                    const nextStatusAllowsCustomer = statusIdAllowsCustomer(statuses, statusId);
                     setEditingPallet({
                       ...editingPallet,
                       current_status_id: statusId,
                       current_status_name: statusName,
-                      user_id:
-                        statusIdAllowsCustomer(statuses, statusId) &&
-                        statusIdAllowsCustomer(statuses, editingPallet.current_status_id)
-                          ? editingPallet.user_id
-                          : undefined,
-                      client_name:
-                        statusIdAllowsCustomer(statuses, statusId) &&
-                        statusIdAllowsCustomer(statuses, editingPallet.current_status_id)
-                          ? editingPallet.client_name
-                          : undefined,
-                      current_location: statusIdAllowsCustomer(statuses, statusId)
+                      user_id: nextStatusAllowsCustomer ? editingPallet.user_id : undefined,
+                      client_name: nextStatusAllowsCustomer ? editingPallet.client_name : undefined,
+                      current_location: nextStatusAllowsCustomer
                         ? ''
                         : editingPallet.current_location,
                     });
                   }}
-                  className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"
-                >
-                  {statuses.map((status) => (
-                    <option key={`no-qr-edit-status-${status.id}`} value={status.id}>
-                      {getStatusLabel(status.name, language)}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 
@@ -915,8 +927,22 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                 type="button"
                 onClick={async () => {
                   try {
-                    await updatePallet(editingPallet);
+                    const previousStatusId = pallets.find(
+                      (pallet) => pallet.id === editingPallet.id,
+                    )?.current_status_id;
+                    const updatedPallet = await updatePallet(editingPallet);
+                    const statusWasChanged = previousStatusId !== editingPallet.current_status_id;
                     setEditingPallet(null);
+
+                    if (statusWasChanged) {
+                      await appAlert.fire({
+                        icon: 'success',
+                        title: statusChangedTitle,
+                        text: statusChangedText(
+                          getStatusLabel(updatedPallet.current_status_name, language),
+                        ),
+                      });
+                    }
                   } catch (error) {
                     console.error('Failed to save no-QR pallet', error);
                   }

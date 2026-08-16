@@ -229,6 +229,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     limit: CLIENT_PALLET_PAGE_SIZE,
     offset,
     user_id: client.user_id,
+    has_qr_code: true,
     search: debouncedSearchQuery || undefined,
     sort_by: sortConfig.key,
     sort_direction: sortConfig.direction,
@@ -260,7 +261,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const rows = useMemo<PalletRow[]>(
     () =>
       pallets
-        .filter((pallet) => pallet.user_id === client.user_id)
+        .filter((pallet) => pallet.user_id === client.user_id && pallet.has_qr_code && !pallet.is_ghost)
         .map((pallet) => {
           const status = statuses.find((item) => item.id === pallet.current_status_id);
           const statusSlug = pallet.current_status_slug || '';

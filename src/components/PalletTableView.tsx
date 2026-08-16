@@ -272,7 +272,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     setPagedPallets((current) =>
       current
         .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
-        .filter((pallet) => pallet.has_qr_code)
+        .filter((pallet) => pallet.has_qr_code && !pallet.is_ghost)
     );
   }, [cachedPallets]);
 
