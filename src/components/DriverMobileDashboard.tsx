@@ -2571,7 +2571,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         "mx-auto flex min-h-full w-full max-w-md flex-col",
         selectedPallet && "driver-scan-result-active h-full min-h-0 overflow-hidden",
         isScannerOpen
-          ? "gap-4 pb-0"
+          ? "h-full min-h-0 gap-2 overflow-hidden pb-[calc(env(safe-area-inset-bottom)+4.25rem)]"
           : "gap-0 pb-[calc(env(safe-area-inset-bottom)+4rem)]",
       )}
     >
@@ -2579,7 +2579,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         <div
           onPointerDownCapture={deferCameraDetectionForInteraction}
           onKeyDownCapture={deferCameraDetectionForInteraction}
-          className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-1 pt-0 transition-all duration-500"
+          className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-0 pt-0 transition-all duration-500"
         >
           <input
             ref={scanImageInputRef}
@@ -2590,7 +2590,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             onChange={handleScanImageChange}
           />
 
-          <div className="px-1 pt-1 pb-5 text-center">
+          <div className="px-1 pb-2 pt-1 text-center">
             <p className="text-[13px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
               {text.title}
             </p>
@@ -2724,8 +2724,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             )}
 
             {(cameraState === "ready" || cameraState === "preview") && (
-              <div className="mx-auto mt-4 w-3/4 rounded-xl border border-emerald-200 bg-white p-3 dark:border-white/10 dark:bg-[#151d1a]">
-                <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="mx-auto mt-2 w-[72%] rounded-xl border border-emerald-200 bg-white px-2.5 py-2 dark:border-white/10 dark:bg-[#151d1a]">
+                <div className="mb-1 flex items-center justify-between gap-2">
                   <label
                     htmlFor="driver-camera-zoom"
                     className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400"
@@ -2744,14 +2744,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       type="button"
                       onClick={() => void toggleCameraTorch()}
                       className={cn(
-                        "flex h-8 items-center gap-1.5 rounded-lg border px-2 text-[9px] font-black uppercase tracking-wider transition-colors",
+                        "flex h-7 items-center gap-1 rounded-lg border px-2 text-[8px] font-black uppercase tracking-wider transition-colors",
                         isTorchOn
                           ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-300/30 dark:bg-amber-400/10 dark:text-amber-200"
                           : "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300",
                       )}
                       aria-pressed={isTorchOn}
                     >
-                      {isTorchOn ? <FlashlightOff size={13} /> : <Flashlight size={13} />}
+                      {isTorchOn ? <FlashlightOff size={12} /> : <Flashlight size={12} />}
                       {language === "bs" ? "Lampa" : language === "nl" ? "Lamp" : "Torch"}
                     </button>
                   )}
@@ -2771,7 +2771,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   onPointerCancel={resumeCameraDetectionAfterControl}
                   onFocus={pauseCameraDetectionForControl}
                   onBlur={resumeCameraDetectionAfterControl}
-                  className="h-2 w-full touch-none cursor-pointer accent-[#00A655]"
+                  className="h-1.5 w-full touch-none cursor-pointer accent-[#00A655]"
                   aria-label={language === "bs" ? "Zoom kamere" : "Camera zoom"}
                 />
               </div>
