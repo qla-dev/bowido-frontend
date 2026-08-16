@@ -59,6 +59,49 @@ export const qrCameraConstraintAttempts: MediaStreamConstraints[] = [
 const getVideoTrack = (stream: MediaStream | null | undefined) =>
   stream?.getVideoTracks()[0] as ExtendedVideoTrack | undefined;
 
+export const isQrCameraStreamLive = (stream: MediaStream | null | undefined): boolean =>
+  Boolean(
+    stream?.active &&
+    stream.getVideoTracks().some((track) => track.readyState === 'live'),
+  );
+
+export const playQrCameraStream = async (
+  video: HTMLVideoElement,
+  stream: MediaStream,
+): Promise<void> => {
+  video.srcObject = stream;
+  await video.play();
+
+  if (!isQrCameraStreamLive(stream)) {
+    throw new Error('The camera stream ended before video playback started.');
+  }
+
+  if (
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    video.videoWidth > 0 &&
+    video.videoHeight > 0
+  ) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => finish(false), 3000);
+    const finish = (ready: boolean) => {
+      window.clearTimeout(timeoutId);
+      video.removeEventListener('loadeddata', handleReady);
+      video.removeEventListener('canplay', handleReady);
+      video.removeEventListener('error', handleError);
+      ready && isQrCameraStreamLive(stream) ? resolve() : reject(new Error('The camera did not produce a video frame.'));
+    };
+    const handleReady = () => finish(video.videoWidth > 0 && video.videoHeight > 0);
+    const handleError = () => finish(false);
+
+    video.addEventListener('loadeddata', handleReady, { once: true });
+    video.addEventListener('canplay', handleReady, { once: true });
+    video.addEventListener('error', handleError, { once: true });
+  });
+};
+
 export const configureQrCamera = async (stream: MediaStream): Promise<QrCameraFeatures> => {
   const track = getVideoTrack(stream);
 

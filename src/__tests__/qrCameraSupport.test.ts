@@ -1,12 +1,28 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   configureQrCamera,
+  isQrCameraStreamLive,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
   setQrCameraZoom,
 } from '../lib/qrCameraSupport';
 
 describe('QR camera support', () => {
+  it('recognizes whether a camera stream can still provide frames', () => {
+    const liveStream = {
+      active: true,
+      getVideoTracks: () => [{ readyState: 'live' }],
+    } as unknown as MediaStream;
+    const endedStream = {
+      active: true,
+      getVideoTracks: () => [{ readyState: 'ended' }],
+    } as unknown as MediaStream;
+
+    expect(isQrCameraStreamLive(liveStream)).toBe(true);
+    expect(isQrCameraStreamLive(endedStream)).toBe(false);
+    expect(isQrCameraStreamLive(null)).toBe(false);
+  });
+
   it('prefers a high-resolution rear camera before compatibility fallbacks', () => {
     const firstVideoConstraints = qrCameraConstraintAttempts[0].video as MediaTrackConstraints;
 

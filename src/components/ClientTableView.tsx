@@ -255,6 +255,18 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const mobileReturnDateLabel = t('returnDate');
   const mobileCommentLabel = t('comment');
   const mobileStatusVoorRetourLabel = t('forReturn');
+  const mobileRotateHint =
+    language === 'bs'
+      ? 'Za bolji pregled okrenite telefon vodoravno.'
+      : language === 'nl'
+        ? 'Draai je telefoon voor een beter overzicht.'
+        : 'For a better view, rotate your screen.';
+  const mobileScrollHint =
+    language === 'bs'
+      ? 'Prevucite tabelu lijevo ili desno za sve kolone.'
+      : language === 'nl'
+        ? 'Veeg de tabel naar links of rechts om alle kolommen te zien.'
+        : 'Swipe the table left or right to see every column.';
   const resizeAriaLabel = t('resizeColumn');
   const stickyActionsHeaderClass =
     'sticky right-0 z-20 border-l border-zinc-200 bg-zinc-50/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur';
@@ -847,22 +859,31 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 onClose={closeMobilePalletListModal}
                 title={mobileClientRow.clientName}
                 subtitle={activeMobilePalletTitle}
-                width="sm"
-                overlayClassName="z-[110] items-center p-4"
-                contentClassName="h-auto max-h-[82dvh] max-w-sm rounded-[1.75rem] border border-emerald-100 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10"
-                bodyClassName="bg-zinc-50/80 px-4 py-3 dark:bg-[#070b0a]"
+                width="lg"
+                overlayClassName="z-[110]"
+                contentClassName="md:h-[90dvh] md:max-w-5xl"
+                bodyClassName="overflow-hidden bg-zinc-50/80 px-3 py-3 dark:bg-[#070b0a] sm:px-4"
               >
                 {activeMobilePalletItems.length > 0 ? (
-                  <div className="overflow-hidden rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#151d1a]">
-                    {activeMobilePalletList === 'withoutQr' ? (
-                      <>
-                        <div className="grid grid-cols-[42px_minmax(0,1fr)_82px] items-center gap-2 border-b border-zinc-100 px-3 py-2.5 text-[8px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:border-white/10 dark:text-[#9fcbb3]">
+                  <div className="flex h-full min-h-0 flex-col gap-3">
+                    <div className="flex shrink-0 items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100">
+                      <RotateCcw size={16} className="mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em]">{mobileRotateHint}</p>
+                        <p className="mt-1 text-[10px] font-semibold normal-case leading-4 opacity-75">{mobileScrollHint}</p>
+                      </div>
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#151d1a]">
+                      {activeMobilePalletList === 'withoutQr' ? (
+                        <div className="min-w-[560px]">
+                        <div className="sticky top-0 z-10 grid grid-cols-[80px_minmax(180px,1fr)_160px] items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
                           <span className="text-center leading-none">{mobilePalletNumberLabel}</span>
                           <span className="text-center leading-none">{t('status')}</span>
                           <span className="text-right leading-none">{mobileReturnDateLabel}</span>
                         </div>
 
-                        <ul className="max-h-[56vh] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/10">
+                        <ul className="divide-y divide-zinc-100 dark:divide-white/10">
                           {activeMobilePalletItems.map((item, index) => (
                             <li key={`client-mobile-noqr-${item.pallet.id}`}>
                               <button
@@ -874,7 +895,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                     view: 'withoutQr',
                                   })
                                 }
-                                className="grid min-h-[3.1rem] w-full grid-cols-[42px_minmax(0,1fr)_82px] items-center gap-2 px-3 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
+                                className="grid min-h-[3.25rem] w-full grid-cols-[80px_minmax(180px,1fr)_160px] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
                               >
                                 <span className="inline-flex items-center justify-center text-center text-[10px] font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white">
                                   {index + 1}
@@ -889,18 +910,19 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                             </li>
                           ))}
                         </ul>
-                      </>
+                        </div>
                     ) : (
-                      <>
-                        <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_34px_34px_52px] items-center gap-2.5 border-b border-zinc-100 px-3 py-2 text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:border-white/10 dark:text-[#9fcbb3]">
+                      <div className="min-w-[860px]">
+                        <div className="sticky top-0 z-10 grid grid-cols-[180px_150px_240px_80px_80px_90px] items-center gap-4 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
                           <span>{t('qrCode')}</span>
                           <span>{t('status')}</span>
+                          <span>{t('location')}</span>
                           <span className="text-right">{t('daysOut')}</span>
                           <span className="text-right">{t('overdueShort')}</span>
                           <span className="text-right">EUR</span>
                         </div>
 
-                        <ul className="max-h-[56vh] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/10">
+                        <ul className="divide-y divide-zinc-100 dark:divide-white/10">
                           {activeMobilePalletItems.map((item, index) => (
                             <li key={`client-mobile-qr-${item.pallet.id}`}>
                               <button
@@ -912,7 +934,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                     view: 'withQr',
                                   })
                                 }
-                                className="grid w-full grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_34px_34px_52px] items-center gap-2.5 px-3 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
+                                className="grid w-full grid-cols-[180px_150px_240px_80px_80px_90px] items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
                                 title={`${getPalletTypeLabel(item.pallet.type, language)} - ${item.pallet.current_location || '-'}`}
                               >
                                 <span className="truncate text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
@@ -920,6 +942,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                 </span>
                                 <span className="truncate text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-500 dark:text-[#d8e8de]">
                                   {getStatusLabel(item.pallet.current_status_name, language)}
+                                </span>
+                                <span className="truncate text-[10px] font-semibold text-zinc-600 dark:text-zinc-200">
+                                  {item.pallet.current_location || '-'}
                                 </span>
                                 <span className="text-right text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                                   {item.daysOutside}
@@ -939,8 +964,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                             </li>
                           ))}
                         </ul>
-                      </>
+                      </div>
                     )}
+                    </div>
                   </div>
                 ) : (
                   <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#151d1a]">

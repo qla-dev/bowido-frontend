@@ -43,6 +43,8 @@ import { formatAppDate } from "../lib/dateFormat";
 import { compressPhotoForUpload } from "../lib/imageCompression";
 import {
   configureQrCamera,
+  isQrCameraStreamLive,
+  playQrCameraStream,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
 } from "../lib/qrCameraSupport";
@@ -472,6 +474,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     scanCustomerPossessionPallet,
     scanPalletByQr,
     claimCustomerPossessionPallet,
+    updateCustomerPalletTracking,
     reportDamage,
     statuses,
     language,
@@ -522,6 +525,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [draftLocationMode, setDraftLocationMode] =
     useState<DriverLocationMode>("warehouse_1");
   const [cameraState, setCameraState] = useState<CameraState>("loading");
+  const [cameraRestartKey, setCameraRestartKey] = useState(0);
   const [cameraZoom, setCameraZoom] = useState(DEFAULT_CAMERA_ZOOM_RANGE.min);
   const [cameraZoomRange, setCameraZoomRange] = useState<CameraZoomRange>(
     DEFAULT_CAMERA_ZOOM_RANGE,
@@ -555,6 +559,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const lastScanAttemptAtRef = useRef(0);
   const lastScanAtRef = useRef(0);
   const fallbackScanAttemptRef = useRef(0);
+  const cameraSessionRef = useRef(0);
+  const isCameraStartingRef = useRef(false);
+  const cameraRestartTimeoutRef = useRef<number | null>(null);
   const pinchStateRef = useRef<{ distance: number; zoom: number } | null>(null);
   const suppressNextScannerClickRef = useRef(false);
   const selectedPalletIdRef = useRef<number | null>(null);
@@ -1187,6 +1194,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const stopCamera = () => {
+    cameraSessionRef.current += 1;
+    isCameraStartingRef.current = false;
+    scanBusyRef.current = false;
+
+    if (cameraRestartTimeoutRef.current) {
+      window.clearTimeout(cameraRestartTimeoutRef.current);
+      cameraRestartTimeoutRef.current = null;
+    }
+
     if (scanFrameRef.current) {
       window.cancelAnimationFrame(scanFrameRef.current);
       scanFrameRef.current = null;
@@ -1204,7 +1220,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     if (streamRef.current) {
       void setQrCameraTorch(streamRef.current, false);
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        track.onended = null;
+        track.onmute = null;
+        track.onunmute = null;
+        track.stop();
+      });
       streamRef.current = null;
     }
 
@@ -1325,15 +1346,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
   };
 
-  const runDetectionLoop = () => {
+  const runDetectionLoop = (sessionId: number) => {
     scanFrameRef.current = window.requestAnimationFrame(async () => {
       await detectFromCamera();
-      runDetectionLoop();
+
+      if (
+        sessionId === cameraSessionRef.current &&
+        document.visibilityState !== "hidden" &&
+        isQrCameraStreamLive(streamRef.current)
+      ) {
+        runDetectionLoop(sessionId);
+      }
     });
   };
 
   useEffect(() => {
     let cancelled = false;
+    const isPageHidden = () => document.visibilityState === "hidden";
 
     if (
       !isScannerOpen ||
@@ -1346,16 +1375,35 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
 
     const startCamera = async () => {
+      if (
+        cancelled ||
+        isPageHidden() ||
+        isCameraStartingRef.current ||
+        isQrCameraStreamLive(streamRef.current)
+      ) {
+        return;
+      }
+
+      stopCamera();
+      const sessionId = cameraSessionRef.current + 1;
+      cameraSessionRef.current = sessionId;
+      isCameraStartingRef.current = true;
       setCameraState("loading");
       qrDetectorRef.current = null;
 
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraState("unsupported");
+        isCameraStartingRef.current = false;
         return;
       }
 
       try {
         const detector = await getQrDetector();
+
+        if (cancelled || sessionId !== cameraSessionRef.current || isPageHidden()) {
+          return;
+        }
+
         fallbackScanAttemptRef.current = 0;
         const cameraAttempts = qrCameraConstraintAttempts;
         let stream: MediaStream | null = null;
@@ -1374,20 +1422,48 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
           throw lastCameraError;
         }
 
-        if (cancelled) {
+        if (
+          cancelled ||
+          sessionId !== cameraSessionRef.current ||
+          isPageHidden()
+        ) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
 
         streamRef.current = stream;
         const cameraFeatures = await configureQrCamera(stream);
+
+        if (cancelled || sessionId !== cameraSessionRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         setIsTorchSupported(cameraFeatures.torchSupported);
         setIsTorchOn(false);
         syncCameraZoomCapabilities(stream);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => undefined);
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.onended = () => scheduleCameraRestart(150);
+          videoTrack.onmute = () => scheduleCameraRestart(1200, true);
+          videoTrack.onunmute = () => {
+            if (cameraRestartTimeoutRef.current) {
+              window.clearTimeout(cameraRestartTimeoutRef.current);
+              cameraRestartTimeoutRef.current = null;
+            }
+          };
+        }
+
+        if (!videoRef.current) {
+          throw new Error("Camera video is unavailable.");
+        }
+
+        await playQrCameraStream(videoRef.current, stream);
+
+        if (cancelled || sessionId !== cameraSessionRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
         }
 
         if (!detector) {
@@ -1395,25 +1471,74 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         }
 
         setCameraState("ready");
-        runDetectionLoop();
+        runDetectionLoop(sessionId);
       } catch (error) {
-        if (cancelled) {
+        if (cancelled || sessionId !== cameraSessionRef.current) {
           return;
         }
 
         if (error instanceof DOMException && error.name === "NotAllowedError") {
+          stopCamera();
           setCameraState("denied");
           return;
         }
 
         setCameraState("error");
+        stopCamera();
+      } finally {
+        if (sessionId === cameraSessionRef.current) {
+          isCameraStartingRef.current = false;
+        }
       }
     };
+
+    const scheduleCameraRestart = (delayMs: number, requireMutedTrack = false) => {
+      if (cancelled || isPageHidden()) {
+        return;
+      }
+
+      if (cameraRestartTimeoutRef.current) {
+        window.clearTimeout(cameraRestartTimeoutRef.current);
+      }
+
+      cameraRestartTimeoutRef.current = window.setTimeout(() => {
+        cameraRestartTimeoutRef.current = null;
+        const track = streamRef.current?.getVideoTracks()[0];
+        if (requireMutedTrack && track && !track.muted && track.readyState === "live") {
+          return;
+        }
+
+        stopCamera();
+        void startCamera();
+      }, delayMs);
+    };
+
+    const handleVisibilityChange = () => {
+      if (isPageHidden()) {
+        stopCamera();
+      } else {
+        void startCamera();
+      }
+    };
+
+    const handlePageHide = () => stopCamera();
+    const handlePageShow = () => {
+      if (!isPageHidden()) {
+        void startCamera();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
 
     void startCamera();
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
       stopCamera();
 
       if (flashTimeoutRef.current) {
@@ -1426,6 +1551,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     isNoQrReturnFormOpen,
     isRepairListOpen,
     isScannerOpen,
+    cameraRestartKey,
   ]);
 
   const dismissFlash = () => {
@@ -1601,7 +1727,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     await uploadPalletPhoto(selectedPallet, nextStatusId, nextClientId);
 
-    updatePalletStatus(
+    const savedPallet = await updatePalletStatus(
       selectedPallet.id,
       nextStatusId,
       user.id,
@@ -1617,6 +1743,16 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       nextClientId,
     );
 
+    if (!savedPallet) {
+      showFlash(
+        text.statusUpdatedTitle,
+        text.scanImageFallbackDetail,
+        "warning",
+        2200,
+      );
+      return;
+    }
+
     showFlash(
       text.statusUpdatedTitle,
       nextStatus?.slug === "bij-de-klant"
@@ -1631,7 +1767,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     );
   };
 
-  const handleStatusSelection = (statusId: number) => {
+  const handleStatusSelection = async (statusId: number) => {
     setOpenChangeMenu(null);
     setDraftStatusId(statusId);
     const nextStatus = statuses.find((status) => status.id === statusId);
@@ -1641,6 +1777,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       }
       setDraftStatusId(statusId);
       setDraftClientId(user.id);
+      if (selectedPallet?.user_id === user.id) {
+        try {
+          await updateCustomerPalletTracking(selectedPallet.id, statusId);
+          showFlash(text.statusUpdatedTitle, text.statusSavedDetailAtClient, "success", 1500);
+        } catch (error) {
+          showFlash(
+            text.statusUpdatedTitle,
+            error instanceof Error ? error.message : text.scanImageNotRecognizedDetail,
+            "warning",
+            2200,
+          );
+          return;
+        }
+      }
       setOpenChangeMenu("location");
       return;
     }
@@ -1715,11 +1865,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     if (selectedPallet && isCustomer) {
       try {
-        await claimCustomerPossessionPallet(
-          selectedPallet.id,
-          draftStatusId,
-          nextLocation,
-        );
+        if (selectedPallet.user_id === user.id) {
+          await updateCustomerPalletTracking(selectedPallet.id, draftStatusId, nextLocation);
+        } else {
+          await claimCustomerPossessionPallet(
+            selectedPallet.id,
+            draftStatusId,
+            nextLocation,
+          );
+        }
         showFlash(text.statusUpdatedTitle, text.statusSavedDetailAtClient, "success", 1500);
       } catch (error) {
         showFlash(
@@ -2183,6 +2337,21 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 )}
               </motion.div>
             </AnimatePresence>
+
+            {(cameraState === "error" || cameraState === "denied") && (
+              <button
+                type="button"
+                onClick={() => setCameraRestartKey((current) => current + 1)}
+                className="mx-auto mt-4 flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-sm dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100"
+              >
+                <RefreshCcw size={14} />
+                {language === "bs"
+                  ? "Ponovo pokreni kameru"
+                  : language === "nl"
+                    ? "Camera opnieuw starten"
+                    : "Restart camera"}
+              </button>
+            )}
 
             {(cameraState === "ready" || cameraState === "preview") && (
               <div className="mx-auto mt-4 w-3/4 rounded-xl border border-emerald-200 bg-white p-3 dark:border-white/10 dark:bg-[#151d1a]">
