@@ -203,10 +203,6 @@ type DriverCopy = {
   showAll: string;
   back: string;
   liveDot: string;
-  refreshCamera: string;
-  cameraUnavailable: string;
-  cameraPermissionNeeded: string;
-  cameraUnsupported: string;
   statusUpdatedTitle: string;
   statusSavedDetailAtClient: string;
   statusSavedDetailReturn: string;
@@ -279,10 +275,6 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     showAll: "View all",
     back: "Back",
     liveDot: "Live camera",
-    refreshCamera: "Tap camera to refresh",
-    cameraUnavailable: "Camera unavailable. Tap to try again.",
-    cameraPermissionNeeded: "Camera permission is needed. Tap to try again.",
-    cameraUnsupported: "Camera is not supported on this device.",
     statusUpdatedTitle: "Status updated",
     statusSavedDetailAtClient: "The pallet is marked at the client.",
     statusSavedDetailReturn: "The pallet is marked for customer pickup.",
@@ -354,10 +346,6 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     showAll: "Toon alles",
     back: "Terug",
     liveDot: "Live camera",
-    refreshCamera: "Tik op de camera om te vernieuwen",
-    cameraUnavailable: "Camera niet beschikbaar. Tik om opnieuw te proberen.",
-    cameraPermissionNeeded: "Cameratoestemming is nodig. Tik om opnieuw te proberen.",
-    cameraUnsupported: "Camera wordt niet ondersteund op dit apparaat.",
     statusUpdatedTitle: "Status bijgewerkt",
     statusSavedDetailAtClient: "De bok staat nu bij de klant.",
     statusSavedDetailReturn: "De bok is gemarkeerd voor ophalen bij de klant.",
@@ -430,10 +418,6 @@ const driverCopy: Record<"en" | "nl" | "bs", DriverCopy> = {
     showAll: "Prikaži sve",
     back: "Nazad",
     liveDot: "Live kamera",
-    refreshCamera: "Dodirnite kameru za ponovno pokretanje",
-    cameraUnavailable: "Kamera nije dostupna. Dodirnite za novi pokušaj.",
-    cameraPermissionNeeded: "Potrebna je dozvola za kameru. Dodirnite za novi pokušaj.",
-    cameraUnsupported: "Kamera nije podržana na ovom uređaju.",
     statusUpdatedTitle: "Status ažuriran",
     statusSavedDetailAtClient: "Paleta je označena kod klijenta.",
     statusSavedDetailReturn: "Paleta je označena za preuzimanje kod klijenta.",
@@ -1497,9 +1481,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    let cameraFrameWatchdogTimer: number | null = null;
-    let lastVideoTime: number | null = null;
-    let lastVideoFrameAt = 0;
     const isPageHidden = () => document.visibilityState === "hidden";
 
     if (
@@ -1671,44 +1652,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       }
     };
 
-    const checkCameraFrames = () => {
-      if (cancelled || isPageHidden() || isCameraStartingRef.current) {
-        return;
-      }
-
-      const video = videoRef.current;
-      if (
-        !video ||
-        !video.srcObject ||
-        !isQrCameraStreamLive(streamRef.current) ||
-        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
-      ) {
-        lastVideoTime = null;
-        lastVideoFrameAt = 0;
-        return;
-      }
-
-      if (lastVideoTime === null || video.currentTime > lastVideoTime) {
-        lastVideoTime = video.currentTime;
-        lastVideoFrameAt = Date.now();
-        return;
-      }
-
-      // Android browsers can resume a camera track that still reports as
-      // "live" but no longer supplies frames. The last painted frame remains
-      // visible, so neither track.onended nor track.onmute is guaranteed to
-      // fire. Reacquire the camera when the preview has made no progress.
-      if (lastVideoFrameAt > 0 && Date.now() - lastVideoFrameAt >= 3000) {
-        lastVideoTime = null;
-        lastVideoFrameAt = 0;
-        scheduleCameraRestart(150);
-      }
-    };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("pageshow", handlePageShow);
-    cameraFrameWatchdogTimer = window.setInterval(checkCameraFrames, 1000);
 
     void startCamera();
 
@@ -1718,11 +1664,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("pageshow", handlePageShow);
       stopCamera();
-
-      if (cameraFrameWatchdogTimer) {
-        window.clearInterval(cameraFrameWatchdogTimer);
-        cameraFrameWatchdogTimer = null;
-      }
 
       if (flashTimeoutRef.current) {
         window.clearTimeout(flashTimeoutRef.current);
@@ -2496,7 +2437,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    setCameraRestartKey((current) => current + 1);
+    return;
   };
 
   const handleScannerFrameKeyDown = (
@@ -2670,12 +2611,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     (showRepairListAction ? 1 : 0) +
     (showNoQrReturnAction ? 1 : 0) +
     (showNoQrPickupAction ? 1 : 0);
-  const cameraInactiveMessage =
-    cameraState === "denied"
-      ? text.cameraPermissionNeeded
-      : cameraState === "unsupported"
-        ? text.cameraUnsupported
-        : text.cameraUnavailable;
 
   return (
     <div
@@ -2714,8 +2649,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 key="scanner-view"
                 role="button"
                 tabIndex={0}
-                aria-label={text.refreshCamera}
-                title={text.refreshCamera}
                 onClick={handleScannerFrameClick}
                 onKeyDown={handleScannerFrameKeyDown}
                 onTouchStart={handleScannerFrameTouchStart}
@@ -2754,17 +2687,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 <div className="absolute inset-3 rounded-[2rem] border border-emerald-300/20 dark:border-white/10" />
                 <div className="absolute left-5 right-5 top-5 h-14 rounded-full bg-emerald-400/12 blur-2xl dark:bg-emerald-400/8" />
                 {(cameraState === "ready" || cameraState === "preview") && (
-                  <>
-                    <div className="absolute left-6 top-6 z-10 flex items-center gap-1.5 rounded-full bg-black/20 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-white/75 backdrop-blur-sm">
-                      <RefreshCcw size={12} />
-                      <span>{text.refreshCamera}</span>
-                    </div>
-                    <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">
-                      <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400/70" />
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
-                      <span className="sr-only">{text.liveDot}</span>
-                    </div>
-                  </>
+                  <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">
+                    <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400/70" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
+                    <span className="sr-only">{text.liveDot}</span>
+                  </div>
                 )}
 
                 <motion.div
@@ -2814,19 +2741,34 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
                 ) : cameraState !== "ready" && cameraState !== "preview" ? (
-                  <div className="relative z-10 flex max-w-[15rem] flex-col items-center gap-3 px-5 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-white/10 dark:bg-[#101715] dark:text-emerald-200">
-                      <RefreshCcw size={27} />
+                  <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#101715]">
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                      <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
+                      <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
+                      <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
                     </div>
-                    <p className="text-[11px] font-black uppercase leading-relaxed tracking-[0.12em] text-emerald-800 dark:text-emerald-100">
-                      {cameraInactiveMessage}
-                    </p>
                   </div>
                 ) : (
                   <Camera size={38} className="relative z-10 text-white/25" />
                 )}
               </motion.div>
             </AnimatePresence>
+
+            {(cameraState === "error" || cameraState === "denied") && (
+              <button
+                type="button"
+                onClick={() => setCameraRestartKey((current) => current + 1)}
+                className="mx-auto mt-4 flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-sm dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100"
+              >
+                <RefreshCcw size={14} />
+                {language === "bs"
+                  ? "Ponovo pokreni kameru"
+                  : language === "nl"
+                    ? "Camera opnieuw starten"
+                    : "Restart camera"}
+              </button>
+            )}
 
             {(cameraState === "ready" || cameraState === "preview") && (
               <div className="mx-auto mt-2 w-[72%] rounded-xl border border-emerald-200 bg-white px-2.5 py-2 dark:border-white/10 dark:bg-[#151d1a]">
