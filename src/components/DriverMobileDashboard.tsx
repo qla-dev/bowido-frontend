@@ -1263,6 +1263,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     cameraInteractionUntilRef.current = performance.now() + 180;
   };
 
+  const restartCamera = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    // This only restarts the MediaStream effect below. Preventing the event
+    // from bubbling also keeps the tap isolated from the mobile shell.
+    event?.preventDefault();
+    event?.stopPropagation();
+    deferCameraDetectionForInteraction();
+    setCameraRestartKey((current) => current + 1);
+  };
+
   const toggleCameraTorch = async () => {
     const nextTorchState = !isTorchOn;
     const applied = await setQrCameraTorch(streamRef.current, nextTorchState);
@@ -2758,7 +2767,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             {(cameraState === "error" || cameraState === "denied") && (
               <button
                 type="button"
-                onClick={() => setCameraRestartKey((current) => current + 1)}
+                onClick={restartCamera}
                 className="mx-auto mt-4 flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-sm dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100"
               >
                 <RefreshCcw size={14} />
@@ -2789,7 +2798,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setCameraRestartKey((current) => current + 1)}
+                      onClick={restartCamera}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-200"
                       aria-label={language === "bs" ? "Ponovo pokreni kameru" : language === "nl" ? "Camera opnieuw starten" : "Restart camera"}
                       title={language === "bs" ? "Ponovo pokreni kameru" : language === "nl" ? "Camera opnieuw starten" : "Restart camera"}
