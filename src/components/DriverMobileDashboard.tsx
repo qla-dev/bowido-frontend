@@ -2786,22 +2786,33 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   <span className="font-mono text-[10px] font-black text-zinc-700 dark:text-zinc-300">
                     {cameraZoom.toFixed(1)}x
                   </span>
-                  {isTorchSupported && (
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => void toggleCameraTorch()}
-                      className={cn(
-                        "flex h-7 items-center gap-1 rounded-lg border px-2 text-[8px] font-black uppercase tracking-wider transition-colors",
-                        isTorchOn
-                          ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-300/30 dark:bg-amber-400/10 dark:text-amber-200"
-                          : "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300",
-                      )}
-                      aria-pressed={isTorchOn}
+                      onClick={() => setCameraRestartKey((current) => current + 1)}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-200"
+                      aria-label={language === "bs" ? "Ponovo pokreni kameru" : language === "nl" ? "Camera opnieuw starten" : "Restart camera"}
+                      title={language === "bs" ? "Ponovo pokreni kameru" : language === "nl" ? "Camera opnieuw starten" : "Restart camera"}
                     >
-                      {isTorchOn ? <FlashlightOff size={12} /> : <Flashlight size={12} />}
-                      {language === "bs" ? "Lampa" : language === "nl" ? "Lamp" : "Torch"}
+                      <RefreshCcw size={13} />
                     </button>
-                  )}
+                    {isTorchSupported && (
+                      <button
+                        type="button"
+                        onClick={() => void toggleCameraTorch()}
+                        className={cn(
+                          "flex h-7 items-center gap-1 rounded-lg border px-2 text-[8px] font-black uppercase tracking-wider transition-colors",
+                          isTorchOn
+                            ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-300/30 dark:bg-amber-400/10 dark:text-amber-200"
+                            : "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300",
+                        )}
+                        aria-pressed={isTorchOn}
+                      >
+                        {isTorchOn ? <FlashlightOff size={12} /> : <Flashlight size={12} />}
+                        {language === "bs" ? "Lampa" : language === "nl" ? "Lamp" : "Torch"}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <input
                   id="driver-camera-zoom"
