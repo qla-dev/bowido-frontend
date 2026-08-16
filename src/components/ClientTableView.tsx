@@ -3,13 +3,18 @@ import { motion } from 'motion/react';
 import {
   AlertTriangle,
   ArrowUpDown,
+  ChevronRight,
+  Clock3,
   Edit,
   Funnel,
+  List,
   MapPin,
   Package,
   Plus,
   RotateCcw,
   Search,
+  Smartphone,
+  Table2,
   Undo2,
 } from 'lucide-react';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
@@ -64,6 +69,7 @@ type ClientTableRow = {
 type FilterSelections = Record<SortKey, string[]>;
 type FilterSearch = Record<SortKey, string>;
 type MobilePalletListView = 'withQr' | 'withoutQr';
+type MobilePalletDisplayMode = 'compact' | 'full';
 
 type MobileClientPalletItem = {
   pallet: Pallet;
@@ -225,6 +231,16 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     index: number;
     view: MobilePalletListView;
   } | null>(null);
+  const [mobilePalletDisplayMode, setMobilePalletDisplayMode] = useState<MobilePalletDisplayMode>('compact');
+  const [mobilePalletSearch, setMobilePalletSearch] = useState('');
+  const [mobilePalletStatusFilter, setMobilePalletStatusFilter] = useState('all');
+  const [showMobileRotateHint, setShowMobileRotateHint] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return window.localStorage.getItem('trackpal_mobile_pallet_rotate_hint_seen') !== '1';
+  });
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
     top: number;
     left: number;
@@ -268,6 +284,60 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
       : language === 'nl'
         ? 'Veeg de tabel naar links of rechts om alle kolommen te zien.'
         : 'Swipe the table left or right to see every column.';
+  const mobileOrientationLabel =
+    language === 'bs'
+      ? 'Okrenite uređaj za bolji pregled'
+      : language === 'nl'
+        ? 'Draai je apparaat voor een beter overzicht'
+        : 'Rotate your device for a better view';
+  const mobilePalletViewCopy =
+    language === 'bs'
+      ? {
+          compact: 'Kompaktno',
+          full: 'Puna tabela',
+          search: 'Pretraži palete...',
+          allStatuses: 'Svi statusi',
+          timeInStatus: 'Vrijeme u statusu',
+          days: 'dana',
+          overdue: 'Prekoračeno',
+          numberShort: 'Broj',
+          locationShort: 'Lok.',
+          daysShort: 'Dana',
+          overdueShort: 'Kasni',
+          dateShort: 'Datum',
+          noMatches: 'Nema paleta koje odgovaraju filterima.',
+        }
+      : language === 'nl'
+        ? {
+            compact: 'Compact',
+            full: 'Volledige tabel',
+            search: 'Zoek pallets...',
+            allStatuses: 'Alle statussen',
+            timeInStatus: 'Tijd in status',
+            days: 'dagen',
+            overdue: 'Te laat',
+            numberShort: 'Nr.',
+            locationShort: 'Locatie',
+            daysShort: 'Dagen',
+            overdueShort: 'Te laat',
+            dateShort: 'Datum',
+            noMatches: 'Geen pallets gevonden voor deze filters.',
+          }
+        : {
+            compact: 'Compact',
+            full: 'Full table',
+            search: 'Search pallets...',
+            allStatuses: 'All statuses',
+            timeInStatus: 'Time in status',
+            days: 'days',
+            overdue: 'Overdue',
+            numberShort: 'No.',
+            locationShort: 'Location',
+            daysShort: 'Days',
+            overdueShort: 'Late',
+            dateShort: 'Date',
+            noMatches: 'No pallets match these filters.',
+          };
   const resizeAriaLabel = t('resizeColumn');
   const stickyActionsHeaderClass =
     'sticky right-0 z-20 border-l border-zinc-200 bg-zinc-50/95 shadow-[-14px_0_24px_-20px_rgba(15,23,42,0.45)] backdrop-blur';
@@ -522,8 +592,48 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     0
   );
 
-  const activeMobilePalletItems =
+  const unfilteredActiveMobilePalletItems =
     activeMobilePalletList === 'withoutQr' ? mobileNoQrPallets : mobileQrPallets;
+  const mobilePalletStatusOptions = useMemo(() => {
+    const options = new Map<string, string>();
+
+    unfilteredActiveMobilePalletItems.forEach(({ pallet }) => {
+      options.set(
+        String(pallet.current_status_id),
+        pallet.is_ghost
+          ? mobileStatusVoorRetourLabel
+          : getStatusLabel(pallet.current_status_name, language),
+      );
+    });
+
+    return Array.from(options, ([value, label]) => ({ value, label })).sort((left, right) =>
+      left.label.localeCompare(right.label, undefined, { sensitivity: 'base' }),
+    );
+  }, [language, mobileStatusVoorRetourLabel, unfilteredActiveMobilePalletItems]);
+  const activeMobilePalletItems = useMemo(() => {
+    const normalizedSearch = mobilePalletSearch.trim().toLocaleLowerCase();
+
+    return unfilteredActiveMobilePalletItems.filter(({ pallet }) => {
+      if (
+        mobilePalletStatusFilter !== 'all' &&
+        String(pallet.current_status_id) !== mobilePalletStatusFilter
+      ) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return [
+        getPalletDisplayName(pallet),
+        pallet.qr_code,
+        pallet.current_status_name,
+        pallet.current_location,
+        pallet.note,
+      ].some((value) => String(value || '').toLocaleLowerCase().includes(normalizedSearch));
+    });
+  }, [mobilePalletSearch, mobilePalletStatusFilter, unfilteredActiveMobilePalletItems]);
   const activeMobilePalletTitle =
     activeMobilePalletList === 'withoutQr' ? mobileWithoutQrLabel : mobileWithQrLabel;
   const activeMobilePalletEmptyLabel =
@@ -535,7 +645,26 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const closeMobilePalletListModal = () => {
     setActiveMobilePalletList(null);
     setSelectedMobilePallet(null);
+    setShowMobileRotateHint(false);
   };
+  const openMobilePalletListModal = (view: MobilePalletListView) => {
+    setMobilePalletDisplayMode('compact');
+    setMobilePalletSearch('');
+    setMobilePalletStatusFilter('all');
+    setSelectedMobilePallet(null);
+    setActiveMobilePalletList(view);
+  };
+
+  useEffect(() => {
+    if (!activeMobilePalletList || !showMobileRotateHint || typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem('trackpal_mobile_pallet_rotate_hint_seen', '1');
+    const timeoutId = window.setTimeout(() => setShowMobileRotateHint(false), 3200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeMobilePalletList, showMobileRotateHint]);
 
   const toggleSort = (key: SortKey) => {
     setSortConfig((current) =>
@@ -775,7 +904,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setActiveMobilePalletList('withQr')}
+                  onClick={() => openMobilePalletListModal('withQr')}
                   className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#151d1a] dark:text-white"
                 >
                   <span>{mobileWithQrLabel}</span>
@@ -785,7 +914,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveMobilePalletList('withoutQr')}
+                  onClick={() => openMobilePalletListModal('withoutQr')}
                   className="flex w-full items-center justify-between rounded-[1.35rem] border border-zinc-200 bg-white px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.14em] text-zinc-900 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)] transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-[#151d1a] dark:text-white"
                 >
                   <span>{mobileWithoutQrLabel}</span>
@@ -861,27 +990,143 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                 title={mobileClientRow.clientName}
                 subtitle={activeMobilePalletTitle}
                 width="lg"
-                overlayClassName="z-[110]"
-                contentClassName="md:h-[90dvh] md:max-w-5xl"
-                bodyClassName="overflow-hidden bg-zinc-50/80 px-3 py-3 dark:bg-[#070b0a] sm:px-4"
+                overlayClassName="mobile-pallet-modal-overlay z-[110]"
+                contentClassName="mobile-pallet-modal md:h-[90dvh] md:max-w-5xl"
+                headerClassName="mobile-pallet-modal-header"
+                bodyClassName="mobile-pallet-modal-body overflow-hidden bg-zinc-50/80 px-3 py-3 dark:bg-[#070b0a] sm:px-4"
               >
-                {activeMobilePalletItems.length > 0 ? (
-                  <div className="flex h-full min-h-0 flex-col gap-3">
-                    <div className="flex shrink-0 items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100">
-                      <RotateCcw size={16} className="mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.12em]">{mobileRotateHint}</p>
-                        <p className="mt-1 text-[10px] font-semibold normal-case leading-4 opacity-75">{mobileScrollHint}</p>
+                {unfilteredActiveMobilePalletItems.length > 0 ? (
+                  <div className="mobile-pallet-modal-content flex h-full min-h-0 flex-col gap-3">
+                    <div className="mobile-pallet-toolbar sticky top-0 z-30 shrink-0 space-y-2 rounded-[1.1rem] border border-zinc-100 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-[#101715]">
+                      <div className="mobile-pallet-toolbar-filters grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                        <div className="relative min-w-0">
+                          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                          <Input
+                            type="search"
+                            value={mobilePalletSearch}
+                            onChange={(event) => setMobilePalletSearch(event.target.value)}
+                            placeholder={mobilePalletViewCopy.search}
+                            className="h-10 bg-zinc-50 pl-9 text-[11px] normal-case tracking-normal placeholder:normal-case placeholder:tracking-normal dark:bg-[#151d1a]"
+                          />
+                        </div>
+                        <select
+                          value={mobilePalletStatusFilter}
+                          onChange={(event) => setMobilePalletStatusFilter(event.target.value)}
+                          aria-label={t('status')}
+                          className="h-10 max-w-[8.75rem] rounded-xl border border-zinc-200 bg-zinc-50 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-zinc-700 outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-[#151d1a] dark:text-white"
+                        >
+                          <option value="all">{mobilePalletViewCopy.allStatuses}</option>
+                          {mobilePalletStatusOptions.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="mobile-pallet-view-toggle grid grid-cols-2 rounded-xl bg-zinc-100 p-1 dark:bg-[#151d1a]">
+                        <button
+                          type="button"
+                          onClick={() => setMobilePalletDisplayMode('compact')}
+                          className={cn(
+                            'inline-flex h-8 items-center justify-center gap-2 rounded-lg text-[9px] font-black uppercase tracking-[0.1em] transition-colors',
+                            mobilePalletDisplayMode === 'compact'
+                              ? 'bg-white text-emerald-700 shadow-sm dark:bg-[#22302a] dark:text-emerald-200'
+                              : 'text-zinc-500 dark:text-zinc-300',
+                          )}
+                        >
+                          <List size={13} />
+                          {mobilePalletViewCopy.compact}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMobilePalletDisplayMode('full')}
+                          className={cn(
+                            'inline-flex h-8 items-center justify-center gap-2 rounded-lg text-[9px] font-black uppercase tracking-[0.1em] transition-colors',
+                            mobilePalletDisplayMode === 'full'
+                              ? 'bg-white text-emerald-700 shadow-sm dark:bg-[#22302a] dark:text-emerald-200'
+                              : 'text-zinc-500 dark:text-zinc-300',
+                          )}
+                        >
+                          <Table2 size={13} />
+                          {mobilePalletViewCopy.full}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#151d1a]">
+                    {activeMobilePalletItems.length === 0 ? (
+                      <div className="flex min-h-0 flex-1 items-center justify-center rounded-[1.25rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#151d1a]">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                          {mobilePalletViewCopy.noMatches}
+                        </p>
+                      </div>
+                    ) : mobilePalletDisplayMode === 'compact' ? (
+                      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-2">
+                        {activeMobilePalletItems.map((item, index) => {
+                          const statusLabel = item.pallet.is_ghost
+                            ? mobileStatusVoorRetourLabel
+                            : getStatusLabel(item.pallet.current_status_name, language);
+                          const isOverdue = item.overdueDays > 0;
+
+                          return (
+                            <button
+                              key={`client-mobile-compact-${item.pallet.id}`}
+                              type="button"
+                              onClick={() => setSelectedMobilePallet({
+                                item,
+                                index,
+                                view: activeMobilePalletList,
+                              })}
+                              className={cn(
+                                'w-full rounded-[1.2rem] border bg-white p-3.5 text-left shadow-[0_12px_28px_-24px_rgba(15,23,42,0.5)] transition-colors dark:bg-[#151d1a]',
+                                isOverdue
+                                  ? 'border-rose-200 hover:border-rose-300 dark:border-rose-400/30'
+                                  : 'border-zinc-100 hover:border-emerald-200 dark:border-white/10',
+                              )}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate text-[12px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                                      {item.pallet.is_ghost ? `${mobilePalletNumberLabel} ${index + 1}` : getPalletDisplayName(item.pallet)}
+                                    </p>
+                                    <span className={cn(
+                                      'inline-flex rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-[0.09em]',
+                                      isOverdue
+                                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-400/15 dark:text-rose-200'
+                                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200',
+                                    )}>
+                                      {statusLabel}
+                                    </span>
+                                  </div>
+                                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-zinc-500 dark:text-zinc-300">
+                                    <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-semibold">
+                                      <MapPin size={12} className="shrink-0" />
+                                      <span className="truncate">{item.pallet.current_location || t('notAvailable')}</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-black uppercase tracking-tight">
+                                      <Clock3 size={12} />
+                                      {item.daysOutside} {mobilePalletViewCopy.days}
+                                    </span>
+                                  </div>
+                                  {isOverdue && (
+                                    <p className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-rose-600 dark:text-rose-200">
+                                      {mobilePalletViewCopy.overdue}: {item.overdueDays} {mobilePalletViewCopy.days}
+                                    </p>
+                                  )}
+                                </div>
+                                <ChevronRight size={17} className="mt-1 shrink-0 text-zinc-300 dark:text-zinc-500" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                    <div className="mobile-pallet-full-table min-h-0 flex-1 overflow-auto overscroll-contain rounded-[1.25rem] border border-zinc-100 bg-zinc-50/60 dark:border-white/10 dark:bg-[#151d1a]">
                       {activeMobilePalletList === 'withoutQr' ? (
-                        <div className="min-w-[560px]">
-                        <div className="sticky top-0 z-10 grid grid-cols-[80px_minmax(180px,1fr)_160px] items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
-                          <span className="text-center leading-none">{mobilePalletNumberLabel}</span>
+                        <div className="min-w-[460px]">
+                        <div className="mobile-pallet-table-header sticky top-0 z-10 isolate grid grid-cols-[64px_minmax(150px,1fr)_125px] items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
+                          <span className="mobile-pallet-sticky-column mobile-pallet-sticky-column--narrow sticky left-0 z-20 justify-center bg-white text-center leading-none shadow-[12px_0_18px_-18px_rgba(15,23,42,0.7)] dark:bg-[#101715]">{mobilePalletViewCopy.numberShort}</span>
                           <span className="text-center leading-none">{t('status')}</span>
-                          <span className="text-right leading-none">{mobileReturnDateLabel}</span>
+                          <span className="bg-white text-right leading-none dark:bg-[#101715]">{mobilePalletViewCopy.dateShort}</span>
                         </div>
 
                         <ul className="divide-y divide-zinc-100 dark:divide-white/10">
@@ -896,9 +1141,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                     view: 'withoutQr',
                                   })
                                 }
-                                className="grid min-h-[3.25rem] w-full grid-cols-[80px_minmax(180px,1fr)_160px] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
+                                className="mobile-pallet-table-row grid min-h-[3.25rem] w-full grid-cols-[64px_minmax(150px,1fr)_125px] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
                               >
-                                <span className="inline-flex items-center justify-center text-center text-[10px] font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white">
+                                <span className="mobile-pallet-sticky-column mobile-pallet-sticky-column--narrow sticky left-0 z-10 inline-flex items-center justify-center bg-zinc-50 text-center text-[10px] font-black uppercase leading-none tracking-tight text-zinc-950 shadow-[12px_0_18px_-18px_rgba(15,23,42,0.65)] dark:bg-[#151d1a] dark:text-white">
                                   {index + 1}
                                 </span>
                                 <span className="inline-flex min-h-[1.25rem] items-center justify-center text-center text-[9px] font-bold uppercase leading-none tracking-[0.08em] text-zinc-500 dark:text-[#d8e8de]">
@@ -913,14 +1158,14 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         </ul>
                         </div>
                     ) : (
-                      <div className="min-w-[860px]">
-                        <div className="sticky top-0 z-10 grid grid-cols-[180px_150px_240px_80px_80px_90px] items-center gap-4 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
-                          <span>{t('qrCode')}</span>
+                      <div className="min-w-[740px]">
+                        <div className="mobile-pallet-table-header sticky top-0 z-10 isolate grid grid-cols-[150px_120px_190px_58px_58px_70px] items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.11em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
+                          <span className="mobile-pallet-sticky-column sticky left-0 z-20 bg-white shadow-[12px_0_18px_-18px_rgba(15,23,42,0.7)] dark:bg-[#101715]">QR</span>
                           <span>{t('status')}</span>
-                          <span>{t('location')}</span>
-                          <span className="text-right">{t('daysOut')}</span>
-                          <span className="text-right">{t('overdueShort')}</span>
-                          <span className="text-right">EUR</span>
+                          <span>{mobilePalletViewCopy.locationShort}</span>
+                          <span className="text-right">{mobilePalletViewCopy.daysShort}</span>
+                          <span className="text-right">{mobilePalletViewCopy.overdueShort}</span>
+                          <span className="h-full bg-white text-right dark:bg-[#101715]">EUR</span>
                         </div>
 
                         <ul className="divide-y divide-zinc-100 dark:divide-white/10">
@@ -935,13 +1180,24 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                     view: 'withQr',
                                   })
                                 }
-                                className="grid w-full grid-cols-[180px_150px_240px_80px_80px_90px] items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-white/70 dark:hover:bg-white/5"
+                                className={cn(
+                                  'mobile-pallet-table-row grid w-full grid-cols-[150px_120px_190px_58px_58px_70px] items-center gap-3 px-4 py-3 text-left transition-colors dark:hover:bg-white/5',
+                                  item.overdueDays > 0 ? 'bg-rose-50/70 hover:bg-rose-50 dark:bg-rose-400/5' : 'hover:bg-white/70',
+                                )}
                                 title={`${getPalletTypeLabel(item.pallet.type, language)} - ${item.pallet.current_location || '-'}`}
                               >
-                                <span className="truncate text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                                <span className={cn(
+                                  'mobile-pallet-sticky-column sticky left-0 z-10 truncate text-[10px] font-black uppercase tracking-tight text-zinc-950 shadow-[12px_0_18px_-18px_rgba(15,23,42,0.65)] dark:text-white',
+                                  item.overdueDays > 0 ? 'bg-rose-50 dark:bg-[#1b1516]' : 'bg-zinc-50 dark:bg-[#151d1a]',
+                                )}>
                                   {getPalletDisplayName(item.pallet)}
                                 </span>
-                                <span className="truncate text-[9px] font-bold uppercase tracking-[0.1em] text-zinc-500 dark:text-[#d8e8de]">
+                                <span className={cn(
+                                  'inline-flex w-fit max-w-full truncate rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-[0.09em]',
+                                  item.overdueDays > 0
+                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-400/15 dark:text-rose-200'
+                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-200',
+                                )}>
                                   {getStatusLabel(item.pallet.current_status_name, language)}
                                 </span>
                                 <span className="truncate text-[10px] font-semibold text-zinc-600 dark:text-zinc-200">
@@ -968,6 +1224,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                       </div>
                     )}
                     </div>
+                    )}
                   </div>
                 ) : (
                   <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-white/10 dark:bg-[#151d1a]">
@@ -979,6 +1236,30 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     </p>
                   </div>
                 )}
+                {showMobileRotateHint && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMobileRotateHint(false)}
+                    className="mobile-orientation-toast"
+                    role="status"
+                  >
+                    <Smartphone size={17} className="mobile-phone-rotation-icon shrink-0" />
+                    <span>
+                      {mobileRotateHint} {mobilePalletDisplayMode === 'full' ? mobileScrollHint : ''}
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowMobileRotateHint((current) => !current)}
+                  aria-label={mobileOrientationLabel}
+                  aria-expanded={showMobileRotateHint}
+                  title={mobileOrientationLabel}
+                  className="mobile-orientation-fab"
+                >
+                  <Smartphone size={20} className="mobile-phone-rotation-icon" />
+                  <span className="sr-only">{mobileOrientationLabel}</span>
+                </button>
               </DriverModalShell>
             )}
             {selectedMobilePallet && (
@@ -1032,6 +1313,32 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         </p>
                         <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                           {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
+                        </p>
+                      </div>
+                    )}
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {t('palletType')}
+                      </p>
+                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {getPalletTypeLabel(selectedMobilePallet.item.pallet.type, language)}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                        {mobilePalletViewCopy.timeInStatus}
+                      </p>
+                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                        {selectedMobilePallet.item.daysOutside} {mobilePalletViewCopy.days}
+                      </p>
+                    </div>
+                    {selectedMobilePallet.item.overdueDays > 0 && (
+                      <div className="rounded-[1.15rem] border border-rose-200 bg-rose-50 px-3 py-3 dark:border-rose-400/30 dark:bg-rose-400/10">
+                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-rose-500 dark:text-rose-200">
+                          {mobilePalletViewCopy.overdue}
+                        </p>
+                        <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-rose-700 dark:text-rose-100">
+                          {selectedMobilePallet.item.overdueDays} {mobilePalletViewCopy.days} · EUR {currencyFormatter.format(selectedMobilePallet.item.overdueCost)}
                         </p>
                       </div>
                     )}
