@@ -51,7 +51,7 @@ interface AppContextType {
     userName: string,
     location?: string,
     note?: string,
-    clientId?: number,
+    clientId?: number | null,
   ) => Promise<Pallet | null>;
   updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
@@ -717,7 +717,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     userName: string,
     location?: string,
     note?: string,
-    clientId?: number,
+    clientId?: number | null,
   ) => {
     const pallet = pallets.find((item) => item.id === palletId);
     const status = statuses.find((item) => item.id === statusId);
@@ -730,8 +730,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return null;
     }
 
+    // `undefined` means leave the current client as-is; `null` explicitly
+    // clears it. The driver can complete a status transition without choosing
+    // a client, which must display as "-" rather than retaining a stale one.
     const nextClientId = preserveClientAssignment
-      ? (clientId ?? pallet.user_id)
+      ? (clientId === undefined ? pallet.user_id : clientId)
       : undefined;
     const nextLocation = status.slug === "onbekend"
       ? ""
@@ -747,6 +750,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const timestamp = new Date().toISOString();
     const freezesCustomerTimer = previousStatus?.slug === 'bij-de-klant' && status.slug === 'ophalen-klant';
     const startsCustomerTimer = previousStatus?.slug !== 'bij-de-klant' && status.slug === 'bij-de-klant';
+    const restartsCustomerTimer =
+      nextClientId !== pallet.user_id &&
+      ['bij-de-klant', 'at_customer'].includes(status.slug);
 
     setPallets((prev) =>
       prev.map((item) => {
@@ -760,13 +766,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           current_status_name: status.name,
           current_status_slug: status.slug,
           current_location: nextLocation,
-          last_status_changed_at: timestamp,
-          customer_timer_started_at: startsCustomerTimer
+          last_status_changed_at: startsCustomerTimer || restartsCustomerTimer || previousStatus?.id !== status.id
+            ? timestamp
+            : item.last_status_changed_at,
+          customer_timer_started_at: startsCustomerTimer || restartsCustomerTimer
             ? timestamp
             : item.customer_timer_started_at || (freezesCustomerTimer ? item.last_status_changed_at : undefined),
           customer_timer_frozen_at: freezesCustomerTimer
             ? timestamp
-            : startsCustomerTimer
+            : startsCustomerTimer || restartsCustomerTimer
               ? undefined
               : item.customer_timer_frozen_at,
           user_id: nextClientId,
