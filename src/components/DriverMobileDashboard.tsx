@@ -656,6 +656,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const statusSaveInProgressRef = useRef(false);
 
   const text = driverCopy[language] || driverCopy.en;
+  const cameraRestartLabel =
+    language === "bs"
+      ? "Ponovo pokreni kameru"
+      : language === "nl"
+        ? "Camera opnieuw starten"
+        : "Restart camera";
+  const inactiveCameraPrompt =
+    language === "bs"
+      ? "Dodirnite bilo gdje za ponovno pokretanje kamere"
+      : language === "nl"
+        ? "Tik ergens om de camera opnieuw te starten"
+        : "Tap anywhere to restart the camera";
   const isCustomer = user.role_name === RoleType.KLIJENT;
   const noQrReturnCopy = getNoQrReturnButtonCopy(language);
   const allDriverPallets = pallets;
@@ -2446,7 +2458,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    return;
+    if (cameraState !== "ready" && cameraState !== "preview" && cameraState !== "loading") {
+      restartCamera();
+    }
   };
 
   const handleScannerFrameKeyDown = (
@@ -2695,6 +2709,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(16,185,129,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.8)_1px,transparent_1px)] [background-size:28px_28px] dark:opacity-[0.12]" />
                 <div className="absolute inset-3 rounded-[2rem] border border-emerald-300/20 dark:border-white/10" />
                 <div className="absolute left-5 right-5 top-5 h-14 rounded-full bg-emerald-400/12 blur-2xl dark:bg-emerald-400/8" />
+                <button
+                  type="button"
+                  onClick={restartCamera}
+                  className="absolute left-5 top-5 z-20 flex h-10 w-10 items-center justify-center rounded-xl border border-white/35 bg-emerald-950/55 text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-emerald-800/85 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  aria-label={cameraRestartLabel}
+                  title={cameraRestartLabel}
+                >
+                  <RefreshCcw size={18} />
+                </button>
                 {(cameraState === "ready" || cameraState === "preview") && (
                   <div className="absolute right-6 top-6 z-10 flex h-3 w-3 items-center justify-center">
                     <span className="absolute inline-flex h-3 w-3 animate-ping rounded-full bg-emerald-400/70" />
@@ -2750,13 +2773,18 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
                 ) : cameraState !== "ready" && cameraState !== "preview" ? (
-                  <div className="relative flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#101715]">
-                    <div className="grid grid-cols-2 gap-2">
-                      <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
-                      <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
-                      <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
-                      <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                  <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+                    <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#101715]">
+                      <div className="grid grid-cols-2 gap-2">
+                        <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                        <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
+                        <span className="h-3 w-3 rounded-sm bg-emerald-300/65" />
+                        <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
+                      </div>
                     </div>
+                    <p className="max-w-[15rem] text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50/90">
+                      {inactiveCameraPrompt}
+                    </p>
                   </div>
                 ) : (
                   <Camera size={38} className="relative z-10 text-white/25" />
@@ -2771,11 +2799,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 className="mx-auto mt-4 flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-sm dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100"
               >
                 <RefreshCcw size={14} />
-                {language === "bs"
-                  ? "Ponovo pokreni kameru"
-                  : language === "nl"
-                    ? "Camera opnieuw starten"
-                    : "Restart camera"}
+                {cameraRestartLabel}
               </button>
             )}
 
@@ -2800,8 +2824,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       type="button"
                       onClick={restartCamera}
                       className="flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:border-emerald-400/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-200"
-                      aria-label={language === "bs" ? "Ponovo pokreni kameru" : language === "nl" ? "Camera opnieuw starten" : "Restart camera"}
-                      title={language === "bs" ? "Ponovo pokreni kameru" : language === "nl" ? "Camera opnieuw starten" : "Restart camera"}
+                      aria-label={cameraRestartLabel}
+                      title={cameraRestartLabel}
                     >
                       <RefreshCcw size={13} />
                     </button>
