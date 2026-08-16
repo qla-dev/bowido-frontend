@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { getStatusLabel } from '../i18n';
+import { formatSystemNote, getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Pallet } from '../types';
@@ -23,12 +23,12 @@ import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
+import { rankSearchResults } from '../lib/searchRanking';
 
 type NoQrColumnKey =
   | 'serial'
   | 'client'
   | 'status'
-  | 'location'
   | 'reportedAt'
   | 'pickup'
   | 'comment';
@@ -45,7 +45,6 @@ type NoQrTableRow = {
   serial: number;
   clientName: string;
   statusLabel: string;
-  locationLabel: string;
   returnReportedAtLabel: string;
   pickupLabel: string;
   commentLabel: string;
@@ -58,7 +57,6 @@ const NO_QR_TABLE_COLUMN_ORDER = [
   'serial',
   'client',
   'status',
-  'location',
   'reportedAt',
   'pickup',
   'comment',
@@ -68,7 +66,6 @@ const NO_QR_INITIAL_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
   serial: 184,
   client: 184,
   status: 184,
-  location: 184,
   reportedAt: 184,
   pickup: 184,
   comment: 184,
@@ -78,7 +75,6 @@ const NO_QR_MIN_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
   serial: 88,
   client: 152,
   status: 140,
-  location: 180,
   reportedAt: 152,
   pickup: 128,
   comment: 200,
@@ -86,7 +82,11 @@ const NO_QR_MIN_COLUMN_WIDTHS: Record<NoQrColumnKey, number> = {
 
 const NO_QR_PAGE_SIZE = 25;
 
-export const NoQrPalletTableView: React.FC = () => {
+interface NoQrPalletTableViewProps {
+  readOnly?: boolean;
+}
+
+export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOnly = false }) => {
   const { pallets: cachedPallets, clients, statuses, updatePallet, deletePallet, t, language } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
@@ -133,7 +133,7 @@ export const NoQrPalletTableView: React.FC = () => {
   const saveLabel =
     language === 'bs' ? 'Sačuvaj izmjene' : language === 'nl' ? 'Wijzigingen opslaan' : 'Save changes';
   const deleteLabel =
-    language === 'bs' ? 'Obrisi paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
+    language === 'bs' ? 'Obriši paletu' : language === 'nl' ? 'Bok verwijderen' : 'Delete pallet';
   const deleteConfirmLabel =
     language === 'bs'
       ? 'Obrisati ovu paletu bez QR koda?'
@@ -142,7 +142,7 @@ export const NoQrPalletTableView: React.FC = () => {
         : 'Delete this pallet without a QR code?';
   const resizeAriaLabel =
     language === 'bs'
-      ? 'Promijeni sirinu kolone'
+      ? 'Promijeni širinu kolone'
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';
@@ -158,7 +158,6 @@ export const NoQrPalletTableView: React.FC = () => {
     serial: [],
     client: [],
     status: [],
-    location: [],
     reportedAt: [],
     pickup: [],
     comment: [],
@@ -167,7 +166,6 @@ export const NoQrPalletTableView: React.FC = () => {
     serial: '',
     client: '',
     status: '',
-    location: '',
     reportedAt: '',
     pickup: '',
     comment: '',
@@ -193,7 +191,7 @@ export const NoQrPalletTableView: React.FC = () => {
   const fetchPage = useCallback((offset: number) => apiService.pallets.page({
     limit: NO_QR_PAGE_SIZE,
     offset,
-    is_ghost: true,
+    has_qr_code: false,
     search: debouncedSearchQuery || undefined,
     sort_by: 'created_at',
     sort_direction: 'desc',
@@ -212,7 +210,7 @@ export const NoQrPalletTableView: React.FC = () => {
     setPagedPallets((current) =>
       current
         .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
-        .filter((pallet) => pallet.is_ghost)
+        .filter((pallet) => !pallet.has_qr_code)
     );
   }, [cachedPallets]);
 
@@ -253,7 +251,6 @@ export const NoQrPalletTableView: React.FC = () => {
           case 'serial':
             return 216;
           case 'client':
-          case 'location':
           case 'comment':
             return 288;
           case 'status':
@@ -294,7 +291,7 @@ export const NoQrPalletTableView: React.FC = () => {
   const rows = useMemo<NoQrTableRow[]>(
     () =>
       pallets
-        .filter((pallet) => pallet.is_ghost)
+        .filter((pallet) => !pallet.has_qr_code)
         .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
         .map((pallet, index) => ({
           pallet,
@@ -304,11 +301,10 @@ export const NoQrPalletTableView: React.FC = () => {
             clients.find((client) => client.user_id === pallet.user_id)?.name ||
             pallet.client_name ||
             t('unknownClient'),
-          statusLabel: getStatusLabel('Voor retour', language),
-          locationLabel: pallet.current_location || t('notAvailable'),
+          statusLabel: getStatusLabel(pallet.current_status_name, language),
           returnReportedAtLabel: dateFormatter.format(new Date(pallet.created_at)),
           pickupLabel: directPickupLabel,
-          commentLabel: pallet.note?.trim() || emptyValueLabel,
+          commentLabel: formatSystemNote(pallet.note, language) || emptyValueLabel,
         })),
     [clients, dateFormatter, directPickupLabel, language, pallets, t]
   );
@@ -321,8 +317,6 @@ export const NoQrPalletTableView: React.FC = () => {
         return row.clientName;
       case 'status':
         return row.statusLabel;
-      case 'location':
-        return row.locationLabel;
       case 'reportedAt':
         return row.returnReportedAtLabel;
       case 'pickup':
@@ -344,8 +338,6 @@ export const NoQrPalletTableView: React.FC = () => {
         return row.clientName;
       case 'status':
         return row.statusLabel;
-      case 'location':
-        return row.locationLabel;
       case 'pickup':
         return row.pickupLabel;
       case 'comment':
@@ -362,9 +354,6 @@ export const NoQrPalletTableView: React.FC = () => {
         .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
         .map((value) => ({ value, label: value })),
       status: Array.from<string>(new Set(rows.map((row) => row.statusLabel)))
-        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
-        .map((value) => ({ value, label: value })),
-      location: Array.from<string>(new Set(rows.map((row) => row.locationLabel)))
         .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
         .map((value) => ({ value, label: value })),
       reportedAt: Array.from<string>(new Set(rows.map((row) => row.returnReportedAtLabel)))
@@ -495,17 +484,12 @@ export const NoQrPalletTableView: React.FC = () => {
       return null;
     }
 
-    const currentQuery = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter((option) => {
-      if (!currentQuery) {
-        return true;
-      }
-
-      return (
-        option.label.toLowerCase().includes(currentQuery) ||
-        option.value.toLowerCase().includes(currentQuery)
-      );
-    });
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
+    );
 
     return (
       <div
@@ -533,7 +517,12 @@ export const NoQrPalletTableView: React.FC = () => {
         <div className="mt-2 flex min-h-0 flex-1 flex-col space-y-1">
           <button
             type="button"
-            onClick={() => clearColumnFilter(key)}
+            onClick={() => setSelectedFilters((current) => ({
+              ...current,
+              [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+                ? []
+                : filterOptions[key].map((option) => option.value),
+            }))}
             className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
           >
             <span>{showAllLabel}</span>
@@ -624,7 +613,6 @@ export const NoQrPalletTableView: React.FC = () => {
               <col style={{ width: columnWidths.serial }} />
               <col style={{ width: columnWidths.client }} />
               <col style={{ width: columnWidths.status }} />
-              <col style={{ width: columnWidths.location }} />
               <col style={{ width: columnWidths.reportedAt }} />
               <col style={{ width: columnWidths.pickup }} />
               <col style={{ width: columnWidths.comment }} />
@@ -648,12 +636,6 @@ export const NoQrPalletTableView: React.FC = () => {
                     {renderSortButton('status', t('status'))}
                   </div>
                   {renderResizeHandle('status')}
-                </th>
-                <th ref={registerHeaderCell('location')} className={cn(headerCellClass, 'group')}>
-                  <div className={headerContentClass}>
-                    {renderSortButton('location', t('location'))}
-                  </div>
-                  {renderResizeHandle('location')}
                 </th>
                 <th ref={registerHeaderCell('reportedAt')} className={cn(headerCellClass, 'group')}>
                   <div className={headerContentClass}>
@@ -683,19 +665,24 @@ export const NoQrPalletTableView: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.01 }}
                   onClick={() => {
+                    if (readOnly) return;
                     setOpenFilterKey(null);
                     setEditingPallet(row.pallet);
                   }}
                   onKeyDown={(event) => {
+                    if (readOnly) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       setOpenFilterKey(null);
                       setEditingPallet(row.pallet);
                     }
                   }}
-                  tabIndex={0}
-                  role="button"
-                  className="cursor-pointer transition-colors hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none"
+                  tabIndex={readOnly ? -1 : 0}
+                  role={readOnly ? undefined : "button"}
+                  className={cn(
+                    'transition-colors',
+                    readOnly ? 'hover:bg-zinc-50/60' : 'cursor-pointer hover:bg-zinc-50/60 focus-visible:bg-zinc-50/80 focus-visible:outline-none'
+                  )}
                 >
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
@@ -715,11 +702,6 @@ export const NoQrPalletTableView: React.FC = () => {
                       >
                         {row.statusLabel}
                       </Badge>
-                    </div>
-                  </td>
-                  <td className={bodyCellClass}>
-                    <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, 'text-zinc-500')}>{row.locationLabel}</span>
                     </div>
                   </td>
                   <td className={bodyCellClass}>
@@ -881,8 +863,19 @@ export const NoQrPalletTableView: React.FC = () => {
                       ...editingPallet,
                       current_status_id: statusId,
                       current_status_name: statusName,
-                      user_id: statusIdAllowsCustomer(statuses, statusId) ? editingPallet.user_id : undefined,
-                      client_name: statusIdAllowsCustomer(statuses, statusId) ? editingPallet.client_name : undefined,
+                      user_id:
+                        statusIdAllowsCustomer(statuses, statusId) &&
+                        statusIdAllowsCustomer(statuses, editingPallet.current_status_id)
+                          ? editingPallet.user_id
+                          : undefined,
+                      client_name:
+                        statusIdAllowsCustomer(statuses, statusId) &&
+                        statusIdAllowsCustomer(statuses, editingPallet.current_status_id)
+                          ? editingPallet.client_name
+                          : undefined,
+                      current_location: statusIdAllowsCustomer(statuses, statusId)
+                        ? ''
+                        : editingPallet.current_location,
                     });
                   }}
                   className="h-12 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 text-[12px] font-bold text-zinc-900 outline-none focus:border-emerald-400"
@@ -894,19 +887,6 @@ export const NoQrPalletTableView: React.FC = () => {
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
-                {t('location')}
-              </label>
-              <Input
-                value={editingPallet.current_location}
-                onChange={(event) =>
-                  setEditingPallet({ ...editingPallet, current_location: event.target.value })
-                }
-                className="bg-zinc-50"
-              />
             </div>
 
             <div className="mt-4 space-y-2">
@@ -933,9 +913,13 @@ export const NoQrPalletTableView: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  updatePallet(editingPallet);
-                  setEditingPallet(null);
+                onClick={async () => {
+                  try {
+                    await updatePallet(editingPallet);
+                    setEditingPallet(null);
+                  } catch (error) {
+                    console.error('Failed to save no-QR pallet', error);
+                  }
                 }}
                 className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#00A655] px-5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-transform hover:scale-[1.01]"
               >
@@ -957,6 +941,7 @@ export const NoQrPalletTableView: React.FC = () => {
         onConfirm={() => {
           if (!palletPendingDeletion) return;
           deletePallet(palletPendingDeletion.id);
+          setPagedPallets((current) => current.filter((pallet) => pallet.id !== palletPendingDeletion.id));
           setEditingPallet(null);
           setPalletPendingDeletion(null);
         }}

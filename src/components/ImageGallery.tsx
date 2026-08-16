@@ -1,16 +1,37 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Image as ImageIcon, Maximize2, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Image as ImageIcon, Maximize2, Minus, Plus, Search, X } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { getStatusLabel } from '../i18n';
 import { apiService } from '../services/api';
 import type { ClientDetail, PalletPhoto } from '../types';
-import { Card, Input, Select, cn } from './ui';
+import { Card, Input, cn } from './ui';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDateTime } from '../lib/dateFormat';
 import { FlatpickrDateInput } from './FlatpickrDateInput';
+import { rankSearchResults } from '../lib/searchRanking';
+import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
+import { groupDeliveryPhotos } from '../lib/deliveryPhotoGroups';
 
-function SecureGalleryImage({ photo, className }: { photo: PalletPhoto; className?: string }) {
+function SecureGalleryImage({
+  photo,
+  className,
+  style,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  draggable,
+}: {
+  photo: PalletPhoto;
+  className?: string;
+  style?: CSSProperties;
+  onPointerDown?: (event: ReactPointerEvent<HTMLImageElement>) => void;
+  onPointerMove?: (event: ReactPointerEvent<HTMLImageElement>) => void;
+  onPointerUp?: (event: ReactPointerEvent<HTMLImageElement>) => void;
+  onPointerCancel?: (event: ReactPointerEvent<HTMLImageElement>) => void;
+  draggable?: boolean;
+}) {
   const [source, setSource] = useState('');
 
   useEffect(() => {
@@ -38,6 +59,12 @@ function SecureGalleryImage({ photo, className }: { photo: PalletPhoto; classNam
       loading="lazy"
       alt={photo.pallet?.name || 'Pallet'}
       className={cn('h-full w-full object-cover', className)}
+      style={style}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      draggable={draggable}
     />
   ) : (
     <div className="flex h-full items-center justify-center">
@@ -55,6 +82,75 @@ type GalleryFilters = {
   date_to: string;
 };
 
+type GalleryFilterOption = {
+  value: string;
+  label: string;
+};
+
+function GalleryFilterDropdown({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: GalleryFilterOption[];
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    const closeDropdown = (event: MouseEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeDropdown);
+    return () => document.removeEventListener('mousedown', closeDropdown);
+  }, []);
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button
+        type="button"
+        role="combobox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 text-left text-[12px] font-black uppercase tracking-tight text-[var(--text-primary)] outline-none transition-colors focus:border-[color:var(--action-primary)]"
+      >
+        <span className="truncate">{selectedOption?.label}</span>
+        <ChevronDown size={15} className={cn('shrink-0 transition-transform', isOpen && 'rotate-180')} />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-full min-w-56 overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]">
+          <div className="max-h-64 space-y-1 overflow-y-auto overscroll-contain">
+            {options.map((option) => {
+              const isSelected = option.value === value;
+
+              return (
+                <button
+                  key={option.value || 'all'}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                  className={cn('flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold', isSelected ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5')}
+                >
+                  <span className="truncate">{option.label}</span>
+                  {isSelected && <Check size={14} className="shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ImageGallery() {
   const { clients: cachedClients, statuses, t, language } = useApp();
   const [filters, setFilters] = useState<GalleryFilters>({
@@ -69,8 +165,22 @@ export function ImageGallery() {
   const [galleryClients, setGalleryClients] = useState<ClientDetail[]>(cachedClients);
   const [clientSearch, setClientSearch] = useState('');
   const [isClientFilterOpen, setIsClientFilterOpen] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState<PalletPhoto | null>(null);
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
+  const [selectedPalletPhotos, setSelectedPalletPhotos] = useState<PalletPhoto[]>([]);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+  const [selectedPhotoZoom, setSelectedPhotoZoom] = useState(1);
+  const [selectedPhotoOffset, setSelectedPhotoOffset] = useState({ x: 0, y: 0 });
+  const [isPanningSelectedPhoto, setIsPanningSelectedPhoto] = useState(false);
+  const [isPalletGalleryLoading, setIsPalletGalleryLoading] = useState(false);
   const clientFilterRef = useRef<HTMLDivElement | null>(null);
+  const imageViewportRef = useRef<HTMLDivElement | null>(null);
+  const selectedPhotoPanRef = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    maxX: number;
+    maxY: number;
+  } | null>(null);
 
   useEffect(() => {
     let isCurrentRequest = true;
@@ -109,19 +219,19 @@ export function ImageGallery() {
   }, []);
 
   useEffect(() => {
-    if (!selectedPhoto) {
+    if (selectedDeliveryId === null) {
       return;
     }
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setSelectedPhoto(null);
+        closePalletGallery();
       }
     };
 
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [selectedPhoto]);
+  }, [selectedDeliveryId]);
 
   const fetchPage = useCallback(
     (offset: number) => apiService.gallery.page({ ...debouncedFilters, limit: 12, offset }),
@@ -130,9 +240,102 @@ export function ImageGallery() {
   const { items: photos, hasMore, isInitialLoading, isLoadingMore, error, loadMore, retry } = useInfinitePagination({
     queryKey: JSON.stringify(debouncedFilters), pageSize: 12, fetchPage,
   });
+  const deliveryPhotoGroups = useMemo(() => groupDeliveryPhotos(photos), [photos]);
+
+  const selectedPhoto = selectedPalletPhotos[selectedPhotoIndex] || null;
+
+  const closePalletGallery = () => {
+    setSelectedDeliveryId(null);
+    setSelectedPalletPhotos([]);
+    setSelectedPhotoIndex(0);
+    setSelectedPhotoZoom(1);
+    setSelectedPhotoOffset({ x: 0, y: 0 });
+    setIsPanningSelectedPhoto(false);
+    setIsPalletGalleryLoading(false);
+  };
+
+  const openDeliveryGallery = async (deliveryId: string, palletId: number, initiallyLoaded: PalletPhoto[]) => {
+    setSelectedDeliveryId(deliveryId);
+    setSelectedPalletPhotos(initiallyLoaded);
+    setSelectedPhotoIndex(0);
+    setSelectedPhotoZoom(1);
+    setSelectedPhotoOffset({ x: 0, y: 0 });
+    setIsPalletGalleryLoading(true);
+
+    try {
+      const allPalletPhotos = await apiService.gallery.list({ pallet_id: palletId });
+      const deliveryPhotos = groupDeliveryPhotos(allPalletPhotos)
+        .find((group) => group.id === deliveryId)?.photos;
+      if (deliveryPhotos?.length) {
+        setSelectedPalletPhotos(deliveryPhotos);
+        setSelectedPhotoIndex(0);
+        setSelectedPhotoZoom(1);
+        setSelectedPhotoOffset({ x: 0, y: 0 });
+      }
+    } catch (error) {
+      console.error('Failed to load all gallery photos for pallet', error);
+    } finally {
+      setIsPalletGalleryLoading(false);
+    }
+  };
 
   const update = (key: keyof GalleryFilters, value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
+  const selectPhoto = (index: number) => {
+    setSelectedPhotoIndex(index);
+    setSelectedPhotoZoom(1);
+    setSelectedPhotoOffset({ x: 0, y: 0 });
+    setIsPanningSelectedPhoto(false);
+  };
+  const changeSelectedPhotoZoom = (amount: number) =>
+    setSelectedPhotoZoom((current) => {
+      const next = Math.min(3, Math.max(1, Number((current + amount).toFixed(2))));
+      if (next === 1) {
+        setSelectedPhotoOffset({ x: 0, y: 0 });
+      }
+      return next;
+    });
+  const startPanningSelectedPhoto = (event: ReactPointerEvent<HTMLImageElement>) => {
+    if (selectedPhotoZoom <= 1) return;
+
+    const viewport = imageViewportRef.current?.getBoundingClientRect();
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    if (!viewport || !naturalWidth || !naturalHeight) return;
+
+    const baseScale = Math.min(viewport.width / naturalWidth, viewport.height / naturalHeight);
+    const displayedWidth = naturalWidth * baseScale * selectedPhotoZoom;
+    const displayedHeight = naturalHeight * baseScale * selectedPhotoZoom;
+    const maxX = Math.max(0, (displayedWidth - viewport.width) / 2);
+    const maxY = Math.max(0, (displayedHeight - viewport.height) / 2);
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    selectedPhotoPanRef.current = {
+      pointerId: event.pointerId,
+      originX: event.clientX - selectedPhotoOffset.x,
+      originY: event.clientY - selectedPhotoOffset.y,
+      maxX,
+      maxY,
+    };
+    setIsPanningSelectedPhoto(true);
+  };
+  const panSelectedPhoto = (event: ReactPointerEvent<HTMLImageElement>) => {
+    const pan = selectedPhotoPanRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+
+    setSelectedPhotoOffset({
+      x: Math.max(-pan.maxX, Math.min(pan.maxX, event.clientX - pan.originX)),
+      y: Math.max(-pan.maxY, Math.min(pan.maxY, event.clientY - pan.originY)),
+    });
+  };
+  const stopPanningSelectedPhoto = (event: ReactPointerEvent<HTMLImageElement>) => {
+    if (selectedPhotoPanRef.current?.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    selectedPhotoPanRef.current = null;
+    setIsPanningSelectedPhoto(false);
+  };
   const dateLabels = language === 'bs'
     ? { start: 'Početni datum', end: 'Završni datum' }
     : language === 'nl'
@@ -143,6 +346,11 @@ export function ImageGallery() {
     : language === 'nl'
       ? 'Zoek bok of uploader'
       : 'Search pallet or uploader';
+  const palletPhotosLabel = language === 'bs'
+    ? 'fotografija'
+    : language === 'nl'
+      ? "foto's"
+      : 'photos';
   const photoTypeLabel = (type: PalletPhoto['type']) => ({
     scan: t('statusChangeImage'),
     status_change: t('statusChangeImage'),
@@ -151,43 +359,39 @@ export function ImageGallery() {
     no_qr_report: t('noQrReportImage'),
     delivery_photo: t('deliveryReportImage'),
   }[type]);
+  const statusOptions: GalleryFilterOption[] = [
+    { value: '', label: t('allStatuses') },
+    ...statuses.map((status) => ({ value: String(status.id), label: getStatusLabel(status.name, language) })),
+  ];
   const selectedClient = galleryClients.find((client) => String(client.user_id) === filters.client_id);
-  const filteredClients = useMemo(() => {
-    const query = clientSearch.trim().toLocaleLowerCase();
-
-    return [...galleryClients]
-      .filter((client) => {
-        if (!query) {
-          return true;
-        }
-
-        return [client.name, client.kvk_number, client.billing_email]
-          .filter(Boolean)
-          .some((value) => String(value).toLocaleLowerCase().includes(query));
-      })
-      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }));
-  }, [clientSearch, galleryClients]);
+  const filteredClients = useMemo(
+    () => rankSearchResults(
+      galleryClients,
+      clientSearch,
+      (client) => client.name,
+      (client, query) => [client.kvk_number, client.billing_email]
+        .some((value) => String(value || '').toLocaleLowerCase().includes(query)),
+    ),
+    [clientSearch, galleryClients],
+  );
 
   return <div className="space-y-5">
-    <div><h2 className="text-3xl font-black uppercase tracking-tight dark:text-white">{t('imageGallery')}</h2><p className="text-sm text-zinc-400">{t('galleryDescription')}</p></div>
+    <AdminTableStickyToolbar flushToPageTop className="py-3">
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-[0_10px_35px_-24px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[#101715]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-white/10 dark:text-emerald-100">
+            <ImageIcon size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">{t('imageGallery')}</p>
+            <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">{t('galleryDescription')}</p>
+          </div>
+        </div>
+      </div>
+    </AdminTableStickyToolbar>
     <Card className="dark:bg-[#101715]" contentClassName="space-y-3">
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Select className="h-11 py-0" value={filters.type} onChange={(event) => update('type', event.target.value)}>
-          <option value="">{t('allImageTypes')}</option>
-          <option value="scan">{t('statusChangeImage')}</option>
-          <option value="damage_report">{t('damageReportImage')}</option>
-          <option value="service_report">{t('serviceReportImage')}</option>
-          <option value="no_qr_report">{t('noQrReportImage')}</option>
-          <option value="delivery_photo">{t('deliveryReportImage')}</option>
-        </Select>
-        <Select className="h-11 py-0" value={filters.status_id} onChange={(event) => update('status_id', event.target.value)}>
-          <option value="">{t('allStatuses')}</option>
-          {statuses.map((status) => (
-            <option key={`gallery-status-${status.id}`} value={String(status.id)}>
-              {getStatusLabel(status.name, language)}
-            </option>
-          ))}
-        </Select>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <GalleryFilterDropdown value={filters.status_id} options={statusOptions} onChange={(value) => update('status_id', value)} />
         <div ref={clientFilterRef} className="relative">
           <button
             type="button"
@@ -257,21 +461,158 @@ export function ImageGallery() {
         </div>
       </div>
     </Card>
-    {isInitialLoading ? <p className="py-16 text-center text-zinc-400">{t('loading')}</p> : photos.length === 0 ? <Card className="py-16 text-center dark:bg-[#101715]"><ImageIcon className="mx-auto mb-3 text-zinc-300" /><p>{t('galleryEmpty')}</p></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{photos.map((photo) => <Card key={photo.id} noPadding className="overflow-hidden dark:bg-[#101715]">
-      <button type="button" onClick={() => setSelectedPhoto(photo)} className="group relative aspect-video w-full bg-zinc-100 text-left dark:bg-black/20" aria-label={`${photo.pallet?.name || 'Pallet'} - ${photoTypeLabel(photo.type)}`}>
-        <SecureGalleryImage photo={photo} />
-        <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"><Maximize2 size={16} /></span>
-      </button>
-      <div className="space-y-1 p-4 text-sm"><strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong><p className="text-zinc-500">{photo.pallet?.customer || '-'} / {photoTypeLabel(photo.type)}</p><p className="text-xs text-zinc-400">{photo.status?.name ? getStatusLabel(photo.status.name, language) : photo.pallet?.status ? getStatusLabel(photo.pallet.status, language) : '-'} / {photo.uploader?.name || '-'}</p><p className="text-xs text-zinc-400">{formatAppDateTime(photo.created_at, language)}</p></div>
-    </Card>)}</div>}
+    {isInitialLoading ? (
+      <p className="py-16 text-center text-zinc-400">{t('loading')}</p>
+  ) : deliveryPhotoGroups.length === 0 ? (
+      <Card className="py-16 text-center dark:bg-[#101715]">
+        <ImageIcon className="mx-auto mb-3 text-zinc-300" />
+        <p>{t('galleryEmpty')}</p>
+      </Card>
+    ) : (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {deliveryPhotoGroups.map((group) => {
+          const photo = group.cover;
+
+          return (
+            <Card key={group.id} noPadding className="overflow-hidden dark:bg-[#101715]">
+              <button
+                type="button"
+                onClick={() => void openDeliveryGallery(group.id, group.palletId, group.photos)}
+                className="group relative aspect-video w-full bg-zinc-100 text-left dark:bg-black/20"
+                aria-label={`${photo.pallet?.name || 'Pallet'} - ${group.photos.length} ${palletPhotosLabel}`}
+              >
+                <SecureGalleryImage photo={photo} />
+                <span className="absolute left-3 top-3 rounded-full bg-[#00A655] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-lg">
+                  {group.photos.length} {palletPhotosLabel}
+                </span>
+                <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <Maximize2 size={16} />
+                </span>
+              </button>
+              <div className="space-y-1 p-4 text-sm">
+                <strong className="dark:text-white">{photo.pallet?.name || `#${photo.pallet_id}`}</strong>
+                <p className="text-zinc-500">{photo.pallet?.customer || '-'}</p>
+                <p className="text-xs text-zinc-400">
+                  {photo.status?.name
+                    ? getStatusLabel(photo.status.name, language)
+                    : photo.pallet?.status
+                      ? getStatusLabel(photo.pallet.status, language)
+                      : '-'} / {formatAppDateTime(photo.created_at, language)}
+                </p>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    )}
     <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={error} onLoadMore={loadMore} onRetry={retry} language={language} />
 
-    {selectedPhoto && (
-      <div className="modal-overlay fixed inset-0 z-[2200] flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setSelectedPhoto(null)}>
+    {selectedDeliveryId !== null && (
+      <div className="modal-overlay fixed inset-0 z-[2200] flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={closePalletGallery}>
         <div className="relative flex h-full max-h-[calc(100dvh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-          <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label={t('close')}><X size={20} /></button>
-          <div className="min-h-0 flex-1 bg-black"><SecureGalleryImage photo={selectedPhoto} className="object-contain" /></div>
-          <div className="shrink-0 bg-zinc-950 px-5 py-4 text-white"><p className="font-black">{selectedPhoto.pallet?.name || `#${selectedPhoto.pallet_id}`}</p><p className="mt-1 text-xs text-zinc-400">{selectedPhoto.pallet?.customer || '-'} / {photoTypeLabel(selectedPhoto.type)} / {formatAppDateTime(selectedPhoto.created_at, language)}</p></div>
+          <button type="button" onClick={closePalletGallery} className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label={t('close')}><X size={20} /></button>
+
+          <div ref={imageViewportRef} className="relative min-h-0 flex-1 overflow-hidden bg-black">
+            {selectedPhoto ? (
+              <SecureGalleryImage
+                photo={selectedPhoto}
+                className={cn(
+                  'object-contain select-none',
+                  selectedPhotoZoom > 1
+                    ? isPanningSelectedPhoto ? 'cursor-grabbing' : 'cursor-grab'
+                    : 'transition-transform duration-200',
+                )}
+                style={{ transform: `translate3d(${selectedPhotoOffset.x}px, ${selectedPhotoOffset.y}px, 0) scale(${selectedPhotoZoom})` }}
+                onPointerDown={startPanningSelectedPhoto}
+                onPointerMove={panSelectedPhoto}
+                onPointerUp={stopPanningSelectedPhoto}
+                onPointerCancel={stopPanningSelectedPhoto}
+                draggable={false}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-zinc-400">{t('loading')}</div>
+            )}
+
+            {selectedPhoto && (
+              <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 overflow-hidden rounded-full bg-black/65 text-white shadow-lg backdrop-blur">
+                <button
+                  type="button"
+                  onClick={() => changeSelectedPhotoZoom(-0.25)}
+                  disabled={selectedPhotoZoom <= 1}
+                  className="flex h-11 w-11 items-center justify-center transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Zoom out"
+                >
+                  <Minus size={20} />
+                </button>
+                <span className="flex min-w-14 items-center justify-center border-x border-white/15 text-xs font-black tabular-nums">
+                  {Math.round(selectedPhotoZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => changeSelectedPhotoZoom(0.25)}
+                  disabled={selectedPhotoZoom >= 3}
+                  className="flex h-11 w-11 items-center justify-center transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Zoom in"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+            )}
+
+            {selectedPalletPhotos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => selectPhoto((selectedPhotoIndex - 1 + selectedPalletPhotos.length) % selectedPalletPhotos.length)}
+                  className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80"
+                  aria-label="Previous photo"
+                >
+                  <ChevronLeft size={22} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectPhoto((selectedPhotoIndex + 1) % selectedPalletPhotos.length)}
+                  className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80"
+                  aria-label="Next photo"
+                >
+                  <ChevronRight size={22} />
+                </button>
+              </>
+            )}
+          </div>
+
+          {selectedPalletPhotos.length > 1 && (
+            <div className="flex shrink-0 gap-2 overflow-x-auto bg-zinc-900 px-4 py-3 no-scrollbar">
+              {selectedPalletPhotos.map((photo, index) => (
+                <button
+                  key={photo.id}
+                  type="button"
+                  onClick={() => selectPhoto(index)}
+                  className={cn(
+                    'h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 bg-black',
+                    index === selectedPhotoIndex ? 'border-[#00A655]' : 'border-transparent opacity-65',
+                  )}
+                >
+                  <SecureGalleryImage photo={photo} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedPhoto && (
+            <div className="shrink-0 bg-zinc-950 px-5 py-4 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-black">{selectedPhoto.pallet?.name || `#${selectedPhoto.pallet_id}`}</p>
+                  <p className="mt-1 text-xs font-semibold text-white/85">{selectedPhoto.pallet?.customer || '-'} / {photoTypeLabel(selectedPhoto.type)} / {formatAppDateTime(selectedPhoto.created_at, language)}</p>
+                </div>
+                <span className="shrink-0 text-xs font-black text-zinc-300">
+                  {selectedPhotoIndex + 1} / {selectedPalletPhotos.length}
+                </span>
+              </div>
+              {isPalletGalleryLoading && <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-400">{t('loading')}</p>}
+            </div>
+          )}
         </div>
       </div>
     )}

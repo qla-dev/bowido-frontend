@@ -76,6 +76,7 @@ type DeliveryLocationMapProps = {
   initialLocationIsSaved?: boolean;
   mapClassName?: string;
   layout?: "default" | "desktop-split";
+  showSaveSuccessMessage?: boolean;
   onSelectionChange?: (hasSelection: boolean) => void;
   onSave?: (
     palletId: number,
@@ -346,6 +347,7 @@ export const DeliveryLocationMap = ({
   initialLocationIsSaved = true,
   mapClassName,
   layout = "default",
+  showSaveSuccessMessage = true,
   onSelectionChange,
   onSave,
   onLocationSelected,
@@ -554,7 +556,9 @@ export const DeliveryLocationMap = ({
       setSavedLocation(nextLocation);
       setDisplayedAddress(nextLocation.formatted_address || displayedAddress);
       setAddressFields(toAddressFields(nextLocation));
-      setSaveMessage(text.saveSuccess);
+      if (showSaveSuccessMessage) {
+        setSaveMessage(text.saveSuccess);
+      }
     } catch (error) {
       setSaveError(
         error instanceof Error && error.message

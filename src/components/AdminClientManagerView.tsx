@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Building2,
   CalendarClock,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
   FileText,
   Hash,
   MapPin,
+  Mail,
   Package,
   Plus,
   Search,
@@ -24,9 +26,9 @@ import {
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
-import { Button, cn, Input, Select } from './ui';
+import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
-import { ClientDetail, Pallet, PalletPhoto } from '../types';
+import { ClientDetail, Invoice, Pallet, PalletPhoto } from '../types';
 import { getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
@@ -36,6 +38,7 @@ import { getPalletDisplayName } from '../lib/palletDisplay';
 import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
+import { CredentialDistributionModal } from './CredentialDistributionModal';
 
 type SortKey =
   | 'client'
@@ -44,6 +47,7 @@ type SortKey =
   | 'address'
   | 'warehouse1'
   | 'warehouse2'
+  | 'invoiceCount'
   | 'totalPallets'
   | 'overduePallets'
   | 'rate'
@@ -61,6 +65,7 @@ type ClientManagerRow = {
   addressLabel: string;
   warehouse1Label: string;
   warehouse2Label: string;
+  invoiceCount: number;
   warehouses: string[];
   totalPallets: number;
   overduePallets: number;
@@ -87,6 +92,7 @@ const COLUMN_ORDER = [
   'address',
   'warehouse1',
   'warehouse2',
+  'invoiceCount',
   'totalPallets',
   'overduePallets',
   'rate',
@@ -102,6 +108,7 @@ const INITIAL_COLUMN_WIDTHS: Record<SortKey, number> = {
   address: 240,
   warehouse1: 240,
   warehouse2: 240,
+  invoiceCount: 130,
   totalPallets: 145,
   overduePallets: 145,
   rate: 155,
@@ -117,6 +124,7 @@ const MIN_COLUMN_WIDTHS: Record<SortKey, number> = {
   address: 190,
   warehouse1: 190,
   warehouse2: 190,
+  invoiceCount: 115,
   totalPallets: 125,
   overduePallets: 125,
   rate: 125,
@@ -140,6 +148,7 @@ const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
   address: 'address',
   warehouse1: 'warehouse1',
   warehouse2: 'warehouse2',
+  invoiceCount: 'invoiceCount',
   rate: 'rate',
   gracePeriod: 'gracePeriod',
 };
@@ -147,13 +156,22 @@ const SERVER_SORT_BY_KEY: Partial<Record<SortKey, string>> = {
 interface AdminClientManagerViewProps {
   clientIdFilter?: number;
   readOnly?: boolean;
+  onClientSelect?: (client: ClientDetail) => void;
+  title?: string;
+  description?: string;
 }
 
 export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   clientIdFilter,
   readOnly = false,
+  onClientSelect,
+  title,
+  description,
 }) => {
   const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
+  const tableColumns: SortKey[] = readOnly
+    ? COLUMN_ORDER.filter((key) => key !== 'warehouse1' && key !== 'warehouse2')
+    : [...COLUMN_ORDER];
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
   const [searchQuery, setSearchQuery] = useState('');
@@ -167,9 +185,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   );
   const [selectedRow, setSelectedRow] = useState<ClientManagerRow | null>(null);
   const [clientDraft, setClientDraft] = useState<ClientDetail | null>(null);
+  const [selectedClientPallets, setSelectedClientPallets] = useState<Pallet[]>([]);
+  const [isClientPalletsLoading, setIsClientPalletsLoading] = useState(false);
   const [clientPhotos, setClientPhotos] = useState<PalletPhoto[]>([]);
   const [photoViewer, setPhotoViewer] = useState<PhotoViewerState | null>(null);
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
+  const [isCredentialDistributionOpen, setIsCredentialDistributionOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [clientPendingDeletion, setClientPendingDeletion] = useState<ClientManagerRow | null>(null);
   const [newClientDraft, setNewClientDraft] = useState<Omit<ClientDetail, 'id' | 'user_id'>>({
@@ -191,6 +212,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     is_active: true,
   });
   const [newClientCompanyOptions, setNewClientCompanyOptions] = useState<KvkRegistrationLookup['company_options']>([]);
+  const [isNewClientCompanyOpen, setIsNewClientCompanyOpen] = useState(false);
+  const newClientCompanyRef = useRef<HTMLDivElement | null>(null);
   const {
     headerCellClass,
     headerContentClass,
@@ -211,6 +234,51 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [photoViewer, selectedRow]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!selectedRow) {
+      setSelectedClientPallets([]);
+      setIsClientPalletsLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsClientPalletsLoading(true);
+
+    void apiService.pallets
+      .list({ user_id: selectedRow.client.user_id })
+      .then((clientPallets) => {
+        if (isMounted) {
+          setSelectedClientPallets(
+            clientPallets.filter((pallet) => statusIdAllowsCustomer(statuses, pallet.current_status_id))
+          );
+        }
+      })
+      .catch((error) => console.error('Failed to load client pallets', error))
+      .finally(() => {
+        if (isMounted) {
+          setIsClientPalletsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedRow?.client.user_id, statuses]);
+
+  useEffect(() => {
+    const closeCompanyDropdown = (event: MouseEvent) => {
+      if (!newClientCompanyRef.current?.contains(event.target as Node)) {
+        setIsNewClientCompanyOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeCompanyDropdown);
+    return () => document.removeEventListener('mousedown', closeCompanyDropdown);
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -289,6 +357,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       language === 'bs' ? 'Magacin 1' : language === 'nl' ? 'Magazijn 1' : 'Warehouse 1',
     warehouse2:
       language === 'bs' ? 'Magacin 2' : language === 'nl' ? 'Magazijn 2' : 'Warehouse 2',
+    invoiceCount:
+      language === 'bs' ? 'Broj faktura' : language === 'nl' ? 'Facturen' : 'Invoices',
     palletsAtClient:
       language === 'bs' ? 'Palete kod kupca' : language === 'nl' ? 'Bokken bij klant' : 'Pallets at client',
     lastInvoices:
@@ -314,11 +384,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       language === 'bs' ? 'Izvoz fakture pripremljen za' : language === 'nl' ? 'Factuurexport voorbereid voor' : 'Invoice export prepared for',
     resize:
       language === 'bs'
-        ? 'Promijeni sirinu kolone'
+        ? 'Promijeni širinu kolone'
         : language === 'nl'
           ? 'Kolombreedte aanpassen'
           : 'Resize column',
     addClient: language === 'bs' ? 'Dodaj klijenta' : language === 'nl' ? 'Klant toevoegen' : 'Add client',
+    sendLoginDetails: language === 'bs' ? 'Pošalji podatke za prijavu' : language === 'nl' ? 'Inloggegevens versturen' : 'Send login details',
     newClient: language === 'bs' ? 'Novi klijent' : language === 'nl' ? 'Nieuwe klant' : 'New client',
     newClientHint:
       language === 'bs'
@@ -439,6 +510,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           addressLabel: formatAddress(client.street, client.house_number, client.postal_code, client.city),
           warehouse1Label,
           warehouse2Label,
+          invoiceCount: client.invoice_count ?? 0,
           warehouses,
           totalPallets: clientPallets.length,
           overduePallets: overdueData.overduePallets,
@@ -478,6 +550,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         return row.warehouse1Label;
       case 'warehouse2':
         return row.warehouse2Label;
+      case 'invoiceCount':
+        return row.invoiceCount;
       default:
         return row.clientName;
     }
@@ -497,19 +571,19 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
   const filterOptions = useMemo<Record<SortKey, AdminTableFilterOption[]>>(
     () => Object.fromEntries(
-      COLUMN_ORDER.map((key) => [
+      tableColumns.map((key) => [
         key,
         Array.from<string>(new Set<string>(rows.map((row) => getFilterValue(row, key))))
           .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
           .map((value) => ({ value, label: value })),
       ])
     ) as Record<SortKey, AdminTableFilterOption[]>,
-    [rows]
+    [rows, tableColumns]
   );
 
   const visibleRows = useMemo(() => {
     const nextRows = rows.filter((row) =>
-      COLUMN_ORDER.every((key) =>
+      tableColumns.every((key) =>
         selectedFilters[key].length === 0 || selectedFilters[key].includes(getFilterValue(row, key))
       )
     );
@@ -529,7 +603,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     });
 
     return nextRows;
-  }, [rows, selectedFilters, sortConfig]);
+  }, [rows, selectedFilters, sortConfig, tableColumns]);
 
   const selectedInvoices = useMemo(() => {
     if (!selectedRow) {
@@ -551,6 +625,15 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     }));
   }, [currencyFormatter, invoices, language, selectedRow]);
 
+  const invoiceStatusLabel = (status: Invoice['status']) => {
+    if (status === 'paid') return t('paid');
+    if (status === 'overdue') return t('overdue');
+    if (status === 'sent') return t('sentLabel');
+    if (status === 'issued') return t('issued');
+
+    return status;
+  };
+
   const saveInvoicePdf = async (invoiceId: number, invoiceNumber: string) => {
     const blob = await apiService.invoices.download(invoiceId);
     const url = URL.createObjectURL(blob);
@@ -564,10 +647,22 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const generateAndExportSelectedInvoice = async () => {
     if (!selectedRow) return;
     const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const periodEnd = now.toISOString().slice(0, 10);
+    // Invoice only completed calendar months. This also avoids toISOString(),
+    // which shifted a local 1st of the month back one day in UTC+ timezones.
+    const formatLocalDate = (date: Date) => [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
+    const periodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
     const due = new Date(now); due.setDate(due.getDate() + 14);
-    const invoice = await apiService.invoices.create({ user_id: selectedRow.client.user_id, period_start: periodStart, period_end: periodEnd, due_at: due.toISOString().slice(0, 10) });
+    const invoice = await apiService.invoices.create({
+      user_id: selectedRow.client.user_id,
+      period_start: formatLocalDate(periodStart),
+      period_end: formatLocalDate(periodEnd),
+      due_at: formatLocalDate(due),
+    });
     await saveInvoicePdf(invoice.id, invoice.invoice_number);
   };
 
@@ -630,6 +725,11 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   }, [clientPhotosByPallet, photoViewer]);
 
   const openClientModal = (row: ClientManagerRow) => {
+    if (onClientSelect) {
+      onClientSelect(row.client);
+      return;
+    }
+
     setSelectedRow(row);
     setClientDraft({
       ...row.client,
@@ -641,6 +741,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const closeClientModal = () => {
     setSelectedRow(null);
     setClientDraft(null);
+    setSelectedClientPallets([]);
     setPhotoViewer(null);
   };
 
@@ -726,7 +827,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
     setIsCreatingClient(true);
     try {
-      await addClient({
+      const createdClient = await addClient({
         ...newClientDraft,
         name,
         kvk_number: kvk,
@@ -754,7 +855,13 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         warehouse_addresses: [], country: 'NL', grace_period_days: 14, price_per_day: 2, is_active: true,
       });
       setNewClientCompanyOptions([]);
-      await appAlert.fire({ icon: 'success', title: labels.createdTitle, text: labels.createdText });
+      await appAlert.fire({
+        icon: createdClient.credential_email_sent === false ? 'warning' : 'success',
+        title: labels.createdTitle,
+        text: createdClient.credential_email_sent === false
+          ? createdClient.credential_email_warning || labels.createFailedText
+          : labels.createdText,
+      });
     } catch (error) {
       await appAlert.fire({
         icon: 'error',
@@ -770,6 +877,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     if (!clientPendingDeletion || readOnly) return;
     try {
       await deleteClient(clientPendingDeletion.client.id);
+      setPagedClients((current) =>
+        current.filter((client) => client.id !== clientPendingDeletion.client.id)
+      );
       setClientPendingDeletion(null);
       closeClientModal();
       await appAlert.fire({ icon: 'success', title: labels.deletedTitle, text: labels.deletedText });
@@ -847,6 +957,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             ? current[key].filter((item) => item !== value)
             : [...current[key], value],
         }))}
+        onSelectAll={() => setSelectedFilters((current) => ({
+          ...current,
+          [key]: filterOptions[key].map((option) => option.value),
+        }))}
         onClear={() => setSelectedFilters((current) => ({ ...current, [key]: [] }))}
         filterLabel={t('filter')}
         searchLabel={t('search')}
@@ -864,6 +978,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     address: { label: labels.address },
     warehouse1: { label: labels.warehouse1 },
     warehouse2: { label: labels.warehouse2 },
+    invoiceCount: { label: labels.invoiceCount },
     totalPallets: { label: labels.totalPallets },
     overduePallets: { label: labels.overduePallets },
     rate: { label: labels.rate },
@@ -895,10 +1010,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
           </div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400">
-              {t('clientManager')}
+              {title || t('clientManager')}
             </p>
             <p className="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-              {readOnly
+              {description || (readOnly
                 ? language === 'bs'
                   ? 'Pregled podataka, paleta i obračuna'
                   : language === 'nl'
@@ -908,7 +1023,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                   ? 'Admin pregled i kontrola kupaca'
                   : language === 'nl'
                     ? 'Admin overzicht en beheer van klanten'
-                    : 'Admin overview and client control'}
+                    : 'Admin overview and client control')}
             </p>
           </div>
           </div>
@@ -925,7 +1040,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
       </AdminTableStickyToolbar>
 
       <AdminDataTable<SortKey>
-        columnOrder={COLUMN_ORDER}
+        columnOrder={tableColumns}
         initialColumnWidths={INITIAL_COLUMN_WIDTHS}
         minColumnWidths={MIN_COLUMN_WIDTHS}
         resizeAriaLabel={labels.resize}
@@ -946,13 +1061,13 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             style={{ width: `max(100%, ${totalTableWidth}px)` }}
           >
             <colgroup>
-              {COLUMN_ORDER.map((key) => (
+              {tableColumns.map((key) => (
                 <col key={`admin-client-col-${key}`} style={{ width: columnWidths[key] }} />
               ))}
             </colgroup>
             <thead className="border-b border-zinc-200 bg-zinc-50/80 dark:border-white/10 dark:bg-white/5">
               <tr>
-                {COLUMN_ORDER.map((key) => (
+                {tableColumns.map((key) => (
                     <th
                       key={`admin-client-header-${key}`}
                       ref={registerHeaderCell(key)}
@@ -1004,16 +1119,21 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                       <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.addressLabel}</span>
                     </div>
                   </td>
-                  <td className={bodyCellClass}>
+                  {tableColumns.includes('warehouse1') && <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.warehouse1Label}</span>
                     </div>
-                  </td>
-                  <td className={bodyCellClass}>
+                  </td>}
+                  {tableColumns.includes('warehouse2') && <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-500 dark:text-zinc-300')}>{row.warehouse2Label}</span>
                     </div>
-                  </td>
+                  </td>}
+                  {tableColumns.includes('invoiceCount') && <td className={bodyCellClass}>
+                    <div className={bodyCellInnerClass}>
+                      <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-white')}>{row.invoiceCount}</span>
+                    </div>
+                  </td>}
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
                       <span className={cn(bodyTextClass, 'text-zinc-900 dark:text-white')}>{row.totalPallets}</span>
@@ -1061,7 +1181,15 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
 
       {clientIdFilter === undefined && <InfiniteScrollFooter hasMore={hasMore} isLoading={isLoadingMore} error={paginationError} onLoadMore={loadMore} onRetry={retry} language={language} />}
 
-      {!readOnly && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 md:bottom-20 md:right-8">
+      {!readOnly && !onClientSelect && <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex flex-col items-stretch gap-3 md:bottom-20 md:right-8 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={() => setIsCredentialDistributionOpen(true)}
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#00A655] px-5 text-[11px] font-black uppercase tracking-[0.14em] text-white shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform hover:scale-[1.02]"
+        >
+          <Mail size={16} />
+          {labels.sendLoginDetails}
+        </button>
         <button
           type="button"
           onClick={() => setIsAddClientOpen(true)}
@@ -1072,16 +1200,20 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
         </button>
       </div>}
 
-      {!readOnly && isAddClientOpen && (
+      {!readOnly && !onClientSelect && isCredentialDistributionOpen && (
+        <CredentialDistributionModal language={language} onClose={() => setIsCredentialDistributionOpen(false)} />
+      )}
+
+      {!readOnly && !onClientSelect && isAddClientOpen && (
         <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setIsAddClientOpen(false)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2.5rem] bg-white p-8 shadow-2xl no-scrollbar dark:bg-[#0f1513]"
+            className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[2.5rem] bg-white shadow-2xl dark:bg-[#0f1513]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="absolute left-0 right-0 top-0 h-2 bg-black dark:bg-[#00A655]" />
-            <div className="mb-7 flex items-start justify-between gap-4">
+            <div className="mb-7 flex shrink-0 items-start justify-between gap-4 px-8 pt-8">
               <div>
                 <h3 className="text-2xl font-black uppercase tracking-tighter text-emerald-950 dark:text-white">{labels.newClient}</h3>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-300">{labels.newClientHint}</p>
@@ -1090,7 +1222,8 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                 <X size={20} />
               </button>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-6 no-scrollbar">
+              <div className="grid gap-4 sm:grid-cols-2">
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">KVK
                 <KvkLookupControl
                   className="mt-1"
@@ -1101,9 +1234,10 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                   }}
                   onResult={(result, kvk_number) => {
                     const companyNames = result.company_names ?? [];
-                    const companyOptions = result.company_options?.length > 0
+                    const companyOptions = (result.company_options?.length > 0
                       ? result.company_options
-                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } }));
+                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } })))
+                      .filter((option) => option.name.trim() !== '');
                     const selectedCompany = companyOptions[0];
                     const { kvk: _kvk, email, ...fields } = selectedCompany?.fields ?? result.fields;
                     setNewClientCompanyOptions(companyOptions);
@@ -1128,18 +1262,50 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
               </label>
               <label className="sm:col-span-2 text-xs font-bold dark:text-zinc-200">{labels.companyName}
                 {newClientCompanyOptions.length > 0 ? (
-                  <Select required className="mt-1" value={newClientDraft.name} onChange={(event) => {
-                    const selectedCompany = newClientCompanyOptions.find((option) => option.name === event.target.value);
-                    const { kvk: _kvk, email, ...fields } = selectedCompany?.fields ?? {};
-                    setNewClientDraft((draft) => ({
-                      ...draft,
-                      ...fields,
-                      name: event.target.value,
-                      billing_email: email ?? '',
-                    }));
-                  }}>
-                    {newClientCompanyOptions.map((option) => <option key={option.name} value={option.name}>{option.name}</option>)}
-                  </Select>
+                  <div ref={newClientCompanyRef} className="relative mt-1">
+                    <button
+                      type="button"
+                      role="combobox"
+                      aria-expanded={isNewClientCompanyOpen}
+                      aria-label={labels.companyName}
+                      disabled={isCreatingClient}
+                      onClick={() => setIsNewClientCompanyOpen((current) => !current)}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-left text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span className="truncate">{newClientDraft.name || labels.companyName}</span>
+                      <ChevronDown size={16} className={cn('shrink-0 text-zinc-400 transition-transform', isNewClientCompanyOpen && 'rotate-180')} />
+                    </button>
+                    {isNewClientCompanyOpen && (
+                      <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[140] w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]">
+                        <div className="max-h-56 space-y-1 overflow-y-auto overscroll-contain">
+                          {newClientCompanyOptions.map((option, index) => {
+                            const isSelected = option.name === newClientDraft.name;
+
+                            return (
+                              <button
+                                key={`kvk-company-${option.name}-${index}`}
+                                type="button"
+                                onClick={() => {
+                                  const { kvk: _kvk, email, ...fields } = option.fields ?? {};
+                                  setNewClientDraft((draft) => ({
+                                    ...draft,
+                                    ...fields,
+                                    name: option.name,
+                                    billing_email: email ?? '',
+                                  }));
+                                  setIsNewClientCompanyOpen(false);
+                                }}
+                                className={cn('flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold', isSelected ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200' : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5')}
+                              >
+                                <span className="truncate">{option.name}</span>
+                                {isSelected && <Check size={14} className="shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <Input required className="mt-1" value={newClientDraft.name} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, name: event.target.value }))} />
                 )}
@@ -1176,8 +1342,9 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
               <label className="text-xs font-bold dark:text-zinc-200">{labels.gracePeriod}
                 <Input type="number" min="0" className="mt-1" value={newClientDraft.grace_period_days} onChange={(event) => setNewClientDraft((draft) => ({ ...draft, grace_period_days: Number(event.target.value) }))} />
               </label>
+              </div>
             </div>
-            <div className="mt-8 flex gap-4">
+            <div className="flex shrink-0 gap-4 border-t border-zinc-100 bg-white px-8 py-5 dark:border-white/10 dark:bg-[#0f1513]">
               <Button type="button" variant="ghost" className="flex-1 justify-center" onClick={() => setIsAddClientOpen(false)}>{t('cancel')}</Button>
               <Button type="button" className="flex-1 justify-center" onClick={() => void createClient()} disabled={!newClientDraft.name.trim() || !newClientDraft.kvk_number?.trim() || !EMAIL_PATTERN.test(newClientDraft.billing_email?.trim() || '') || isCreatingClient}>
                 {isCreatingClient ? '...' : labels.addClient}
@@ -1220,7 +1387,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
             </div>
 
             <div className="mb-4 grid auto-rows-fr grid-cols-2 gap-2.5 md:grid-cols-5">
-              {renderMetricCard(labels.totalPallets, selectedRow.totalPallets)}
+              {renderMetricCard(labels.totalPallets, isClientPalletsLoading ? '—' : selectedClientPallets.length)}
               {renderMetricCard(labels.overduePallets, selectedRow.overduePallets, selectedRow.overduePallets > 0)}
               {renderMetricCard(labels.rate, selectedRow.rateLabel)}
               {renderMetricCard(labels.overdueDays, selectedRow.overdueDays, selectedRow.overdueDays > 0)}
@@ -1416,7 +1583,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                     <Trash2 size={14} />
                     {labels.deleteClient}
                   </button>
-                  <Button type="button" className="h-12 w-full justify-center gap-2" onClick={() => void saveClientDraft()}>
+                  <Button type="button" className="h-12 w-full justify-center gap-2 text-[10px]" onClick={() => void saveClientDraft()}>
                     <Save size={15} />
                     {labels.save}
                   </Button>
@@ -1436,8 +1603,12 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                     <span>{language === 'bs' ? 'Trenutni status' : language === 'nl' ? 'Huidige status' : 'Current status'}</span>
                   </div>
                   <div className="max-h-48 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
-                    {selectedRow.clientPallets.length > 0 ? (
-                      selectedRow.clientPallets.map((pallet) => (
+                    {isClientPalletsLoading ? (
+                      <p className="px-4 py-8 text-center text-[10px] font-black uppercase tracking-widest text-zinc-300">
+                        {t('loading')}
+                      </p>
+                    ) : selectedClientPallets.length > 0 ? (
+                      selectedClientPallets.map((pallet) => (
                         <div
                           key={`admin-client-modal-pallet-${pallet.id}`}
                           className="grid min-h-12 grid-cols-2 items-center border-b border-zinc-100 px-3 py-2 text-center last:border-b-0 dark:border-white/10"
@@ -1488,7 +1659,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                               {invoice.number}
                             </p>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">
-                              {invoice.date} · {invoice.status}
+                              {invoice.date} · {invoiceStatusLabel(invoice.status)}
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-3">
@@ -1518,7 +1689,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
                   {!readOnly && <Button
                     type="button"
                     variant="outline"
-                    className="mt-3 h-12 w-full justify-center gap-2"
+                    className="mt-auto h-12 w-full justify-center gap-2 text-[10px]"
                     onClick={() => void generateAndExportSelectedInvoice()}
                   >
                     <Download size={15} />

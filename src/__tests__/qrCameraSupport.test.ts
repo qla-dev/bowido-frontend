@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   configureQrCamera,
+  createQrCameraZoomController,
   isQrCameraStreamLive,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
@@ -66,5 +67,28 @@ describe('QR camera support', () => {
 
     await expect(setQrCameraZoom(stream, 3)).resolves.toBe(true);
     expect(applyConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 3 }] });
+  });
+
+  it('coalesces rapid zoom changes so the camera only catches up to the latest value', async () => {
+    let resolveFirstUpdate: (() => void) | undefined;
+    const applyZoom = vi.fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => {
+        resolveFirstUpdate = () => resolve(true);
+      }))
+      .mockResolvedValue(true);
+    const controller = createQrCameraZoomController(applyZoom);
+    const stream = {} as MediaStream;
+
+    controller.request(stream, 1.1);
+    controller.request(stream, 1.5);
+    controller.request(stream, 2.4);
+    expect(applyZoom).toHaveBeenCalledTimes(1);
+    expect(applyZoom).toHaveBeenLastCalledWith(stream, 1.1);
+
+    resolveFirstUpdate?.();
+    await vi.waitFor(() => {
+      expect(applyZoom).toHaveBeenCalledTimes(2);
+      expect(applyZoom).toHaveBeenLastCalledWith(stream, 2.4);
+    });
   });
 });

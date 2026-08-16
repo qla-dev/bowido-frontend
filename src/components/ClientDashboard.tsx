@@ -20,10 +20,16 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
   const clientPallets = pallets.filter((pallet) => pallet.user_id === user.id);
   const clientInfo = clients.find((client) => client.user_id === user.id);
 
-  const calculateDays = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
+  const calculateDays = (dateStr: string, frozenAt?: string) => {
+    const diff = new Date(frozenAt || Date.now()).getTime() - new Date(dateStr).getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24));
   };
+
+  const calculateCustomerTimerDays = (pallet: (typeof clientPallets)[number]) =>
+    calculateDays(
+      pallet.customer_timer_started_at || pallet.last_status_changed_at,
+      pallet.customer_timer_frozen_at,
+    );
 
   const getBillingStatus = (pallet: (typeof clientPallets)[number]) =>
     statuses.find((item) => item.id === pallet.current_status_id);
@@ -50,7 +56,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
 
     const graceDays = getGraceDays(pallet);
     const pricePerDay = getPricePerDay(pallet);
-    const days = calculateDays(pallet.last_status_changed_at);
+    const days = calculateCustomerTimerDays(pallet);
 
     if (days <= graceDays) {
       return 0;
@@ -74,7 +80,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
       return false;
     }
 
-    const days = calculateDays(pallet.last_status_changed_at);
+    const days = calculateCustomerTimerDays(pallet);
     const graceDays = getGraceDays(pallet);
     return graceDays > 0 && days >= Math.max(graceDays - 2, 0);
   });
@@ -222,7 +228,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
             <div className="divide-y divide-zinc-100">
               {attentionPallets.map((pallet) => {
                 const palletDebt = calculatePalletDebt(pallet);
-                const days = calculateDays(pallet.last_status_changed_at);
+                const days = calculateCustomerTimerDays(pallet);
 
                 return (
                   <div key={`attention-${pallet.id}`} className="flex items-center justify-between gap-4 p-4">
@@ -268,7 +274,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {clientPallets.map((pallet) => {
-            const days = calculateDays(pallet.last_status_changed_at);
+            const days = calculateCustomerTimerDays(pallet);
             const palletDebt = calculatePalletDebt(pallet);
             const graceDays = getGraceDays(pallet);
             const isCharging = palletDebt > 0;

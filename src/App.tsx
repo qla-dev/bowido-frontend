@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Sidebar, BottomNav, TopNavbar } from "./components/Navigation";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { ClientTableView } from "./components/ClientTableView";
@@ -19,14 +19,18 @@ import { AdminClientManagerView } from "./components/AdminClientManagerView";
 import { RoleManager } from "./components/RoleManager";
 import { UserManager } from "./components/UserManager";
 import { BillingList } from "./components/BillingList";
+import { NoQrPalletTableView } from "./components/NoQrPalletTableView";
 import { ThemeSettingsToggle } from "./components/ThemeSettingsToggle";
+import { PasswordChangeForm } from "./components/PasswordChangeForm";
+import { LanguagePicker } from "./components/LanguagePicker";
 import { KvkLookupControl } from "./components/KvkLookupControl";
 import { LandingShell } from "./components/LandingShell";
+import { FirstTimeLoginModal } from "./components/FirstTimeLoginModal";
 import { RoleType, User } from "./types";
-import { Eye, EyeOff, LogIn, X } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff, LogIn, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "./AppContext";
-import { Button, Card, Input, Select, cn } from "./components/ui";
+import { Button, Card, Input, cn } from "./components/ui";
 import { ApiError, apiService, type KvkRegistrationLookup } from "./services/api";
 import logoImage from "./assets/logo.png";
 import { languageOptions } from "./i18n";
@@ -86,9 +90,17 @@ const customerActiveTabs = new Set([
   "dashboard",
   "settings",
   "client-table",
+  "no-qr-pallets",
   "invoices",
+  "customer-details",
 ]);
 const basicActiveTabs = new Set(["dashboard", "settings"]);
+const warehouseActiveTabs = new Set([
+  "dashboard",
+  "settings",
+  "audit-logs",
+  "no-qr-pallets",
+]);
 
 const canUseActiveTab = (user: User, tab: string) => {
   if (user.role_name === RoleType.ADMIN) {
@@ -97,6 +109,13 @@ const canUseActiveTab = (user: User, tab: string) => {
 
   if (user.role_name === RoleType.KLIJENT) {
     return customerActiveTabs.has(tab);
+  }
+
+  if (
+    user.role_name === RoleType.MAGACINER ||
+    user.role_name === RoleType.ADMIN_WAREHOUSE
+  ) {
+    return warehouseActiveTabs.has(tab);
   }
 
   return basicActiveTabs.has(tab);
@@ -312,6 +331,14 @@ const getCredentialLoginCopy = (language: string) => {
       recentLogins: "Recente logins",
       noLogins: "Nog geen recente logins.",
       rememberMe: "Onthoud mij",
+      forgotPassword: "Wachtwoord vergeten?",
+      forgotPasswordTitle: "Wachtwoord opnieuw instellen",
+      forgotPasswordDescription: "Vul het e-mailadres van uw account in. Als het account actief is, sturen we daar een nieuw tijdelijk wachtwoord naartoe.",
+      sendTemporaryPassword: "Tijdelijk wachtwoord versturen",
+      sending: "Versturen...",
+      backToLogin: "Terug naar inloggen",
+      invalidEmail: "Vul een geldig e-mailadres in.",
+      forgotPasswordSent: "Als een actief account overeenkomt met dit e-mailadres, is er een nieuw tijdelijk wachtwoord verstuurd.",
       cancel: "Annuleren",
       submit: "Inloggen",
       showPassword: "Wachtwoord tonen",
@@ -336,6 +363,14 @@ const getCredentialLoginCopy = (language: string) => {
       recentLogins: "Recent logins",
       noLogins: "No recent logins yet.",
       rememberMe: "Remember me",
+      forgotPassword: "Forgot password?",
+      forgotPasswordTitle: "Reset your password",
+      forgotPasswordDescription: "Enter your account email. If the account is active, we’ll send a new temporary password to it.",
+      sendTemporaryPassword: "Send temporary password",
+      sending: "Sending...",
+      backToLogin: "Back to sign in",
+      invalidEmail: "Enter a valid email address.",
+      forgotPasswordSent: "If an active account matches this email address, a new temporary password has been sent.",
       cancel: "Cancel",
       submit: "Log in",
       showPassword: "Show password",
@@ -355,13 +390,21 @@ const getCredentialLoginCopy = (language: string) => {
     email: "Email",
     kvk: "KVK broj",
     password: "Lozinka",
-    savedLogins: "Sacuvane prijave",
+    savedLogins: "Sačuvane prijave",
     recentLogins: "Nedavne prijave",
     noLogins: "Jos nema nedavnih prijava.",
     rememberMe: "Zapamti me",
+    forgotPassword: "Zaboravili ste lozinku?",
+    forgotPasswordTitle: "Ponovno postavljanje lozinke",
+    forgotPasswordDescription: "Unesite e-mail adresu svog računa. Ako je račun aktivan, poslat ćemo novu privremenu lozinku na tu adresu.",
+    sendTemporaryPassword: "Pošalji privremenu lozinku",
+    sending: "Slanje...",
+    backToLogin: "Nazad na prijavu",
+    invalidEmail: "Unesite ispravnu e-mail adresu.",
+    forgotPasswordSent: "Ako postoji aktivan račun s ovom e-mail adresom, poslana je nova privremena lozinka.",
     cancel: "Odustani",
     submit: "Prijava",
-    showPassword: "Prikazi lozinku",
+    showPassword: "Prikaži lozinku",
     hidePassword: "Sakrij lozinku",
     required: "Unesite podatke za prijavu i lozinku.",
     invalid: "Podaci za prijavu ili lozinka nisu ispravni.",
@@ -475,6 +518,9 @@ export default function App() {
     setIsGhostReportOpen,
     refreshData,
     resetData,
+    auditLogs,
+    pallets,
+    clients,
   } = useApp();
   const kvkRegistrationCopy = getKvkRegistrationCopy(language);
   const kvkFormLabels =
@@ -580,6 +626,11 @@ export default function App() {
   >([]);
   const [showCredentialPassword, setShowCredentialPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [forgotPasswordError, setForgotPasswordError] = useState<string | null>(null);
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState<string | null>(null);
+  const [isForgotPasswordSubmitting, setIsForgotPasswordSubmitting] = useState(false);
   const [isKvkRegistrationOpen, setIsKvkRegistrationOpen] = useState(false);
   const [kvkRegistration, setKvkRegistration] = useState({
     kvk: "",
@@ -604,6 +655,8 @@ export default function App() {
     password_confirmation: "",
   });
   const [kvkRegistrationCompanyOptions, setKvkRegistrationCompanyOptions] = useState<KvkRegistrationLookup['company_options']>([]);
+  const [isKvkRegistrationCompanyOpen, setIsKvkRegistrationCompanyOpen] = useState(false);
+  const kvkRegistrationCompanyRef = useRef<HTMLDivElement | null>(null);
   const [kvkRegistrationError, setKvkRegistrationError] = useState<
     string | null
   >(null);
@@ -612,6 +665,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() =>
     readStoredActiveTab(currentUser),
   );
+  const [isRegistrationDetailsOpen, setIsRegistrationDetailsOpen] =
+    useState(false);
   const [isNightMode, setIsNightMode] = useState(readStoredTheme);
   const [pendingPalletDetailId, setPendingPalletDetailId] = useState<
     number | null
@@ -626,6 +681,17 @@ export default function App() {
 
     return window.matchMedia("(max-width: 767px)").matches;
   });
+
+  useEffect(() => {
+    const closeCompanyDropdown = (event: MouseEvent) => {
+      if (!kvkRegistrationCompanyRef.current?.contains(event.target as Node)) {
+        setIsKvkRegistrationCompanyOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeCompanyDropdown);
+    return () => document.removeEventListener("mousedown", closeCompanyDropdown);
+  }, []);
   const [showLoginLanguageMenu, setShowLoginLanguageMenu] = useState(false);
 
   useEffect(() => {
@@ -888,11 +954,14 @@ export default function App() {
     setRememberLogin(Boolean(profile?.saved));
     setCompanyLoginOptions([]);
     setShowCredentialPassword(false);
+    setIsForgotPasswordOpen(false);
+    setForgotPasswordError(null);
+    setForgotPasswordSuccess(null);
     setIsCredentialLoginOpen(true);
   };
 
   const closeCredentialLogin = () => {
-    if (isCredentialLoginSubmitting) {
+    if (isCredentialLoginSubmitting || isForgotPasswordSubmitting) {
       return;
     }
 
@@ -900,6 +969,9 @@ export default function App() {
     setCredentialLoginError(null);
     setCompanyLoginOptions([]);
     setShowCredentialPassword(false);
+    setIsForgotPasswordOpen(false);
+    setForgotPasswordError(null);
+    setForgotPasswordSuccess(null);
   };
 
   const selectCredentialLoginMode = (mode: LoginMode) => {
@@ -1000,6 +1072,46 @@ export default function App() {
     void performCredentialLogin();
   };
 
+  const openForgotPassword = () => {
+    setForgotPasswordEmail(credentialLoginForm.email);
+    setForgotPasswordError(null);
+    setForgotPasswordSuccess(null);
+    setIsForgotPasswordOpen(true);
+  };
+
+  const closeForgotPassword = () => {
+    if (isForgotPasswordSubmitting) {
+      return;
+    }
+
+    setForgotPasswordError(null);
+    setForgotPasswordSuccess(null);
+    setIsForgotPasswordOpen(false);
+  };
+
+  const handleForgotPasswordSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = forgotPasswordEmail.trim();
+
+    if (!EMAIL_PATTERN.test(email)) {
+      setForgotPasswordError(credentialLoginCopy.invalidEmail);
+      return;
+    }
+
+    setForgotPasswordError(null);
+    setForgotPasswordSuccess(null);
+    setIsForgotPasswordSubmitting(true);
+
+    void apiService.auth.forgotPassword(email)
+      .then(() => setForgotPasswordSuccess(credentialLoginCopy.forgotPasswordSent))
+      .catch((error) => {
+        setForgotPasswordError(
+          getCredentialLoginErrorMessage(error, credentialLoginCopy.invalid),
+        );
+      })
+      .finally(() => setIsForgotPasswordSubmitting(false));
+  };
+
   const handleLogout = () => {
     void apiService.auth.logout();
     setCurrentUser(null);
@@ -1010,6 +1122,19 @@ export default function App() {
     setDriverSelectedPalletId(null);
     resetData();
     setLoginProfiles(readLoginProfiles());
+  };
+
+  const handleFirstLoginCompleted = (
+    updatedUser: User,
+    reviewCustomerDetails: boolean,
+  ) => {
+    setCurrentUser(updatedUser);
+    storeCurrentUser(updatedUser);
+
+    if (reviewCustomerDetails && updatedUser.role_name === RoleType.KLIJENT) {
+      setIsRegistrationDetailsOpen(true);
+      setActiveTab("settings");
+    }
   };
 
   const submitKvkRegistration = async (event: FormEvent<HTMLFormElement>) => {
@@ -1214,16 +1339,6 @@ export default function App() {
                   <LogIn size={19} />
                   {t("loginButton")}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setKvkRegistrationError(null);
-                    setIsKvkRegistrationOpen(true);
-                  }}
-                  className="w-full rounded-2xl bg-slate-50 py-4 text-[12px] font-black uppercase tracking-[0.11em] text-slate-500 transition-colors hover:bg-slate-100"
-                >
-                  {kvkRegistrationCopy.title}
-                </button>
               </div>
             </div>
           </div>
@@ -1262,7 +1377,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={closeCredentialLogin}
-                    disabled={isCredentialLoginSubmitting}
+                    disabled={isCredentialLoginSubmitting || isForgotPasswordSubmitting}
                     className="hidden h-10 w-10 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50 md:flex"
                     aria-label={
                       language === "bs"
@@ -1276,7 +1391,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-6 sm:px-9">
+                <div className={cn("grid grid-cols-2 gap-3 border-b border-slate-100 p-6 sm:px-9", isForgotPasswordOpen && "hidden")}>
                   {(["user", "customer"] as LoginMode[]).map((mode) => {
                     const isActive = credentialLoginMode === mode;
 
@@ -1301,6 +1416,61 @@ export default function App() {
                   })}
                 </div>
 
+                {isForgotPasswordOpen ? (
+                  <form
+                    className="space-y-6 p-7 sm:p-9"
+                    onSubmit={handleForgotPasswordSubmit}
+                  >
+                    <div className="space-y-2">
+                      <h3 className="text-[13px] font-black uppercase tracking-[0.16em] text-slate-950">
+                        {credentialLoginCopy.forgotPasswordTitle}
+                      </h3>
+                      <p className="text-sm leading-6 text-slate-500">
+                        {credentialLoginCopy.forgotPasswordDescription}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="forgot-password-email" className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">
+                        {credentialLoginCopy.email}
+                      </label>
+                      <Input
+                        id="forgot-password-email"
+                        type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        value={forgotPasswordEmail}
+                        onChange={(event) => {
+                          setForgotPasswordEmail(event.target.value);
+                          setForgotPasswordError(null);
+                        }}
+                        className="h-14 rounded-2xl border-slate-100 bg-slate-50 px-5 normal-case tracking-normal focus:bg-white"
+                        disabled={isForgotPasswordSubmitting}
+                      />
+                    </div>
+                    {forgotPasswordError && (
+                      <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-rose-600">
+                        {forgotPasswordError}
+                      </p>
+                    )}
+                    {forgotPasswordSuccess && (
+                      <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                        {forgotPasswordSuccess}
+                      </p>
+                    )}
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <Button type="button" variant="outline" onClick={closeForgotPassword} disabled={isForgotPasswordSubmitting} className="flex-1">
+                        {credentialLoginCopy.backToLogin}
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={isForgotPasswordSubmitting}
+                        className="min-w-0 flex-1 whitespace-normal break-words py-2 text-center leading-tight"
+                      >
+                        {isForgotPasswordSubmitting ? credentialLoginCopy.sending : credentialLoginCopy.sendTemporaryPassword}
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
                 <form
                   className="space-y-6 p-7 sm:p-9"
                   onSubmit={(event) => void handleCredentialLoginSubmit(event)}
@@ -1431,6 +1601,15 @@ export default function App() {
                     </span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={openForgotPassword}
+                    disabled={isCredentialLoginSubmitting}
+                    className="w-full text-center text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700 transition-colors hover:text-emerald-900 disabled:opacity-50"
+                  >
+                    {credentialLoginCopy.forgotPassword}
+                  </button>
+
                   {credentialLoginError && (
                     <p
                       role="alert"
@@ -1465,19 +1644,9 @@ export default function App() {
                         {credentialLoginCopy.submit}
                       </Button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setKvkRegistrationError(null);
-                        setIsKvkRegistrationOpen(true);
-                      }}
-                      disabled={isCredentialLoginSubmitting}
-                      className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 transition-colors hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50 md:hidden"
-                    >
-                      {kvkRegistrationCopy.title}
-                    </button>
                   </div>
                 </form>
+                )}
               </motion.div>
             </motion.div>
           )}
@@ -1580,9 +1749,10 @@ export default function App() {
                   }}
                   onResult={(result, kvk) => {
                     const companyNames = result.company_names ?? [];
-                    const companyOptions = result.company_options?.length > 0
+                    const companyOptions = (result.company_options?.length > 0
                       ? result.company_options
-                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } }));
+                      : companyNames.map((name) => ({ name, fields: { ...result.fields, name } })))
+                      .filter((option) => option.name.trim() !== "");
                     const selectedCompany = companyOptions[0];
                     setKvkRegistrationCompanyOptions(companyOptions);
                     setKvkRegistration((form) => ({
@@ -1605,25 +1775,50 @@ export default function App() {
                 <label className="block text-xs font-bold dark:text-zinc-200">
                   {kvkFormLabels.company}
                   {kvkRegistrationCompanyOptions.length > 0 ? (
-                    <Select
-                      required
-                      className="mt-1"
-                      value={kvkRegistration.name}
-                      onChange={(event) => {
-                        const selectedCompany = kvkRegistrationCompanyOptions.find((option) => option.name === event.target.value);
-                        setKvkRegistration((form) => ({
-                          ...form,
-                          ...selectedCompany?.fields,
-                          kvk: form.kvk,
-                          name: event.target.value,
-                          email: selectedCompany?.fields.email ?? "",
-                        }));
-                      }}
-                    >
-                      {kvkRegistrationCompanyOptions.map((option) => (
-                        <option key={option.name} value={option.name}>{option.name}</option>
-                      ))}
-                    </Select>
+                    <div ref={kvkRegistrationCompanyRef} className="relative mt-1">
+                      <button
+                        type="button"
+                        role="combobox"
+                        aria-expanded={isKvkRegistrationCompanyOpen}
+                        aria-label={kvkFormLabels.company}
+                        disabled={isKvkRegistrationSubmitting}
+                        onClick={() => setIsKvkRegistrationCompanyOpen((current) => !current)}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-left text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="truncate">{kvkRegistration.name || kvkFormLabels.company}</span>
+                        <ChevronDown size={16} className={cn("shrink-0 text-zinc-400 transition-transform", isKvkRegistrationCompanyOpen && "rotate-180")} />
+                      </button>
+                      {isKvkRegistrationCompanyOpen && (
+                        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-[220] w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_20px_45px_-22px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[#151d1a]">
+                          <div className="max-h-56 space-y-1 overflow-y-auto overscroll-contain">
+                            {kvkRegistrationCompanyOptions.map((option, index) => {
+                              const isSelected = option.name === kvkRegistration.name;
+
+                              return (
+                                <button
+                                  key={`kvk-registration-company-${option.name}-${index}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setKvkRegistration((form) => ({
+                                      ...form,
+                                      ...option.fields,
+                                      kvk: form.kvk,
+                                      name: option.name,
+                                      email: option.fields.email ?? "",
+                                    }));
+                                    setIsKvkRegistrationCompanyOpen(false);
+                                  }}
+                                  className={cn("flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-[11px] font-bold", isSelected ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200" : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-white/5")}
+                                >
+                                  <span className="truncate">{option.name}</span>
+                                  {isSelected && <Check size={14} className="shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <Input
                       required
@@ -1954,23 +2149,52 @@ export default function App() {
   }
 
   const renderDashboard = () => {
+    const isWarehouseRole =
+      currentUser.role_name === RoleType.MAGACINER ||
+      currentUser.role_name === RoleType.ADMIN_WAREHOUSE;
+
+    if (activeTab === "audit-logs" && isWarehouseRole) {
+      return (
+        <AdminAuditLogs
+          auditLogs={auditLogs}
+          pallets={pallets}
+          clients={clients}
+          language={language}
+          t={t}
+          onSelectPallet={() => setActiveTab("dashboard")}
+        />
+      );
+    }
+    if (activeTab === "no-qr-pallets" && isWarehouseRole) {
+      return <NoQrPalletTableView readOnly />;
+    }
     if (activeTab === "gallery") return <ImageGallery />;
     if (activeTab === "client-manager") return <AdminClientManagerView />;
     if (activeTab === "roles") return <RoleManager />;
     if (activeTab === "korisnici")
       return <UserManager currentUser={currentUser} />;
-    if (activeTab === "invoices") return <BillingList />;
+    if (activeTab === "invoices") {
+      return (
+        <BillingList
+          customer={{
+            id: currentUser.id,
+            name: currentUser.customer_detail?.company_name || currentUser.name,
+          }}
+          onBack={() => setActiveTab("dashboard")}
+        />
+      );
+    }
+    if (activeTab === "no-qr-pallets" && currentUser.role_name === RoleType.KLIJENT) {
+      return <NoQrPalletTableView readOnly />;
+    }
+    if (activeTab === "customer-details" && currentUser.role_name === RoleType.KLIJENT) {
+      return <CustomerDetailsPage />;
+    }
     // Keep the admin sidebar on the same standalone repair queue used by the
     // Admin Service role. Rendering it inside AdminDashboard can leave its
     // internal view state empty during sidebar transitions.
     if (activeTab === "admin-service")
       return <AdminRoleOperationsView mode="service" />;
-    if (
-      activeTab === "customer-details" &&
-      currentUser.role_name === RoleType.KLIJENT
-    ) {
-      return <CustomerDetailsPage />;
-    }
     if (
       activeTab === "settings" &&
       (currentUser.role_name !== RoleType.ADMIN || usesRoleMobileShell)
@@ -1984,25 +2208,32 @@ export default function App() {
             onLabel={t("on")}
             offLabel={t("off")}
           />
-          <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 text-left dark:border-emerald-500/20 dark:bg-emerald-900/20">
-            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-200">
-              {t("language")}
-            </span>
-            <div className="mt-3">
-              <Select
-                value={language}
-                onChange={(event) =>
-                  setLanguage(event.target.value as typeof language)
-                }
-              >
-                {languageOptions.map((option) => (
-                  <option key={option.code} value={option.code}>
-                    {option.nativeLabel}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
+          <LanguagePicker />
+          <PasswordChangeForm />
+          {currentUser.role_name === RoleType.KLIJENT && (
+            <details
+              className="group mt-4 overflow-hidden rounded-2xl border border-emerald-100 bg-white dark:border-emerald-500/20 dark:bg-[#101715]"
+              open={isRegistrationDetailsOpen}
+              onToggle={(event) =>
+                setIsRegistrationDetailsOpen(event.currentTarget.open)
+              }
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4 text-left [&::-webkit-details-marker]:hidden">
+                <span>
+                  <span className="block text-xs font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-100">
+                    {t("informationSettings")}
+                  </span>
+                  <span className="mt-1 block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                    {t("completeDetails")}
+                  </span>
+                </span>
+                <ChevronDown size={18} className="shrink-0 text-emerald-700 transition-transform group-open:rotate-180 dark:text-emerald-200" />
+              </summary>
+              <div className="border-t border-emerald-100 p-4 dark:border-white/10">
+                <CustomerDetailsPage embedded />
+              </div>
+            </details>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -2139,10 +2370,9 @@ export default function App() {
               activeTab === "client-table" ? "dashboard" : "client-table",
             )
           }
-          showDetailsIcon={currentUser.role_name === RoleType.KLIJENT}
-          detailsActive={activeTab === "customer-details"}
-          onDetailsIconClick={() => setActiveTab("customer-details")}
-          showClientMenu={currentUser.role_name === RoleType.KLIJENT}
+          showBackToScan={activeTab !== "dashboard"}
+          backToScanLabel={t("backToScan")}
+          onBackToScan={() => setActiveTab("dashboard")}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -2182,6 +2412,9 @@ export default function App() {
             />
           )}
         </AnimatePresence>
+        {currentUser.first_time_login && (
+          <FirstTimeLoginModal user={currentUser} language={language} onCompleted={handleFirstLoginCompleted} />
+        )}
       </>
     );
   }
@@ -2289,6 +2522,9 @@ export default function App() {
             />
           )}
       </AnimatePresence>
+      {currentUser.first_time_login && (
+        <FirstTimeLoginModal user={currentUser} language={language} onCompleted={handleFirstLoginCompleted} />
+      )}
     </div>
   );
 }

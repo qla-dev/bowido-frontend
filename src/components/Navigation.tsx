@@ -154,21 +154,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         </div>
 
         <div className="flex w-full items-center justify-center gap-2 md:w-auto md:justify-start">
-          {false && role === RoleType.KLIJENT ? (
-            <button
-              type="button"
-              title={t('completeDetails')}
-              onClick={() => setActiveTab('customer-details')}
-              className={cn(
-                "h-10 w-10 shrink-0 border-2 rounded-xl flex items-center justify-center transition-all",
-                activeTab === 'customer-details'
-                  ? "bg-[#00A655] text-white border-[#00A655]"
-                  : "border-emerald-100 bg-white text-zinc-700 hover:border-emerald-300 hover:text-emerald-700 dark:border-white/10 dark:bg-[#101715] dark:text-zinc-200 dark:hover:border-white/20 dark:hover:bg-white/[0.07] dark:hover:text-emerald-100"
-              )}
-            >
-              <Building2 size={19} />
-            </button>
-          ) : hasGhostAccess && (
+          {hasGhostAccess && (
             <button
               type="button"
               title={t('sidebarNoQrPallets')}
@@ -502,8 +488,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
   const sidebarPanelWidth = isSidebarExpanded ? "w-64" : "w-[4.625rem]";
   const singleRoleOverviewLabel =
     language === 'bs' ? 'Pregled paleta' : language === 'nl' ? 'Bokkenoverzicht' : 'Pallet overview';
-  const companyInformationLabel =
-    language === 'bs' ? 'Informacije o kompaniji' : language === 'nl' ? 'Bedrijfsinformatie' : 'Company information';
   const usesSingleOverviewTab = [
     RoleType.MAGACINER,
     RoleType.SERVISER,
@@ -556,10 +540,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
         { id: 'invoices', label: t('billing'), icon: <ClipboardList /> }
         ,{ id: 'gallery', label: t('imageGallery'), icon: <Images /> }
       );
-    } else if (role === RoleType.VOZAC || role === RoleType.MAGACINER) {
+    } else if (role === RoleType.MAGACINER || role === RoleType.ADMIN_WAREHOUSE) {
+      items.push(
+        { id: 'no-qr-pallets', label: t('sidebarNoQrPallets'), icon: <NoQrCodeIcon /> },
+        { id: 'audit-logs', label: t('auditLogs'), icon: <History /> },
+      );
+    } else if (role === RoleType.VOZAC) {
     } else if (role === RoleType.SERVISER) {
-    } else if (role === RoleType.KLIJENT) {
-      items.push({ id: 'customer-details', label: companyInformationLabel, icon: <Building2 /> });
+    }
+
+    if (role === RoleType.KLIJENT) {
+      items.push(
+        { id: 'no-qr-pallets', label: t('sidebarNoQrPallets'), icon: <NoQrCodeIcon /> },
+        { id: 'invoices', label: t('billing'), icon: <ClipboardList /> },
+      );
     }
 
     const knownBackendRoles = ['admin','warehouse_operator','customer','driver','technician','user','operator','admin_service','admin_warehouse','finance_administration'];
@@ -797,6 +791,13 @@ export const BottomNav: React.FC<SidebarProps> = ({ activeTab, setActiveTab, rol
     }
 
     if (role === RoleType.KLIJENT) {
+      items.push({
+        id: 'no-qr-pallets',
+        label: t('sidebarNoQrPallets'),
+        icon: <NoQrCodeIcon size={18} />,
+        onClick: () => setActiveTab(activeTab === 'no-qr-pallets' ? 'dashboard' : 'no-qr-pallets'),
+        isActive: activeTab === 'no-qr-pallets',
+      });
       items.push({
         id: 'invoices',
         label: t('billing'),

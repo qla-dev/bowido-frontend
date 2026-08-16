@@ -48,7 +48,7 @@ const AddressCard = ({ title, preview, fields, form, onFieldChange }: AddressCar
   </section>
 );
 
-export function CustomerDetailsPage() {
+export function CustomerDetailsPage({ embedded = false }: { embedded?: boolean }) {
   const { t, language } = useApp();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -98,9 +98,7 @@ export function CustomerDetailsPage() {
   const addressPreview = (street: string, houseNumber: string, postalCode: string, city: string) =>
     [[street, houseNumber].filter(Boolean).join(' '), [postalCode, city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
 
-  return (
-    <Card title={t('completeDetails')} className="w-full max-w-none dark:bg-[#101715]">
-      {loading ? <p className="py-12 text-center text-sm text-zinc-400">{t('loading')}</p> : (
+  const formContent = loading ? <p className="py-12 text-center text-sm text-zinc-400">{t('loading')}</p> : (
         <form onSubmit={submit} className="space-y-3">
           <section className="rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 dark:border-white/10 dark:bg-[#101715]">
             <div className="mb-3 flex items-center gap-2">
@@ -121,7 +119,7 @@ export function CustomerDetailsPage() {
                 <Input value={form.phone_number} onChange={(event) => setField('phone_number', event.target.value)} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
               </label>
               <label className="text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:col-span-3 xl:col-span-3">{t('phone')}
-                <Input required value={form.fixed_phone} onChange={(event) => setField('fixed_phone', event.target.value)} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
+                <Input value={form.fixed_phone} onChange={(event) => setField('fixed_phone', event.target.value)} className="mt-1 h-10 bg-zinc-50 normal-case tracking-normal dark:bg-[#151d1a]" />
               </label>
             </div>
           </section>
@@ -141,7 +139,11 @@ export function CustomerDetailsPage() {
           {error && <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
           <Button type="submit" disabled={saving} className="h-12 w-full justify-center gap-2"><Save size={15} />{saving ? t('saving') : t('save')}</Button>
         </form>
-      )}
+      );
+
+  return embedded ? formContent : (
+    <Card title={t('completeDetails')} className="w-full max-w-none dark:bg-[#101715]">
+      {formContent}
     </Card>
   );
 }

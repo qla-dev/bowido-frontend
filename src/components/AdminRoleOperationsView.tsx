@@ -16,11 +16,14 @@ import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet, ServiceReport } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDateTime } from '../lib/dateFormat';
 import { apiService } from '../services/api';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { ServiceReportPhotoLightbox } from './ServiceReportPhotoLightbox';
+import { SoftHyphenatedText } from './SoftHyphenatedText';
+import { RepairCompletionUndoModal } from './RepairCompletionUndoModal';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
@@ -38,6 +41,11 @@ type OperationRow = {
   metric: string;
   amount: string;
   sortValues: Record<string, string | number>;
+};
+
+type RepairCompletionUndo = {
+  pallet: Pallet;
+  completionPromise: Promise<Pallet>;
 };
 
 const COLUMN_WIDTHS: Record<string, number> = {
@@ -75,6 +83,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const [serviceReportImageUrl, setServiceReportImageUrl] = useState('');
   const [isServiceReportImageLoading, setIsServiceReportImageLoading] = useState(false);
   const [serviceReportImageFailed, setServiceReportImageFailed] = useState(false);
+  const [isServiceReportPhotoViewerOpen, setIsServiceReportPhotoViewerOpen] = useState(false);
+  const [repairCompletionUndo, setRepairCompletionUndo] = useState<RepairCompletionUndo | null>(null);
   const [visibleCount, setVisibleCount] = useState(ADMIN_ROLE_PAGE_SIZE);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: SortDirection }>({
     key: 'primary',
@@ -114,10 +124,38 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     error: repairPalletsError,
     loadMore: loadMoreRepairPallets,
     retry: retryRepairPallets,
+    setItems: setRepairPallets,
   } = useInfinitePagination({
     queryKey: `repair-pallets-${mode}`,
     pageSize: ADMIN_ROLE_PAGE_SIZE,
     fetchPage: repairPalletPage,
+  });
+  const warehousePalletPage = useMemo(
+    () => (offset: number) => mode === 'warehouse'
+      ? apiService.pallets.page({
+          limit: ADMIN_ROLE_PAGE_SIZE,
+          offset,
+          sort_by: 'pallet_name',
+          sort_direction: 'asc',
+        })
+      : Promise.resolve({
+          items: [],
+          meta: { total: 0, limit: ADMIN_ROLE_PAGE_SIZE, offset, count: 0 },
+        }),
+    [mode],
+  );
+  const {
+    items: warehousePallets,
+    hasMore: hasMoreWarehousePallets,
+    isInitialLoading: isWarehousePalletsLoading,
+    isLoadingMore: isLoadingMoreWarehousePallets,
+    error: warehousePalletsError,
+    loadMore: loadMoreWarehousePallets,
+    retry: retryWarehousePallets,
+  } = useInfinitePagination({
+    queryKey: `warehouse-pallets-${mode}`,
+    pageSize: ADMIN_ROLE_PAGE_SIZE,
+    fetchPage: warehousePalletPage,
   });
   const {
     headerCellClass,
@@ -128,7 +166,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   } = adminTableStyles;
 
   useEffect(() => {
-    const imagePath = selectedRow?.serviceReport?.image_path;
+    const imagePath = selectedRow?.serviceReport?.photos?.[0]?.url || selectedRow?.serviceReport?.image_path;
     let objectUrl = '';
     let cancelled = false;
 
@@ -170,7 +208,11 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [selectedRow?.serviceReport?.id, selectedRow?.serviceReport?.image_path]);
+  }, [selectedRow?.serviceReport?.id, selectedRow?.serviceReport?.image_path, selectedRow?.serviceReport?.photos]);
+
+  useEffect(() => {
+    setIsServiceReportPhotoViewerOpen(false);
+  }, [selectedRow?.id]);
 
   const locale = language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB';
   const currencyFormatter = useMemo(
@@ -301,19 +343,49 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     const relevantPallets =
       mode === 'service'
         ? repairPallets
-        : pallets.filter((pallet) => [1, 2, 3, 5, 6, 8].includes(pallet.current_status_id));
+        : mode === 'warehouse'
+          ? warehousePallets
+          : pallets;
 
     return relevantPallets.map((pallet) => {
       const openReport = serviceReports.find((report) => report.pallet_id === pallet.id && !report.resolved_at);
       const days = getDaysSince(pallet.last_status_changed_at);
+      const serviceDescription = formatServiceReportDescription(openReport?.problem_description, language);
+      const palletNote = formatServiceReportDescription(pallet.note, language);
+      const activityLabels =
+        language === 'bs'
+          ? {
+              returnPickup: 'Preuzimanje povrata',
+              transport: 'Transport',
+              atClient: 'Kod klijenta',
+              warehouseStock: 'Zaliha u magacinu',
+            }
+          : language === 'nl'
+            ? {
+                returnPickup: 'Retour ophalen',
+                transport: 'Transport',
+                atClient: 'Bij klant',
+                warehouseStock: 'Magazijnvoorraad',
+              }
+            : {
+                returnPickup: 'Return pickup',
+                transport: 'Transport',
+                atClient: 'At client',
+                warehouseStock: 'Warehouse stock',
+              };
+      const isAtClient =
+        pallet.current_status_id === 4 ||
+        ['bij-de-klant', 'at_customer', 'at-client'].includes(pallet.current_status_slug || '');
       const activity =
         mode === 'service'
-          ? openReport?.problem_description || pallet.note || '-'
-          : pallet.current_status_id === 5
-            ? 'Return pickup'
+          ? serviceDescription || palletNote || '-'
+          : isAtClient
+            ? activityLabels.atClient
+            : pallet.current_status_id === 5
+            ? activityLabels.returnPickup
             : pallet.current_status_id === 2 || pallet.current_status_id === 6
-              ? 'Transport lane'
-              : 'Warehouse stock';
+              ? activityLabels.transport
+              : activityLabels.warehouseStock;
 
       return {
         id: `${mode}-${pallet.id}`,
@@ -337,7 +409,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         },
       };
     });
-  }, [clients, currencyFormatter, invoices, language, mode, pallets, repairPallets, serviceReports, statuses]);
+  }, [clients, currencyFormatter, invoices, language, mode, pallets, repairPallets, serviceReports, statuses, warehousePallets]);
 
   const getOperationValue = (row: OperationRow, key: OperationColumnKey) => key === 'actions' ? '' : row[key];
   const filterOptions = useMemo<Record<OperationColumnKey, AdminTableFilterOption[]>>(
@@ -412,10 +484,42 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
     );
   };
 
+  const markPalletAsRepaired = (pallet: Pallet) => {
+    // Remove the job before the request completes so it immediately leaves the technician queue.
+    setRepairPallets((current) => current.filter((item) => item.id !== pallet.id));
+    setSelectedRow((current) => current?.pallet?.id === pallet.id ? null : current);
+
+    const completionPromise = updatePalletRepairStatus(pallet.id, false);
+    setRepairCompletionUndo({ pallet, completionPromise });
+
+    void completionPromise.catch(() => {
+      setRepairCompletionUndo((current) => current?.pallet.id === pallet.id ? null : current);
+      setRepairPallets((current) => current.some((item) => item.id === pallet.id) ? current : [pallet, ...current]);
+    });
+  };
+
+  const undoPalletRepairCompletion = () => {
+    const pendingCompletion = repairCompletionUndo;
+    if (!pendingCompletion) return;
+
+    setRepairCompletionUndo(null);
+    void pendingCompletion.completionPromise
+      .then(() => updatePalletRepairStatus(pendingCompletion.pallet.id, true))
+      .then((restoredPallet) => {
+        setRepairPallets((current) => current.some((item) => item.id === restoredPallet.id)
+          ? current
+          : [restoredPallet, ...current]
+        );
+      })
+      .catch(() => {
+        // The shared pallet state restores itself when a request fails. Keeping the page entry removed
+        // avoids showing a completed job until the next refresh if the undo request did not save.
+      });
+  };
+
   const markServiceResolved = (row: OperationRow) => {
     if (!row.pallet) return;
-    updatePalletRepairStatus(row.pallet.id, false);
-    setSelectedRow(null);
+    markPalletAsRepaired(row.pallet);
   };
   const ModeIcon = mode === 'service' ? Wrench : mode === 'warehouse' ? Warehouse : Banknote;
 
@@ -452,7 +556,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         columnOrder={columns.map((column) => column.key)}
         initialColumnWidths={COLUMN_WIDTHS}
         minColumnWidths={MIN_WIDTHS}
-        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni sirinu kolone' : 'Resize column'}
+        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni širinu kolone' : 'Resize column'}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
         isEmpty={visibleRows.length === 0}
@@ -520,6 +624,10 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                             [column.key]: current[column.key].includes(value)
                               ? current[column.key].filter((item) => item !== value)
                               : [...current[column.key], value],
+                          }))}
+                          onSelectAll={() => setColumnFilters((current) => ({
+                            ...current,
+                            [column.key]: filterOptions[column.key].map((option) => option.value),
                           }))}
                           onClear={() => setColumnFilters((current) => ({ ...current, [column.key]: [] }))}
                           filterLabel={t('filter')}
@@ -593,7 +701,12 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                           title={row.pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
                           aria-label={row.pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
                           aria-pressed={row.pallet.is_for_repair}
-                          onClick={() => updatePalletRepairStatus(row.pallet!.id, !row.pallet!.is_for_repair)}
+                          onClick={() => {
+                            const pallet = row.pallet!;
+                            if (pallet.is_for_repair) {
+                              markPalletAsRepaired(pallet);
+                            }
+                          }}
                         >
                           <Check size={15} />
                         </Button>
@@ -607,9 +720,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         )}
       />
       <InfiniteScrollFooter
-        hasMore={paginatedRows.length < visibleRows.length || (mode === 'service' && hasMoreRepairPallets)}
-        isLoading={mode === 'service' && (isRepairPalletsLoading || isLoadingMoreRepairPallets)}
-        error={mode === 'service' ? repairPalletsError : undefined}
+        hasMore={paginatedRows.length < visibleRows.length || (mode === 'service' && hasMoreRepairPallets) || (mode === 'warehouse' && hasMoreWarehousePallets)}
+        isLoading={(mode === 'service' && (isRepairPalletsLoading || isLoadingMoreRepairPallets)) || (mode === 'warehouse' && (isWarehousePalletsLoading || isLoadingMoreWarehousePallets))}
+        error={mode === 'service' ? repairPalletsError : mode === 'warehouse' ? warehousePalletsError : undefined}
         onLoadMore={() => {
           if (paginatedRows.length < visibleRows.length) {
             setVisibleCount((current) => Math.min(current + ADMIN_ROLE_PAGE_SIZE, visibleRows.length));
@@ -618,20 +731,23 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
           if (mode === 'service') {
             loadMoreRepairPallets();
           }
+          if (mode === 'warehouse') {
+            loadMoreWarehousePallets();
+          }
         }}
-        onRetry={mode === 'service' ? retryRepairPallets : undefined}
+        onRetry={mode === 'service' ? retryRepairPallets : mode === 'warehouse' ? retryWarehousePallets : undefined}
         language={language}
       />
 
       {selectedRow && (
-        <div className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center p-4" onClick={() => setSelectedRow(null)}>
+        <div className="modal-overlay fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4" onClick={() => setSelectedRow(null)}>
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className={cn(
               'relative max-h-[88vh] w-full overflow-y-auto bg-white shadow-2xl no-scrollbar dark:bg-[#0f1513]',
               mode === 'service' && selectedRow.pallet
-                ? 'max-w-3xl overflow-hidden rounded-[2.5rem] p-0'
+                ? 'my-auto flex h-[calc(100dvh-1.5rem)] max-h-[88vh] max-w-3xl flex-col overflow-hidden rounded-[2.5rem] p-0 sm:h-[calc(100dvh-2rem)]'
                 : mode === 'warehouse' && selectedRow.pallet
                 ? 'max-w-xl overflow-hidden rounded-[3rem] p-8'
                 : 'max-w-2xl rounded-[2.5rem] p-7'
@@ -642,15 +758,11 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
               <>
                 <div className="h-2 w-full bg-[#00A655]" />
 
-                <div className="p-6 sm:p-8">
+                <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
                   <div className="mb-7 flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
-                        {language === 'bs'
-                          ? 'Servisna prijava'
-                          : language === 'nl'
-                            ? 'Servicemelding'
-                            : 'Service report'}
+                        {t('serviceReportImage')}
                       </p>
                       <h3 className="mt-2 break-words text-2xl font-black uppercase leading-none tracking-tight text-zinc-950 dark:text-white sm:text-3xl">
                         {selectedRow.primary}
@@ -669,16 +781,28 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                     </button>
                   </div>
 
-                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(17rem,0.9fr)]">
+                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(17rem,0.9fr)] lg:items-stretch">
                     <div className="overflow-hidden rounded-[1.5rem] border border-zinc-100 bg-zinc-50 dark:border-white/10 dark:bg-[#151d1a]">
                       {serviceReportImageUrl ? (
-                        <img
-                          src={serviceReportImageUrl}
-                          alt={selectedRow.serviceReport.problem_description}
-                          className="h-full max-h-[30rem] min-h-64 w-full object-contain"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsServiceReportPhotoViewerOpen(true)}
+                          disabled={!selectedRow.serviceReport?.photos?.length}
+                          className="group relative block h-80 w-full disabled:cursor-default"
+                        >
+                          <img
+                            src={serviceReportImageUrl}
+                            alt={formatServiceReportDescription(selectedRow.serviceReport.problem_description, language)}
+                            className="h-80 w-full object-cover"
+                          />
+                          {!!selectedRow.serviceReport?.photos?.length && (
+                            <span className="absolute left-3 top-3 rounded-full bg-[#00A655] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-lg">
+                              {selectedRow.serviceReport.photos.length} {selectedRow.serviceReport.photos.length === 1 ? 'photo' : 'photos'}
+                            </span>
+                          )}
+                        </button>
                       ) : (
-                        <div className="flex min-h-64 items-center justify-center px-6 text-center">
+                        <div className="flex h-80 items-center justify-center px-6 text-center">
                           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                             {isServiceReportImageLoading
                               ? language === 'bs'
@@ -702,8 +826,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                       )}
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/60 p-5 dark:border-white/10 dark:bg-white/[0.06]">
+                    <div className="space-y-3 lg:flex lg:h-80 lg:flex-col lg:space-y-0">
+                      <div className="rounded-[1.5rem] border border-emerald-100 bg-emerald-50/60 p-5 dark:border-white/10 dark:bg-white/[0.06] lg:min-h-0 lg:flex-1">
                         <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
                           {language === 'bs'
                             ? 'Opis oštećenja'
@@ -711,15 +835,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                               ? 'Omschrijving schade'
                               : 'Damage description'}
                         </p>
-                        <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-emerald-950 dark:text-white">
-                          {selectedRow.serviceReport?.problem_description ||
-                            selectedRow.pallet.note ||
+                        <SoftHyphenatedText className="mt-3 block whitespace-pre-wrap text-sm font-bold leading-6 text-emerald-950 dark:text-white">
+                          {formatServiceReportDescription(selectedRow.serviceReport?.problem_description, language) ||
+                            formatServiceReportDescription(selectedRow.pallet.note, language) ||
                             '-'}
-                        </p>
+                        </SoftHyphenatedText>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                      <div className="grid grid-cols-2 gap-3 lg:mt-3 lg:shrink-0">
+                        <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a] lg:h-24">
                           <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
                             {copy.status}
                           </p>
@@ -727,7 +851,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                             {selectedRow.status}
                           </p>
                         </div>
-                        <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
+                        <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a] lg:h-24">
                           <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
                             {copy.metric}
                           </p>
@@ -742,6 +866,13 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                       </div>
                     </div>
                   </div>
+
+                  {isServiceReportPhotoViewerOpen && selectedRow.serviceReport?.photos && selectedRow.serviceReport.photos.length > 0 && (
+                    <ServiceReportPhotoLightbox
+                      photos={selectedRow.serviceReport.photos}
+                      onClose={() => setIsServiceReportPhotoViewerOpen(false)}
+                    />
+                  )}
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-[#151d1a]">
@@ -793,6 +924,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                     </div>
                   </div>
 
+                </div>
+                <div className="shrink-0 border-t border-zinc-100 bg-white p-5 dark:border-white/10 dark:bg-[#0f1513] sm:p-6">
                   <Button
                     type="button"
                     className="mt-6 w-full py-4"
@@ -884,7 +1017,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                   </p>
                   {selectedRow.pallet.note && (
                     <p className="mt-3 text-xs font-bold leading-5 text-zinc-600 dark:text-zinc-200">
-                      {selectedRow.pallet.note}
+                      {formatServiceReportDescription(selectedRow.pallet.note, language)}
                     </p>
                   )}
                 </div>
@@ -927,7 +1060,9 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                   {formatAppDateTime(selectedRow.pallet.last_status_changed_at, language)}
                 </p>
                 {selectedRow.pallet.note && (
-                  <p className="mt-3 text-xs font-bold leading-5 text-zinc-600 dark:text-zinc-200">{selectedRow.pallet.note}</p>
+                  <p className="mt-3 text-xs font-bold leading-5 text-zinc-600 dark:text-zinc-200">
+                    {formatServiceReportDescription(selectedRow.pallet.note, language)}
+                  </p>
                 )}
               </div>
             )}
@@ -936,6 +1071,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
             )}
           </motion.div>
         </div>
+      )}
+
+      {repairCompletionUndo && (
+        <RepairCompletionUndoModal
+          palletLabel={getPalletDisplayName(repairCompletionUndo.pallet)}
+          language={language}
+          onUndo={undoPalletRepairCompletion}
+          onConfirm={() => setRepairCompletionUndo(null)}
+        />
       )}
     </div>
   );

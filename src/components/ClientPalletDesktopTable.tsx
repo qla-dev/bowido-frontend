@@ -16,7 +16,7 @@ import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { AuditLog, ClientDetail, Pallet } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
@@ -25,6 +25,7 @@ import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { DeliveryLocationMap } from './DeliveryLocationMap';
 import { DriverModalShell } from './DriverModalShell';
+import { rankSearchResults } from '../lib/searchRanking';
 
 type SortKey =
   | 'pallet'
@@ -46,7 +47,12 @@ type PalletRow = {
   typeLabel: string;
   statusLabel: string;
   lastUpdateLabel: string;
-  lastUpdateValue: number;
+  lastUpdateValue: number | null;
+  returnLabel: string;
+  returnValue: number | null;
+  deadlineLabel: string;
+  deadlineValue: number | null;
+  deadlineTone: 'muted' | 'success' | 'warning' | 'danger';
   locationLabel: string;
   daysOut: number;
   overdueDays: number;
@@ -206,7 +212,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const noHistoryLabel = language === 'bs' ? 'Nema historije kretanja.' : language === 'nl' ? 'Geen bewegingsgeschiedenis.' : 'No movement history.';
   const resizeAriaLabel =
     language === 'bs'
-      ? 'Promijeni sirinu kolone'
+      ? 'Promijeni širinu kolone'
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';
@@ -243,10 +249,10 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     );
   }, [cachedPallets]);
 
-  const getDaysSince = (date: string) => {
+  const getDaysSince = (date: string, frozenAt?: string) => {
     const changedAt = new Date(date);
     const changedAtMidnight = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
-    const today = new Date();
+    const today = frozenAt ? new Date(frozenAt) : new Date();
     const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     return Math.max(0, Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / (24 * 60 * 60 * 1000)));
   };
@@ -257,8 +263,36 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         .filter((pallet) => pallet.user_id === client.user_id)
         .map((pallet) => {
           const status = statuses.find((item) => item.id === pallet.current_status_id);
-          const daysOut = getDaysSince(pallet.last_status_changed_at);
-          const graceDays = status?.is_billable ? client.grace_period_days : 0;
+          const statusSlug = pallet.current_status_slug || '';
+          const usesCustomerTimer = ['bij-de-klant', 'ophalen-klant'].includes(statusSlug);
+          const changedAt = new Date(
+            usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
+          );
+          const hasValidChangeDate = !Number.isNaN(changedAt.getTime());
+          const isWarehouseStatus =
+            ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
+            pallet.current_status_id === 1 || pallet.current_status_id === 3;
+          const hasSentDate = hasValidChangeDate && !isWarehouseStatus;
+          const daysOut = hasSentDate
+            ? getDaysSince(
+                usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
+                usesCustomerTimer ? pallet.customer_timer_frozen_at : undefined,
+              )
+            : 0;
+          const graceDays = (
+            ['bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih'].includes(statusSlug) ||
+            [2, 6].includes(pallet.current_status_id)
+          )
+            ? pallet.grace_days ?? status?.grace_period_days ?? 3
+            : status?.is_billable || (usesCustomerTimer && Boolean(pallet.customer_timer_frozen_at))
+              ? pallet.grace_days ?? client.grace_period_days ?? status.grace_period_days ?? 0
+              : 0;
+          const hasDueDate = hasSentDate && graceDays > 0;
+          const dueDate = hasDueDate
+            ? new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate())
+            : null;
+          dueDate?.setDate(dueDate.getDate() + graceDays);
+          const remainingDays = hasDueDate ? graceDays - daysOut : null;
           const overdueDays = graceDays > 0 ? Math.max(daysOut - graceDays, 0) : 0;
           const debt = overdueDays * client.price_per_day;
 
@@ -267,8 +301,23 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             palletLabel: getPalletDisplayName(pallet),
             typeLabel: getPalletTypeLabel(pallet.type, language),
             statusLabel: getStatusLabel(pallet.current_status_name, language),
-            lastUpdateLabel: dateFormatter.format(new Date(pallet.last_status_changed_at)),
-            lastUpdateValue: new Date(pallet.last_status_changed_at).getTime(),
+            lastUpdateLabel: hasSentDate ? dateFormatter.format(changedAt) : '-',
+            lastUpdateValue: hasSentDate ? changedAt.getTime() : null,
+            returnLabel: dueDate ? dateFormatter.format(dueDate) : '-',
+            returnValue: dueDate?.getTime() ?? null,
+            deadlineLabel: remainingDays === null
+              ? '-'
+              : remainingDays < 0
+                ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`
+                : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
+            deadlineValue: dueDate?.getTime() ?? null,
+            deadlineTone: remainingDays === null
+              ? 'muted'
+              : remainingDays < 0
+                ? 'danger'
+                : remainingDays <= 2
+                  ? 'warning'
+                  : 'success',
             locationLabel: pallet.current_location || '-',
             daysOut,
             overdueDays,
@@ -292,9 +341,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       case 'location':
         return row.locationLabel;
       case 'daysOut':
-        return String(row.daysOut);
+        return row.returnLabel;
       case 'overdueDays':
-        return String(row.overdueDays);
+        return row.deadlineLabel;
       case 'debt':
         return row.debtLabel;
     }
@@ -305,9 +354,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       case 'lastUpdate':
         return row.lastUpdateValue;
       case 'daysOut':
-        return row.daysOut;
+        return row.returnValue;
       case 'overdueDays':
-        return row.overdueDays;
+        return row.deadlineValue;
       case 'debt':
         return row.debt;
       default:
@@ -341,6 +390,11 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     nextRows.sort((left, right) => {
       const leftValue = getSortValue(left, sortConfig.key);
       const rightValue = getSortValue(right, sortConfig.key);
+
+      if (leftValue === null && rightValue === null) return left.pallet.id - right.pallet.id;
+      if (leftValue === null) return 1;
+      if (rightValue === null) return -1;
+
       const comparison =
         typeof leftValue === 'number' && typeof rightValue === 'number'
           ? leftValue - rightValue
@@ -409,20 +463,10 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   };
 
   const getTimelineInfo = (row: PalletRow) => {
-    const status = statuses.find((item) => item.id === row.pallet.current_status_id);
-    const graceDays = status?.is_billable ? client.grace_period_days : 0;
-    if (graceDays <= 0) return { returnLabel: '-', deadlineLabel: '-', tone: 'muted' as const };
-
-    const changedAt = new Date(row.pallet.last_status_changed_at);
-    const dueDate = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
-    dueDate.setDate(dueDate.getDate() + graceDays);
-    const remainingDays = graceDays - row.daysOut;
     return {
-      returnLabel: dateFormatter.format(dueDate),
-      deadlineLabel: remainingDays < 0
-        ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}`
-        : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}`,
-      tone: remainingDays < 0 ? 'danger' as const : remainingDays <= 2 ? 'warning' as const : 'success' as const,
+      returnLabel: row.returnLabel,
+      deadlineLabel: row.deadlineLabel,
+      tone: row.deadlineTone,
     };
   };
 
@@ -655,12 +699,11 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       return null;
     }
 
-    const query = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter(
-      (option) =>
-        !query ||
-        option.label.toLowerCase().includes(query) ||
-        option.value.toLowerCase().includes(query)
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
     );
 
     return (
@@ -679,7 +722,12 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
         />
         <button
           type="button"
-          onClick={() => clearColumnFilter(key)}
+          onClick={() => setSelectedFilters((current) => ({
+            ...current,
+            [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+              ? []
+              : filterOptions[key].map((option) => option.value),
+          }))}
           className="mt-2 flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 hover:bg-zinc-50"
         >
           <span>{showAllLabel}</span>
@@ -1059,7 +1107,9 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                 <span className="mb-2 block text-[9px] font-black uppercase tracking-widest text-gray-400">
                   {language === 'bs' ? 'Komentar' : language === 'nl' ? 'Commentaar' : 'Comment'}
                 </span>
-                <p className="text-xs font-bold text-zinc-700">{selectedPallet.pallet.note}</p>
+                <p className="text-xs font-bold text-zinc-700">
+                  {formatServiceReportDescription(selectedPallet.pallet.note, language)}
+                </p>
               </div>
             )}
 

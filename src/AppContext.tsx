@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   AuditLog,
   ClientDetail,
@@ -17,6 +17,7 @@ import { apiService, setApiLocale } from "./services/api";
 import {
   AppLanguage,
   defaultLanguage,
+  formatServiceReportDescription,
   isAppLanguage,
   LANGUAGE_STORAGE_KEY,
   translate,
@@ -52,11 +53,11 @@ interface AppContextType {
     note?: string,
     clientId?: number,
   ) => Promise<Pallet | null>;
-  updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => void;
+  updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
   addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
-  updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => void;
+  updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => Promise<Pallet>;
   savePalletDeliveryLocation: (
     palletId: number,
     data: DeliveryLocationInput,
@@ -79,13 +80,13 @@ interface AppContextType {
   ) => Promise<ClientDetail>;
   deleteClient: (id: number) => Promise<void>;
   updateClient: (client: ClientDetail) => void;
-  updateStatusSettings: (status: PalletStatus) => void;
+  updateStatusSettings: (status: PalletStatus) => Promise<void>;
   addStatus: (status: Omit<PalletStatus, "id">) => void;
   deleteStatus: (id: number) => void;
   reportDamage: (report: {
     pallet_id: number;
     problem_description: string;
-    image?: File;
+    images?: File[];
   }) => Promise<void>;
   resolveService: (reportId: number, userId: number, note: string) => void;
   reportGhostPallets: (
@@ -117,6 +118,15 @@ export interface AppNotification {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const APP_DATA_CACHE_KEY = "trackpal_app_data_cache";
+// Active users see remote changes within two seconds. Background tabs do not need
+// fresh UI data, so polling pauses until the tab is visible again.
+const DATA_POLL_INTERVAL_MS = 2_000;
+
+// Polling returns freshly-deserialized data on every request. Keeping the
+// existing value when nothing changed prevents an otherwise identical poll
+// from re-rendering the active mobile workflow.
+const keepCurrentValueWhenEqual = <T,>(current: T, next: T): T =>
+  JSON.stringify(current) === JSON.stringify(next) ? current : next;
 
 interface AppDataCache {
   pallets: Pallet[];
@@ -203,6 +213,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
+  const palletLoadGenerationRef = useRef(0);
+  // Do not swap a populated pallet cache for the first page while a full
+  // refresh is still loading; mobile views should keep showing their current
+  // data until the complete replacement is ready.
+  const hasVisiblePalletDataRef = useRef(pallets.length > 0);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const liveRefreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const refreshLiveDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const invoicesRef = useRef(invoices);
+
+  useEffect(() => {
+    invoicesRef.current = invoices;
+  }, [invoices]);
 
   useEffect(() => {
     setApiLocale(language);
@@ -212,15 +236,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [language]);
 
-  const setLanguage = (lang: AppLanguage) => {
-    setApiLocale(lang);
-    setLanguageState(lang);
-  };
-
   const buildNotifications = (
     nextAuditLogs: AuditLog[],
     nextServiceReports: ServiceReport[],
     nextInvoices: Invoice[],
+    nextLanguage: AppLanguage = language,
   ): AppNotification[] => {
     const invoiceNotifications = nextInvoices
       .filter((invoice) => invoice.status === "overdue")
@@ -250,7 +270,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .map((report, index) => ({
         id: 3000 + index,
         title: "Service Required",
-        message: report.problem_description,
+        message: formatServiceReportDescription(
+          report.problem_description,
+          nextLanguage,
+        ),
         type: "alert" as const,
         read: false,
         created_at: report.created_at,
@@ -269,7 +292,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .slice(0, 10);
   };
 
+  const setLanguage = (lang: AppLanguage) => {
+    setApiLocale(lang);
+    setLanguageState(lang);
+    setNotifications(buildNotifications(auditLogs, serviceReports, invoices, lang));
+  };
+
   const resetData = () => {
+    palletLoadGenerationRef.current += 1;
     clearAppDataCache();
     setPallets([]);
     setStatuses([]);
@@ -281,30 +311,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setServiceReports([]);
     setPalletDashboardStats(null);
     setNotifications([]);
+    hasVisiblePalletDataRef.current = false;
   };
 
-  const refreshData = async () => {
-    if (!apiService.hasToken()) {
-      resetData();
-      return;
+  const refreshData = (): Promise<void> => {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
 
-    const safeLoad = async <T,>(
-      loader: () => Promise<T>,
-      fallback: T,
-    ): Promise<T> => {
-      try {
-        return await loader();
-      } catch (error) {
-        const status = (error as { status?: number }).status;
-        if (!status || status >= 500) {
-          console.error("Failed to load API data", error);
-        }
-        return fallback;
+    const refreshRequest = (async () => {
+      if (!apiService.hasToken()) {
+        resetData();
+        return;
       }
-    };
 
-    const storedUser =
+      const palletLoadGeneration = ++palletLoadGenerationRef.current;
+
+      const safeLoad = async <T,>(
+        loader: () => Promise<T>,
+        fallback: T,
+      ): Promise<T> => {
+        try {
+          return await loader();
+        } catch (error) {
+          const status = (error as { status?: number }).status;
+          if (!status || status >= 500) {
+            console.error("Failed to load API data", error);
+          }
+          return fallback;
+        }
+      };
+
+      const storedUser =
       typeof window === "undefined"
         ? null
         : (() => {
@@ -316,39 +354,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
               return null;
             }
           })();
-    const accessCodes = storedUser?.permission_codes || [];
-    const canLoadAccessSettings =
+      const accessCodes = storedUser?.permission_codes || [];
+      const canLoadAccessSettings =
       accessCodes.includes("*") ||
       (accessCodes.includes("roles") && accessCodes.includes("modules"));
-    const canLoadInvoices =
+      const canLoadInvoices =
       storedUser?.role_name === "Admin" || storedUser?.role_name === "Klijent";
-    const emptyRolesPage = {
+      const emptyRolesPage = {
       items: [],
       meta: { total: 0, limit: 100, offset: 0, count: 0 },
     };
-    const emptyPalletPage = {
+      const emptyPalletPage = {
       items: [],
       meta: { total: 0, limit: 50, offset: 0, count: 0 },
     };
-    const emptyClientPage = {
-      items: [],
-      meta: { total: 0, limit: 50, offset: 0, count: 0 },
-    };
-
-    const [
+      const [
       statusesData,
       palletsPage,
-      clientsPage,
+      clientsData,
       auditLogsData,
       serviceReportsData,
       invoicesData,
       rolesPage,
       permissionsData,
       dashboardStatsData,
-    ] = await Promise.all([
+      ] = await Promise.all([
       safeLoad(() => apiService.statuses.list(), []),
       safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
-      safeLoad(() => apiService.clients.page({ limit: 50 }), emptyClientPage),
+      safeLoad(() => apiService.clients.list(), []),
       safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
       safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
       canLoadInvoices
@@ -362,34 +395,223 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         : Promise.resolve([]),
       safeLoad(() => apiService.pallets.stats(), null),
     ]);
-    const rolesData = rolesPage.items;
-    const palletsData = palletsPage.items;
-    const clientsData = clientsPage.items;
+      const rolesData = rolesPage.items;
+      const palletsData = palletsPage.items;
+      const shouldReplacePalletsWithPage =
+        palletsPage.meta.total <= palletsData.length ||
+        !hasVisiblePalletDataRef.current;
 
-    setStatuses(statusesData);
-    setPallets(palletsData);
-    setClients(clientsData);
-    setAuditLogs(auditLogsData);
-    setServiceReports(serviceReportsData);
-    setInvoices(invoicesData);
-    setRoles(rolesData);
-    setPermissions(permissionsData);
-    setPalletDashboardStats(dashboardStatsData);
-    setNotifications(
-      buildNotifications(auditLogsData, serviceReportsData, invoicesData),
+      setStatuses((current) => keepCurrentValueWhenEqual(current, statusesData));
+      if (shouldReplacePalletsWithPage) {
+        setPallets((current) => keepCurrentValueWhenEqual(current, palletsData));
+        hasVisiblePalletDataRef.current = palletsData.length > 0;
+      }
+      setClients((current) => keepCurrentValueWhenEqual(current, clientsData));
+      setAuditLogs((current) => keepCurrentValueWhenEqual(current, auditLogsData));
+      setServiceReports((current) =>
+        keepCurrentValueWhenEqual(current, serviceReportsData),
+      );
+      setInvoices((current) => keepCurrentValueWhenEqual(current, invoicesData));
+      setRoles((current) => keepCurrentValueWhenEqual(current, rolesData));
+      setPermissions((current) =>
+        keepCurrentValueWhenEqual(current, permissionsData),
+      );
+      setPalletDashboardStats((current) =>
+        keepCurrentValueWhenEqual(current, dashboardStatsData),
+      );
+      setNotifications((current) =>
+        keepCurrentValueWhenEqual(
+          current,
+          buildNotifications(auditLogsData, serviceReportsData, invoicesData),
+        ),
+      );
+      writeAppDataCache({
+        statuses: statusesData,
+        ...(shouldReplacePalletsWithPage ? { pallets: palletsData } : {}),
+        clients: clientsData,
+        auditLogs: auditLogsData,
+        serviceReports: serviceReportsData,
+        invoices: invoicesData,
+        roles: rolesData,
+        permissions: permissionsData,
+        palletDashboardStats: dashboardStatsData,
+      });
+
+      // Keep the initial dashboard responsive, then complete the shared pallet
+      // cache in the background. Some views operate on this cache, so stopping
+      // at the first page makes older pallets appear to be missing.
+      if (palletsPage.meta.total > palletsData.length) {
+        void safeLoad(() => apiService.pallets.list(), []).then((allPallets) => {
+          if (
+            palletLoadGeneration !== palletLoadGenerationRef.current ||
+            allPallets.length <= palletsData.length
+          ) {
+            return;
+          }
+
+          setPallets((current) =>
+            keepCurrentValueWhenEqual(current, allPallets),
+          );
+          hasVisiblePalletDataRef.current = allPallets.length > 0;
+          writeAppDataCache({ pallets: allPallets });
+        });
+      }
+    })();
+
+    refreshInFlightRef.current = refreshRequest;
+    void refreshRequest.then(
+      () => {
+        if (refreshInFlightRef.current === refreshRequest) {
+          refreshInFlightRef.current = null;
+        }
+      },
+      () => {
+        if (refreshInFlightRef.current === refreshRequest) {
+          refreshInFlightRef.current = null;
+        }
+      },
     );
-    writeAppDataCache({
-      statuses: statusesData,
-      pallets: palletsData,
-      clients: clientsData,
-      auditLogs: auditLogsData,
-      serviceReports: serviceReportsData,
-      invoices: invoicesData,
-      roles: rolesData,
-      permissions: permissionsData,
-      palletDashboardStats: dashboardStatsData,
-    });
+
+    return refreshRequest;
   };
+
+  useEffect(() => {
+    refreshDataRef.current = refreshData;
+  }, [refreshData]);
+
+  // Poll only the data that changes during day-to-day pallet operations. The
+  // complete refresh above is still used after login and after local mutations,
+  // but repeatedly loading every client, invoice, role and every pallet page
+  // turns a two-second poll into hundreds of requests.
+  const refreshLiveData = (): Promise<void> => {
+    if (liveRefreshInFlightRef.current) {
+      return liveRefreshInFlightRef.current;
+    }
+
+    const liveRefreshRequest = (async () => {
+      if (!apiService.hasToken()) {
+        return;
+      }
+
+      const safeLoad = async <T,>(loader: () => Promise<T>, fallback: T): Promise<T> => {
+        try {
+          return await loader();
+        } catch (error) {
+          const status = (error as { status?: number }).status;
+          if (!status || status >= 500) {
+            console.error("Failed to load live API data", error);
+          }
+          return fallback;
+        }
+      };
+
+      const emptyPalletPage = {
+        items: [],
+        meta: { total: 0, limit: 50, offset: 0, count: 0 },
+      };
+      const [palletsPage, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
+        safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
+        safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
+        safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
+        safeLoad(() => apiService.pallets.stats(), null),
+      ]);
+      const shouldReplacePallets =
+        palletsPage.meta.total <= palletsPage.items.length || !hasVisiblePalletDataRef.current;
+
+      // Do not replace a full pallet cache with its first page. Merge its live
+      // changes instead, so currently visible pallet rows update immediately.
+      if (shouldReplacePallets) {
+        setPallets((current) => keepCurrentValueWhenEqual(current, palletsPage.items));
+        hasVisiblePalletDataRef.current = palletsPage.items.length > 0;
+      } else {
+        setPallets((current) => {
+          const livePalletsById = new Map(palletsPage.items.map((pallet) => [pallet.id, pallet]));
+          const mergedPallets = current.map((pallet) => livePalletsById.get(pallet.id) || pallet);
+          const knownPalletIds = new Set(current.map((pallet) => pallet.id));
+          const newPallets = palletsPage.items.filter((pallet) => !knownPalletIds.has(pallet.id));
+
+          return keepCurrentValueWhenEqual(current, [...newPallets, ...mergedPallets]);
+        });
+      }
+      setAuditLogs((current) => keepCurrentValueWhenEqual(current, auditLogsData));
+      setServiceReports((current) => keepCurrentValueWhenEqual(current, serviceReportsData));
+      setPalletDashboardStats((current) => keepCurrentValueWhenEqual(current, dashboardStatsData));
+      setNotifications((current) =>
+        keepCurrentValueWhenEqual(
+          current,
+          buildNotifications(auditLogsData, serviceReportsData, invoicesRef.current),
+        ),
+      );
+      writeAppDataCache({
+        ...(shouldReplacePallets ? { pallets: palletsPage.items } : {}),
+        auditLogs: auditLogsData,
+        serviceReports: serviceReportsData,
+        palletDashboardStats: dashboardStatsData,
+      });
+    })();
+
+    liveRefreshInFlightRef.current = liveRefreshRequest;
+    void liveRefreshRequest.finally(() => {
+      if (liveRefreshInFlightRef.current === liveRefreshRequest) {
+        liveRefreshInFlightRef.current = null;
+      }
+    });
+
+    return liveRefreshRequest;
+  };
+
+  useEffect(() => {
+    refreshLiveDataRef.current = refreshLiveData;
+  }, [refreshLiveData]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    let timeoutId: number | undefined;
+    let isDisposed = false;
+
+    const scheduleNextPoll = (delay = DATA_POLL_INTERVAL_MS) => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(runPoll, delay);
+    };
+
+    const runPoll = () => {
+      if (isDisposed || document.visibilityState !== "visible" || !apiService.hasToken()) {
+        return;
+      }
+
+      void refreshLiveDataRef.current().finally(() => {
+        if (!isDisposed && document.visibilityState === "visible") {
+          scheduleNextPoll();
+        }
+      });
+    };
+
+    const resumePolling = () => {
+      if (document.visibilityState !== "visible" || !apiService.hasToken()) {
+        window.clearTimeout(timeoutId);
+        return;
+      }
+
+      // A foregrounded tab should not wait for the old 15-second cooldown.
+      // refreshLiveData coalesces in-flight requests, so this remains safe
+      // when the browser emits both visibilitychange and online together.
+      scheduleNextPoll(0);
+    };
+
+    document.addEventListener("visibilitychange", resumePolling);
+    window.addEventListener("online", resumePolling);
+    resumePolling();
+
+    return () => {
+      isDisposed = true;
+      window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", resumePolling);
+      window.removeEventListener("online", resumePolling);
+    };
+  }, []);
 
   const fetchInvoices = async () => {
     try {
@@ -488,7 +710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const updatePalletStatus = (
+  const updatePalletStatus = async (
     palletId: number,
     statusId: number,
     userId: number,
@@ -499,26 +721,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   ) => {
     const pallet = pallets.find((item) => item.id === palletId);
     const status = statuses.find((item) => item.id === statusId);
+    const previousStatus = pallet
+      ? statuses.find((item) => item.id === pallet.current_status_id)
+      : undefined;
     const preserveClientAssignment = statusAllowsCustomer(status);
 
     if (!pallet || !status) {
-      return Promise.resolve(null);
+      return null;
     }
 
     const nextClientId = preserveClientAssignment
       ? (clientId ?? pallet.user_id)
       : undefined;
-    const nextLocation = ["bih-nl-transport", "nl-bih-transport"].includes(
-      status.slug,
-    )
+    const nextLocation = status.slug === "onbekend"
+      ? ""
+      : ["bih-nl-transport", "nl-bih-transport"].includes(status.slug)
       ? "Na putu"
-      : location || pallet.current_location;
+      : location ?? pallet.current_location;
     const nextClientName = preserveClientAssignment
       ? nextClientId
         ? clients.find((client) => client.user_id === nextClientId)?.name ||
           pallet.client_name
-        : pallet.client_name
+        : undefined
       : undefined;
+    const timestamp = new Date().toISOString();
+    const freezesCustomerTimer = previousStatus?.slug === 'bij-de-klant' && status.slug === 'ophalen-klant';
+    const startsCustomerTimer = previousStatus?.slug !== 'bij-de-klant' && status.slug === 'bij-de-klant';
 
     setPallets((prev) =>
       prev.map((item) => {
@@ -530,8 +758,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ...item,
           current_status_id: statusId,
           current_status_name: status.name,
+          current_status_slug: status.slug,
           current_location: nextLocation,
-          last_status_changed_at: new Date().toISOString(),
+          last_status_changed_at: timestamp,
+          customer_timer_started_at: startsCustomerTimer
+            ? timestamp
+            : item.customer_timer_started_at || (freezesCustomerTimer ? item.last_status_changed_at : undefined),
+          customer_timer_frozen_at: freezesCustomerTimer
+            ? timestamp
+            : startsCustomerTimer
+              ? undefined
+              : item.customer_timer_frozen_at,
           user_id: nextClientId,
           client_name: nextClientName,
           note: note || item.note,
@@ -539,48 +776,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }),
     );
 
-    return apiService.pallets
-      .update(palletId, {
+    try {
+      const updatedPallet = await apiService.pallets.update(palletId, {
         ...pallet,
         current_status_id: statusId,
         current_status_name: status.name,
         current_location: nextLocation,
-        user_id: nextClientId ?? pallet.user_id,
-        client_name: nextClientName ?? pallet.client_name,
+        user_id: nextClientId,
+        client_name: nextClientName,
         note: note || pallet.note,
-      })
-      .then((updatedPallet) => {
-        setPallets((prev) =>
-          prev.map((item) =>
-            item.id === updatedPallet.id ? updatedPallet : item,
-          ),
-        );
-        setNotifications((prev) => {
-          const nextId =
-            prev.length > 0
-              ? Math.max(...prev.map((notification) => notification.id)) + 1
-              : 1;
-          const newNotification: AppNotification = {
-            id: nextId,
-            title: "Status Update",
-            message: `${pallet.qr_code} moved to ${status.name}`,
-            type: "status",
-            read: false,
-            created_at: new Date().toISOString(),
-          };
-
-          return [newNotification, ...prev];
-        });
-        void fetchAuditLogs();
-        return updatedPallet;
-      })
-      .catch((error) => {
-        console.error("Failed to update pallet status", error);
-        setPallets((previous) => previous.map((item) =>
-          item.id === palletId ? pallet : item
-        ));
-        return null;
       });
+      setPallets((prev) =>
+        prev.map((item) =>
+          item.id === updatedPallet.id ? updatedPallet : item,
+        ),
+      );
+      setNotifications((prev) => {
+        const nextId =
+          prev.length > 0
+            ? Math.max(...prev.map((notification) => notification.id)) + 1
+            : 1;
+        const newNotification: AppNotification = {
+          id: nextId,
+          title: "Status Update",
+          message: `${pallet.qr_code} moved to ${status.name}`,
+          type: "status",
+          read: false,
+          created_at: new Date().toISOString(),
+        };
+
+        return [newNotification, ...prev];
+      });
+      void fetchAuditLogs();
+      void apiService.pallets.stats().then(setPalletDashboardStats).catch(() => undefined);
+
+      return updatedPallet;
+    } catch (error) {
+      setPallets((prev) =>
+        prev.map((item) => (item.id === pallet.id ? pallet : item)),
+      );
+      console.error("Failed to update pallet status", error);
+      return null;
+    }
   };
 
   const buildNewPallet = (id: number, qrCode: string, type: string): Pallet => {
@@ -599,6 +836,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       current_location: "",
       last_status_changed_at: timestamp,
       created_at: timestamp,
+      has_qr_code: normalizedQrCode !== '',
       is_ghost: false,
       is_for_repair: false,
       is_active: true,
@@ -675,10 +913,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       .catch((error) => console.error("Failed to create pallet batch", error));
   };
 
-  const updatePallet = (
+  const updatePallet = async (
     pallet: Pallet,
     actor?: { id: number; name: string },
-  ) => {
+  ): Promise<Pallet> => {
     const normalizedQrCode = normalizeQrCodeForStorage(pallet.qr_code);
     const previousPallet = pallets.find((item) => item.id === pallet.id);
     const normalizedPallet: Pallet = {
@@ -719,11 +957,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       prev.map((item) => (item.id === pallet.id ? nextPallet : item)),
     );
 
-    if (!previousPallet) {
-      return;
-    }
-
-    if (hasStatusChange) {
+    if (previousPallet && hasStatusChange) {
       pushNotification(
         "Status Update",
         `${nextPallet.qr_code} moved to ${nextPallet.current_status_name}${actor?.name ? ` by ${actor.name}` : ""}.`,
@@ -731,7 +965,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     }
 
-    if (hasQrCodeChange) {
+    if (previousPallet && hasQrCodeChange) {
       pushNotification(
         "QR Version Update",
         `${previousPallet.qr_code} updated to ${nextPallet.qr_code}.`,
@@ -739,17 +973,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     }
 
-    void apiService.pallets
-      .update(nextPallet.id, nextPallet)
-      .then((updatedPallet) => {
+    try {
+      const updatedPallet = await apiService.pallets.update(nextPallet.id, nextPallet);
+      setPallets((prev) => {
+        const exists = prev.some((item) => item.id === updatedPallet.id);
+
+        return exists
+          ? prev.map((item) => item.id === updatedPallet.id ? updatedPallet : item)
+          : [updatedPallet, ...prev];
+      });
+      void fetchAuditLogs();
+      void apiService.pallets.stats().then(setPalletDashboardStats).catch(() => undefined);
+
+      return updatedPallet;
+    } catch (error) {
+      if (previousPallet) {
         setPallets((prev) =>
-          prev.map((item) =>
-            item.id === updatedPallet.id ? updatedPallet : item,
-          ),
+          prev.map((item) => item.id === previousPallet.id ? previousPallet : item),
         );
-        void fetchAuditLogs();
-      })
-      .catch((error) => console.error("Failed to update pallet", error));
+      }
+      throw error;
+    }
   };
 
   const deletePallet = (id: number) => {
@@ -811,27 +1055,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     return pallet;
   };
 
-  const updatePalletRepairStatus = (palletId: number, isForRepair: boolean) => {
+  const updatePalletRepairStatus = async (palletId: number, isForRepair: boolean): Promise<Pallet> => {
     const pallet = pallets.find((item) => item.id === palletId);
-    if (!pallet) return;
 
-    setPallets((previous) => previous.map((item) =>
-      item.id === palletId ? { ...item, is_for_repair: isForRepair } : item
-    ));
+    if (pallet) {
+      setPallets((previous) => previous.map((item) =>
+        item.id === palletId ? { ...item, is_for_repair: isForRepair } : item
+      ));
+    }
 
-    void apiService.pallets.updateRepairStatus(palletId, isForRepair)
-      .then((updatedPallet) => {
-        setPallets((previous) => previous.map((item) =>
-          item.id === updatedPallet.id ? updatedPallet : item
-        ));
-        void fetchAuditLogs();
-      })
-      .catch((error) => {
-        console.error('Failed to update pallet repair status', error);
+    try {
+      const updatedPallet = await apiService.pallets.updateRepairStatus(palletId, isForRepair);
+      upsertPalletInState(updatedPallet);
+      // Refresh the activity log in the background so the button result is not delayed by a second request.
+      void fetchAuditLogs();
+      console.info('Pallet service status updated', {
+        palletId: updatedPallet.id,
+        qrCode: updatedPallet.qr_code,
+        admittedToService: isForRepair,
+      });
+      return updatedPallet;
+    } catch (error) {
+      console.error('Failed to update pallet repair status', error);
+      if (pallet) {
         setPallets((previous) => previous.map((item) =>
           item.id === palletId ? pallet : item
         ));
-      });
+      }
+      throw error;
+    }
   };
 
   const scanPalletByQr = async (qrCode: string, scannedCandidates: string[]): Promise<Pallet> => {
@@ -872,7 +1124,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const reportDamage = (report: {
     pallet_id: number;
     problem_description: string;
-    image?: File;
+    images?: File[];
   }) => {
     return apiService.serviceReports.create(report).then((createdReport) => {
       setServiceReports((prev) => [
@@ -1078,20 +1330,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setClients((current) => current.filter((client) => client.id !== id));
   };
 
-  const updateStatusSettings = (status: PalletStatus) => {
+  const updateStatusSettings = async (status: PalletStatus): Promise<void> => {
+    const previousStatus = statuses.find((item) => item.id === status.id);
+    const shouldSyncClientBilling = Boolean(
+      previousStatus && (
+        previousStatus.grace_period_days !== status.grace_period_days
+        || previousStatus.price_per_day !== status.price_per_day
+      ),
+    );
+
     setStatuses((prev) =>
       prev.map((item) => (item.id === status.id ? status : item)),
     );
-    void apiService.statuses
-      .update(status)
-      .then((updatedStatus) => {
+    try {
+      const updatedStatus = await apiService.statuses.update(status);
+      setStatuses((prev) =>
+        prev.map((item) =>
+          item.id === updatedStatus.id ? updatedStatus : item,
+        ),
+      );
+      if (shouldSyncClientBilling) {
+        setClients((prev) =>
+          prev.map((client) => ({
+            ...client,
+            grace_period_days: updatedStatus.grace_period_days,
+            price_per_day: updatedStatus.price_per_day,
+          })),
+        );
+      }
+    } catch (error) {
+      if (previousStatus) {
         setStatuses((prev) =>
           prev.map((item) =>
-            item.id === updatedStatus.id ? updatedStatus : item,
+            item.id === previousStatus.id ? previousStatus : item,
           ),
         );
-      })
-      .catch((error) => console.error("Failed to update status", error));
+      }
+
+      throw error;
+    }
   };
 
   const addStatus = (status: Omit<PalletStatus, "id">) => {

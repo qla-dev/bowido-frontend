@@ -8,24 +8,26 @@ import { getScannedQrCandidates } from '../lib/palletQrMatching';
 import { decodeQrFromImageBitmap, decodeQrFromVideo } from '../lib/videoQrDecoder';
 import { createNativeQrDetector, NativeQrDetector } from '../lib/nativeQrDetector';
 import { apiService } from '../services/api';
-import { statusIdAllowsCustomer } from '../lib/palletCustomerAssignment';
+import {
+  statusIdAllowsCustomer,
+  statusIdIsAtCustomer,
+} from '../lib/palletCustomerAssignment';
+import { rankSearchResults } from '../lib/searchRanking';
 import { compressPhotoForUpload } from '../lib/imageCompression';
 import {
   configureQrCamera,
-  isQrCameraStreamLive,
-  playQrCameraStream,
+  createQrCameraZoomController,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
-  setQrCameraZoom,
 } from '../lib/qrCameraSupport';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
 const CAMERA_ZOOM_STEP = 0.1;
-const QR_SCAN_INTERVAL_MS = 100;
-const QR_FALLBACK_MAX_DIMENSION = 960;
-const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1440;
-const QR_FALLBACK_DETAIL_PASS_EVERY = 4;
+const QR_SCAN_INTERVAL_MS = 140;
+const QR_FALLBACK_MAX_DIMENSION = 720;
+const QR_FALLBACK_DETAIL_MAX_DIMENSION = 1280;
+const QR_FALLBACK_DETAIL_PASS_EVERY = 5;
 
 interface ScannerProps {
   onClose: () => void;
@@ -71,9 +73,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const lastScanAttemptAtRef = React.useRef(0);
   const lastDetectedAtRef = React.useRef(0);
   const fallbackScanAttemptRef = React.useRef(0);
-  const cameraSessionRef = React.useRef(0);
-  const isCameraStartingRef = React.useRef(false);
-  const cameraRestartTimeoutRef = React.useRef<number | null>(null);
+  const isCameraControlInteractingRef = React.useRef(false);
+  const cameraInteractionUntilRef = React.useRef(0);
+  const cameraZoomControllerRef = React.useRef(createQrCameraZoomController());
 
   const getAllowedStatusIds = () => {
     return statuses.map((status) => status.id);
@@ -126,16 +128,21 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     }
 
     let cancelled = false;
-    const isPageHidden = () => document.visibilityState === 'hidden';
+    let restartTimer: number | null = null;
+    let startupWatchdogTimer: number | null = null;
+    let cameraSessionId = 0;
+    let hasRetriedFrozenCamera = false;
 
     const stopCamera = () => {
-      cameraSessionRef.current += 1;
-      isCameraStartingRef.current = false;
-      scanBusyRef.current = false;
+      // Invalidate any in-flight getUserMedia/play request before releasing the
+      // current stream. Mobile browsers may resolve a previous request after a
+      // tab has been backgrounded, otherwise reviving a stale preview.
+      cameraSessionId += 1;
+      cameraZoomControllerRef.current.clear();
 
-      if (cameraRestartTimeoutRef.current) {
-        window.clearTimeout(cameraRestartTimeoutRef.current);
-        cameraRestartTimeoutRef.current = null;
+      if (startupWatchdogTimer !== null) {
+        window.clearTimeout(startupWatchdogTimer);
+        startupWatchdogTimer = null;
       }
 
       if (scanFrameRef.current) {
@@ -169,7 +176,14 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       const detector = qrDetectorRef.current;
       const video = videoRef.current;
 
-      if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || scanBusyRef.current || detectedPallet) {
+      if (
+        !video ||
+        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+        scanBusyRef.current ||
+        detectedPallet ||
+        isCameraControlInteractingRef.current ||
+        performance.now() < cameraInteractionUntilRef.current
+      ) {
         return;
       }
 
@@ -222,9 +236,10 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
         if (
           !cancelled &&
-          sessionId === cameraSessionRef.current &&
-          !isPageHidden() &&
-          isQrCameraStreamLive(streamRef.current)
+          sessionId === cameraSessionId &&
+          document.visibilityState !== 'hidden' &&
+          streamRef.current?.active &&
+          streamRef.current.getVideoTracks().some((track) => track.readyState === 'live')
         ) {
           runDetectionLoop(sessionId);
         }
@@ -237,28 +252,20 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         return;
       }
 
-      if (
-        cancelled ||
-        isPageHidden() ||
-        isCameraStartingRef.current ||
-        isQrCameraStreamLive(streamRef.current)
-      ) {
+      if (cancelled || document.visibilityState === 'hidden') {
         return;
       }
 
-      const sessionId = cameraSessionRef.current + 1;
-      cameraSessionRef.current = sessionId;
-      isCameraStartingRef.current = true;
+      const sessionId = cameraSessionId + 1;
+      cameraSessionId = sessionId;
+      const isCurrentSession = () => !cancelled && sessionId === cameraSessionId;
 
       try {
         setCameraError(null);
         fallbackScanAttemptRef.current = 0;
-        const detector = await getQrDetector();
-
-        if (cancelled || sessionId !== cameraSessionRef.current || isPageHidden()) {
-          return;
-        }
-
+        // BarcodeDetector is optional and can initialise slowly on mobile.
+        // Start the preview independently so it never blocks camera access.
+        const detectorPromise = getQrDetector().catch(() => null);
         let stream: MediaStream | null = null;
         let lastCameraError: unknown = null;
 
@@ -275,24 +282,17 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           throw lastCameraError;
         }
 
-        if (
-          cancelled ||
-          sessionId !== cameraSessionRef.current ||
-          isPageHidden()
-        ) {
+        if (!isCurrentSession()) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
 
-        qrDetectorRef.current = detector;
         streamRef.current = stream;
         const cameraFeatures = await configureQrCamera(stream);
-
-        if (cancelled || sessionId !== cameraSessionRef.current) {
+        if (!isCurrentSession()) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
-
         setIsTorchSupported(cameraFeatures.torchSupported);
         setIsTorchOn(false);
 
@@ -306,33 +306,55 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           setIsCameraHardwareZoomSupported(false);
         }
 
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.onended = () => scheduleCameraRestart(150);
-          videoTrack.onmute = () => scheduleCameraRestart(1200, true);
-          videoTrack.onunmute = () => {
-            if (cameraRestartTimeoutRef.current) {
-              window.clearTimeout(cameraRestartTimeoutRef.current);
-              cameraRestartTimeoutRef.current = null;
-            }
-          };
+        const video = videoRef.current;
+        if (!video) {
+          throw new Error('Camera preview is unavailable.');
         }
 
-        if (!videoRef.current) {
-          throw new Error('Camera video is unavailable.');
-        }
-
-        await playQrCameraStream(videoRef.current, stream);
-
-        if (cancelled || sessionId !== cameraSessionRef.current) {
+        video.srcObject = stream;
+        await video.play();
+        if (!isCurrentSession()) {
+          if (video.srcObject === stream) {
+            video.pause();
+            video.srcObject = null;
+          }
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
-
         setIsCameraActive(true);
         runDetectionLoop(sessionId);
+
+        // Chrome can restore a tab with a live MediaStream whose preview has
+        // stopped advancing. Confirm that the newly attached video actually
+        // receives frames, then reacquire it once when it does not. The retry
+        // is deliberately capped at one per tab return to avoid a restart
+        // loop if the camera is genuinely unavailable.
+        const initialVideoTime = video.currentTime;
+        startupWatchdogTimer = window.setTimeout(() => {
+          startupWatchdogTimer = null;
+
+          if (
+            !isCurrentSession() ||
+            videoRef.current !== video ||
+            video.currentTime > initialVideoTime + 0.01 ||
+            hasRetriedFrozenCamera
+          ) {
+            return;
+          }
+
+          hasRetriedFrozenCamera = true;
+          stopCamera();
+          void startCamera();
+        }, 1_500);
+
+        const detector = await detectorPromise;
+        if (!isCurrentSession() || streamRef.current !== stream) {
+          return;
+        }
+
+        qrDetectorRef.current = detector;
       } catch (error) {
-        if (cancelled || sessionId !== cameraSessionRef.current) {
+        if (!isCurrentSession()) {
           return;
         }
 
@@ -341,61 +363,65 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         } else {
           setCameraError('The camera could not be started. Scan a QR image instead.');
         }
-        stopCamera();
-      } finally {
-        if (sessionId === cameraSessionRef.current) {
-          isCameraStartingRef.current = false;
+        if (isCurrentSession()) {
+          stopCamera();
         }
       }
     };
 
-    const scheduleCameraRestart = (delayMs: number, requireMutedTrack = false) => {
-      if (cancelled || isPageHidden()) {
+    const restartCameraWhenVisible = () => {
+      if (cancelled || document.visibilityState === 'hidden' || restartTimer !== null) {
         return;
       }
 
-      if (cameraRestartTimeoutRef.current) {
-        window.clearTimeout(cameraRestartTimeoutRef.current);
-      }
-
-      cameraRestartTimeoutRef.current = window.setTimeout(() => {
-        cameraRestartTimeoutRef.current = null;
-        const track = streamRef.current?.getVideoTracks()[0];
-        if (requireMutedTrack && track && !track.muted && track.readyState === 'live') {
+      // Reacquire a fresh stream after returning to the browser. iOS and some
+      // Android WebViews can leave a backgrounded MediaStream live but frozen.
+      restartTimer = window.setTimeout(() => {
+        restartTimer = null;
+        if (cancelled || document.visibilityState === 'hidden') {
           return;
         }
 
+        hasRetriedFrozenCamera = false;
         stopCamera();
         void startCamera();
-      }, delayMs);
+      }, 150);
     };
 
     const handleVisibilityChange = () => {
-      if (isPageHidden()) {
+      if (document.visibilityState === 'hidden') {
         stopCamera();
-      } else {
-        void startCamera();
+        return;
       }
+
+      restartCameraWhenVisible();
     };
 
-    const handlePageHide = () => stopCamera();
-    const handlePageShow = () => {
-      if (!isPageHidden()) {
-        void startCamera();
+    const handlePageHide = () => {
+      // Some Chrome tab-close and app-switch paths emit pagehide without a
+      // visibility event. Release the camera so pageshow always gets a clean
+      // stream instead of attempting to revive a frozen one.
+      if (restartTimer !== null) {
+        window.clearTimeout(restartTimer);
+        restartTimer = null;
       }
+      stopCamera();
     };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pagehide', handlePageHide);
-    window.addEventListener('pageshow', handlePageShow);
-
     void startCamera();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', restartCameraWhenVisible);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', restartCameraWhenVisible);
 
     return () => {
       cancelled = true;
+      if (restartTimer !== null) {
+        window.clearTimeout(restartTimer);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', restartCameraWhenVisible);
       window.removeEventListener('pagehide', handlePageHide);
-      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('pageshow', restartCameraWhenVisible);
       stopCamera();
     };
   }, [cameraRestartKey, detectedPallet, getQrDetector, handleDetectedCode, scanMode]);
@@ -423,8 +449,19 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     setCameraZoom(nextZoom);
 
     if (isCameraHardwareZoomSupported) {
-      void setQrCameraZoom(streamRef.current, nextZoom);
+      cameraZoomControllerRef.current.request(streamRef.current, nextZoom);
     }
+  };
+  const pauseCameraDetectionForControl = () => {
+    isCameraControlInteractingRef.current = true;
+  };
+  const resumeCameraDetectionAfterControl = () => {
+    isCameraControlInteractingRef.current = false;
+  };
+  const deferCameraDetectionForInteraction = () => {
+    // Leave the main thread free to paint button feedback before a synchronous
+    // jsQR fallback pass is allowed to begin.
+    cameraInteractionUntilRef.current = performance.now() + 180;
   };
   const toggleCameraTorch = async () => {
     const nextTorchState = !isTorchOn;
@@ -550,7 +587,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         animate={{ opacity: 1, scale: 1 }}
         className="my-auto flex w-full max-w-4xl items-center justify-center"
       >
-        <Card noPadding className="mx-auto flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] md:h-auto md:max-h-[85vh]">
+        <Card
+          noPadding
+          onPointerDownCapture={deferCameraDetectionForInteraction}
+          onKeyDownCapture={deferCameraDetectionForInteraction}
+          className="mx-auto flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-[1.75rem] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] md:h-auto md:max-h-[85vh]"
+        >
           <div className="p-6 border-b border-white/10 flex items-center justify-between bg-zinc-950 text-white shrink-0">
             <div className="flex items-center gap-2">
               <QrCode size={18} />
@@ -701,8 +743,20 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         <button
                           key={status.id}
                           onClick={() => {
+                            const isEnteringAtCustomerStatus =
+                              statusIdIsAtCustomer(statuses, status.id) &&
+                              !statusIdIsAtCustomer(
+                                statuses,
+                                selectedStatusId,
+                              );
                             setSelectedStatusId(status.id);
-                            if (!statusIdAllowsCustomer(statuses, status.id)) setSelectedClientId(undefined);
+                            if (
+                              !statusIdAllowsCustomer(statuses, status.id) ||
+                              isEnteringAtCustomerStatus
+                            ) {
+                              setSelectedClientId(undefined);
+                            }
+                            if (isEnteringAtCustomerStatus) setLocation("");
                           }}
                           className={cn(
                             'p-3 rounded-2xl border-2 transition-all text-left group',
@@ -730,7 +784,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         />
                       </div>
                       <div className="grid grid-cols-1 gap-2 max-h-[160px] overflow-y-auto no-scrollbar pr-1">
-                        {clients.filter((client) => client.name.toLowerCase().includes(clientSearch.toLowerCase())).map((client) => (
+                        {rankSearchResults(clients, clientSearch, (client) => client.name).map((client) => (
                           <button
                             key={client.id}
                             onClick={() => setSelectedClientId(client.user_id)}
@@ -781,17 +835,17 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                         muted
                         playsInline
                         className={cn(
-                          "absolute inset-0 h-full w-full origin-center object-cover transition-[opacity,transform] duration-300",
+                          "absolute inset-0 h-full w-full origin-center object-cover transition-opacity duration-300",
                           isCameraActive ? "opacity-100" : "opacity-0"
                         )}
                         style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
                       />
                       <div
                         className={cn(
-                          "absolute inset-0 origin-center transition-[opacity,transform] duration-300 ease-out",
+                          "absolute inset-0 origin-center transition-opacity duration-300 ease-out",
                           isCameraActive ? "opacity-20" : "opacity-100"
                         )}
-                        style={{ transform: `scale(${cameraZoom})` }}
+                        style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
                       >
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,166,85,0.2),transparent_48%),linear-gradient(135deg,rgba(255,255,255,0.12),transparent_36%),#07110d]" />
                         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.16)_1px,transparent_1px)] [background-size:28px_28px]" />
@@ -873,7 +927,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                       step={cameraZoomRange.step}
                       value={cameraZoom}
                       onChange={(event) => updateCameraZoom(Number(event.target.value))}
-                      className="h-2 w-full cursor-pointer accent-[#00A655]"
+                      onPointerDown={pauseCameraDetectionForControl}
+                      onPointerUp={resumeCameraDetectionAfterControl}
+                      onPointerCancel={resumeCameraDetectionAfterControl}
+                      onFocus={pauseCameraDetectionForControl}
+                      onBlur={resumeCameraDetectionAfterControl}
+                      className="h-2 w-full touch-none cursor-pointer accent-[#00A655]"
                       aria-label={cameraZoomLabel}
                     />
                   </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Funnel, RotateCcw } from 'lucide-react';
 import { cn, Input } from './ui';
+import { rankSearchResults } from '../lib/searchRanking';
 
 export type AdminTableFilterOption = {
   value: string;
@@ -13,6 +14,7 @@ interface AdminTableColumnFilterProps {
   options: AdminTableFilterOption[];
   selectedValues: string[];
   onToggle: (value: string) => void;
+  onSelectAll: () => void;
   onClear: () => void;
   filterLabel: string;
   searchLabel: string;
@@ -25,6 +27,7 @@ export const AdminTableColumnFilter: React.FC<AdminTableColumnFilterProps> = ({
   options,
   selectedValues,
   onToggle,
+  onSelectAll,
   onClear,
   filterLabel,
   searchLabel,
@@ -37,12 +40,12 @@ export const AdminTableColumnFilter: React.FC<AdminTableColumnFilterProps> = ({
   const [query, setQuery] = useState('');
   const [position, setPosition] = useState({ top: 0, left: 0, width: 256, maxHeight: 320 });
 
-  const visibleOptions = options.filter((option) => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    return !normalizedQuery
-      || option.label.toLocaleLowerCase().includes(normalizedQuery)
-      || option.value.toLocaleLowerCase().includes(normalizedQuery);
-  });
+  const visibleOptions = rankSearchResults(
+    options,
+    query,
+    (option) => option.label,
+    (option, normalizedQuery) => option.value.toLocaleLowerCase().includes(normalizedQuery),
+  );
 
   useLayoutEffect(() => {
     if (!isOpen || !buttonRef.current) return;
@@ -92,7 +95,7 @@ export const AdminTableColumnFilter: React.FC<AdminTableColumnFilterProps> = ({
         <div
           ref={menuRef}
           style={position}
-          className="fixed z-[80] flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white p-3 text-left shadow-[0_18px_40px_-22px_rgba(0,0,0,0.28)] dark:border-white/15 dark:bg-[#101113] dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
+          className="fixed z-[1100] flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white p-3 text-left shadow-[0_18px_40px_-22px_rgba(0,0,0,0.28)] dark:border-white/15 dark:bg-[#101113] dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]"
         >
           <Input
             autoFocus
@@ -104,7 +107,11 @@ export const AdminTableColumnFilter: React.FC<AdminTableColumnFilterProps> = ({
           <button
             type="button"
             onClick={() => {
-              onClear();
+              if (options.length > 0 && options.every((option) => selectedValues.includes(option.value))) {
+                onClear();
+              } else {
+                onSelectAll();
+              }
               setQuery('');
             }}
             className="mt-2 flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-white"

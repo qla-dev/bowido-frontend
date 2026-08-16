@@ -18,6 +18,25 @@ const copy = {
   en: { loading: 'Loading more results...', end: 'End of results', retry: 'Try again' },
 } as const;
 
+/**
+ * Most result tables scroll inside a panel rather than the document. Using
+ * that panel as the observer root makes rootMargin effective there, so the
+ * following page begins loading before the user reaches the footer.
+ */
+const findScrollContainer = (element: HTMLElement): Element | null => {
+  let parent = element.parentElement;
+
+  while (parent) {
+    const { overflowY } = window.getComputedStyle(parent);
+    if (overflowY === 'auto' || overflowY === 'scroll') {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+
+  return null;
+};
+
 export function InfiniteScrollFooter({ hasMore, isLoading, error, onLoadMore, onRetry, language }: InfiniteScrollFooterProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(onLoadMore);
@@ -31,11 +50,13 @@ export function InfiniteScrollFooter({ hasMore, isLoading, error, onLoadMore, on
     const sentinel = sentinelRef.current;
     if (!sentinel || !hasMore || isLoading || error) return;
 
+    const scrollContainer = findScrollContainer(sentinel);
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) loadMoreRef.current();
       },
-      { rootMargin: '0px 0px 320px 0px' }
+      { root: scrollContainer, rootMargin: '0px 0px 720px 0px' }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();

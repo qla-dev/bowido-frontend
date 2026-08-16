@@ -20,13 +20,14 @@ import { NoQrReturnFormModal } from './NoQrReturnFormModal';
 import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, RoleType } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
+import { rankSearchResults } from '../lib/searchRanking';
 
 type SortKey =
   | 'client'
@@ -609,17 +610,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
       return null;
     }
 
-    const currentQuery = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter((option) => {
-      if (!currentQuery) {
-        return true;
-      }
-
-      return (
-        option.label.toLowerCase().includes(currentQuery) ||
-        option.value.toLowerCase().includes(currentQuery)
-      );
-    });
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
+    );
 
     return (
       <div
@@ -647,7 +643,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
         <div className="mt-2 flex min-h-0 flex-1 flex-col space-y-1">
           <button
             type="button"
-            onClick={() => clearColumnFilter(key)}
+            onClick={() => setSelectedFilters((current) => ({
+              ...current,
+              [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+                ? []
+                : filterOptions[key].map((option) => option.value),
+            }))}
             className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
           >
             <span>{showAllLabel}</span>
@@ -1024,14 +1025,16 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         {getMobilePalletDate(selectedMobilePallet.item)}
                       </p>
                     </div>
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
-                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                        {t('location')}
-                      </p>
-                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
-                      </p>
-                    </div>
+                    {!selectedMobilePallet.item.pallet.is_ghost && (
+                      <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
+                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                          {t('location')}
+                        </p>
+                        <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                          {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
@@ -1039,7 +1042,8 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                       {mobileCommentLabel}
                     </p>
                     <p className="mt-2 text-[11px] font-bold leading-5 text-zinc-700 dark:text-zinc-200">
-                      {selectedMobilePallet.item.pallet.note || t('notAvailable')}
+                      {formatServiceReportDescription(selectedMobilePallet.item.pallet.note, language) ||
+                        t('notAvailable')}
                     </p>
                   </div>
                 </div>

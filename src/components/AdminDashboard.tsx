@@ -62,6 +62,7 @@ import {
   QrCode,
 } from "lucide-react";
 import {
+  formatSystemNote,
   getCountryLabel,
   getLocationLabel,
   getPalletTypeLabel,
@@ -70,9 +71,11 @@ import {
   palletTypeValues,
 } from "../i18n";
 import { getPalletDisplayName } from "../lib/palletDisplay";
+import { rankSearchResults } from "../lib/searchRanking";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
-import { formatAppDateTime, formatAppTime } from "../lib/dateFormat";
+import { formatAppDate, formatAppDateTime, formatAppTime } from "../lib/dateFormat";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
+import { PasswordChangeForm } from "./PasswordChangeForm";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
 import { DeliveryLocationMap } from "./DeliveryLocationMap";
 import { DriverModalShell } from "./DriverModalShell";
@@ -110,21 +113,6 @@ type PalletDetailDropdownOption = {
   label: string;
 };
 
-const searchMatchRank = (value: string, query: string) => {
-  const normalizedValue = value.toLocaleLowerCase();
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-
-  if (!normalizedQuery || normalizedValue.startsWith(normalizedQuery)) {
-    return 0;
-  }
-
-  return normalizedValue
-    .split(/[^\p{L}\p{N}]+/u)
-    .some((word) => word.startsWith(normalizedQuery))
-    ? 0
-    : 1;
-};
-
 const PalletDetailDropdown = ({
   value,
   options,
@@ -144,14 +132,7 @@ const PalletDetailDropdown = ({
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.value === value);
-  const visibleOptions = options
-    .filter((option) =>
-      option.label.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()),
-    )
-    .sort((left, right) => {
-      const rankDifference = searchMatchRank(left.label, searchQuery) - searchMatchRank(right.label, searchQuery);
-      return rankDifference || left.label.localeCompare(right.label, undefined, { sensitivity: 'base' });
-    });
+  const visibleOptions = rankSearchResults(options, searchQuery, (option) => option.label);
 
   const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -343,6 +324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | "adminFinance"
   >(initialView);
   const [editingStatus, setEditingStatus] = useState<PalletStatus | null>(null);
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [newStatusData, setNewStatusData] = useState<Omit<PalletStatus, "id">>({
     name: "",
@@ -398,6 +380,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     label: string;
   } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
+  const [deletedPalletId, setDeletedPalletId] = useState<number | null>(null);
   const [selectedOverduePalletId, setSelectedOverduePalletId] = useState<
     number | null
   >(null);
@@ -424,6 +407,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.addEventListener("mousedown", closeOnOutsideClick);
     return () => document.removeEventListener("mousedown", closeOnOutsideClick);
   }, [isEditingPalletClientListOpen]);
+
+  React.useEffect(() => {
+    if (!isEditingPalletClientListOpen) return;
+
+    const updatePosition = () => {
+      const rect = editingPalletClientTriggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      setIsEditingPalletClientListOpeningUpward(false);
+      setEditingPalletClientListMaxHeight(
+        Math.max(140, Math.min(300, window.innerHeight - rect.bottom - 12)),
+      );
+      setEditingPalletClientMenuPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    const frameId = window.requestAnimationFrame(updatePosition);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isEditingPalletClientListOpen, editingPallet?.current_status_id]);
   const [palletAuditLogsById, setPalletAuditLogsById] = useState<
     Record<number, AuditLog[]>
   >({});
@@ -495,7 +506,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const calculateDebt = (p: Pallet) => {
     const status = statuses.find((s) => s.id === p.current_status_id);
-    if (!status || !status.is_billable) return 0;
+    if (!p.user_id || !status || !status.is_billable) return 0;
 
     const client = clients.find((c) => c.user_id === p.user_id);
     const graceDays = client?.grace_period_days ?? status.grace_period_days;
@@ -566,6 +577,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     resetAddPalletForm();
     setShowAddPallet(false);
   };
+
+  React.useEffect(() => {
+    if (!showAddPallet) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeAddPalletModal();
+      }
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [showAddPallet]);
 
   const buildBulkQrCodes = () => {
     if (
@@ -754,6 +781,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDeleteConfirm({ kind: "status", status });
   };
 
+  const handleSaveStatusSettings = async () => {
+    if (!editingStatus || isSavingStatus) {
+      return;
+    }
+
+    setIsSavingStatus(true);
+
+    try {
+      await updateStatusSettings(editingStatus);
+      setEditingStatus(null);
+      await appAlert.fire({
+        icon: "success",
+        title: t("settingsSaved"),
+        text: t("settingsSavedDetails"),
+      });
+    } catch (error) {
+      console.error("Failed to save status settings", error);
+      await appAlert.fire({
+        icon: "error",
+        title: t("changesNotSaved"),
+      });
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
+
   const confirmDeleteAction = () => {
     if (!deleteConfirm) {
       return;
@@ -761,6 +814,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     if (deleteConfirm.kind === "pallet") {
       deletePallet(deleteConfirm.pallet.id);
+      setDeletedPalletId(deleteConfirm.pallet.id);
       setEditingPallet((current) =>
         current?.id === deleteConfirm.pallet.id ? null : current,
       );
@@ -897,6 +951,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     format: (value: string | number | Date) =>
       formatAppDateTime(value, language, notAvailableLabel),
   };
+  const palletTimelineDateFormatter = {
+    format: (value: string | number | Date) =>
+      formatAppDate(value, language, notAvailableLabel),
+  };
   const buildFallbackStatusLog = (pallet: Pallet): AuditLog => {
     return {
       id: -pallet.id,
@@ -975,6 +1033,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ? getPalletStatusHistory(selectedPallet)
     : [];
   const latestSelectedPalletStatusLog = selectedPalletStatusHistory[0] || null;
+  const canUploadSelectedPalletDeliveryPhoto = Boolean(
+    selectedPallet &&
+      ['bij-de-klant', 'ophalen-klant'].includes(
+        selectedPallet.current_status_slug ||
+          statuses.find((status) => status.id === selectedPallet.current_status_id)?.slug ||
+          '',
+      ),
+  );
   const editingPalletStatusHistory = editingPallet
     ? getPalletStatusHistory(editingPallet)
     : [];
@@ -985,20 +1051,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const editingPalletStatus = statuses.find(
     (status) => status.id === editingPallet?.current_status_id,
   );
+  const editingPalletClient = clients.find(
+    (client) => client.user_id === editingPallet?.user_id,
+  );
+  const editingPalletStatusSlug = editingPallet?.current_status_slug || editingPalletStatus?.slug || "";
+  const editingPalletUsesCustomerTimer = ["bij-de-klant", "ophalen-klant"].includes(
+    editingPalletStatusSlug,
+  );
   const isEditingPalletTransportStatus =
     [2, 6].includes(editingPallet?.current_status_id || 0) ||
-    ["bih-nl-transport", "nl-bih-transport"].includes(
-      editingPalletStatus?.slug || "",
+    ["bih-nl-transport", "nl-bih-transport", "transport", "transport_bih_nl", "transport_nl_bih"].includes(
+      editingPalletStatusSlug,
     );
+  const editingPalletChangedAt = editingPallet
+    ? new Date(
+        editingPalletUsesCustomerTimer
+          ? editingPallet.customer_timer_started_at || editingPallet.last_status_changed_at
+          : editingPallet.last_status_changed_at,
+      )
+    : null;
+  const editingPalletIsAtWarehouse = Boolean(
+    editingPallet &&
+      (getFixedWarehouseLocation(
+        editingPallet.current_status_id,
+        editingPallet.current_status_name,
+      ) || ["bowido-nl", "bowido-bih", "bowido_warehouse", "bowido_nl"].includes(editingPalletStatusSlug)),
+  );
+  const editingPalletHasSentDate = Boolean(
+    editingPalletChangedAt &&
+      !Number.isNaN(editingPalletChangedAt.getTime()) &&
+      !editingPalletIsAtWarehouse,
+  );
+  const editingPalletFrozenAt = editingPalletUsesCustomerTimer && editingPallet?.customer_timer_frozen_at
+    ? new Date(editingPallet.customer_timer_frozen_at)
+    : null;
+  const editingPalletHasFrozenTimer = Boolean(
+    editingPalletFrozenAt && !Number.isNaN(editingPalletFrozenAt.getTime()),
+  );
+  const editingPalletGraceDays = editingPallet
+    ? editingPalletIsAtWarehouse
+      ? 0
+      : isEditingPalletTransportStatus
+        ? editingPallet.grace_days ?? editingPalletStatus?.grace_period_days ?? 3
+        : editingPalletStatus?.is_billable || editingPalletHasFrozenTimer
+          ? editingPallet.grace_days ?? editingPalletClient?.grace_period_days ?? editingPalletStatus?.grace_period_days ?? 0
+          : 0
+    : 0;
+  const editingPalletReturnDate =
+    editingPalletHasSentDate && editingPalletChangedAt && editingPalletGraceDays > 0
+      ? (() => {
+          const dueDate = new Date(
+            editingPalletChangedAt.getFullYear(),
+            editingPalletChangedAt.getMonth(),
+            editingPalletChangedAt.getDate(),
+          );
+          dueDate.setDate(dueDate.getDate() + editingPalletGraceDays);
+          return dueDate;
+        })()
+      : null;
+  const editingPalletTermDays =
+    editingPalletHasSentDate && editingPalletChangedAt && editingPalletGraceDays > 0
+      ? (() => {
+          const counterEnd = editingPalletHasFrozenTimer ? editingPalletFrozenAt! : new Date();
+          const changedAtMidnight = new Date(
+            editingPalletChangedAt.getFullYear(),
+            editingPalletChangedAt.getMonth(),
+            editingPalletChangedAt.getDate(),
+          );
+          const counterEndMidnight = new Date(
+            counterEnd.getFullYear(),
+            counterEnd.getMonth(),
+            counterEnd.getDate(),
+          );
+          const elapsedDays = Math.max(
+            0,
+            Math.floor((counterEndMidnight.getTime() - changedAtMidnight.getTime()) / (1000 * 60 * 60 * 24)),
+          );
+          return editingPalletGraceDays - elapsedDays;
+        })()
+      : null;
+  const isEditingPalletUnknownStatus = editingPalletStatus?.slug === "onbekend";
   const editingPalletFixedLocation = editingPallet
     ? getFixedWarehouseLocation(
         editingPallet.current_status_id,
         editingPallet.current_status_name,
       )
     : undefined;
-  const editingPalletClient = clients.find(
-    (client) => client.user_id === editingPallet?.user_id,
-  );
   const editingPalletWarehouseOne = getClientWarehouseAddress(
     editingPalletClient,
     1,
@@ -1015,46 +1153,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       !isEditingPalletTransportStatus &&
       !editingPalletFixedLocation,
   );
-  const filteredEditingPalletClients = React.useMemo(() => {
-    const query = editingPalletClientSearch.trim().toLocaleLowerCase();
-
-    return clients
-      .filter((client) => {
-        if (!query) {
-          return true;
-        }
-
-        return [
-          client.name,
-          client.country,
-          client.kvk_number,
-          String(client.user_id),
-        ].some((value) => value?.toLocaleLowerCase().includes(query));
-      })
-      .sort((left, right) => {
-        const leftRank = Math.min(
-          ...[left.name, left.country, left.kvk_number, String(left.user_id)]
-            .filter(Boolean)
-            .map((value) => searchMatchRank(String(value), query)),
-        );
-        const rightRank = Math.min(
-          ...[right.name, right.country, right.kvk_number, String(right.user_id)]
-            .filter(Boolean)
-            .map((value) => searchMatchRank(String(value), query)),
-        );
-
-        return leftRank - rightRank || left.name.localeCompare(right.name, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-      });
-  }, [clients, editingPalletClientSearch]);
+  const filteredEditingPalletClients = React.useMemo(
+    () => rankSearchResults(
+      clients,
+      editingPalletClientSearch,
+      (client) => client.name,
+      (client, query) => [client.country, client.kvk_number, String(client.user_id)]
+        .some((value) => value?.toLocaleLowerCase().includes(query)),
+    ),
+    [clients, editingPalletClientSearch],
+  );
 
   const renderOverview = () => {
     const overduePallets = pallets.filter((p) => calculateDebt(p) > 0);
-    const topOverduePallets = [...overduePallets]
-      .sort((left, right) => calculateDebt(right) - calculateDebt(left))
-      .slice(0, 10);
     const totalDebt = pallets.reduce((acc, p) => acc + calculateDebt(p), 0);
     const ghostPallets = pallets.filter((p) => p.is_ghost);
     const latestActivityLogs = auditLogs
@@ -1115,6 +1226,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // deliberately small first page, so using it as a fallback briefly shows
     // an incorrect total before the real count arrives.
     const overviewStats = dashboardStats;
+    const topOverdueClients = overviewStats?.top_overdue_clients ?? [];
+    const customerPickupUnits = overviewStats?.customer_pickup_units;
+    const customerPickupAnalysis =
+      customerPickupUnits === undefined
+        ? "—"
+        : language === "bs"
+          ? `${customerPickupUnits} paleta je označeno za preuzimanje kod klijenta.`
+          : language === "nl"
+            ? `${customerPickupUnits} bokken staan gemarkeerd voor ophalen bij de klant.`
+            : `${customerPickupUnits} pallets are marked for customer pickup.`;
 
     return (
       <div className="space-y-4">
@@ -1161,113 +1282,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex items-center gap-2 text-rose-700">
                   <AlertTriangle size={14} />
                   <span className="text-[11px] font-bold tracking-[0.08em]">
-                    {overduePallets.length > 0
-                      ? `${t("actionRequired")} (${overduePallets.length})`
-                      : t("allGood")}
+                    {overviewStats
+                      ? topOverdueClients.length > 0
+                        ? `${t("actionRequired")} (${topOverdueClients.length})`
+                        : t("allGood")
+                      : "—"}
                   </span>
                 </div>
                 <Badge
-                  variant={overduePallets.length > 0 ? "danger" : "success"}
+                  variant={topOverdueClients.length > 0 ? "danger" : "success"}
                 >
-                  {overduePallets.length > 0 ? t("overdue") : t("allGood")}
+                  {topOverdueClients.length > 0 ? t("overdue") : t("allGood")}
                 </Badge>
               </div>
               <div className="overflow-x-auto">
-                {overduePallets.length > 0 ? (
+                {topOverdueClients.length > 0 ? (
                   <table className="w-full">
                     <thead className="border-b border-zinc-200 bg-zinc-50/95 text-center text-[9px] font-black uppercase tracking-widest text-zinc-700 dark:border-white/15 dark:bg-[#111817] dark:text-white">
                       <tr>
                         <th className="px-4 py-2.5 align-middle">
-                          {t("palletLabel")}
+                          {t("client")}
                         </th>
                         <th className="px-4 py-2.5 align-middle">
-                          {t("client")}
+                          {t("overdueUnits")}
                         </th>
                         <th className="px-4 py-2.5 align-middle">
                           {t("owed")}
                         </th>
-                        <th className="px-4 py-2.5 align-middle">
-                          <div className="ml-auto min-w-[15rem] max-w-sm text-center">
-                            {t("invoiceLabel")}
-                          </div>
-                        </th>
                       </tr>
                     </thead>
                     <tbody className="text-[11px] divide-y divide-zinc-50">
-                      {topOverduePallets.map((p) => {
-                        const client = clients.find(
-                          (c) => c.user_id === p.user_id,
-                        );
-                        const invoiceWasSent = Boolean(
-                          sentInvoiceTimestamps[p.id],
-                        );
-                        const invoiceIsSending =
-                          sendingInvoicePalletIds.includes(p.id);
-                        return (
-                          <tr
-                            key={p.id}
-                            className="hover:bg-rose-50/30 transition-colors"
-                          >
-                            <td className="px-4 py-2.5 text-center align-middle">
-                              <button
-                                ref={editingPalletClientTriggerRef}
-                                type="button"
-                                onClick={() => openQrPreview(p)}
-                                title={t("showQrCode")}
-                                aria-label={`${t("showQrCode")}: ${getPalletDisplayName(p)}`}
-                                className="rounded-lg px-2 py-1 font-mono font-black text-emerald-700 underline decoration-emerald-300 underline-offset-4 transition-colors hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-                              >
-                                {getPalletDisplayName(p)}
-                              </button>
-                            </td>
-                            <td className="px-4 py-2.5 text-center align-middle">
-                              <p className="font-bold text-zinc-900 leading-none mb-1">
-                                {client?.name || t("inWarehouse")}
-                              </p>
-                              <p className="text-[11px] leading-4 text-zinc-500">
-                                {getLocationLabel(p.current_location, language)}
-                              </p>
-                            </td>
-                            <td className="px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
-                              {"\u20AC"}
-                              {calculateDebt(p).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2.5 text-right align-middle">
-                              <div className="ml-auto grid min-w-[15rem] max-w-sm grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                <Button
-                                  variant="outline"
-                                  size="xs"
-                                  onClick={() =>
-                                    setSelectedOverduePalletId(p.id)
-                                  }
-                                  className="w-full justify-center"
-                                >
-                                  <Eye size={13} className="mr-1.5" />
-                                  {t("viewInvoice")}
-                                </Button>
-                                <Button
-                                  variant={
-                                    invoiceWasSent ? "secondary" : "primary"
-                                  }
-                                  size="xs"
-                                  onClick={() => void handleSendInvoice(p)}
-                                  disabled={invoiceWasSent || invoiceIsSending}
-                                  className="w-full justify-center"
-                                >
-                                  <Send size={13} className="mr-1.5" />
-                                  {invoiceWasSent
-                                    ? t("sentLabel")
-                                    : t("sendInvoice")}
-                                </Button>
-                              </div>
-                            </td>
-                            <td className="hidden px-4 py-2.5 text-center text-rose-600 font-mono font-black align-middle">
-                              {"\u20AC"}
-                              {calculateDebt(p).toFixed(2)}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {topOverdueClients.map((client) => (
+                        <tr
+                          key={client.user_id ?? "no-client"}
+                          className="hover:bg-rose-50/30 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-center align-middle font-bold text-zinc-900">
+                            {client.client_name}
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle font-mono font-black text-zinc-700">
+                            {client.overdue_pallets}
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle font-mono font-black text-rose-600">
+                            {"\u20AC"}
+                            {client.debt_eur.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 ) : (
@@ -1402,51 +1463,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="grid min-w-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
             <Card title={t("quickAnalysis")} noPadding>
-              <div className="space-y-4 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp size={14} className="text-emerald-500" />
-                    <span className="text-[11px] font-bold tracking-[0.08em] text-zinc-500">
-                      {t("utilizationRate")}
+              <div className="p-4">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 gap-3">
+                      <Info size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                      <div>
+                        <p className="text-[11px] font-bold tracking-[0.06em] text-blue-800">
+                          {getStatusLabel("Ophalen klant", language)}
+                        </p>
+                        <p className="mt-1 text-[12px] font-medium leading-5 text-blue-700">
+                          {customerPickupAnalysis}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-2xl font-black text-blue-800">
+                      {customerPickupUnits ?? "—"}
                     </span>
-                  </div>
-                  <span className="text-xs font-black">
-                    {utilizationRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
-                  <div
-                    style={{ width: `${utilizationRate}%` }}
-                    className="h-full bg-black rounded-full"
-                  />
-                </div>
-
-                <div className="space-y-2.5">
-                  <div className="flex gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3">
-                    <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0">
-                      <p className="mb-1 text-[11px] font-bold tracking-[0.06em] text-blue-800">
-                        {t("logisticsNote")}
-                      </p>
-                      <p className="text-[12px] font-medium leading-5 text-blue-700">
-                        {t("logisticsNoteText")}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
-                    <AlertTriangle
-                      size={14}
-                      className="text-amber-600 shrink-0 mt-0.5"
-                    />
-                    <div className="min-w-0">
-                      <p className="mb-1 text-[11px] font-bold tracking-[0.06em] text-amber-800">
-                        {t("overdueWarning")}
-                      </p>
-                      <p className="text-[12px] font-medium leading-5 text-amber-700">
-                        {t("overdueWarningText")}
-                      </p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1503,7 +1536,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {ghostPallet.client_name || t("unknownClient")}
                             </p>
                             <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 mt-1 truncate">
-                              {ghostPallet.current_location}
+                              {formatSystemNote(ghostPallet.current_location, language)}
                             </p>
                           </div>
                           <Badge variant="warning">{t("withoutQr")}</Badge>
@@ -1535,6 +1568,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onAddPallet={openAddPalletModal}
         onEditPallet={handleEditPallet}
         onDeletePallet={handleDeletePallet}
+        deletedPalletId={deletedPalletId}
       />
     );
   };
@@ -1578,6 +1612,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onLabel={t("on")}
           offLabel={t("off")}
         />
+        <PasswordChangeForm />
       </Card>
 
       <Card title={t("statusConfiguratorTitle")}>
@@ -1835,18 +1870,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="flex gap-3 mt-8">
               <button
                 onClick={() => setEditingStatus(null)}
+                disabled={isSavingStatus}
                 className="flex-1 py-3 font-bold text-gray-400 hover:text-black transition-colors uppercase text-xs"
               >
                 {t("cancel")}
               </button>
               <button
-                onClick={() => {
-                  updateStatusSettings(editingStatus);
-                  setEditingStatus(null);
-                }}
-                className="flex-1 py-3 bg-black text-white rounded-xl font-black uppercase text-xs shadow-xl shadow-black/10"
+                onClick={() => void handleSaveStatusSettings()}
+                disabled={isSavingStatus}
+                className="flex-1 py-3 bg-black text-white rounded-xl font-black uppercase text-xs shadow-xl shadow-black/10 disabled:cursor-wait disabled:opacity-60"
               >
-                {t("saveRules")}
+                {isSavingStatus ? t("saving") : t("saveRules")}
               </button>
             </div>
           </div>
@@ -1964,7 +1998,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              <PalletDeliveryPhotoUpload palletId={selectedPallet.id} />
+              {canUploadSelectedPalletDeliveryPhoto && <PalletDeliveryPhotoUpload palletId={selectedPallet.id} />}
 
               <div className="space-y-4 mb-8">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">
@@ -2205,39 +2239,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   statuses,
                                   sid,
                                 );
-                                const selectedClient = allowsCustomer
-                                  ? clients.find(
-                                      (client) =>
-                                        client.user_id ===
-                                        editingPallet.user_id,
-                                    )
-                                  : undefined;
+                                const wasAssignedToCustomer =
+                                  statusIdAllowsCustomer(
+                                    statuses,
+                                    editingPallet.current_status_id,
+                                  );
+                                const needsClientAssignment =
+                                  allowsCustomer && !wasAssignedToCustomer;
+                                const selectedClient =
+                                  allowsCustomer && !needsClientAssignment
+                                    ? clients.find(
+                                        (client) =>
+                                          client.user_id ===
+                                          editingPallet.user_id,
+                                      )
+                                    : undefined;
                                 setEditingPalletClientSearch(
-                                  allowsCustomer
+                                  allowsCustomer && !needsClientAssignment
                                     ? selectedClient?.name ||
                                         editingPallet.client_name ||
                                         ""
                                     : "",
                                 );
-                                setIsEditingPalletClientListOpen(false);
+                                setIsEditingPalletClientListOpen(
+                                  needsClientAssignment,
+                                );
                                 setShowEditingPalletDeliveryMap(false);
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
-                                  user_id: allowsCustomer
+                                  user_id: allowsCustomer && !needsClientAssignment
                                     ? editingPallet.user_id
                                     : undefined,
-                                  client_name: allowsCustomer
+                                  client_name: allowsCustomer && !needsClientAssignment
                                     ? editingPallet.client_name
                                     : undefined,
                                   current_status_name: sname,
-                                  current_location: isTransportStatus
+                                  current_location: selectedStatus?.slug === "onbekend"
+                                    ? ""
+                                    : isTransportStatus
                                     ? "Na putu"
-                                    : allowsCustomer
-                                      ? getClientWarehouseAddress(
-                                          selectedClient,
-                                          1,
-                                        )
+                                    : needsClientAssignment
+                                      ? ""
+                                      : allowsCustomer
+                                        ? editingPallet.current_location
                                       : getFixedWarehouseLocation(sid, sname) ||
                                         editingPallet.current_location,
                                 });
@@ -2394,16 +2439,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                               event.preventDefault()
                                             }
                                             onClick={() => {
-                                              setEditingPallet({
-                                                ...editingPallet,
-                                                user_id: client.user_id,
-                                                client_name: client.name,
-                                                current_location:
-                                                  getClientWarehouseAddress(
-                                                    client,
-                                                    1,
-                                                  ),
-                                              });
+                                          setEditingPallet({
+                                            ...editingPallet,
+                                            user_id: client.user_id,
+                                            client_name: client.name,
+                                          });
                                               setEditingPalletClientSearch("");
                                               setIsEditingPalletClientListOpen(
                                                 false,
@@ -2552,12 +2592,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               value={
                                 isEditingPalletTransportStatus
                                   ? getLocationLabel("Na putu", language)
+                                  : isEditingPalletUnknownStatus
+                                    ? ""
                                   : editingPalletFixedLocation ||
                                     editingPallet.current_location
                               }
                               disabled={Boolean(
-                                editingPalletFixedLocation ||
-                                  isEditingPalletTransportStatus,
+                                  editingPalletFixedLocation ||
+                                  isEditingPalletTransportStatus ||
+                                  isEditingPalletUnknownStatus,
                               )}
                               onChange={(e) =>
                                 setEditingPallet({
@@ -2570,31 +2613,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
 
                         <div className="border-t border-gray-100 pt-6">
-                          <div className="grid gap-4 md:grid-cols-2">
+                          <div className="grid gap-4 md:grid-cols-3">
                             <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                {daysOutsideLabel}
+                                {language === "bs" ? "Datum" : language === "nl" ? "Verzonden" : "Date"}
                               </p>
                               <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                                {formatDaysOutsideValue(
-                                  calculateDays(
-                                    editingPallet.last_status_changed_at,
-                                  ),
-                                )}
+                                {editingPalletHasSentDate && editingPalletChangedAt
+                                  ? palletTimelineDateFormatter.format(editingPalletChangedAt)
+                                  : notAvailableLabel}
                               </p>
                             </div>
                             <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                {t("timestamp")}
+                                {t("returnLabel")}
                               </p>
                               <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
-                                {latestEditingPalletStatusLog
-                                  ? detailDateFormatter.format(
-                                      new Date(
-                                        latestEditingPalletStatusLog.created_at,
-                                      ),
-                                    )
+                                {editingPalletReturnDate
+                                  ? palletTimelineDateFormatter.format(editingPalletReturnDate)
                                   : notAvailableLabel}
+                              </p>
+                            </div>
+                            <div className="rounded-[1.75rem] border border-gray-100 bg-gray-50 px-5 py-5">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {t("termLabel")}
+                              </p>
+                              <p className="mt-3 text-lg font-black uppercase leading-tight text-emerald-900">
+                                {editingPalletTermDays === null
+                                  ? notAvailableLabel
+                                  : `${editingPalletTermDays < 0
+                                      ? `${Math.abs(editingPalletTermDays)} ${language === "bs" ? "dana preko" : language === "nl" ? "dagen over" : "days overdue"}`
+                                      : `${editingPalletTermDays} ${language === "bs" ? "dana u roku" : language === "nl" ? "dagen resterend" : "days left"}`}${editingPalletHasFrozenTimer ? ` - ${language === "bs" ? "zaustavljeno" : language === "nl" ? "bevroren" : "frozen"}` : ""}`}
                               </p>
                             </div>
                           </div>
@@ -2769,8 +2818,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {t("cancel")}
                 </button>
                 <button
-                  onClick={() => {
-                    updatePallet(
+                  onClick={async () => {
+                    try {
+                      await updatePallet(
                       {
                         ...editingPallet,
                         current_location:
@@ -2780,12 +2830,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ) || editingPallet.current_location,
                       },
                       { id: user.id, name: user.name },
-                    );
-                    setEditingPallet(null);
+                      );
+                      setEditingPallet(null);
                     setShowEditingPalletDetails(false);
                     setShowEditingPalletDeliveryMap(false);
                     setSelectedPallet(null);
-                    void appAlert.fire({
+                      await appAlert.fire({
                       icon: "success",
                       title: t("saveChanges"),
                       text:
@@ -2794,7 +2844,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           : language === "nl"
                             ? "De bok is succesvol bijgewerkt."
                             : "The pallet was updated successfully.",
-                    });
+                      });
+                    } catch (error) {
+                      console.error("Failed to save pallet", error);
+                      await appAlert.fire({
+                        icon: "error",
+                        title: t("saveChanges"),
+                        text: error instanceof Error ? error.message : "Unable to save the pallet.",
+                      });
+                    }
                   }}
                   className="h-14 rounded-2xl bg-black px-4 text-xs font-black uppercase tracking-[0.12em] text-white shadow-xl shadow-black/20 transition-transform hover:scale-[1.02]"
                 >
@@ -3048,10 +3106,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="bg-white p-8 rounded-[2.5rem] w-full max-w-lg shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-pallet-modal-title"
             >
-              <h3 className="text-xl font-black uppercase mb-6">
-                {t("newPalletEntry")}
-              </h3>
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <h3 id="add-pallet-modal-title" className="text-xl font-black uppercase">
+                  {t("newPalletEntry")}
+                </h3>
+                <button
+                  type="button"
+                  onClick={closeAddPalletModal}
+                  className="-mr-2 -mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                  aria-label={t("cancel")}
+                  title={t("cancel")}
+                >
+                  <X size={20} aria-hidden="true" />
+                </button>
+              </div>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -3174,8 +3246,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                     {t("palletType")}
                   </label>
-                  <select
-                    className="w-full p-4 bg-gray-100 border-none rounded-2xl font-bold"
+                  <Select
+                    className="rounded-2xl bg-[var(--surface-input)] p-4 pr-12 text-sm font-black uppercase tracking-[0.08em]"
                     value={newPalletType}
                     onChange={(event) => setNewPalletType(event.target.value)}
                   >
@@ -3184,7 +3256,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {getPalletTypeLabel(palletType, language)}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
               <div className="flex gap-4 mt-8">

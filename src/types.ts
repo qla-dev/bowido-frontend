@@ -42,6 +42,9 @@ export interface User {
   role_name: RoleType;
   backend_role_name?: string;
   phone_number?: string;
+  first_time_login?: boolean;
+  credential_email_sent?: boolean;
+  credential_email_warning?: string | null;
   customer_detail?: {
     name?: string;
     company_name?: string;
@@ -120,10 +123,13 @@ export interface Pallet {
   type: string;
   asset_type?: string;
   current_location: string;
+  has_qr_code: boolean;
   is_ghost: boolean;
   is_for_repair: boolean;
   is_active: boolean;
   last_status_changed_at: string;
+  customer_timer_started_at?: string;
+  customer_timer_frozen_at?: string;
   days_at_customer?: number;
   grace_days?: number;
   overdue_days?: number;
@@ -139,6 +145,13 @@ export interface PalletDashboardStats {
   total_pallets: number;
   in_transport: number;
   overdue_units: number;
+  customer_pickup_units: number;
+  top_overdue_clients: Array<{
+    user_id: number | null;
+    client_name: string;
+    overdue_pallets: number;
+    debt_eur: number;
+  }>;
 }
 
 export interface AuditLog {
@@ -188,6 +201,7 @@ export interface PalletPhoto {
   client_id?: number;
   service_report_id?: number;
   type: "scan" | "status_change" | "damage_report" | "service_report" | "no_qr_report" | "delivery_photo";
+  delivery_started_at?: string;
   warehouse_scope?: "warehouse_nl" | "warehouse_bih";
   original_name?: string;
   mime_type: string;
@@ -212,6 +226,7 @@ export interface ClientDetail {
   id: number;
   user_id: number;
   name: string;
+  contact_person?: string | null;
   kvk_number?: string;
   phone_number?: string;
   fixed_phone?: string;
@@ -237,6 +252,9 @@ export interface ClientDetail {
   warehouse2_postal_code?: string;
   warehouse2_city?: string;
   warehouse_scope?: "warehouse_nl" | "warehouse_bih";
+  invoice_count?: number;
+  credential_email_sent?: boolean;
+  credential_email_warning?: string | null;
 }
 
 export interface GhostPalletReportEntry {
@@ -265,12 +283,15 @@ export interface Invoice {
   issue_date: string;
   due_date: string;
   total_amount: number;
-  status: "draft" | "paid" | "overdue" | "sent";
+  status: "draft" | "issued" | "paid" | "overdue" | "sent";
+  created_at: string;
+  mailed_at?: string;
 }
 
 export interface InvoiceItem {
   id: number;
   invoice_id: number;
+  pallet_name: string;
   pallet_qr: string;
   description: string;
   quantity: number;

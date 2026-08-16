@@ -473,11 +473,6 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
       return;
     }
 
-    if (!editingUserId && !trimmedPassword) {
-      setErrorMessage(t('passwordRequiredNew'));
-      return;
-    }
-
     setIsSaving(true);
 
     try {
@@ -492,11 +487,14 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           previousUsers.map((user) => (user.id === editingUserId ? updatedUser : user))
         );
       } else {
-        await apiService.users.create({
+        const createdUser = await apiService.users.create({
           email: trimmedEmail,
-          password: trimmedPassword,
           role_name: formState.role_name,
         });
+
+        setSuccessMessage(createdUser.credential_email_sent === false
+          ? createdUser.credential_email_warning || (language === 'nl' ? 'Gebruiker aangemaakt, maar de e-mail kon niet worden verstuurd.' : 'User created, but the email could not be sent.')
+          : language === 'nl' ? 'Gebruiker aangemaakt en inloggegevens verstuurd.' : language === 'bs' ? 'Korisnik je kreiran i podaci za prijavu su poslani.' : 'User created and login details sent.');
 
         setReloadKey((current) => current + 1);
       }
@@ -542,6 +540,10 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
           [key]: current[key].includes(value)
             ? current[key].filter((item) => item !== value)
             : [...current[key], value],
+        }))}
+        onSelectAll={() => setColumnFilters((current) => ({
+          ...current,
+          [key]: userFilterOptions[key].map((option) => option.value),
         }))}
         onClear={() => setColumnFilters((current) => ({ ...current, [key]: [] }))}
         filterLabel={t('filter')}
@@ -818,7 +820,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                 />
               </div>
 
-              <div className="space-y-2">
+              {editingUserId && <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
                   {t('password')}
                 </label>
@@ -830,11 +832,11 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser }) => {
                     onChange={(event) =>
                       setFormState((previousState) => ({ ...previousState, password: event.target.value }))
                     }
-                    placeholder={editingUserId ? t('keepPasswordHint') : t('newPasswordHint')}
+                    placeholder={t('keepPasswordHint')}
                     className="pl-11"
                   />
                 </div>
-              </div>
+              </div>}
 
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">

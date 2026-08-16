@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Input, Badge, Button, Select, cn } from './ui';
+import { Input, Badge, Button, cn } from './ui';
 import {
   Search,
   ArrowUpDown,
@@ -13,6 +13,7 @@ import {
   Funnel,
   X,
   Check,
+  LoaderCircle,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
@@ -32,11 +33,13 @@ import {
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDate } from '../lib/dateFormat';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { rankSearchResults } from '../lib/searchRanking';
 
 interface PalletTableViewProps {
   onAddPallet?: () => void;
   onEditPallet?: (pallet: Pallet) => void;
   onDeletePallet?: (pallet: Pallet) => void;
+  deletedPalletId?: number | null;
 }
 
 type SortKey =
@@ -131,6 +134,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   onAddPallet,
   onEditPallet,
   onDeletePallet,
+  deletedPalletId,
 }) => {
   const { pallets: cachedPallets, statuses, clients, t, language, updatePalletRepairStatus } = useApp();
   const tableRef = useRef<HTMLDivElement | null>(null);
@@ -172,12 +176,38 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const [selectedDeadlineFilters, setSelectedDeadlineFilters] = useState<DeadlineFilter[]>([]);
   const [showReportExportModal, setShowReportExportModal] = useState(false);
   const [selectedReportClientId, setSelectedReportClientId] = useState<string>('all');
+  const [isReportClientSelectOpen, setIsReportClientSelectOpen] = useState(false);
+  const reportClientSelectRef = useRef<HTMLDivElement | null>(null);
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
     top: number;
     left: number;
     width: number;
     maxHeight: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!isReportClientSelectOpen) {
+      return;
+    }
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!reportClientSelectRef.current?.contains(event.target as Node)) {
+        setIsReportClientSelectOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsReportClientSelectOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isReportClientSelectOpen]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -190,7 +220,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const fetchPage = useCallback((offset: number) => apiService.pallets.page({
     limit: PALLET_PAGE_SIZE,
     offset,
-    is_ghost: false,
+    has_qr_code: true,
     search: debouncedSearchQuery || undefined,
     sort_by: sortConfig.key,
     sort_direction: sortConfig.direction,
@@ -209,7 +239,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
     void apiService.pallets
       .list({
-        is_ghost: false,
+        has_qr_code: true,
         search: debouncedSearchQuery || undefined,
       })
       .then((allPallets) => {
@@ -240,9 +270,36 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     }
 
     setPagedPallets((current) =>
-      current.map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+      current
+        .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
+        .filter((pallet) => pallet.has_qr_code)
     );
   }, [cachedPallets]);
+
+  useEffect(() => {
+    if (deletedPalletId === null || deletedPalletId === undefined) return;
+
+    setPagedPallets((current) => current.filter((pallet) => pallet.id !== deletedPalletId));
+    setFilterPallets((current) => current.filter((pallet) => pallet.id !== deletedPalletId));
+  }, [deletedPalletId, setPagedPallets]);
+
+  const togglePalletService = (pallet: Pallet) => {
+    const nextIsForRepair = !pallet.is_for_repair;
+
+    // This table is independently paginated, so update its row immediately instead of
+    // waiting for the API response to reach the shared pallet cache.
+    setPagedPallets((current) => current.map((item) =>
+      item.id === pallet.id ? { ...item, is_for_repair: nextIsForRepair } : item
+    ));
+    setFilterPallets((current) => current.map((item) =>
+      item.id === pallet.id ? { ...item, is_for_repair: nextIsForRepair } : item
+    ));
+
+    void updatePalletRepairStatus(pallet.id, nextIsForRepair).catch(() => {
+      setPagedPallets((current) => current.map((item) => item.id === pallet.id ? pallet : item));
+      setFilterPallets((current) => current.map((item) => item.id === pallet.id ? pallet : item));
+    });
+  };
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -370,6 +427,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     totalDebtLabel: string;
     exportSelectedLabel: string;
     exportAllLabel: string;
+    loadingLabel: string;
     emptyStateLabel: string;
     reportFilePrefix: string;
   } =
@@ -403,6 +461,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           totalDebtLabel: 'Ukupan dug',
           exportSelectedLabel: 'Izvezi kupca',
           exportAllLabel: 'Izvezi sve kupce',
+          loadingLabel: 'Podaci se učitavaju, molimo sačekajte',
           emptyStateLabel: 'Nema paleta u naplativom statusu za ovaj report.',
           reportFilePrefix: 'palete-po-kupcu',
         }
@@ -436,6 +495,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             totalDebtLabel: 'Totale schuld',
             exportSelectedLabel: 'Exporteer klant',
             exportAllLabel: 'Exporteer alle klanten',
+            loadingLabel: 'Gegevens worden geladen, een moment geduld',
             emptyStateLabel: 'Geen bokken in factureerbare status voor dit rapport.',
             reportFilePrefix: 'bokken-per-klant',
           }
@@ -468,13 +528,14 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             totalDebtLabel: 'Total debt',
             exportSelectedLabel: 'Export customer',
             exportAllLabel: 'Export all customers',
+            loadingLabel: 'Data is loading, please wait',
             emptyStateLabel: 'No pallets in billable status for this report.',
             reportFilePrefix: 'pallets-by-customer',
           };
   const transportStatusIds = [2, 6];
   const resizeAriaLabel =
     language === 'bs'
-      ? 'Promijeni sirinu kolone'
+      ? 'Promijeni širinu kolone'
       : language === 'nl'
         ? 'Kolombreedte aanpassen'
         : 'Resize column';
@@ -500,7 +561,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         : {
             date: 'Date',
             term: 'Term',
-            deadline: 'Status',
+            deadline: 'Due',
             emptyValue: '-',
             daysLeft: 'days left',
             daysLate: 'days overdue',
@@ -514,7 +575,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const getClientLabel = (pallet: Pallet) =>
     clients.find((client) => client.user_id === pallet.user_id)?.name ||
     pallet.client_name?.trim() ||
-    t('inStock');
+    '-';
   const isDeletedClientLabel = (pallet: Pallet) =>
     pallet.client_deleted &&
     !clients.some((client) => client.user_id === pallet.user_id);
@@ -537,7 +598,17 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             [...filterPallets, ...pallets].map((pallet) => [pallet.id, pallet]),
           ).values(),
         ).map((pallet) => {
-          const changedAt = new Date(pallet.last_status_changed_at);
+          // A pickup request closes the customer timer. Its original start and
+          // frozen finish are supplied by the API, while older pallets fall
+          // back to their status-change timestamp.
+          const statusSlug = pallet.current_status_slug || '';
+          const usesCustomerTimer = ['bij-de-klant', 'ophalen-klant'].includes(statusSlug);
+          const changedAt = new Date(
+            usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
+          );
+          const frozenAt = usesCustomerTimer && pallet.customer_timer_frozen_at
+            ? new Date(pallet.customer_timer_frozen_at)
+            : null;
           const status = statuses.find((item) => item.id === pallet.current_status_id);
           const client = pallet.user_id
             ? clients.find((item) => item.user_id === pallet.user_id)
@@ -550,11 +621,18 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           const today = new Date();
           const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
           const msPerDay = 24 * 60 * 60 * 1000;
+          const counterEnd = frozenAt && !Number.isNaN(frozenAt.getTime()) ? frozenAt : today;
+          const counterEndAtMidnight = new Date(
+            counterEnd.getFullYear(),
+            counterEnd.getMonth(),
+            counterEnd.getDate(),
+          );
           const daysSinceChange = Math.max(
             0,
-            Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / msPerDay)
+            Math.floor((counterEndAtMidnight.getTime() - changedAtMidnight.getTime()) / msPerDay)
           );
           const isWarehouseStatus =
+            ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
             pallet.current_status_id === 1 || pallet.current_status_id === 3;
 
           if (isWarehouseStatus) {
@@ -577,9 +655,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
           let graceDays = 0;
 
-          if (transportStatusIds.includes(pallet.current_status_id)) {
+          if (
+            ['bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih'].includes(statusSlug) ||
+            transportStatusIds.includes(pallet.current_status_id)
+          ) {
             graceDays = pallet.grace_days ?? status?.grace_period_days ?? 3;
-          } else if (status?.is_billable) {
+          } else if (status?.is_billable || frozenAt) {
             graceDays = pallet.grace_days ?? client?.grace_period_days ?? status?.grace_period_days ?? 0;
           }
 
@@ -605,6 +686,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           dueDate.setDate(dueDate.getDate() + graceDays);
           const remainingDays = graceDays - daysSinceChange;
           const isOverdue = remainingDays < 0;
+          const frozenLabel = frozenAt
+            ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}`
+            : '';
 
           return [
             pallet.id,
@@ -615,12 +699,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
               termLabel: dateFormatter.format(dueDate),
               termFilterValue: formatDateFilterValue(dueDate),
               termSortValue: dueDate.getTime(),
-              deadlineLabel: isOverdue
+              deadlineLabel: `${isOverdue
                 ? `${Math.abs(remainingDays)} ${timelineCopy.daysLate}`
-                : `${remainingDays} ${timelineCopy.daysLeft}`,
-              deadlineFilterValue: isOverdue
+                : `${remainingDays} ${timelineCopy.daysLeft}`}${frozenLabel}`,
+              deadlineFilterValue: `${isOverdue
                 ? `${Math.abs(remainingDays)} ${timelineCopy.daysLate}`
-                : `${remainingDays} ${timelineCopy.daysLeft}`,
+                : `${remainingDays} ${timelineCopy.daysLeft}`}${frozenLabel}`,
               deadlineSortValue: remainingDays,
               tone: isOverdue ? 'danger' : remainingDays <= 2 ? 'warning' : 'success',
             },
@@ -631,15 +715,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   );
 
   const getTimelineInfo = (pallet: Pallet) => palletTimelineMap[pallet.id];
-  const getDaysSinceStatusChange = (dateString: string) => {
+  const getDaysSinceStatusChange = (dateString: string, frozenAt?: string) => {
     const changedAt = new Date(dateString);
     const changedAtMidnight = new Date(
       changedAt.getFullYear(),
       changedAt.getMonth(),
       changedAt.getDate()
     );
-    const today = new Date();
-    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endDate = frozenAt ? new Date(frozenAt) : new Date();
+    const todayAtMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
 
     return Math.max(
       0,
@@ -650,10 +734,13 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const customerReportGroups = useMemo<CustomerPalletReportGroup[]>(() => {
     const groupedReports = new Map<number, CustomerPalletReportGroup>();
 
-    pallets.forEach((pallet) => {
-      const status = statuses.find((item) => item.id === pallet.current_status_id);
+    // `pallets` contains only the pages currently rendered in the table. Reports
+    // must use the complete dataset returned for the active search instead, so
+    // their availability does not depend on pagination or sorting.
+      filterPallets.forEach((pallet) => {
+        const status = statuses.find((item) => item.id === pallet.current_status_id);
 
-      if (!status?.is_billable) {
+      if (!pallet.user_id || !status?.is_billable) {
         return;
       }
 
@@ -662,8 +749,20 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         : undefined;
       const clientId = pallet.user_id ?? 0;
       const clientName = client?.name || pallet.client_name?.trim() || '';
+      const normalizedClientName = clientName.trim().toLocaleLowerCase();
 
-      const daysAtClient = getDaysSinceStatusChange(pallet.last_status_changed_at);
+      // Stock and unassigned pallets are not customer-held pallets, so they do
+      // not belong in the customer report or its selector.
+      if (
+        !normalizedClientName ||
+        normalizedClientName === 'na stanju'
+      ) {
+        return;
+      }
+
+      const timerStartedAt = pallet.customer_timer_started_at || pallet.last_status_changed_at;
+      const frozenAt = pallet.customer_timer_frozen_at;
+      const daysAtClient = getDaysSinceStatusChange(timerStartedAt, frozenAt);
       const graceDays = client?.grace_period_days ?? status.grace_period_days ?? 0;
       const ratePerDay = client?.price_per_day ?? status.price_per_day ?? 0;
       const overdueDays = Math.max(daysAtClient - graceDays, 0);
@@ -672,7 +771,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         palletName: getPalletDisplayName(pallet),
         palletType: getTypeLabel(pallet),
         statusLabel: getStatusLabelText(pallet),
-        sentDate: dateFormatter.format(new Date(pallet.last_status_changed_at)),
+        sentDate: dateFormatter.format(new Date(timerStartedAt)),
         daysAtClient,
         graceDays,
         overdueDays,
@@ -723,7 +822,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           sensitivity: 'base',
         })
       );
-  }, [clients, dateFormatter, pallets, statuses]);
+  }, [clients, dateFormatter, filterPallets, statuses]);
 
   useEffect(() => {
     if (selectedReportClientId === 'all') {
@@ -1187,13 +1286,27 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     const isStatus = key === 'status';
     const options = isStatus ? quickStatusOptions : deadlineFilterOptions;
     const selectedCount = isStatus ? selectedFilters.status.length : selectedDeadlineFilters.length;
-    const clear = isStatus
-      ? () => clearColumnFilter('status')
-      : () => setSelectedDeadlineFilters([]);
+    const toggleAll = () => {
+      if (isStatus) {
+        setSelectedFilters((current) => ({
+          ...current,
+          status: options.every((option) => current.status.includes(option.value))
+            ? []
+            : options.map((option) => option.value),
+        }));
+        return;
+      }
+
+      setSelectedDeadlineFilters((current) =>
+        options.every((option) => current.includes(option.value as DeadlineFilter))
+          ? []
+          : options.map((option) => option.value as DeadlineFilter)
+      );
+    };
 
     return (
       <div className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white p-2 shadow-[0_18px_40px_-22px_rgba(0,0,0,0.28)] dark:border-white/15 dark:bg-[#101113] dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]">
-        <button type="button" onClick={clear} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-50">
+        <button type="button" onClick={toggleAll} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-50">
           <span>{showAllLabel}</span><RotateCcw size={12} />
         </button>
         <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-zinc-100 bg-zinc-50/50 p-1 dark:border-white/15 dark:bg-[#18181b]">
@@ -1217,17 +1330,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       return null;
     }
 
-    const currentQuery = filterSearch[key].toLowerCase();
-    const visibleOptions = filterOptions[key].filter((option) => {
-      if (!currentQuery) {
-        return true;
-      }
-
-      return (
-        option.label.toLowerCase().includes(currentQuery) ||
-        option.value.toLowerCase().includes(currentQuery)
-      );
-    });
+    const visibleOptions = rankSearchResults(
+      filterOptions[key],
+      filterSearch[key],
+      (option) => option.label,
+      (option, query) => option.value.toLocaleLowerCase().includes(query),
+    );
 
     return (
       <div
@@ -1255,7 +1363,12 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         <div className="mt-2 flex min-h-0 flex-1 flex-col space-y-1">
           <button
             type="button"
-            onClick={() => clearColumnFilter(key)}
+            onClick={() => setSelectedFilters((current) => ({
+              ...current,
+              [key]: filterOptions[key].every((option) => current[key].includes(option.value))
+                ? []
+                : filterOptions[key].map((option) => option.value),
+            }))}
             className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-50"
           >
             <span>{showAllLabel}</span>
@@ -1545,7 +1658,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                             )}
                             onClick={(event) => {
                               event.stopPropagation();
-                              updatePalletRepairStatus(pallet.id, !pallet.is_for_repair);
+                              togglePalletService(pallet);
                             }}
                             title={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
                             aria-label={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
@@ -1596,20 +1709,39 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
-        <button
-          type="button"
-          onClick={() => setShowReportExportModal(true)}
-          disabled={customerReportGroups.length === 0}
-          className={cn(
-            'inline-flex h-14 items-center gap-2 rounded-full px-5 text-[11px] font-black uppercase tracking-[0.14em] shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform',
-            customerReportGroups.length === 0
-              ? 'cursor-not-allowed bg-emerald-200 text-white/80'
-              : 'bg-[#00A655] text-white hover:scale-[1.02]'
+        <div className="group relative">
+          <button
+            type="button"
+            onClick={() => setShowReportExportModal(true)}
+            disabled={isFilterDatasetLoading || customerReportGroups.length === 0}
+            aria-busy={isFilterDatasetLoading}
+            aria-describedby={isFilterDatasetLoading ? 'report-data-loading-tooltip' : undefined}
+            className={cn(
+              'inline-flex h-14 items-center gap-2 rounded-full px-5 text-[11px] font-black uppercase tracking-[0.14em] shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform disabled:cursor-default',
+              isFilterDatasetLoading
+                ? 'bg-emerald-600 text-white/90'
+                : customerReportGroups.length === 0
+                  ? 'bg-emerald-200 text-white/80'
+                  : 'bg-[#00A655] text-white hover:scale-[1.02]'
+            )}
+          >
+            {isFilterDatasetLoading ? (
+              <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <FileSpreadsheet size={16} />
+            )}
+            {reportCopy.fabLabel}
+          </button>
+          {isFilterDatasetLoading && (
+            <div
+              id="report-data-loading-tooltip"
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full right-0 mb-3 w-max max-w-[min(19rem,calc(100vw-2rem))] rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] px-3 py-2 text-center text-[11px] font-bold normal-case tracking-normal text-[var(--text-primary)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              {reportCopy.loadingLabel}
+            </div>
           )}
-        >
-          <FileSpreadsheet size={16} />
-          {reportCopy.fabLabel}
-        </button>
+        </div>
 
         {onAddPallet && (
           <button
@@ -1682,18 +1814,74 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                   <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
                     {reportCopy.selectedClientLabel}
                   </label>
-                  <Select
-                    value={selectedReportClientId}
-                    onChange={(event) => setSelectedReportClientId(event.target.value)}
-                    className="text-left normal-case tracking-normal"
-                  >
-                    <option value="all">{reportCopy.allClientsOptionLabel}</option>
-                    {customerReportGroups.map((group) => (
-                      <option key={`report-client-${group.clientId}`} value={String(group.clientId)}>
-                        {group.clientName}
-                      </option>
-                    ))}
-                  </Select>
+                  <div ref={reportClientSelectRef} className="relative">
+                    <button
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded={isReportClientSelectOpen}
+                      onClick={() => setIsReportClientSelectOpen((isOpen) => !isOpen)}
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-left text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all hover:border-[color:var(--action-primary)] focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)]"
+                    >
+                      <span className="min-w-0 truncate">
+                        {selectedCustomerReportGroup?.clientName || reportCopy.allClientsOptionLabel}
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={cn(
+                          'shrink-0 text-[var(--text-muted)] transition-transform',
+                          isReportClientSelectOpen && 'rotate-180'
+                        )}
+                        aria-hidden="true"
+                      />
+                    </button>
+
+                    {isReportClientSelectOpen && (
+                      <div
+                        role="listbox"
+                        aria-label={reportCopy.selectedClientLabel}
+                        className="absolute z-40 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] p-1.5 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.3)]"
+                      >
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={selectedReportClientId === 'all'}
+                          onClick={() => {
+                            setSelectedReportClientId('all');
+                            setIsReportClientSelectOpen(false);
+                          }}
+                          className={cn(
+                            'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-raised)]',
+                            selectedReportClientId === 'all' && 'bg-[var(--status-success-bg)] text-[var(--status-success-text)]'
+                          )}
+                        >
+                          <span className="min-w-0 truncate">{reportCopy.allClientsOptionLabel}</span>
+                          {selectedReportClientId === 'all' && <Check size={15} className="shrink-0" />}
+                        </button>
+                        {customerReportGroups.map((group) => {
+                          const isSelected = selectedReportClientId === String(group.clientId);
+                          return (
+                            <button
+                              key={`report-client-${group.clientId}`}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => {
+                                setSelectedReportClientId(String(group.clientId));
+                                setIsReportClientSelectOpen(false);
+                              }}
+                              className={cn(
+                                'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-raised)]',
+                                isSelected && 'bg-[var(--status-success-bg)] text-[var(--status-success-text)]'
+                              )}
+                            >
+                              <span className="min-w-0 truncate">{group.clientName}</span>
+                              {isSelected && <Check size={15} className="shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">

@@ -77,7 +77,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
               displaysDeletedClient ? "text-rose-600" : "text-zinc-950",
             )}
           >
-             {pallet.client_name || t('inStock')}
+             {pallet.client_name || '-'}
           </p>
           <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-tight">
             <MapPin size={10} className="text-zinc-400" />

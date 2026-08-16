@@ -406,27 +406,51 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
 const roleDescriptionCatalog: Record<AppLanguage, Record<string, string>> = {
   en: {
     "Full access": "Full access",
+    "Platform administrator": "Platform administrator",
+    "Warehouse operations": "Warehouse operations",
+    "Customer account": "Customer account",
+    Transport: "Transport",
+    "Service and repair": "Service and repair",
+    "Limited access": "Limited access",
+    "Operational user": "Operational user",
   },
   nl: {
     "Full access": "Volledige toegang",
+    "Platform administrator": "Platformbeheerder",
+    "Warehouse operations": "Magazijnactiviteiten",
+    "Customer account": "Klantaccount",
+    Transport: "Transport",
+    "Service and repair": "Service en reparatie",
+    "Limited access": "Beperkte toegang",
+    "Operational user": "Operationele gebruiker",
   },
   bs: {
     "Full access": "Potpuni pristup",
+    "Platform administrator": "Administrator platforme",
+    "Warehouse operations": "Magacinske operacije",
+    "Customer account": "Korisnički račun klijenta",
+    Transport: "Transport",
+    "Service and repair": "Servis i popravke",
+    "Limited access": "Ograničen pristup",
+    "Operational user": "Operativni korisnik",
   },
 };
 
 const permissionLabelCatalog: Record<AppLanguage, Record<string, string>> = {
   en: {
+    pallets: "Pallet tracking", customers: "Customers", roles: "Roles", invoices: "Invoices", invoice_items: "Invoice items", knowledge_base: "Knowledge base", statuses: "Statuses", audit_logs: "Audit log", qr_versions: "QR versions", services: "Service and repairs", users: "Users", ghost_pallet_reports: "Pallets without QR codes", image_gallery: "Delivery information",
     "pallets:read": "Read Pallets",
     "pallets:write": "Write Pallets",
     "users:manage": "Manage Users",
   },
   nl: {
+    pallets: "Bokken volgen", customers: "Klanten", roles: "Rollen", invoices: "Facturen", invoice_items: "Factuurregels", knowledge_base: "Kennisbank", statuses: "Statussen", audit_logs: "Auditlog", qr_versions: "QR-versies", services: "Service en reparaties", users: "Gebruikers", ghost_pallet_reports: "Bokken zonder QR-code", image_gallery: "Afleverinformatie",
     "pallets:read": "Bokken lezen",
     "pallets:write": "Bokken bewerken",
     "users:manage": "Gebruikers beheren",
   },
   bs: {
+    pallets: "Praćenje paleta", customers: "Klijenti", roles: "Uloge", invoices: "Fakture", invoice_items: "Stavke fakture", knowledge_base: "Baza znanja", statuses: "Statusi", audit_logs: "Evidencija aktivnosti", qr_versions: "QR verzije", services: "Servis i popravke", users: "Korisnici", ghost_pallet_reports: "Palete bez QR koda", image_gallery: "Informacije o isporuci",
     "pallets:read": "Pregled paleta",
     "pallets:write": "Uređivanje paleta",
     "users:manage": "Upravljanje korisnicima",
@@ -438,16 +462,19 @@ const permissionDescriptionCatalog: Record<
   Record<string, string>
 > = {
   en: {
+    pallets: "Pallet tracking and lifecycle management.", customers: "Customer management based on customer details records.", roles: "Role and access management.", invoices: "Invoice management.", invoice_items: "Invoice line item management.", knowledge_base: "Role-aware knowledge base content.", statuses: "Status changes, including QR-driven scanning flows.", audit_logs: "Audit trail and activity history.", qr_versions: "QR version management.", services: "Service and repair workflows.", users: "User administration.", ghost_pallet_reports: "Reporting and pairing pallets without QR codes.", image_gallery: "Delivery photos for pallets leaving the Bowido NL warehouse.",
     "pallets:read": "Can view pallet list",
     "pallets:write": "Can create and edit pallets",
     "users:manage": "Full user control",
   },
   nl: {
+    pallets: "Bokken volgen en de volledige levenscyclus beheren.", customers: "Klanten beheren op basis van klantdetailgegevens.", roles: "Rollen en toegangsrechten beheren.", invoices: "Facturen beheren.", invoice_items: "Factuurregels beheren.", knowledge_base: "Kennisbankinhoud op basis van rollen.", statuses: "Statuswijzigingen, inclusief QR-gestuurde scanprocessen.", audit_logs: "Audittrail en activiteitenhistoriek.", qr_versions: "QR-versies beheren.", services: "Service- en reparatieprocessen.", users: "Gebruikers beheren.", ghost_pallet_reports: "Bokken zonder QR-code melden en koppelen.", image_gallery: "Afleverfoto's van bokken die het Bowido NL-magazijn verlaten.",
     "pallets:read": "Kan de bokkenlijst bekijken",
     "pallets:write": "Kan bokken aanmaken en bewerken",
     "users:manage": "Volledige gebruikerscontrole",
   },
   bs: {
+    pallets: "Praćenje paleta i upravljanje njihovim životnim ciklusom.", customers: "Upravljanje klijentima na osnovu podataka o klijentima.", roles: "Upravljanje ulogama i pristupom.", invoices: "Upravljanje fakturama.", invoice_items: "Upravljanje stavkama fakture.", knowledge_base: "Sadržaj baze znanja prilagođen ulozi.", statuses: "Promjene statusa, uključujući QR skeniranje.", audit_logs: "Evidencija aktivnosti i historija promjena.", qr_versions: "Upravljanje QR verzijama.", services: "Tokovi rada servisa i popravki.", users: "Administracija korisnika.", ghost_pallet_reports: "Prijava i povezivanje paleta bez QR koda.", image_gallery: "Fotografije isporuke paleta koje napuštaju magacin Bowido NL.",
     "pallets:read": "Može pregledati listu paleta",
     "pallets:write": "Može kreirati i uređivati palete",
     "users:manage": "Potpuna kontrola korisnika",
@@ -494,9 +521,11 @@ export const translations = {
     adminWarehouse: "Admin Warehouse",
     adminFinance: "Finance & Administration",
     settings: "Settings",
+    backToScan: "Back to scan",
+    informationSettings: "Information settings",
     completeDetails: "Complete details",
-    imageGallery: "Image gallery",
-    galleryDescription: "Secure pallet images and operational context.",
+    imageGallery: "Delivery information",
+    galleryDescription: "Delivery photos for pallets leaving Bowido NL.",
     allImageTypes: "All image types",
     statusChangeImage: "Status change",
     damageReportImage: "Damage report",
@@ -514,6 +543,8 @@ export const translations = {
     customerDetailsLoadError: "Your details could not be loaded.",
     customerDetailsSaveError: "Your details could not be saved.",
     saving: "Saving...",
+    settingsSaved: "Settings saved",
+    settingsSavedDetails: "The configuration was saved and client billing settings were updated.",
     activity: "Activity",
     auditLogs: "Audit Logs",
     auditLogsSubtitle: "Review status history and QR version changes.",
@@ -788,6 +819,8 @@ export const translations = {
     actions: "Actions",
     invoiceLabel: "Invoice",
     sentLabel: "Sent",
+    returnLabel: "Term",
+    termLabel: "Due",
     unitsLabel: "Units",
     gracePeriodLabel: "Grace Period",
     addStatus: "Add Status",
@@ -798,6 +831,7 @@ export const translations = {
     newStatus: "New Status",
     reportDamage: "Report Damage",
     damageDescription: "Damage Description",
+    characters: "characters",
     evidencePhoto: "Evidence Photo",
     submitReport: "Submit Report",
     selectUnit: "Select Unit",
@@ -845,16 +879,16 @@ export const translations = {
     editUser: "Edit User",
     createUser: "Create User",
     accountUpdate: "Account Update",
-    newDemoAccount: "New Demo Account",
+    newDemoAccount: "New Account",
     updateUserDescription:
       "Change the user email, role and password if needed.",
     createUserDescription:
-      "Add a user with email, password and a selected role.",
+      "Add a user with an email and role. A secure temporary password will be emailed automatically.",
     password: "Password",
     keepPasswordHint: "Leave empty to keep the current password",
     newPasswordHint: "Enter a temporary password",
     emailRequired: "Email is required.",
-    passwordRequiredNew: "Password is required for a new user.",
+    passwordRequiredNew: "A temporary password is generated automatically.",
     changesNotSaved: "Changes were not saved. Try again.",
     usersCannotLoad: "Users cannot be loaded right now.",
     activeSessionCannotEdit:
@@ -919,6 +953,20 @@ export const translations = {
     issued: "Issued",
     invoiceSent: "Invoice sent",
     sendInvoice: "Send Invoice",
+    createdAt: "Created",
+    mailedAt: "Mailed",
+    notMailedYet: "Not mailed yet",
+    billedTo: "Billed to",
+    taxId: "VAT / KVK",
+    invoiceItems: "Invoice items",
+    descriptionLabel: "Description",
+    unitPrice: "Unit price",
+    totalPayable: "Total payable",
+    noInvoiceItems: "No invoice items",
+    invoicePreviewFailed: "The invoice preview could not be opened.",
+    invoiceDownloadFailed: "The invoice download failed.",
+    invoiceSentTo: "Invoice sent to :recipient.",
+    invoiceEmailFailed: "The invoice email could not be sent.",
     defineAccessLevels: "Define system access levels and permissions",
     roleNamePlaceholder: "e.g. Master Logistics",
     roleDescriptionPlaceholder: "Describe the responsibilities of this role...",
@@ -978,7 +1026,7 @@ export const translations = {
     editUnit: "Edit Unit",
     globalStatus: "Status",
     assignedClient: "Assigned Client",
-    noClient: "No Client",
+    noClient: "-",
     physicalLocation: "Location",
     confirmDeleteUnit:
       "Are you sure you want to delete this unit? All history will be lost.",
@@ -1022,6 +1070,11 @@ export const translations = {
     noRolesFound: "No roles found.",
     deleting: "Deleting...",
     roleSaving: "Saving...",
+    roleAbilityList: "List",
+    roleAbilityView: "View",
+    roleAbilityCreate: "Create",
+    roleAbilityUpdate: "Update",
+    roleAbilityDelete: "Delete",
     allImages: "Admin / all images",
     showAll: "Show all",
     warehouseAddresses: "Warehouse addresses",
@@ -1060,9 +1113,11 @@ export const translations = {
     adminWarehouse: "Admin Magazijn",
     adminFinance: "Financien en Administratie",
     settings: "Instellingen",
+    backToScan: "Terug naar scannen",
+    informationSettings: "Informatie-instellingen",
     completeDetails: "Gegevens aanvullen",
-    imageGallery: "Afbeeldingengalerij",
-    galleryDescription: "Beveiligde bokfoto’s met operationele context.",
+    imageGallery: "Leveringsinformatie",
+    galleryDescription: "Leveringsfoto’s van bokken die Bowido NL verlaten.",
     allImageTypes: "Alle afbeeldingstypen",
     statusChangeImage: "Statuswijziging",
     damageReportImage: "Schaderapport",
@@ -1080,6 +1135,8 @@ export const translations = {
     customerDetailsLoadError: "Uw gegevens konden niet worden geladen.",
     customerDetailsSaveError: "Uw gegevens konden niet worden opgeslagen.",
     saving: "Opslaan...",
+    settingsSaved: "Instellingen opgeslagen",
+    settingsSavedDetails: "De configuratie is opgeslagen en de factuurinstellingen van klanten zijn bijgewerkt.",
     activity: "Activiteit",
     auditLogs: "Auditlogs",
     auditLogsSubtitle: "Controleer statushistoriek en QR-versiewijzigingen.",
@@ -1358,6 +1415,8 @@ export const translations = {
     actions: "Acties",
     invoiceLabel: "Factuur",
     sentLabel: "Verzonden",
+    returnLabel: "Retour",
+    termLabel: "Termijn",
     unitsLabel: "Eenheden",
     gracePeriodLabel: "Graceperiode",
     addStatus: "Status toevoegen",
@@ -1368,6 +1427,7 @@ export const translations = {
     newStatus: "Nieuwe status",
     reportDamage: "Schade melden",
     damageDescription: "Schadebeschrijving",
+    characters: "tekens",
     evidencePhoto: "Bewijsfoto",
     submitReport: "Rapport indienen",
     selectUnit: "Eenheid selecteren",
@@ -1420,12 +1480,12 @@ export const translations = {
     updateUserDescription:
       "Wijzig het e-mailadres, de rol en indien nodig het wachtwoord.",
     createUserDescription:
-      "Voeg een gebruiker toe met e-mail, wachtwoord en een gekozen rol.",
+      "Voeg een gebruiker toe met e-mail en rol. Een veilig tijdelijk wachtwoord wordt automatisch per e-mail verstuurd.",
     password: "Wachtwoord",
     keepPasswordHint: "Leeg laten om het huidige wachtwoord te behouden",
     newPasswordHint: "Voer een tijdelijk wachtwoord in",
     emailRequired: "E-mail is verplicht.",
-    passwordRequiredNew: "Wachtwoord is verplicht voor een nieuwe gebruiker.",
+    passwordRequiredNew: "Een tijdelijk wachtwoord wordt automatisch gegenereerd.",
     changesNotSaved: "Wijzigingen zijn niet opgeslagen. Probeer opnieuw.",
     usersCannotLoad: "Gebruikers kunnen momenteel niet worden geladen.",
     activeSessionCannotEdit:
@@ -1492,6 +1552,20 @@ export const translations = {
     issued: "Uitgegeven",
     invoiceSent: "Factuur verzonden",
     sendInvoice: "Factuur verzenden",
+    createdAt: "Aangemaakt",
+    mailedAt: "Verstuurd",
+    notMailedYet: "Nog niet verstuurd",
+    billedTo: "Gefactureerd aan",
+    taxId: "Btw / KVK",
+    invoiceItems: "Factuurregels",
+    descriptionLabel: "Omschrijving",
+    unitPrice: "Prijs per stuk",
+    totalPayable: "Totaal te betalen",
+    noInvoiceItems: "Geen factuurregels",
+    invoicePreviewFailed: "Het factuurvoorbeeld kon niet worden geopend.",
+    invoiceDownloadFailed: "De factuurdownload is mislukt.",
+    invoiceSentTo: "Factuur verzonden naar :recipient.",
+    invoiceEmailFailed: "De factuur-e-mail kon niet worden verzonden.",
     defineAccessLevels: "Definieer systeemtoegang en permissies",
     roleNamePlaceholder: "bv. Master Logistics",
     roleDescriptionPlaceholder:
@@ -1551,7 +1625,7 @@ export const translations = {
     editUnit: "Eenheid bewerken",
     globalStatus: "Status",
     assignedClient: "Toegewezen klant",
-    noClient: "Geen klant",
+    noClient: "-",
     physicalLocation: "Locatie",
     confirmDeleteUnit:
       "Weet je zeker dat je deze eenheid wilt verwijderen? Alle historiek gaat verloren.",
@@ -1595,6 +1669,11 @@ export const translations = {
     noRolesFound: "Geen rollen gevonden.",
     deleting: "Verwijderen...",
     roleSaving: "Opslaan...",
+    roleAbilityList: "Lijst",
+    roleAbilityView: "Bekijken",
+    roleAbilityCreate: "Aanmaken",
+    roleAbilityUpdate: "Bijwerken",
+    roleAbilityDelete: "Verwijderen",
     allImages: "Admin / alle afbeeldingen",
     showAll: "Alles tonen",
     warehouseAddresses: "Magazijnadressen",
@@ -1633,9 +1712,11 @@ export const translations = {
     adminWarehouse: "Admin Magacin",
     adminFinance: "Finansije i Administracija",
     settings: "Postavke",
+    backToScan: "Nazad na skeniranje",
+    informationSettings: "Postavke informacija",
     completeDetails: "Dopuni podatke",
-    imageGallery: "Galerija slika",
-    galleryDescription: "Sigurne slike paleta sa operativnim podacima.",
+    imageGallery: "Informacije o isporuci",
+    galleryDescription: "Fotografije isporuke paleta koje napuštaju Bowido NL.",
     allImageTypes: "Sve vrste slika",
     statusChangeImage: "Promjena statusa",
     damageReportImage: "Prijava oštećenja",
@@ -1653,6 +1734,8 @@ export const translations = {
     customerDetailsLoadError: "Podaci se nisu mogli učitati.",
     customerDetailsSaveError: "Podaci se nisu mogli sačuvati.",
     saving: "Čuvanje...",
+    settingsSaved: "Postavke sačuvane",
+    settingsSavedDetails: "Konfiguracija je sačuvana, a postavke naplate za klijente su ažurirane.",
     activity: "Aktivnosti",
     auditLogs: "Audit logovi",
     auditLogsSubtitle: "Pregled status historije i promjena QR verzija.",
@@ -1929,6 +2012,8 @@ export const translations = {
     actions: "Akcije",
     invoiceLabel: "Faktura",
     sentLabel: "Poslano",
+    returnLabel: "Termin",
+    termLabel: "Rok",
     unitsLabel: "jedinica",
     gracePeriodLabel: "Period odgode",
     addStatus: "Dodaj status",
@@ -1939,6 +2024,7 @@ export const translations = {
     newStatus: "Novi status",
     reportDamage: "Prijavi oštećenje",
     damageDescription: "Opis oštećenja",
+    characters: "znakova",
     evidencePhoto: "Fotografija dokaza",
     submitReport: "Pošalji prijavu",
     selectUnit: "Odaberi jedinicu",
@@ -1990,12 +2076,12 @@ export const translations = {
     updateUserDescription:
       "Promijeni email, rolu i po potrebi lozinku korisnika.",
     createUserDescription:
-      "Dodaj korisnika sa email adresom, lozinkom i odabranom rolom.",
+      "Dodaj korisnika sa email adresom i rolom. Sigurna privremena lozinka se automatski šalje e-mailom.",
     password: "Lozinka",
     keepPasswordHint: "Ostavi prazno za zadržavanje postojeće lozinke",
     newPasswordHint: "Unesi privremenu lozinku",
     emailRequired: "Email je obavezan.",
-    passwordRequiredNew: "Lozinka je obavezna za novog korisnika.",
+    passwordRequiredNew: "Privremena lozinka se generiše automatski.",
     changesNotSaved: "Promjene nisu sačuvane. Pokušaj ponovo.",
     usersCannotLoad: "Korisnici se trenutno ne mogu učitati.",
     activeSessionCannotEdit:
@@ -2060,6 +2146,20 @@ export const translations = {
     issued: "Izdato",
     invoiceSent: "Faktura poslana",
     sendInvoice: "Pošalji fakturu",
+    createdAt: "Kreirano",
+    mailedAt: "Poslano",
+    notMailedYet: "Još nije poslano",
+    billedTo: "Fakturisano za",
+    taxId: "PDV / KVK",
+    invoiceItems: "Stavke fakture",
+    descriptionLabel: "Opis",
+    unitPrice: "Cijena po komadu",
+    totalPayable: "Ukupno za plaćanje",
+    noInvoiceItems: "Nema stavki fakture",
+    invoicePreviewFailed: "Pregled fakture nije bilo moguće otvoriti.",
+    invoiceDownloadFailed: "Preuzimanje fakture nije uspjelo.",
+    invoiceSentTo: "Faktura je poslana na :recipient.",
+    invoiceEmailFailed: "E-mail fakture nije bilo moguće poslati.",
     defineAccessLevels: "Definiši nivoe pristupa i permisije u sistemu",
     roleNamePlaceholder: "npr. Master Logistics",
     roleDescriptionPlaceholder: "Opišite odgovornosti ove role...",
@@ -2104,7 +2204,7 @@ export const translations = {
     fullFleetManagement: "Potpuno upravljanje flotom",
     idQr: "ID / QR",
     inStock: "Na stanju",
-    notAvailable: "N/A",
+    notAvailable: "N/D",
     noMatchingResults: "Nema odgovarajućih rezultata",
     noMatchingUnitsFound: "Nema odgovarajućih jedinica",
     noPalletsFound: "Nema pronađenih paleta",
@@ -2118,7 +2218,7 @@ export const translations = {
     editUnit: "Uredi jedinicu",
     globalStatus: "Status",
     assignedClient: "Dodijeljeni klijent",
-    noClient: "Bez klijenta",
+    noClient: "-",
     physicalLocation: "Lokacija",
     confirmDeleteUnit:
       "Jeste li sigurni da želite obrisati ovu jedinicu? Sva historija će biti izgubljena.",
@@ -2162,6 +2262,11 @@ export const translations = {
     noRolesFound: "Nema uloga u bazi.",
     deleting: "Brisanje...",
     roleSaving: "Spremanje...",
+    roleAbilityList: "Lista",
+    roleAbilityView: "Pregled",
+    roleAbilityCreate: "Kreiraj",
+    roleAbilityUpdate: "Ažuriraj",
+    roleAbilityDelete: "Obriši",
     allImages: "Admin / sve slike",
     showAll: "Prikaži sve",
     warehouseAddresses: "Adrese magacina",
@@ -2216,8 +2321,28 @@ export const translate = (language: AppLanguage, key: string) => {
   return language === "nl" ? useDutchBokTerminology(value) : value;
 };
 
-export const getRoleLabel = (role: RoleType, language: AppLanguage) =>
-  roleLabels[language][role] || roleLabels.en[role] || role;
+const roleTypeAliases: Record<string, RoleType> = {
+  admin: RoleType.ADMIN,
+  admin_service: RoleType.ADMIN_SERVICE,
+  "admin service": RoleType.ADMIN_SERVICE,
+  admin_servis: RoleType.ADMIN_SERVICE,
+  "admin servis": RoleType.ADMIN_SERVICE,
+  admin_warehouse: RoleType.ADMIN_WAREHOUSE,
+  "admin warehouse": RoleType.ADMIN_WAREHOUSE,
+  admin_magacin: RoleType.ADMIN_WAREHOUSE,
+  "admin magacin": RoleType.ADMIN_WAREHOUSE,
+  finance_administration: RoleType.FINANCE_ADMINISTRATION,
+  "finance & administration": RoleType.FINANCE_ADMINISTRATION,
+  driver: RoleType.VOZAC,
+  warehouse_operator: RoleType.MAGACINER,
+  customer: RoleType.KLIJENT,
+  technician: RoleType.SERVISER,
+};
+
+export const getRoleLabel = (role: RoleType | string, language: AppLanguage) => {
+  const normalizedRole = roleTypeAliases[role.trim().toLocaleLowerCase()] || role as RoleType;
+  return roleLabels[language][normalizedRole] || roleLabels.en[normalizedRole] || role;
+};
 
 export const getRolePermissions = (role: RoleType, language: AppLanguage) =>
   rolePermissionCatalog[language][role] || rolePermissionCatalog.en[role] || [];
@@ -2252,6 +2377,317 @@ export const getLocationLabel = (
   }
 
   return location || "";
+};
+
+/**
+ * System-generated no-QR notes were historically stored as human-readable
+ * text. Keep the entered values intact, but render their known labels in the
+ * language selected by the viewer.
+ */
+export const formatSystemNote = (
+  note: string | null | undefined,
+  language: AppLanguage,
+) => {
+  if (!note?.trim()) {
+    return "";
+  }
+
+  const copy = {
+    en: {
+      source: "Submitted from mobile no-QR form",
+      pickup: "Available for pickup",
+      comment: "Comment",
+      location: "Location",
+      warehouse: "Own warehouse",
+      otherLocation: "Other location",
+      directPickup: "Direct pickup",
+      paired: "Paired from a pallet without a QR code on",
+    },
+    nl: {
+      source: "Verstuurd via mobiel formulier zonder QR",
+      pickup: "Beschikbaar voor het ophalen",
+      comment: "Commentaar",
+      location: "Locatie",
+      warehouse: "Eigen magazijn",
+      otherLocation: "Andere locatie",
+      directPickup: "Direct ophalen",
+      paired: "Gekoppeld vanuit een bok zonder QR-code op",
+    },
+    bs: {
+      source: "Poslano preko mobilne no-QR forme",
+      pickup: "Dostupno za preuzimanje",
+      comment: "Komentar",
+      location: "Lokacija",
+      warehouse: "Vlastiti magacin",
+      otherLocation: "Druga lokacija",
+      directPickup: "Odmah preuzeti",
+      paired: "Upareno s paletom bez QR koda dana",
+    },
+  }[language];
+  const sourceLabels = [
+    "Submitted from mobile no-QR form",
+    "Verstuurd via mobiel formulier zonder QR",
+    "Poslano preko mobilne no-QR forme",
+  ];
+  const pickupLabels = ["Available for pickup", "Beschikbaar voor het ophalen", "Dostupno za preuzimanje"];
+  const commentLabels = ["Comment", "Commentaar", "Komentar"];
+
+  return note
+    .split("|")
+    .map((rawSegment) => {
+      const segment = rawSegment.trim();
+      if (sourceLabels.some((label) => label.toLocaleLowerCase() === segment.toLocaleLowerCase())) {
+        return copy.source;
+      }
+
+      const prefixedLabel = (labels: string[], replacement: string) => {
+        const matched = labels.find((label) => segment.toLocaleLowerCase().startsWith(`${label.toLocaleLowerCase()}:`));
+        if (!matched) {
+          return null;
+        }
+
+        const value = segment.slice(matched.length + 1);
+        const translatedValue = ["Direct pickup", "Direct ophalen", "Odmah preuzeti"]
+          .some((label) => label.toLocaleLowerCase() === value.trim().toLocaleLowerCase())
+          ? ` ${copy.directPickup}`
+          : value;
+
+        return `${replacement}:${translatedValue}`;
+      };
+
+      return prefixedLabel(pickupLabels, copy.pickup)
+        || prefixedLabel(commentLabels, copy.comment)
+        || segment.replace(/^(Location|Locatie|Lokacija)\s+(\d+)$/i, `${copy.location} $2`)
+          .replace(/^(Own warehouse|Eigen magazijn|Vlastiti magacin)$/i, copy.warehouse)
+          .replace(/^(Other location|Andere locatie|Druga lokacija)$/i, copy.otherLocation)
+          .replace(
+            /\(Paired from a pallet without a QR code on\s+([^)]*)\)/i,
+            `(${copy.paired} $1)`,
+          );
+    })
+    .join(" | ");
+};
+
+export const formatServiceReportDescription = (
+  description: string | null | undefined,
+  language: AppLanguage,
+) => {
+  const trimmedDescription = description?.trim();
+  if (!trimmedDescription) {
+    return "";
+  }
+
+  const descriptionLines = trimmedDescription.split(/\r?\n/);
+  if (descriptionLines.length > 1) {
+    return descriptionLines
+      .map((line) => formatServiceReportDescription(line, language))
+      .join("\n");
+  }
+
+  const [firstLine, ...remainingLines] = trimmedDescription.split(/\r?\n/);
+  const remainingDescription = remainingLines.length > 0 ? `\n${remainingLines.join("\n")}` : "";
+
+  const serviceActionPatterns: Array<{
+    pattern: RegExp;
+    action: "admitted" | "removed";
+  }> = [
+    { pattern: /^(.*?) admitted pallet to service\.$/i, action: "admitted" },
+    { pattern: /^(.*?) removed pallet from service\.$/i, action: "removed" },
+    { pattern: /^(.*?) je prijavio paletu u servis\.$/i, action: "admitted" },
+    { pattern: /^(.*?) je uklonio paletu iz servisa\.$/i, action: "removed" },
+    { pattern: /^(.*?) heeft de bok aangemeld voor service\.$/i, action: "admitted" },
+    { pattern: /^(.*?) heeft de bok uit service verwijderd\.$/i, action: "removed" },
+  ];
+
+  for (const { pattern, action } of serviceActionPatterns) {
+    const match = firstLine.match(pattern);
+    if (!match) continue;
+
+    const actor = match[1].trim();
+    const copy = action === "admitted"
+      ? {
+          en: `${actor} admitted pallet to service.`,
+          nl: `${actor} heeft de bok aangemeld voor service.`,
+          bs: `${actor} je prijavio paletu u servis.`,
+        }
+      : {
+          en: `${actor} removed pallet from service.`,
+          nl: `${actor} heeft de bok uit service verwijderd.`,
+          bs: `${actor} je uklonio paletu iz servisa.`,
+        };
+
+    return `${copy[language]}${remainingDescription}`;
+  }
+
+  const generatedDescriptionGroups: Array<{
+    aliases: string[];
+    translations: Record<AppLanguage, string>;
+  }> = [
+    {
+      aliases: ["Pallet admitted to service."],
+      translations: {
+        en: "Pallet admitted to service.",
+        nl: "Bok aangemeld voor service.",
+        bs: "Paleta je prijavljena u servis.",
+      },
+    },
+    {
+      aliases: ["Pallet removed from service."],
+      translations: {
+        en: "Pallet removed from service.",
+        nl: "Bok verwijderd uit service.",
+        bs: "Paleta je uklonjena iz servisa.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet as Bij de klant",
+        "Driver marked pallet as At client",
+        "Chauffeur heeft de bok gemarkeerd als Bij de klant",
+        "Vozač je označio paletu kao Kod klijenta",
+      ],
+      translations: {
+      en: "Driver marked pallet as At client.",
+      nl: "Chauffeur heeft de bok gemarkeerd als Bij de klant.",
+      bs: "Vozač je označio paletu kao Kod klijenta.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet as Ophalen klant",
+        "Driver marked pallet as Customer pickup",
+        "Chauffeur heeft de bok gemarkeerd als Ophalen klant",
+        "Vozač je označio paletu kao Za preuzimanje kod klijenta",
+      ],
+      translations: {
+      en: "Driver marked pallet as Customer pickup.",
+      nl: "Chauffeur heeft de bok gemarkeerd als Ophalen klant.",
+      bs: "Vozač je označio paletu kao Za preuzimanje kod klijenta.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet in repair",
+        "Chauffeur heeft de bok gemarkeerd voor reparatie",
+        "Vozač je označio paletu za servis",
+      ],
+      translations: {
+        en: "Driver marked pallet in repair.",
+        nl: "Chauffeur heeft de bok gemarkeerd voor reparatie.",
+        bs: "Vozač je označio paletu za servis.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet in transport",
+        "Chauffeur heeft de bok gemarkeerd als onderweg",
+        "Vozač je označio paletu kao u transportu",
+      ],
+      translations: {
+      en: "Driver marked pallet in transport.",
+      nl: "Chauffeur heeft de bok gemarkeerd als onderweg.",
+      bs: "Vozač je označio paletu kao u transportu.",
+      },
+    },
+    {
+      aliases: [
+        "Driver marked pallet in Bowido warehouse",
+        "Chauffeur heeft de bok gemarkeerd als in Bowido-magazijn",
+        "Vozač je označio paletu kao u Bowido magacinu",
+      ],
+      translations: {
+      en: "Driver marked pallet in Bowido warehouse.",
+      nl: "Chauffeur heeft de bok gemarkeerd als in Bowido-magazijn.",
+      bs: "Vozač je označio paletu kao u Bowido magacinu.",
+      },
+    },
+  ];
+
+  const normalizeDescription = (value: string) =>
+    value
+    .replace(/\.+$/u, "")
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+
+  const descriptionKey = normalizeDescription(trimmedDescription);
+  const generatedDescription = generatedDescriptionGroups.find((group) =>
+    group.aliases.some((alias) => normalizeDescription(alias) === descriptionKey),
+  );
+
+  return generatedDescription?.translations[language] || description;
+};
+
+/**
+ * Invoice descriptions are persisted with the invoice so old invoices may have
+ * been created in a different UI language. Translate only recognised generated
+ * descriptions; custom line-item text remains exactly as entered.
+ */
+export const formatInvoiceItemDescription = (
+  description: string | null | undefined,
+  language: AppLanguage,
+) => {
+  const value = description?.trim();
+  if (!value) return "";
+
+  const generatedDescriptionPatterns: Array<{
+    pattern: RegExp;
+    translations: Record<AppLanguage, (value: string) => string>;
+  }> = [
+    {
+      pattern: /^(?:Storage billing for pallet|Opslagfacturatie voor pallet|Obračun skladištenja za paletu)\s+(.+)$/iu,
+      translations: {
+        en: (pallet) => `Storage billing for pallet ${pallet}`,
+        nl: (pallet) => `Opslagfacturatie voor pallet ${pallet}`,
+        bs: (pallet) => `Obračun skladištenja za paletu ${pallet}`,
+      },
+    },
+    {
+      pattern: /^(?:Overdue storage for pallet|Achterstallige opslag voor pallet|Dospjeli obračun skladištenja za paletu)\s+(.+)$/iu,
+      translations: {
+        en: (pallet) => `Overdue storage for pallet ${pallet}`,
+        nl: (pallet) => `Achterstallige opslag voor pallet ${pallet}`,
+        bs: (pallet) => `Dospjeli obračun skladištenja za paletu ${pallet}`,
+      },
+    },
+    {
+      pattern: /^Storage Fee \((\d+) billable days\)$/iu,
+      translations: {
+        en: (days) => `Storage Fee (${days} billable days)`,
+        nl: (days) => `Opslagkosten (${days} factureerbare dagen)`,
+        bs: (days) => `Naknada za skladištenje (${days} obračunska dana)`,
+      },
+    },
+  ];
+
+  for (const { pattern, translations } of generatedDescriptionPatterns) {
+    const match = value.match(pattern);
+    if (match) return translations[language](match[1]);
+  }
+
+  const legacyDescriptions: Record<string, Record<AppLanguage, string>> = {
+    "No-QR return handling": {
+      en: "No-QR return handling",
+      nl: "Afhandeling retour zonder QR-code",
+      bs: "Obrada povrata bez QR koda",
+    },
+    "Pending return handling": {
+      en: "Pending return handling",
+      nl: "Afhandeling openstaande retour",
+      bs: "Obrada povrata na čekanju",
+    },
+    "Storage Fee (frontend demo pallet)": {
+      en: "Storage Fee (frontend demo pallet)",
+      nl: "Opslagkosten (frontend-demopallet)",
+      bs: "Naknada za skladištenje (demo paleta)",
+    },
+    "Return handling (frontend demo pallet)": {
+      en: "Return handling (frontend demo pallet)",
+      nl: "Retourafhandeling (frontend-demopallet)",
+      bs: "Obrada povrata (demo paleta)",
+    },
+  };
+
+  return legacyDescriptions[value]?.[language] || value;
 };
 
 export const getRoleDescription = (

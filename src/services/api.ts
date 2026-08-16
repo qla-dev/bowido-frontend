@@ -343,6 +343,20 @@ const statusUiByName: Record<string, { id: number; name: string }> = {
   Onbekend: statusUiBySlug.unknown,
 };
 
+// Older installations can still return their original API status slugs. The
+// driver workflow uses the canonical underscore slugs below to decide which
+// options are shown, so normalize them at the API boundary.
+const canonicalStatusSlugByLegacySlug: Record<string, string> = {
+  bowido_warehouse: 'bowido-bih',
+  bowido_nl: 'bowido-nl',
+  transport: 'bih-nl-transport',
+  transport_bih_nl: 'bih-nl-transport',
+  at_customer: 'bij-de-klant',
+  pending_return: 'ophalen-klant',
+  transport_nl_bih: 'nl-bih-transport',
+  unknown: 'onbekend',
+};
+
 const backendStatusIdByUiId = new Map<number, number>();
 const uiStatusIdByBackendId = new Map<number, number>();
 
@@ -361,12 +375,14 @@ const rememberStatusMapping = (uiId: number, backendId: number, slug?: string) =
 
 const normalizeStatus = (status: ApiRecord): PalletStatus => {
   const backendId = Number(status.id);
-  const uiStatus = statusUiBySlug[status.slug] || statusUiByName[status.name] || {
+  const rawSlug = status.slug || '';
+  const slug = canonicalStatusSlugByLegacySlug[rawSlug] || rawSlug;
+  const uiStatus = statusUiBySlug[rawSlug] || statusUiBySlug[slug] || statusUiByName[status.name] || {
     id: uiStatusIdByBackendId.get(backendId) || backendId,
     name: status.name || 'Onbekend',
   };
 
-  rememberStatusMapping(uiStatus.id, backendId, status.slug);
+  rememberStatusMapping(uiStatus.id, backendId, slug);
 
   return {
     id: uiStatus.id,
@@ -375,7 +391,7 @@ const normalizeStatus = (status: ApiRecord): PalletStatus => {
     is_billable: Boolean(status.is_billable),
     grace_period_days: Number(status.grace_period_days ?? 0),
     price_per_day: Number(status.price_per_day ?? 0),
-    slug: status.slug || '',
+    slug,
   };
 };
 
@@ -469,6 +485,9 @@ const normalizeUser = (user: ApiRecord): ManagedUser => {
     role_name: roleType,
     backend_role_name: String(role?.name || user.role_name || ''),
     phone_number: user.phone_number || undefined,
+    first_time_login: toBoolean(user.first_time_login),
+    credential_email_sent: user.credential_email_sent === undefined ? undefined : toBoolean(user.credential_email_sent),
+    credential_email_warning: user.credential_email_warning || null,
     permission_codes: Array.isArray(user.permission_codes) ? user.permission_codes : [],
     customer_detail: user.customer_detail
       ? {
@@ -495,6 +514,7 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     id: Number(client.id),
     user_id: Number(client.user_id),
     name: client.name || client.company_name || client.user?.name || 'Client',
+    contact_person: client.contact_person || undefined,
     kvk_number: client.kvk_number || client.kvk || client.tax_number || undefined,
     phone_number: client.user?.phone_number || undefined,
     fixed_phone: client.fixed_phone || undefined,
@@ -515,6 +535,9 @@ const normalizeClient = (client: ApiRecord): ClientDetail => {
     warehouse2_postal_code: client.warehouse2_postal_code || undefined,
     warehouse2_city: client.warehouse2_city || undefined,
     warehouse_scope: client.warehouse_scope || undefined,
+    invoice_count: Number(client.invoice_count ?? 0),
+    credential_email_sent: client.credential_email_sent === undefined ? undefined : toBoolean(client.credential_email_sent),
+    credential_email_warning: client.credential_email_warning || null,
     grace_period_days: Number(client.grace_period_days ?? 0),
     price_per_day: Number(client.price_per_day ?? client.default_price_per_day ?? 0),
     is_active: Boolean(client.is_active),
@@ -547,10 +570,13 @@ const normalizePallet = (pallet: ApiRecord): Pallet => {
     client_deleted: toBoolean(pallet.client_deleted),
     type: pallet.type || pallet.asset_type || 'invullen!',
     current_location: pallet.current_location || '',
+    has_qr_code: toBoolean(pallet.has_qr_code) || (typeof pallet.qr_code === 'string' && pallet.qr_code.trim() !== ''),
     is_ghost: toBoolean(pallet.is_ghost),
     is_for_repair: toBoolean(pallet.is_for_repair),
     is_active: toBoolean(pallet.is_active),
     last_status_changed_at: pallet.last_status_changed_at || pallet.updated_at || new Date().toISOString(),
+    customer_timer_started_at: pallet.customer_timer_started_at || undefined,
+    customer_timer_frozen_at: pallet.customer_timer_frozen_at || undefined,
     days_at_customer: pallet.days_at_customer == null ? undefined : Number(pallet.days_at_customer),
     grace_days: pallet.grace_days == null ? undefined : Number(pallet.grace_days),
     overdue_days: pallet.overdue_days == null ? undefined : Number(pallet.overdue_days),
@@ -596,6 +622,18 @@ const normalizePalletDashboardStats = (stats: ApiRecord): PalletDashboardStats =
   total_pallets: Number(stats.total_pallets ?? 0),
   in_transport: Number(stats.in_transport ?? 0),
   overdue_units: Number(stats.overdue_units ?? 0),
+  customer_pickup_units: Number(stats.customer_pickup_units ?? 0),
+  top_overdue_clients: Array.isArray(stats.top_overdue_clients)
+    ? stats.top_overdue_clients.map((client) => {
+        const record = client as ApiRecord;
+        return {
+          user_id: record.user_id == null ? null : Number(record.user_id),
+          client_name: String(record.client_name ?? ''),
+          overdue_pallets: Number(record.overdue_pallets ?? 0),
+          debt_eur: Number(record.debt_eur ?? 0),
+        };
+      })
+    : [],
 });
 
 const normalizeAuditLog = (log: ApiRecord): AuditLog => {
@@ -638,6 +676,10 @@ const normalizeInvoiceStatus = (invoice: ApiRecord): Invoice['status'] => {
     return 'draft';
   }
 
+  if (invoice.status === 'issued') {
+    return 'issued';
+  }
+
   if (invoice.due_date || invoice.due_at) {
     const dueDate = new Date(invoice.due_date || invoice.due_at);
     if (!Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now() && !invoice.paid_at) {
@@ -662,11 +704,14 @@ const normalizeInvoice = (invoice: ApiRecord): Invoice => ({
   due_date: invoice.due_date || invoice.due_at || '',
   total_amount: Number(invoice.total_amount ?? 0),
   status: normalizeInvoiceStatus(invoice),
+  created_at: invoice.created_at || invoice.issued_at || new Date().toISOString(),
+  mailed_at: invoice.mailed_at || undefined,
 });
 
 const normalizeInvoiceItem = (item: ApiRecord): InvoiceItem => ({
   id: Number(item.id),
   invoice_id: Number(item.invoice_id),
+  pallet_name: item.pallet_name || item.pallet?.pallet_name || item.pallet?.reference_code || '',
   pallet_qr: item.pallet_qr || item.pallet?.qr_code || '',
   description: item.description,
   quantity: Number(item.quantity ?? item.billed_days ?? 1),
@@ -698,6 +743,7 @@ const normalizePalletPhoto = (photo: ApiRecord): PalletPhoto => ({
   client_id: photo.client_id ? Number(photo.client_id) : undefined,
   service_report_id: photo.service_report_id ? Number(photo.service_report_id) : undefined,
   type: photo.type,
+  delivery_started_at: photo.delivery_started_at || undefined,
   warehouse_scope: photo.warehouse_scope || undefined,
   original_name: photo.original_name || undefined,
   mime_type: photo.mime_type || 'application/octet-stream',
@@ -760,6 +806,7 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
   return {
     user_id: client.user_id,
     company_name: client.name || 'New Client',
+    contact_person: client.contact_person || null,
     country: client.country || 'NL',
     province: client.province || null,
     kvk: client.kvk_number || null,
@@ -787,7 +834,9 @@ const toCustomerPayload = (client: Partial<ClientDetail>) => {
 };
 
 const toPalletPayload = (pallet: Partial<Pallet>) => ({
-  user_id: pallet.user_id,
+  // `undefined` is omitted by JSON.stringify. Send null explicitly so an
+  // admin can clear an existing client assignment.
+  user_id: pallet.user_id ?? null,
   current_status_id: toBackendStatusId(Number(pallet.current_status_id ?? 8)),
   type: pallet.type || pallet.asset_type || 'invullen!',
   asset_type: pallet.asset_type || pallet.type || 'invullen!',
@@ -848,7 +897,15 @@ export const apiService = {
       };
     },
     loginDemoUser: async (user: User) => apiService.auth.login({ email: user.email, password: DEMO_PASSWORD }),
+    forgotPassword: (email: string) =>
+      apiData<null>('/auth/forgot-password', { method: 'POST', body: jsonBody({ email }) }),
     me: async () => normalizeUser(await apiData<ApiRecord>('/auth/me')),
+    changePassword: (data: { current_password: string; password: string; password_confirmation: string }) =>
+      apiData<null>('/auth/change-password', { method: 'PUT', body: jsonBody(data) }),
+    completeFirstLogin: async (data: { password: string; password_confirmation: string }) =>
+      normalizeUser(await apiData<ApiRecord>('/auth/first-login/password', { method: 'PUT', body: jsonBody(data) })),
+    keepFirstLoginPassword: async () =>
+      normalizeUser(await apiData<ApiRecord>('/auth/first-login/keep-password', { method: 'POST' })),
     logout: async () => {
       try {
         await apiData<null>('/auth/logout', { method: 'POST' });
@@ -1077,6 +1134,9 @@ export const apiService = {
         })
       );
     },
+    delete: async (photoId: number): Promise<void> => {
+      await apiData<null>(`/pallet-photos/${photoId}`, { method: 'DELETE' });
+    },
   },
 
   clients: {
@@ -1124,14 +1184,17 @@ export const apiService = {
           name,
           email: clientData.billing_email || `${slugify(name)}.${Date.now()}@trackpal.test`,
           phone_number: clientData.phone_number || undefined,
-          password: DEMO_PASSWORD,
           is_active: true,
           customer_details: toCustomerPayload(clientData),
         }),
       });
 
       if (user.customer_detail) {
-        return normalizeClient(user.customer_detail);
+        return normalizeClient({
+          ...user.customer_detail,
+          credential_email_sent: user.credential_email_sent,
+          credential_email_warning: user.credential_email_warning,
+        });
       }
 
       const clients = await apiService.clients.list({ user_id: Number(user.id), limit: 1 });
@@ -1161,7 +1224,7 @@ export const apiService = {
     page: (params: ListParams = {}) => listPage<ManagedUser>('/users', params, normalizeUser),
     list: async (params: ListParams = {}): Promise<ManagedUser[]> =>
       (await listAll<ApiRecord>('/users', params)).map(normalizeUser),
-    create: async (data: Pick<ManagedUser, 'email' | 'password' | 'role_name'>): Promise<ManagedUser> => {
+    create: async (data: Pick<ManagedUser, 'email' | 'role_name'>): Promise<ManagedUser> => {
       const roleId = await resolveRoleId(data.role_name);
       return normalizeUser(
         await apiData<ApiRecord>('/users', {
@@ -1170,7 +1233,6 @@ export const apiService = {
             role_id: roleId,
             name: formatUserName(data.email),
             email: data.email.trim(),
-            password: data.password,
             is_active: true,
           }),
         })
@@ -1209,6 +1271,14 @@ export const apiService = {
     delete: async (id: number): Promise<void> => {
       await apiData<null>(`/users/${id}`, { method: 'DELETE' });
     },
+    sendLoginDetails: (userIds: number[]) =>
+      apiData<{
+        sent: Array<{ id: number; name: string }>;
+        failed: Array<{ id: number; name: string; message: string }>;
+      }>('/users/send-login-details', {
+        method: 'POST',
+        body: jsonBody({ user_ids: userIds }),
+      }),
   },
 
   auditLogs: {
@@ -1222,7 +1292,7 @@ export const apiService = {
     list: async (params: ListParams = {}): Promise<ServiceReport[]> =>
       (await listAll<ApiRecord>('/service_reports', params)).map(normalizeServiceReport),
     create: async (
-      data: { pallet_id: number; problem_description: string; image?: File }
+      data: { pallet_id: number; problem_description: string; images?: File[] }
     ): Promise<ServiceReport> => {
       const formData = new FormData();
       formData.append('pallet_id', String(data.pallet_id));
@@ -1230,9 +1300,7 @@ export const apiService = {
       formData.append('issue_type', 'damage');
       formData.append('description', data.problem_description);
 
-      if (data.image) {
-        formData.append('image', data.image);
-      }
+      data.images?.forEach((image) => formData.append('images[]', image));
 
       return normalizeServiceReport(
         await apiData<ApiRecord>('/service_reports', {
@@ -1311,6 +1379,18 @@ export const apiService = {
         },
         normalizePalletPhoto,
       );
+    },
+    list: async (params: ListParams = {}): Promise<PalletPhoto[]> => {
+      const statusId = params.status_id;
+      const normalizedParams = {
+        ...params,
+        status_id:
+          statusId === undefined || statusId === ''
+            ? undefined
+            : toBackendStatusId(Number(statusId)),
+      };
+
+      return (await listAll<ApiRecord>('/gallery', normalizedParams)).map(normalizePalletPhoto);
     },
     image: (url: string) => requestBlob(url),
   },

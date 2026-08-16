@@ -249,36 +249,25 @@
   .trackpal-scan-line {
     position: absolute;
     top: 12%;
+    bottom: 12%;
     left: 50%;
     z-index: 20;
     width: calc(100% - 44px);
-    height: 2px;
+    overflow: hidden;
     pointer-events: none;
-    transform: translate(-50%, -50%);
-    background: linear-gradient(90deg, transparent, #22ff88, transparent);
-    box-shadow: 0 0 12px rgb(34 255 136 / 1), 0 0 28px rgb(34 255 136 / 0.72);
-    animation: trackpalScanLine 2s linear infinite;
-    opacity: 0.86;
+    transform: translate3d(-50%, 0, 0);
   }
 
   .trackpal-scan-line::before {
     content: "";
     position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 110%;
-    height: 64px;
-    transform: translate(-50%, -50%);
-    background: linear-gradient(180deg, transparent, rgb(34 255 136 / 0.3), transparent);
-    filter: blur(10px);
-  }
-
-  .trackpal-scan-line::after {
-    content: "";
-    position: absolute;
     inset: 0;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.82);
+    border-top: 2px solid rgb(255 255 255 / 0.82);
+    background: linear-gradient(180deg, rgb(34 255 136 / 0.45), transparent 64px);
+    box-shadow: 0 -1px 12px rgb(34 255 136 / 1), 0 0 28px rgb(34 255 136 / 0.72);
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+    animation: trackpalScanLine 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
   }
 
   .status-chip {
@@ -307,20 +296,7 @@
 }
 
 @keyframes trackpalScanLine {
-  0% {
-    top: 12%;
-    opacity: 1;
-  }
-
-  50% {
-    top: 88%;
-    opacity: 0.82;
-  }
-
-  100% {
-    top: 12%;
-    opacity: 1;
-  }
+  to { transform: translate3d(0, 100%, 0); }
 }
 
 @keyframes trackpalLandingIllustrationsFloat {
@@ -366,11 +342,25 @@
   /* Keep the post-scan pallet result inside the usable phone viewport. */
   #driver-app-container main:has(.driver-scan-result) {
     overflow: hidden;
+    padding-top: clamp(0.25rem, 1dvh, 1rem);
+    padding-bottom: 0;
   }
 
   #driver-app-container main > div:has(.driver-scan-result) {
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+  }
+
+  #driver-app-container main > div > div:has(.driver-scan-result) {
+    display: flex;
+    flex: 1 1 0%;
     height: 100%;
     min-height: 0;
+  }
+
+  .driver-scan-result .driver-scan-result-content {
+    padding-bottom: 0;
   }
 
   .driver-scan-result .driver-pallet-summary-card {
@@ -383,8 +373,9 @@
     padding-top: clamp(0.6rem, 2dvh, 1.25rem);
   }
 
-  .driver-scan-result .driver-scan-result-status > p:nth-of-type(2) {
+  .driver-scan-result .driver-scan-result-status-value {
     font-size: clamp(1.75rem, 5.6dvh, 2.65rem);
+    min-height: clamp(3.5rem, 9dvh, 4.75rem);
   }
 
   .driver-scan-result .driver-scan-result-body {
@@ -421,6 +412,10 @@
   .driver-scan-result .driver-scan-result-status button {
     height: 2rem;
     margin-top: 0.45rem;
+  }
+
+  .driver-scan-result .driver-scan-result-status-value {
+    min-height: 3.15rem;
   }
 
   .driver-scan-result .driver-scan-result-details p:nth-child(2) {

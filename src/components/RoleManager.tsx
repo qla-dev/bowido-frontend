@@ -4,7 +4,7 @@ import { Shield, ShieldCheck, Plus, Edit2, X, Check, Trash2, Search } from 'luci
 import { useApp } from '../AppContext';
 import { Button, Card, Input, Badge, cn } from './ui';
 import { Permission, Role } from '../types';
-import { getPermissionDescription, getPermissionLabel, getRoleDescription } from '../i18n';
+import { getPermissionDescription, getPermissionLabel, getRoleDescription, getRoleLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
@@ -46,7 +46,7 @@ export const RoleManager: React.FC = () => {
     offset,
     search: debouncedSearchQuery || undefined,
   }), [debouncedSearchQuery]);
-  const { items: roles, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry } = useInfinitePagination({
+  const { items: roles, hasMore, isInitialLoading, isLoadingMore, error: paginationError, loadMore, retry, setItems: setRoles } = useInfinitePagination({
     queryKey: `${debouncedSearchQuery}|${reloadKey}`,
     pageSize: ROLE_PAGE_SIZE,
     fetchPage,
@@ -88,6 +88,7 @@ export const RoleManager: React.FC = () => {
 
     try {
       await deleteRole(pendingDeleteRole.id);
+      setRoles((current) => current.filter((role) => role.id !== pendingDeleteRole.id));
       setReloadKey((current) => current + 1);
       setPendingDeleteRole(null);
     } catch {
@@ -218,7 +219,7 @@ export const RoleManager: React.FC = () => {
                   </div>
                 </div>
 
-                <h3 className="text-base font-black text-black uppercase tracking-tight mb-1">{role.name}</h3>
+                <h3 className="text-base font-black text-black uppercase tracking-tight mb-1">{getRoleLabel(role.name, language)}</h3>
                 <p className="text-[10px] text-zinc-500 font-bold mb-6 line-clamp-2 uppercase tracking-wide">{getRoleDescription(role.description, language)}</p>
 
                 <div className="space-y-3">
@@ -365,7 +366,7 @@ export const RoleManager: React.FC = () => {
                             <p className="font-black text-xs uppercase tracking-tight">{getPermissionLabel(perm, language)}</p>
                             <p className={cn(
                               "text-[10px] font-bold uppercase tracking-wider",
-                              currentRole?.permissions?.includes(perm.id) ? "text-zinc-400" : "text-zinc-300"
+                              currentRole?.permissions?.includes(perm.id) ? "text-white/85" : "text-zinc-600"
                             )}>
                               {getPermissionDescription(perm, language)}
                             </p>
@@ -376,7 +377,7 @@ export const RoleManager: React.FC = () => {
                           <div className="mx-2 grid grid-cols-5 gap-1">
                             {(['can_list','can_view','can_create','can_update','can_delete'] as const).map(ability => {
                               const enabled = currentRole.role_permissions?.find(grant => grant.module_id === perm.id)?.[ability] ?? true;
-                              return <button key={ability} type="button" onClick={() => toggleAbility(perm.id, ability)} className={cn('rounded-lg px-1 py-2 text-[8px] font-black uppercase', enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-400')}>{ability.replace('can_','')}</button>;
+                              return <button key={ability} type="button" onClick={() => toggleAbility(perm.id, ability)} className={cn('rounded-lg px-1 py-2 text-[8px] font-black uppercase', enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-400')}>{t(`roleAbility${ability.replace('can_', '').replace(/(^|_)([a-z])/g, (_, __, letter) => letter.toUpperCase())}`)}</button>;
                             })}
                           </div>
                         )}

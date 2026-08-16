@@ -70,6 +70,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   const [columnFilters, setColumnFilters] = useState<AuditFilterSelections>(() =>
     Object.fromEntries(AUDIT_TABLE_COLUMN_ORDER.map((key) => [key, []])) as AuditFilterSelections
   );
+  const [filterAuditLogs, setFilterAuditLogs] = useState<AuditLog[]>([]);
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<AuditColumnKey, HTMLTableCellElement | null>>>({});
   const {
@@ -105,6 +106,23 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   });
 
   useEffect(() => {
+    let isCurrentRequest = true;
+
+    void apiService.auditLogs.list({
+      search: debouncedQuery || undefined,
+      created_from: createdFrom || undefined,
+      created_to: createdTo || undefined,
+      event_type: filter === 'qr_version' ? 'qr_code_changed' : filter === 'status' ? 'status_changed' : undefined,
+    }).then((items) => {
+      if (isCurrentRequest) setFilterAuditLogs(items);
+    }).catch(() => {
+      if (isCurrentRequest) setFilterAuditLogs([]);
+    });
+
+    return () => { isCurrentRequest = false; };
+  }, [createdFrom, createdTo, debouncedQuery, filter]);
+
+  useEffect(() => {
     if (cachedAuditLogs.length === 0) {
       return;
     }
@@ -114,12 +132,14 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     );
   }, [cachedAuditLogs]);
 
+  const hasColumnFilters = AUDIT_TABLE_COLUMN_ORDER.some((key) => columnFilters[key].length > 0);
+  const filterSourceLogs = filterAuditLogs.length > 0 ? filterAuditLogs : auditLogs;
   const sortedLogs = useMemo(
     () =>
-      [...auditLogs].sort(
+      [...(hasColumnFilters ? filterSourceLogs : auditLogs)].sort(
         (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
       ),
-    [auditLogs]
+    [auditLogs, filterSourceLogs, hasColumnFilters]
   );
 
   const getAuditColumnValue = (log: AuditLog, key: AuditColumnKey) => {
@@ -146,12 +166,12 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
     () => Object.fromEntries(
       AUDIT_TABLE_COLUMN_ORDER.map((key) => [
         key,
-        Array.from<string>(new Set<string>(sortedLogs.map((log) => getAuditColumnValue(log, key))))
+        Array.from<string>(new Set<string>(filterSourceLogs.map((log) => getAuditColumnValue(log, key))))
           .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
           .map((value) => ({ value, label: value })),
       ])
     ) as Record<AuditColumnKey, AdminTableFilterOption[]>,
-    [language, sortedLogs, t]
+    [filterSourceLogs, language, t]
   );
 
   const filteredLogs = useMemo(
@@ -224,6 +244,10 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           [key]: current[key].includes(value)
             ? current[key].filter((item) => item !== value)
             : [...current[key], value],
+        }))}
+        onSelectAll={() => setColumnFilters((current) => ({
+          ...current,
+          [key]: auditFilterOptions[key].map((option) => option.value),
         }))}
         onClear={() => setColumnFilters((current) => ({ ...current, [key]: [] }))}
         filterLabel={t('filter')}
@@ -401,7 +425,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
         columnOrder={AUDIT_TABLE_COLUMN_ORDER}
         initialColumnWidths={AUDIT_INITIAL_COLUMN_WIDTHS}
         minColumnWidths={AUDIT_MIN_COLUMN_WIDTHS}
-        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni sirinu kolone' : 'Resize column'}
+        resizeAriaLabel={language === 'nl' ? 'Kolombreedte aanpassen' : language === 'bs' ? 'Promijeni širinu kolone' : 'Resize column'}
         tableRef={tableRef}
         headerCellRefs={headerCellRefs}
         isEmpty={!isInitialLoading && filteredLogs.length === 0}
