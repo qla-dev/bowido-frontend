@@ -1056,11 +1056,14 @@ export const apiService = {
           body: jsonBody({ is_for_repair: isForRepair }),
         })
       ),
-    updateClientStatus: async (id: number, statusId: number): Promise<Pallet> =>
+    updateClientStatus: async (id: number, statusId: number, currentLocation?: string): Promise<Pallet> =>
       normalizePallet(
         await apiData<ApiRecord>(`/pallets/${id}/client-status`, {
           method: 'PUT',
-          body: jsonBody({ current_status_id: toBackendStatusId(statusId) }),
+          body: jsonBody({
+            current_status_id: toBackendStatusId(statusId),
+            current_location: currentLocation,
+          }),
         })
       ),
     saveDeliveryLocation: async (id: number, data: DeliveryLocationInput): Promise<DeliveryLocation> =>

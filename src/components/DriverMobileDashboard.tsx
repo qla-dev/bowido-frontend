@@ -65,6 +65,8 @@ import { resolveSelectedPallet } from "../lib/palletSelection";
 import {
   configureQrCamera,
   createQrCameraZoomController,
+  isQrCameraStreamLive,
+  playQrCameraStream,
   qrCameraConstraintAttempts,
   setQrCameraTorch,
 } from "../lib/qrCameraSupport";
@@ -541,6 +543,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     scanCustomerPossessionPallet,
     scanPalletByQr,
     claimCustomerPossessionPallet,
+    updateCustomerPalletTracking,
     reportDamage,
     statuses,
     language,
@@ -596,6 +599,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [draftLocationMode, setDraftLocationMode] =
     useState<DriverLocationMode>("warehouse_1");
   const [cameraState, setCameraState] = useState<CameraState>("loading");
+  const [cameraRestartKey, setCameraRestartKey] = useState(0);
   const [cameraZoom, setCameraZoom] = useState(DEFAULT_CAMERA_ZOOM_RANGE.min);
   const [cameraZoomRange, setCameraZoomRange] = useState<CameraZoomRange>(
     DEFAULT_CAMERA_ZOOM_RANGE,
@@ -631,6 +635,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const lastScanAttemptAtRef = useRef(0);
   const lastScanAtRef = useRef(0);
   const fallbackScanAttemptRef = useRef(0);
+  const cameraSessionRef = useRef(0);
+  const isCameraStartingRef = useRef(false);
+  const cameraRestartTimeoutRef = useRef<number | null>(null);
   const isCameraControlInteractingRef = useRef(false);
   const cameraInteractionUntilRef = useRef(0);
   const cameraZoomControllerRef = useRef(createQrCameraZoomController());
@@ -1297,6 +1304,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   };
 
   const stopCamera = () => {
+    cameraSessionRef.current += 1;
+    isCameraStartingRef.current = false;
+    scanBusyRef.current = false;
+
+    if (cameraRestartTimeoutRef.current) {
+      window.clearTimeout(cameraRestartTimeoutRef.current);
+      cameraRestartTimeoutRef.current = null;
+    }
     cameraZoomControllerRef.current.clear();
 
     if (scanFrameRef.current) {
@@ -1316,7 +1331,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     if (streamRef.current) {
       void setQrCameraTorch(streamRef.current, false);
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        track.onended = null;
+        track.onmute = null;
+        track.onunmute = null;
+        track.stop();
+      });
       streamRef.current = null;
     }
 
@@ -1437,15 +1457,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
   };
 
-  const runDetectionLoop = () => {
+  const runDetectionLoop = (sessionId: number) => {
     scanFrameRef.current = window.requestAnimationFrame(async () => {
       await detectFromCamera();
-      runDetectionLoop();
+
+      if (
+        sessionId === cameraSessionRef.current &&
+        document.visibilityState !== "hidden" &&
+        isQrCameraStreamLive(streamRef.current)
+      ) {
+        runDetectionLoop(sessionId);
+      }
     });
   };
 
   useEffect(() => {
     let cancelled = false;
+    const isPageHidden = () => document.visibilityState === "hidden";
 
     if (
       !isScannerOpen ||
@@ -1458,11 +1486,25 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
 
     const startCamera = async () => {
+      if (
+        cancelled ||
+        isPageHidden() ||
+        isCameraStartingRef.current ||
+        isQrCameraStreamLive(streamRef.current)
+      ) {
+        return;
+      }
+
+      stopCamera();
+      const sessionId = cameraSessionRef.current + 1;
+      cameraSessionRef.current = sessionId;
+      isCameraStartingRef.current = true;
       setCameraState("loading");
       qrDetectorRef.current = null;
 
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraState("unsupported");
+        isCameraStartingRef.current = false;
         return;
       }
 
@@ -1489,54 +1531,130 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
           throw lastCameraError;
         }
 
-        if (cancelled) {
+        if (
+          cancelled ||
+          sessionId !== cameraSessionRef.current ||
+          isPageHidden()
+        ) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
 
         streamRef.current = stream;
         const cameraFeatures = await configureQrCamera(stream);
+
+        if (cancelled || sessionId !== cameraSessionRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         setIsTorchSupported(cameraFeatures.torchSupported);
         setIsTorchOn(false);
         syncCameraZoomCapabilities(stream);
 
-        const video = videoRef.current;
-        if (!video) {
-          throw new Error("Camera preview is unavailable.");
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.onended = () => scheduleCameraRestart(150);
+          videoTrack.onmute = () => scheduleCameraRestart(1200, true);
+          videoTrack.onunmute = () => {
+            if (cameraRestartTimeoutRef.current) {
+              window.clearTimeout(cameraRestartTimeoutRef.current);
+              cameraRestartTimeoutRef.current = null;
+            }
+          };
         }
 
-        video.srcObject = stream;
-        await video.play();
+        if (!videoRef.current) {
+          throw new Error("Camera video is unavailable.");
+        }
+
+        await playQrCameraStream(videoRef.current, stream);
+
+        if (cancelled || sessionId !== cameraSessionRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
 
         setCameraState("ready");
-        runDetectionLoop();
+        runDetectionLoop(sessionId);
 
         const detector = await detectorPromise;
-        if (cancelled || streamRef.current !== stream) {
+        if (cancelled || sessionId !== cameraSessionRef.current || streamRef.current !== stream) {
           return;
         }
 
         if (!detector) {
           qrDetectorRef.current = null;
+        } else {
+          qrDetectorRef.current = detector;
         }
       } catch (error) {
-        if (cancelled) {
+        if (cancelled || sessionId !== cameraSessionRef.current) {
           return;
         }
 
         if (error instanceof DOMException && error.name === "NotAllowedError") {
+          stopCamera();
           setCameraState("denied");
           return;
         }
 
         setCameraState("error");
+        stopCamera();
+      } finally {
+        if (sessionId === cameraSessionRef.current) {
+          isCameraStartingRef.current = false;
+        }
       }
     };
+
+    const scheduleCameraRestart = (delayMs: number, requireMutedTrack = false) => {
+      if (cancelled || isPageHidden()) {
+        return;
+      }
+
+      if (cameraRestartTimeoutRef.current) {
+        window.clearTimeout(cameraRestartTimeoutRef.current);
+      }
+
+      cameraRestartTimeoutRef.current = window.setTimeout(() => {
+        cameraRestartTimeoutRef.current = null;
+        const track = streamRef.current?.getVideoTracks()[0];
+        if (requireMutedTrack && track && !track.muted && track.readyState === "live") {
+          return;
+        }
+
+        stopCamera();
+        void startCamera();
+      }, delayMs);
+    };
+
+    const handleVisibilityChange = () => {
+      if (isPageHidden()) {
+        stopCamera();
+      } else {
+        void startCamera();
+      }
+    };
+
+    const handlePageHide = () => stopCamera();
+    const handlePageShow = () => {
+      if (!isPageHidden()) {
+        void startCamera();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
 
     void startCamera();
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
       stopCamera();
 
       if (flashTimeoutRef.current) {
@@ -1549,6 +1667,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     isNoQrReturnFormOpen,
     isRepairListOpen,
     isScannerOpen,
+    cameraRestartKey,
   ]);
 
   const dismissFlash = () => {
@@ -1804,7 +1923,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       // Commit the operational status before uploading supporting photos.
       // The upload still receives both the original and next status IDs, so
       // its audit metadata remains accurate after this transition.
-      await updatePalletStatus(
+      const savedPallet = await updatePalletStatus(
         selectedPallet.id,
         nextStatusId,
         user.id,
@@ -1819,6 +1938,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 : "Driver marked pallet in Bowido warehouse.",
         nextClientId,
       );
+
+      if (!savedPallet) {
+        throw new Error(text.scanImageFallbackDetail);
+      }
 
       await uploadPalletPhotos(selectedPallet, nextStatusId, nextClientId);
 
@@ -1849,7 +1972,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     }
   };
 
-  const handleStatusSelection = (statusId: number) => {
+  const handleStatusSelection = async (statusId: number) => {
     if (statusSaveInProgressRef.current) {
       return;
     }
@@ -1863,6 +1986,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       }
       setDraftStatusId(statusId);
       setDraftClientId(user.id);
+      if (selectedPallet?.user_id === user.id) {
+        try {
+          await updateCustomerPalletTracking(selectedPallet.id, statusId);
+          showFlash(text.statusUpdatedTitle, text.statusSavedDetailAtClient, "success", 1500);
+        } catch (error) {
+          showFlash(
+            text.statusUpdatedTitle,
+            error instanceof Error ? error.message : text.scanImageNotRecognizedDetail,
+            "warning",
+            2200,
+          );
+          return;
+        }
+      }
       setOpenChangeMenu("location");
       return;
     }
@@ -1955,11 +2092,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     if (selectedPallet && isCustomer) {
       try {
-        await claimCustomerPossessionPallet(
-          selectedPallet.id,
-          draftStatusId,
-          nextLocation,
-        );
+        if (selectedPallet.user_id === user.id) {
+          await updateCustomerPalletTracking(selectedPallet.id, draftStatusId, nextLocation);
+        } else {
+          await claimCustomerPossessionPallet(
+            selectedPallet.id,
+            draftStatusId,
+            nextLocation,
+          );
+        }
         showFlash(text.statusUpdatedTitle, text.statusSavedDetailAtClient, "success", 1500);
       } catch (error) {
         showFlash(
@@ -2430,7 +2571,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         "mx-auto flex min-h-full w-full max-w-md flex-col",
         selectedPallet && "driver-scan-result-active h-full min-h-0 overflow-hidden",
         isScannerOpen
-          ? "gap-4 pb-0"
+          ? "h-full min-h-0 gap-2 overflow-hidden pb-[calc(env(safe-area-inset-bottom)+4.25rem)]"
           : "gap-0 pb-[calc(env(safe-area-inset-bottom)+4rem)]",
       )}
     >
@@ -2438,7 +2579,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         <div
           onPointerDownCapture={deferCameraDetectionForInteraction}
           onKeyDownCapture={deferCameraDetectionForInteraction}
-          className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-1 pt-0 transition-all duration-500"
+          className="flex min-h-0 flex-1 flex-col justify-start px-4 pb-0 pt-0 transition-all duration-500"
         >
           <input
             ref={scanImageInputRef}
@@ -2449,7 +2590,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             onChange={handleScanImageChange}
           />
 
-          <div className="px-1 pt-1 pb-5 text-center">
+          <div className="px-1 pb-2 pt-1 text-center">
             <p className="text-[13px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
               {text.title}
             </p>
@@ -2567,9 +2708,24 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
               </motion.div>
             </AnimatePresence>
 
+            {(cameraState === "error" || cameraState === "denied") && (
+              <button
+                type="button"
+                onClick={() => setCameraRestartKey((current) => current + 1)}
+                className="mx-auto mt-4 flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 shadow-sm dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100"
+              >
+                <RefreshCcw size={14} />
+                {language === "bs"
+                  ? "Ponovo pokreni kameru"
+                  : language === "nl"
+                    ? "Camera opnieuw starten"
+                    : "Restart camera"}
+              </button>
+            )}
+
             {(cameraState === "ready" || cameraState === "preview") && (
-              <div className="mx-auto mt-4 w-3/4 rounded-xl border border-emerald-200 bg-white p-3 dark:border-white/10 dark:bg-[#151d1a]">
-                <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="mx-auto mt-2 w-[72%] rounded-xl border border-emerald-200 bg-white px-2.5 py-2 dark:border-white/10 dark:bg-[#151d1a]">
+                <div className="mb-1 flex items-center justify-between gap-2">
                   <label
                     htmlFor="driver-camera-zoom"
                     className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400 dark:text-zinc-400"
@@ -2588,14 +2744,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       type="button"
                       onClick={() => void toggleCameraTorch()}
                       className={cn(
-                        "flex h-8 items-center gap-1.5 rounded-lg border px-2 text-[9px] font-black uppercase tracking-wider transition-colors",
+                        "flex h-7 items-center gap-1 rounded-lg border px-2 text-[8px] font-black uppercase tracking-wider transition-colors",
                         isTorchOn
                           ? "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-300/30 dark:bg-amber-400/10 dark:text-amber-200"
                           : "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300",
                       )}
                       aria-pressed={isTorchOn}
                     >
-                      {isTorchOn ? <FlashlightOff size={13} /> : <Flashlight size={13} />}
+                      {isTorchOn ? <FlashlightOff size={12} /> : <Flashlight size={12} />}
                       {language === "bs" ? "Lampa" : language === "nl" ? "Lamp" : "Torch"}
                     </button>
                   )}
@@ -2615,7 +2771,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   onPointerCancel={resumeCameraDetectionAfterControl}
                   onFocus={pauseCameraDetectionForControl}
                   onBlur={resumeCameraDetectionAfterControl}
-                  className="h-2 w-full touch-none cursor-pointer accent-[#00A655]"
+                  className="h-1.5 w-full touch-none cursor-pointer accent-[#00A655]"
                   aria-label={language === "bs" ? "Zoom kamere" : "Camera zoom"}
                 />
               </div>

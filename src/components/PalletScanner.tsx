@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { QrCode, X, ScanLine, Camera, AlertCircle, CheckCircle2, ChevronRight, Flashlight, FlashlightOff } from 'lucide-react';
+import { QrCode, X, ScanLine, Camera, AlertCircle, CheckCircle2, ChevronRight, Flashlight, FlashlightOff, RefreshCcw } from 'lucide-react';
 import { Button, Card, Badge, Input, cn } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
@@ -62,6 +62,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const [scanPhotoError, setScanPhotoError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraRestartKey, setCameraRestartKey] = useState(0);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const scanCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const scanImageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -122,7 +123,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const getQrDetector = React.useCallback(createNativeQrDetector, []);
 
   React.useEffect(() => {
-    if (!scanMode) {
+    if (!scanMode || detectedPallet) {
       return;
     }
 
@@ -156,7 +157,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
       if (streamRef.current) {
         void setQrCameraTorch(streamRef.current, false);
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current.getTracks().forEach((track) => {
+          track.onended = null;
+          track.onmute = null;
+          track.onunmute = null;
+          track.stop();
+        });
         streamRef.current = null;
       }
 
@@ -224,12 +230,18 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       }
     };
 
-    const runDetectionLoop = () => {
+    const runDetectionLoop = (sessionId: number) => {
       scanFrameRef.current = window.requestAnimationFrame(async () => {
         await detectFromCamera();
 
-        if (!cancelled) {
-          runDetectionLoop();
+        if (
+          !cancelled &&
+          sessionId === cameraSessionId &&
+          document.visibilityState !== 'hidden' &&
+          streamRef.current?.active &&
+          streamRef.current.getVideoTracks().some((track) => track.readyState === 'live')
+        ) {
+          runDetectionLoop(sessionId);
         }
       });
     };
@@ -310,7 +322,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           return;
         }
         setIsCameraActive(true);
-        runDetectionLoop();
+        runDetectionLoop(sessionId);
 
         // Chrome can restore a tab with a live MediaStream whose preview has
         // stopped advancing. Confirm that the newly attached video actually
@@ -342,6 +354,10 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
 
         qrDetectorRef.current = detector;
       } catch (error) {
+        if (!isCurrentSession()) {
+          return;
+        }
+
         if (error instanceof DOMException && error.name === 'NotAllowedError') {
           setCameraError('Camera access was blocked. Allow the camera and try again.');
         } else {
@@ -391,7 +407,6 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       }
       stopCamera();
     };
-
     void startCamera();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', restartCameraWhenVisible);
@@ -409,7 +424,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       window.removeEventListener('pageshow', restartCameraWhenVisible);
       stopCamera();
     };
-  }, [detectedPallet, getQrDetector, handleDetectedCode, scanMode]);
+  }, [cameraRestartKey, detectedPallet, getQrDetector, handleDetectedCode, scanMode]);
 
   const simulateScan = () => {
     setIsScanning(true);
@@ -874,7 +889,24 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                       </Button>
                     )}
                     {(cameraError || scanError) && (
-                      <p className="text-center text-xs font-medium text-rose-600">{cameraError || scanError}</p>
+                      <div className="space-y-2 text-center">
+                        <p className="text-xs font-medium text-rose-600">{cameraError || scanError}</p>
+                        {cameraError && (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="secondary"
+                            className="mx-auto"
+                            onClick={() => {
+                              setCameraError(null);
+                              setCameraRestartKey((current) => current + 1);
+                            }}
+                          >
+                            <RefreshCcw size={14} className="mr-2" />
+                            {language === 'bs' ? 'Ponovo pokreni kameru' : language === 'nl' ? 'Camera opnieuw starten' : 'Restart camera'}
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
 

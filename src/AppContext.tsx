@@ -52,7 +52,7 @@ interface AppContextType {
     location?: string,
     note?: string,
     clientId?: number,
-  ) => Promise<Pallet | undefined>;
+  ) => Promise<Pallet | null>;
   updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
   addPallet: (qrCode: string, type: string) => void;
@@ -68,6 +68,11 @@ interface AppContextType {
     palletId: number,
     statusId: number,
     location: string,
+  ) => Promise<Pallet>;
+  updateCustomerPalletTracking: (
+    palletId: number,
+    statusId: number,
+    location?: string,
   ) => Promise<Pallet>;
   deletePallet: (id: number) => void;
   addClient: (
@@ -722,7 +727,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const preserveClientAssignment = statusAllowsCustomer(status);
 
     if (!pallet || !status) {
-      return undefined;
+      return null;
     }
 
     const nextClientId = preserveClientAssignment
@@ -771,23 +776,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }),
     );
 
-    setNotifications((prev) => {
-      const nextId =
-        prev.length > 0
-          ? Math.max(...prev.map((notification) => notification.id)) + 1
-          : 1;
-      const newNotification: AppNotification = {
-        id: nextId,
-        title: "Status Update",
-        message: `${pallet.qr_code} moved to ${status.name}`,
-        type: "status",
-        read: false,
-        created_at: new Date().toISOString(),
-      };
-
-      return [newNotification, ...prev];
-    });
-
     try {
       const updatedPallet = await apiService.pallets.update(palletId, {
         ...pallet,
@@ -803,6 +791,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           item.id === updatedPallet.id ? updatedPallet : item,
         ),
       );
+      setNotifications((prev) => {
+        const nextId =
+          prev.length > 0
+            ? Math.max(...prev.map((notification) => notification.id)) + 1
+            : 1;
+        const newNotification: AppNotification = {
+          id: nextId,
+          title: "Status Update",
+          message: `${pallet.qr_code} moved to ${status.name}`,
+          type: "status",
+          read: false,
+          created_at: new Date().toISOString(),
+        };
+
+        return [newNotification, ...prev];
+      });
       void fetchAuditLogs();
       void apiService.pallets.stats().then(setPalletDashboardStats).catch(() => undefined);
 
@@ -812,7 +816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         prev.map((item) => (item.id === pallet.id ? pallet : item)),
       );
       console.error("Failed to update pallet status", error);
-      throw error;
+      return null;
     }
   };
 
@@ -1099,6 +1103,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       location,
     );
     upsertPalletInState(pallet);
+    return pallet;
+  };
+
+  const updateCustomerPalletTracking = async (
+    palletId: number,
+    statusId: number,
+    location?: string,
+  ): Promise<Pallet> => {
+    const pallet = await apiService.pallets.updateClientStatus(
+      palletId,
+      statusId,
+      location?.trim() || undefined,
+    );
+    upsertPalletInState(pallet);
+    void fetchAuditLogs();
     return pallet;
   };
 
@@ -1411,6 +1430,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         scanCustomerPossessionPallet,
         scanPalletByQr,
         claimCustomerPossessionPallet,
+        updateCustomerPalletTracking,
         deletePallet,
         addClient,
         deleteClient,

@@ -15,7 +15,7 @@ interface ClientDashboardProps {
 }
 
 export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTab = 'dashboard', onNavigateHome }) => {
-  const { pallets, statuses, clients, setIsGhostReportOpen, setIsScannerOpen, t, updatePalletStatus, language } = useApp();
+  const { pallets, statuses, clients, setIsGhostReportOpen, setIsScannerOpen, t, updateCustomerPalletTracking, language } = useApp();
 
   const clientPallets = pallets.filter((pallet) => pallet.user_id === user.id);
   const clientInfo = clients.find((client) => client.user_id === user.id);
@@ -317,16 +317,11 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                   {pallet.current_status_id !== 5 && (
                     <Button
                       className="w-full"
-                      onClick={() =>
-                        updatePalletStatus(
-                          pallet.id,
-                          5,
-                          user.id,
-                          user.name,
-                          pallet.current_location,
-                          'Requested for return by client'
-                        )
-                      }
+                      onClick={() => void updateCustomerPalletTracking(
+                        pallet.id,
+                        5,
+                        pallet.current_location,
+                      )}
                     >
                       {t('requestReturn')}
                     </Button>
