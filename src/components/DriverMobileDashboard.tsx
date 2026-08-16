@@ -664,10 +664,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         : "Restart camera";
   const inactiveCameraPrompt =
     language === "bs"
-      ? "Dodirnite bilo gdje za ponovno pokretanje kamere"
+      ? "Dodirnite za skeniranje"
       : language === "nl"
-        ? "Tik ergens om de camera opnieuw te starten"
-        : "Tap anywhere to restart the camera";
+        ? "Tik om te scannen"
+        : "Tap to scan";
   const isCustomer = user.role_name === RoleType.KLIJENT;
   const noQrReturnCopy = getNoQrReturnButtonCopy(language);
   const allDriverPallets = pallets;
@@ -2768,11 +2768,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
                 <div className="trackpal-scan-line" />
 
-                {isScanning || cameraState === "loading" ? (
+                {cameraState !== "ready" && cameraState !== "preview" ? (
                   <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/60">
                     <span className="h-4 w-4 animate-pulse rounded-full bg-emerald-400" />
                   </div>
-                ) : cameraState !== "ready" && cameraState !== "preview" ? (
+                ) : isScanning ? (
                   <div className="relative z-10 flex flex-col items-center gap-4 text-center">
                     <div className="flex h-24 w-24 items-center justify-center rounded-[2rem] border border-emerald-200 bg-emerald-50 dark:border-white/10 dark:bg-[#101715]">
                       <div className="grid grid-cols-2 gap-2">
@@ -2782,7 +2782,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                         <span className="h-3 w-3 rounded-sm bg-emerald-400/90" />
                       </div>
                     </div>
-                    <p className="max-w-[15rem] text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50/90">
+                    <p className="max-w-[15rem] text-[10px] font-black uppercase tracking-[0.14em] text-emerald-800 dark:text-emerald-100">
                       {inactiveCameraPrompt}
                     </p>
                   </div>
