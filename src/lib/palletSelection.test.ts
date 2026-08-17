@@ -17,7 +17,7 @@ describe("resolveSelectedPallet", () => {
 
   it("prefers refreshed server data after the pallet becomes visible", () => {
     const scannedPallet = makePallet(1013, "Bij de klant");
-    const claimedPallet = makePallet(1013, "Ophalen klant");
+    const claimedPallet = makePallet(1013, "Voor retour");
 
     expect(
       resolveSelectedPallet([claimedPallet], 1013, scannedPallet),

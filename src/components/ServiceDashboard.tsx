@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, ClipboardList, Package, QrCode, Wrench } from
 import { useApp } from '../AppContext';
 import { User } from '../types';
 import { StatCard, Card, Button, Badge } from './ui';
-import { formatServiceReportDescription, getPalletTypeLabel } from '../i18n';
+import { formatServiceReportDescription, getLocationLabel, getPalletTypeLabel } from '../i18n';
 import { formatAppTime } from '../lib/dateFormat';
 import { SoftHyphenatedText } from './SoftHyphenatedText';
 
@@ -138,7 +138,7 @@ export const ServiceDashboard: React.FC<ServiceDashboardProps> = ({ user }) => {
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">{t('currentLocation')}</p>
                     <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900">
-                      {leadPallet.current_location || t('inWarehouse')}
+                      {getLocationLabel(leadPallet.current_location, language) || t('inWarehouse')}
                     </p>
                   </div>
 

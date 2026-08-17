@@ -16,7 +16,7 @@ import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { Badge, Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { Pallet, ServiceReport } from '../types';
-import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getLocationLabel, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDateTime } from '../lib/dateFormat';
 import { apiService } from '../services/api';
@@ -394,7 +394,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
         primary: getPalletDisplayName(pallet),
         secondary: getPalletTypeLabel(pallet.type, language),
         status: getStatusLabel(pallet.current_status_name, language),
-        location: pallet.current_location || '-',
+        location: getLocationLabel(pallet.current_location, language) || '-',
         client: pallet.client_name || '-',
         metric: `${days}`,
         amount: activity,
@@ -402,7 +402,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
           primary: getPalletDisplayName(pallet),
           secondary: pallet.type,
           status: pallet.current_status_name,
-          location: pallet.current_location,
+          location: getLocationLabel(pallet.current_location, language),
           client: pallet.client_name || '',
           metric: days,
           amount: activity,

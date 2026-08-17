@@ -1964,7 +1964,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         nextStatus?.slug === "bij-de-klant"
           ? "Driver marked pallet as Bij de klant."
           : nextStatus?.slug === "ophalen-klant"
-            ? "Driver marked pallet as Ophalen klant."
+            ? "Driver marked pallet as Voor retour."
             : transportStatusIds.includes(nextStatusId)
                 ? "Driver marked pallet in transport."
                 : "Driver marked pallet in Bowido warehouse.",
@@ -2042,7 +2042,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     if (isEnteringAtCustomerStatus) {
       // Each new "Bij de klant" period requires an explicit assignment,
-      // including when a pallet returns from "Ophalen klant". Do not reuse a
+      // including when a pallet returns from "Voor retour". Do not reuse a
       // stale client from an earlier trip.
       setDraftClientId(undefined);
       setDraftLocationMode("delivery");

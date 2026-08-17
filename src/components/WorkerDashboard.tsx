@@ -6,7 +6,7 @@ import { RoleType, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
 import { QrCode, Package, ArrowRight, AlertTriangle, MapPin, History, CheckCircle2, Truck, Route } from 'lucide-react';
-import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getLocationLabel, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { formatAppDate, formatAppTime } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
 import { SoftHyphenatedText } from './SoftHyphenatedText';
@@ -52,7 +52,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const driverStops = (pendingPickups.length > 0 ? pendingPickups : inTransport).slice(0, 4);
   const warehouseQueue = pallets.filter(p => [5, 2, 6, 1, 3].includes(p.current_status_id)).slice(0, 6);
   const activeRoutePallet = inTransport[0] || pendingPickups[0] || pallets[0];
-  const nextStopLabel = pendingPickups[0]?.current_location || activeRoutePallet?.current_location || 'Eindhoven Hub';
+  const nextStopLabel = getLocationLabel(pendingPickups[0]?.current_location || activeRoutePallet?.current_location, language) || 'Eindhoven Hub';
   const routeClientLabel = pendingPickups[0]?.client_name || activeRoutePallet?.client_name || t('client');
   const routeUnitsLabel = activeRoutePallet ? activeRoutePallet.qr_code : 'PAL-0000';
   const toolButtonClass = 'flex min-h-[96px] w-full items-center justify-between rounded-[1.75rem] border-2 p-4 text-left';
@@ -237,7 +237,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                             <p className="mt-2 truncate text-[12px] font-black uppercase tracking-tight text-zinc-900">
                               {getPalletTypeLabel(pallet.type, language)}
                             </p>
-                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">{pallet.current_location}</p>
+                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">{getLocationLabel(pallet.current_location, language)}</p>
                           </div>
                           <Button size="xs" variant="secondary" onClick={() => setIsScannerOpen(true)}>
                             {t('scanAction')}
@@ -329,7 +329,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                           </div>
                           <div>
                             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">{t('activeRoute')}</p>
-                            <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900">{activeRoutePallet?.current_location || 'Sarajevo Hub'}</p>
+                            <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900">{getLocationLabel(activeRoutePallet?.current_location, language) || 'Sarajevo Hub'}</p>
                           </div>
 
                           <div className="relative flex h-16 w-10 items-center justify-center">
@@ -364,7 +364,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                                 {pallet.client_name || t('client')}
                               </p>
                               <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                                {pallet.current_location}
+                                {getLocationLabel(pallet.current_location, language)}
                               </p>
                             </div>
                             <Button size="xs" variant="secondary" onClick={() => setIsScannerOpen(true)}>
@@ -501,7 +501,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                         </div>
                         <div className="flex-1 min-w-0">
                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest leading-none mb-1 truncate">{p.client_name || t('individualLabel')}</p>
-                           <p className="text-[11px] font-black uppercase tracking-tight leading-tight mb-2">{p.current_location}</p>
+                           <p className="text-[11px] font-black uppercase tracking-tight leading-tight mb-2">{getLocationLabel(p.current_location, language)}</p>
                            <Badge variant="danger">{p.qr_code}</Badge>
                         </div>
                         <Button 
@@ -717,7 +717,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                             </div>
                             <div className="bg-zinc-50 p-4 rounded-2xl">
                                <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">{t('location')}</p>
-                               <p className="text-[11px] font-black uppercase truncate">{pallet.current_location}</p>
+                               <p className="text-[11px] font-black uppercase truncate">{getLocationLabel(pallet.current_location, language)}</p>
                             </div>
                          </div>
 

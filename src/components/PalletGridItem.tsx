@@ -4,7 +4,7 @@ import { Pallet, PalletStatus, ClientDetail } from '../types';
 import { motion } from 'motion/react';
 import { useApp } from '../AppContext';
 import { Badge, cn } from './ui';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { getLocationLabel, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 
 interface PalletGridItemProps {
@@ -81,7 +81,7 @@ export const PalletGridItem: React.FC<PalletGridItemProps> = ({ pallet, statuses
           </p>
           <div className="flex items-center gap-1 text-[9px] font-bold text-zinc-500 uppercase tracking-tight">
             <MapPin size={10} className="text-zinc-400" />
-            <span className="truncate">{pallet.current_location}</span>
+            <span className="truncate">{getLocationLabel(pallet.current_location, language)}</span>
           </div>
         </div>
       </div>

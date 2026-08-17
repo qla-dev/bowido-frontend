@@ -4,7 +4,7 @@ import { StatCard, Card, Badge, Button } from './ui';
 import { BillingList } from './BillingList';
 import { useApp } from '../AppContext';
 import { User } from '../types';
-import { getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { getLocationLabel, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { formatAppDate } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
 
@@ -245,7 +245,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                         {getPalletTypeLabel(pallet.type, language)}
                       </p>
                       <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                        {pallet.current_location} / {days} d
+                        {getLocationLabel(pallet.current_location, language)} / {days} d
                       </p>
                     </div>
 
@@ -293,7 +293,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({ user, activeTa
                       <p className="mt-2 truncate text-[13px] font-black uppercase tracking-tight text-zinc-950 dark:text-emerald-50">
                         {getPalletTypeLabel(pallet.type, language)}
                       </p>
-                      <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-zinc-500 dark:text-[#b8cabf]">{pallet.current_location}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-zinc-500 dark:text-[#b8cabf]">{getLocationLabel(pallet.current_location, language)}</p>
                     </div>
                     <div className="text-right">
                       <Badge variant={pallet.is_for_repair ? 'danger' : pallet.current_status_id === 5 ? 'warning' : 'info'}>

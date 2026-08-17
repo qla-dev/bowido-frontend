@@ -4,7 +4,7 @@ import { Camera, X, Search, Package, AlertCircle } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Pallet, User } from '../types';
 import { Button, Card, Input } from './ui';
-import { getPalletTypeLabel } from '../i18n';
+import { getLocationLabel, getPalletTypeLabel } from '../i18n';
 import { compressPhotoForUpload } from '../lib/imageCompression';
 import {
   DAMAGE_DESCRIPTION_MAX_LENGTH,
@@ -127,7 +127,7 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
                         <div className="text-left">
                           <p className="text-[11px] font-black uppercase tracking-tight text-black">{pallet.qr_code}</p>
                           <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tight">
-                            {getPalletTypeLabel(pallet.type, language)} / {pallet.current_location}
+                            {getPalletTypeLabel(pallet.type, language)} / {getLocationLabel(pallet.current_location, language)}
                           </p>
                         </div>
                       </div>

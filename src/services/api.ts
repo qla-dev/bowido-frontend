@@ -315,7 +315,7 @@ const statusUiBySlug: Record<string, { id: number; name: string }> = {
   'bowido-nl': { id: 3, name: 'Bowido(NL)' },
   'bih-nl-transport': { id: 2, name: 'Transport BiH/NL' },
   'bij-de-klant': { id: 4, name: 'Bij de klant' },
-  'ophalen-klant': { id: 5, name: 'Ophalen klant' },
+  'ophalen-klant': { id: 5, name: 'Voor retour' },
   'nl-bih-transport': { id: 6, name: 'Transport (NL/BiH)' },
   onbekend: { id: 8, name: 'Onbekend' },
   'bih-drugo': { id: 9, name: 'BiH - drugo' },

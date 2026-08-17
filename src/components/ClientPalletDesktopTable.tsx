@@ -16,7 +16,7 @@ import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { Badge, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { AuditLog, ClientDetail, Pallet } from '../types';
-import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getLocationLabel, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
@@ -319,7 +319,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                 : remainingDays <= 2
                   ? 'warning'
                   : 'success',
-            locationLabel: pallet.current_location || '-',
+            locationLabel: getLocationLabel(pallet.current_location, language) || '-',
             daysOut,
             overdueDays,
             debt,
@@ -410,7 +410,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     return nextRows;
   }, [rows, selectedFilters, sortConfig]);
 
-  const returnStatus = statuses.find((status) => status.slug === 'ophalen-klant' || status.name.toLowerCase() === 'ophalen klant') || statuses.find((status) => status.id === 5);
+  const returnStatus = statuses.find((status) => status.slug === 'ophalen-klant' || ['voor retour', 'ophalen klant'].includes(status.name.toLowerCase())) || statuses.find((status) => status.id === 5);
   const atClientStatus = statuses.find((status) => status.slug === 'bij-de-klant' || status.name.toLowerCase() === 'bij de klant') || statuses.find((status) => status.id === 4);
   const replacePagedPallet = useCallback((updatedPallet: Pallet) => {
     setPagedPallets((current) =>
@@ -603,7 +603,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
       label: `${warehouse.label}: ${warehouse.address}`,
     }));
     if (pallet.current_location && !options.some((option) => option.value === pallet.current_location)) {
-      options.unshift({ value: pallet.current_location, label: pallet.current_location });
+      options.unshift({ value: pallet.current_location, label: getLocationLabel(pallet.current_location, language) });
     }
     return options;
   };

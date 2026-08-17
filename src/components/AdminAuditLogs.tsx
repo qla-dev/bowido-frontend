@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { Badge, Card, cn, Input, StatCard } from './ui';
-import { AppLanguage, getStatusLabel } from '../i18n';
+import { AppLanguage, getLocationLabel, getStatusLabel } from '../i18n';
 import { formatAppDateTime } from '../lib/dateFormat';
 import { FlatpickrDateInput } from './FlatpickrDateInput';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
@@ -12,6 +12,7 @@ import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableColumnFilter, type AdminTableFilterOption } from './AdminTableColumnFilter';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
+import { deduplicateAuditLogs } from '../lib/auditLog';
 
 interface AdminAuditLogsProps {
   auditLogs: AuditLog[];
@@ -136,7 +137,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
   const filterSourceLogs = filterAuditLogs.length > 0 ? filterAuditLogs : auditLogs;
   const sortedLogs = useMemo(
     () =>
-      [...(hasColumnFilters ? filterSourceLogs : auditLogs)].sort(
+      deduplicateAuditLogs(hasColumnFilters ? filterSourceLogs : auditLogs).sort(
         (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
       ),
     [auditLogs, filterSourceLogs, hasColumnFilters]
@@ -392,7 +393,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                               {getStatusLabel(log.new_status_name, language)}
                             </p>
                             <div className="space-y-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                              <p>{log.old_location || '-'} <span className="text-zinc-300">→</span> {log.new_location}</p>
+                              <p>{getLocationLabel(log.old_location, language) || '-'} <span className="text-zinc-300">→</span> {getLocationLabel(log.new_location, language) || '-'}</p>
                               {(oldClientName || newClientName) && (
                                 <p>{oldClientName || '-'} <span className="text-zinc-300">→</span> {newClientName || '-'}</p>
                               )}
@@ -558,7 +559,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                               {getStatusLabel(log.new_status_name, language)}
                             </p>
                             <div className="space-y-1 text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                              <p className="truncate">{log.old_location || '-'} <span className="text-zinc-300">{'->'}</span> {log.new_location}</p>
+                              <p className="truncate">{getLocationLabel(log.old_location, language) || '-'} <span className="text-zinc-300">{'->'}</span> {getLocationLabel(log.new_location, language) || '-'}</p>
                               {(oldClientName || newClientName) && (
                                 <p className="truncate">{oldClientName || '-'} <span className="text-zinc-300">{'->'}</span> {newClientName || '-'}</p>
                               )}

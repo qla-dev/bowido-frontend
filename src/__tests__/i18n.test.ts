@@ -17,10 +17,10 @@ describe("location translations", () => {
 
 describe("driver status translations", () => {
   it("translates customer pickup and repair statuses", () => {
-    expect(getStatusLabel("Ophalen klant", "en")).toBe("Customer pickup");
-    expect(getStatusLabel("Ophalen klant", "nl")).toBe("Ophalen klant");
-    expect(getStatusLabel("Ophalen klant", "bs")).toBe(
-      "Za preuzimanje kod klijenta",
+    expect(getStatusLabel("Voor retour", "en")).toBe("Ready for Return");
+    expect(getStatusLabel("Voor retour", "nl")).toBe("Voor retour");
+    expect(getStatusLabel("Voor retour", "bs")).toBe(
+      "Za povrat",
     );
     expect(getStatusLabel("Voor reparatie", "en")).toBe("For repair");
     expect(getStatusLabel("Voor reparatie", "nl")).toBe("Voor reparatie");

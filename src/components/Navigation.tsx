@@ -571,7 +571,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, role,
       items.push({ id: 'gallery', label: t('imageGallery'), icon: <Images /> });
     }
 
-    return items;
+    // A role can receive a built-in entry and the same permission through the
+    // backend fallback. Keep the first entry so the sidebar never shows the
+    // same destination twice.
+    return items.filter(
+      (item, index) => items.findIndex((candidate) => candidate.id === item.id) === index,
+    );
   };
 
   return (

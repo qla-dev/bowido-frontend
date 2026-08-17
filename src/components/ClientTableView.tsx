@@ -25,7 +25,7 @@ import { NoQrReturnFormModal } from './NoQrReturnFormModal';
 import { Button, cn, Input } from './ui';
 import { useApp } from '../AppContext';
 import { ClientDetail, Pallet, RoleType } from '../types';
-import { formatServiceReportDescription, getPalletTypeLabel, getStatusLabel } from '../i18n';
+import { formatServiceReportDescription, getLocationLabel, getPalletTypeLabel, getStatusLabel } from '../i18n';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { apiService } from '../services/api';
@@ -1010,7 +1010,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     <li
                       key={`client-mobile-pallet-${pallet.id}`}
                       className="grid grid-cols-[minmax(0,1.7fr)_minmax(0,1.15fr)_58px_58px_76px] items-center gap-4 py-2.5"
-                      title={`${getPalletTypeLabel(pallet.type, language)} • ${pallet.current_location || '-'}`}
+                      title={`${getPalletTypeLabel(pallet.type, language)} • ${getLocationLabel(pallet.current_location, language) || '-'}`}
                     >
                       <span className="truncate text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                         {getPalletDisplayName(pallet)}
@@ -1164,7 +1164,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                   <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-zinc-500 dark:text-zinc-300">
                                     <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-semibold">
                                       <MapPin size={12} className="shrink-0" />
-                                      <span className="truncate">{item.pallet.current_location || t('notAvailable')}</span>
+                                      <span className="truncate">{getLocationLabel(item.pallet.current_location, language) || t('notAvailable')}</span>
                                     </span>
                                     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-black uppercase tracking-tight">
                                       <Clock3 size={12} />
@@ -1248,7 +1248,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                   'mobile-pallet-table-row grid w-full grid-cols-[150px_120px_190px_58px_58px_70px] items-center gap-3 px-4 py-3 text-left transition-colors dark:hover:bg-white/5',
                                   item.overdueDays > 0 ? 'bg-rose-50/70 hover:bg-rose-50 dark:bg-rose-400/5' : 'hover:bg-white/70',
                                 )}
-                                title={`${getPalletTypeLabel(item.pallet.type, language)} - ${item.pallet.current_location || '-'}`}
+                                title={`${getPalletTypeLabel(item.pallet.type, language)} - ${getLocationLabel(item.pallet.current_location, language) || '-'}`}
                               >
                                 <span className={cn(
                                   'mobile-pallet-sticky-column sticky left-0 z-10 truncate text-[10px] font-black uppercase tracking-tight text-zinc-950 shadow-[12px_0_18px_-18px_rgba(15,23,42,0.65)] dark:text-white',
@@ -1265,7 +1265,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                   {getStatusLabel(item.pallet.current_status_name, language)}
                                 </span>
                                 <span className="truncate text-[10px] font-semibold text-zinc-600 dark:text-zinc-200">
-                                  {item.pallet.current_location || '-'}
+                                  {getLocationLabel(item.pallet.current_location, language) || '-'}
                                 </span>
                                 <span className="text-right text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                                   {item.daysOutside}
@@ -1374,7 +1374,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                           {t('location')}
                         </p>
                         <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                          {selectedMobilePallet.item.pallet.current_location || t('notAvailable')}
+                          {getLocationLabel(selectedMobilePallet.item.pallet.current_location, language) || t('notAvailable')}
                         </p>
                       </div>
                     )}

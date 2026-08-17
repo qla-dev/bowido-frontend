@@ -75,6 +75,7 @@ import { rankSearchResults } from "../lib/searchRanking";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { SearchableSelect as PalletDetailDropdown } from "./SearchableSelect";
 import { formatAppDate, formatAppDateTime, formatAppTime } from "../lib/dateFormat";
+import { deduplicateAuditLogs } from "../lib/auditLog";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 import { PasswordChangeForm } from "./PasswordChangeForm";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
@@ -539,7 +540,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         sentAt || formatDateTime(new Date(issuedAt.getTime() + 15 * 60 * 1000)),
       overdue_days: overdueDays,
       rate_per_day: pricePerDay,
-      location: pallet.current_location,
+      location: getLocationLabel(pallet.current_location, language),
     };
   };
 
@@ -874,7 +875,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
     });
 
-    const logs = Array.from(logsById.values()).sort(
+    const logs = deduplicateAuditLogs(Array.from(logsById.values())).sort(
       (left, right) =>
         new Date(right.created_at).getTime() -
         new Date(left.created_at).getTime(),
@@ -1335,7 +1336,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <Info size={16} className="mt-0.5 shrink-0 text-blue-600" />
                       <div>
                         <p className="text-[11px] font-bold tracking-[0.06em] text-blue-800">
-                          {getStatusLabel("Ophalen klant", language)}
+                          {getStatusLabel("Voor retour", language)}
                         </p>
                         <p className="mt-1 text-[12px] font-medium leading-5 text-blue-700">
                           {customerPickupAnalysis}
@@ -1401,7 +1402,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {ghostPallet.client_name || t("unknownClient")}
                             </p>
                             <p className="text-[11px] font-black uppercase tracking-tight text-zinc-900 mt-1 truncate">
-                              {formatSystemNote(ghostPallet.current_location, language)}
+                              {getLocationLabel(
+                                ghostPallet.current_location,
+                                language,
+                              ) ||
+                                formatSystemNote(
+                                  ghostPallet.current_location,
+                                  language,
+                                )}
                             </p>
                           </div>
                           <Badge variant="warning">{t("withoutQr")}</Badge>
