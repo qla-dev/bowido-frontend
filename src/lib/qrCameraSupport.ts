@@ -56,6 +56,30 @@ export const qrCameraConstraintAttempts: MediaStreamConstraints[] = [
   { audio: false, video: true },
 ];
 
+// A scanner can be remounted while a previous getUserMedia request is still
+// settling. Keep one app-wide lease so a later scanner can always release the
+// earlier TrackPal stream before asking the browser for the camera again.
+let activeQrCameraStream: MediaStream | null = null;
+
+export const releaseActiveQrCameraStream = (): void => {
+  activeQrCameraStream?.getTracks().forEach((track) => track.stop());
+  activeQrCameraStream = null;
+};
+
+export const registerActiveQrCameraStream = (stream: MediaStream): void => {
+  if (activeQrCameraStream && activeQrCameraStream !== stream) {
+    releaseActiveQrCameraStream();
+  }
+
+  activeQrCameraStream = stream;
+};
+
+export const clearActiveQrCameraStream = (stream: MediaStream | null | undefined): void => {
+  if (activeQrCameraStream === stream) {
+    activeQrCameraStream = null;
+  }
+};
+
 const getVideoTrack = (stream: MediaStream | null | undefined) =>
   stream?.getVideoTracks()[0] as ExtendedVideoTrack | undefined;
 

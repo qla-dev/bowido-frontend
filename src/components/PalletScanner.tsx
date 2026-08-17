@@ -16,8 +16,11 @@ import { rankSearchResults } from '../lib/searchRanking';
 import { compressPhotoForUpload } from '../lib/imageCompression';
 import {
   configureQrCamera,
+  clearActiveQrCameraStream,
   createQrCameraZoomController,
   qrCameraConstraintAttempts,
+  registerActiveQrCameraStream,
+  releaseActiveQrCameraStream,
   setQrCameraTorch,
 } from '../lib/qrCameraSupport';
 
@@ -132,6 +135,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     let startupWatchdogTimer: number | null = null;
     let cameraSessionId = 0;
     let hasRetriedFrozenCamera = false;
+    let cameraBusyRetryCount = 0;
 
     const stopCamera = () => {
       // Invalidate any in-flight getUserMedia/play request before releasing the
@@ -163,6 +167,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
           track.onunmute = null;
           track.stop();
         });
+        clearActiveQrCameraStream(streamRef.current);
         streamRef.current = null;
       }
 
@@ -263,6 +268,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       try {
         setCameraError(null);
         fallbackScanAttemptRef.current = 0;
+        releaseActiveQrCameraStream();
         // BarcodeDetector is optional and can initialise slowly on mobile.
         // Start the preview independently so it never blocks camera access.
         const detectorPromise = getQrDetector().catch(() => null);
@@ -288,9 +294,11 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         }
 
         streamRef.current = stream;
+        registerActiveQrCameraStream(stream);
         const cameraFeatures = await configureQrCamera(stream);
         if (!isCurrentSession()) {
           stream.getTracks().forEach((track) => track.stop());
+          clearActiveQrCameraStream(stream);
           return;
         }
         setIsTorchSupported(cameraFeatures.torchSupported);
@@ -319,6 +327,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
             video.srcObject = null;
           }
           stream.getTracks().forEach((track) => track.stop());
+          clearActiveQrCameraStream(stream);
           return;
         }
         setIsCameraActive(true);
@@ -355,6 +364,22 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
         qrDetectorRef.current = detector;
       } catch (error) {
         if (!isCurrentSession()) {
+          return;
+        }
+
+        // A just-released stream can remain reserved briefly on mobile browsers
+        // (and during React's development remount). Retry once it is released
+        // instead of leaving the scanner in a false "camera in use" state.
+        const isCameraBusy = error instanceof DOMException && error.name === 'NotReadableError';
+        if (isCameraBusy && cameraBusyRetryCount < 2) {
+          cameraBusyRetryCount += 1;
+          stopCamera();
+          restartTimer = window.setTimeout(() => {
+            restartTimer = null;
+            if (!cancelled && document.visibilityState !== 'hidden') {
+              void startCamera();
+            }
+          }, 350);
           return;
         }
 

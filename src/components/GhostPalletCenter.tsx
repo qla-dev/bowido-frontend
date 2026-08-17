@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
+import { formatSystemNote } from '../i18n';
 
 interface GhostPalletCenterProps {
   currentUser: User;
@@ -24,7 +25,7 @@ const getGhostActionStyles = (isHighlighted: boolean) =>
     : 'border-zinc-200 bg-white text-zinc-700';
 
 export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUser, onClose }) => {
-  const { pallets, clients, reportGhostPallets, pairGhostPallet, t } = useApp();
+  const { pallets, clients, reportGhostPallets, pairGhostPallet, t, language } = useApp();
   const [ghostCount, setGhostCount] = useState(1);
   const [ghostNote, setGhostNote] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<number | ''>('');
@@ -277,7 +278,7 @@ export const GhostPalletCenter: React.FC<GhostPalletCenterProps> = ({ currentUse
                                 {ghostPallet.client_name || t('unknownClient')}
                               </h3>
                               <p className="text-[11px] font-bold text-zinc-600 mt-3 leading-relaxed">
-                                {ghostPallet.note || t('noAdditionalNote')}
+                                {formatSystemNote(ghostPallet.note, language) || t('noAdditionalNote')}
                               </p>
                             </div>
 

@@ -148,8 +148,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       <div className="flex flex-col gap-2 px-4 py-2 md:h-full md:flex-row md:items-center md:justify-end md:gap-3 md:px-5 md:py-0">
         <div className="flex items-center justify-center md:hidden">
           <div className="flex min-w-[118px] shrink-0 items-center sm:min-w-[132px]">
-            <img src={logoImage} alt="Logo" className="h-6 w-auto max-w-[118px] shrink-0 object-contain object-left dark:hidden sm:h-7 sm:max-w-[132px]" />
-            <img src={logoNightImage} alt="Logo" className="hidden h-6 w-auto max-w-[118px] shrink-0 object-contain object-left dark:block sm:h-7 sm:max-w-[132px]" />
+            <img src={logoImage} alt="Logo" className="mobile-brand-logo-light h-6 w-auto max-w-[118px] shrink-0 object-contain object-left sm:h-7 sm:max-w-[132px]" />
+            <img src={logoNightImage} alt="Logo" className="mobile-brand-logo-dark hidden h-6 w-auto max-w-[118px] shrink-0 object-contain object-left sm:h-7 sm:max-w-[132px]" />
           </div>
         </div>
 

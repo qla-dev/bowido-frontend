@@ -165,6 +165,16 @@
     background-color: #fff !important;
   }
 
+  /* The app theme is scoped to #app-container, so do not depend on the OS-level
+     dark media query for the mobile wordmark. */
+  #app-container.dark .mobile-brand-logo-light {
+    display: none !important;
+  }
+
+  #app-container.dark .mobile-brand-logo-dark {
+    display: block !important;
+  }
+
   /* SweetAlert messages must remain above TrackPal's modal overlay. */
   body > .swal2-container {
     z-index: 2100 !important;

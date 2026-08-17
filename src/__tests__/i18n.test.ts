@@ -39,6 +39,17 @@ describe("system note translations", () => {
       "Verstuurd via mobiel formulier zonder QR | Locatie 1 | Eigen magazijn | Beschikbaar voor het ophalen: Direct ophalen | Commentaar: Leave at the gate",
     );
   });
+
+  it("translates the saved no-QR pairing annotation in every viewer language", () => {
+    const pairedNote = "Comment: Leave at the gate (Paired from a pallet without a QR code on 17-08-2026)";
+
+    expect(formatSystemNote(pairedNote, "nl")).toBe(
+      "Commentaar: Leave at the gate (Gekoppeld vanuit een bok zonder QR-code op 17-08-2026)",
+    );
+    expect(formatSystemNote(pairedNote, "bs")).toBe(
+      "Komentar: Leave at the gate (Upareno s paletom bez QR koda dana 17-08-2026)",
+    );
+  });
 });
 
 describe("invoice item translations", () => {
@@ -75,5 +86,11 @@ describe("service report translations", () => {
     ).toBe(
       "Bowido Admin heeft de bok aangemeld voor service.\nBowido Admin heeft de bok uit service verwijderd.\nChauffeur heeft de bok gemarkeerd voor reparatie.\nManual damage note",
     );
+  });
+
+  it("also formats no-QR system notes shown in pallet comment views", () => {
+    expect(
+      formatServiceReportDescription("Comment: Leave at the gate", "nl"),
+    ).toBe("Commentaar: Leave at the gate");
   });
 });

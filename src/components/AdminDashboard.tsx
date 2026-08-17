@@ -1240,16 +1240,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-50 text-[13px]">
-                        {latestActivityLogs.map((log) => (
+                      <tbody className="text-[13px]">
+                        {latestActivityLogs.map((log, index) => (
                           <tr
                             key={`audit-log-${log.id}`}
                             className="hover:bg-zinc-50/50"
                           >
-                            <td className="px-5 py-4 align-middle font-mono font-black underline underline-offset-2">
+                            <td
+                              className={cn(
+                                "px-5 py-4 align-middle font-mono font-black underline underline-offset-2",
+                                index > 0 && "border-t border-zinc-50 dark:border-[var(--dark-border)]",
+                              )}
+                            >
                               {getAuditPalletDisplayName(log)}
                             </td>
-                            <td className="px-5 py-4 align-middle">
+                            <td
+                              className={cn(
+                                "px-5 py-4 align-middle",
+                                index > 0 && "border-t border-zinc-50 dark:border-[var(--dark-border)]",
+                              )}
+                            >
                               <span className="mb-1.5 block truncate font-black leading-tight text-zinc-900">
                                 {getStatusLabel(log.new_status_name, language)}
                               </span>
@@ -1298,16 +1308,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-50 text-[13px]">
-                        {latestInventoryPallets.map((pallet) => (
+                      <tbody className="text-[13px]">
+                        {latestInventoryPallets.map((pallet, index) => (
                           <tr
                             key={`pallet-overview-${pallet.id}`}
                             className="hover:bg-zinc-50"
                           >
-                            <td className="px-5 py-4 align-middle font-mono font-black">
+                            <td
+                              className={cn(
+                                "px-5 py-4 align-middle font-mono font-black",
+                                index > 0 && "border-t border-zinc-50 dark:border-[var(--dark-border)]",
+                              )}
+                            >
                               {getPalletDisplayName(pallet)}
                             </td>
-                            <td className="px-5 py-4 text-right align-middle font-mono font-black text-emerald-600">
+                            <td
+                              className={cn(
+                                "px-5 py-4 text-right align-middle font-mono font-black text-emerald-600",
+                                index > 0 && "border-t border-zinc-50 dark:border-[var(--dark-border)]",
+                              )}
+                            >
                               {"\u20AC"}
                               {calculateDebt(pallet).toFixed(2)}
                             </td>
@@ -1415,7 +1435,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Badge variant="warning">{t("withoutQr")}</Badge>
                         </div>
                         <p className="mt-3 text-[12px] font-medium leading-5 text-zinc-600">
-                          {ghostPallet.note || t("ghostReportCardText")}
+                          {formatSystemNote(ghostPallet.note, language) ||
+                            t("ghostReportCardText")}
                         </p>
                       </div>
                     ))
@@ -2203,7 +2224,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     (current) => !current,
                                   );
                                 }}
-                                className="flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-gray-100 p-4 text-left font-bold outline-none transition-colors focus:border-emerald-300 disabled:cursor-not-allowed disabled:text-gray-500"
+                                className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-transparent bg-gray-100 px-4 py-3 text-left text-[12px] font-bold outline-none transition-colors focus:border-emerald-300 disabled:cursor-not-allowed disabled:text-gray-500"
                                 role="combobox"
                                 aria-expanded={isEditingPalletClientListOpen}
                                 aria-controls="editing-pallet-client-list"

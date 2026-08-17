@@ -2120,7 +2120,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       void persistDriverStatus(
         draftStatusId,
         nextClientId,
-        selectedPallet.current_location || "",
+        "N/A",
         {
           title: text.clientUpdatedTitle,
           detail: text.clientUpdatedDetail,
@@ -3015,6 +3015,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                         className={cn(
                           "mt-3 grid w-full grid-cols-3 items-start gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0",
                           selectedPalletTheme.softSurface,
+                          "dark:bg-[#070b0a]",
                         )}
                       >
                         <div className="flex min-w-0 w-full flex-col items-start text-left">
@@ -3173,7 +3174,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                 </DriverPalletSummaryCard>
 
                 <div className="driver-scan-result-body mt-2.5 flex min-h-0 flex-[1.45] flex-col gap-2.5">
-                  <div className="driver-scan-result-status relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#101715]/92">
+                  <div className="driver-scan-result-status relative flex min-h-[11.8rem] flex-[1.28] flex-col justify-center rounded-[1.9rem] bg-white/90 px-4 pt-5 pb-0 text-center dark:bg-[#070b0a]">
                     <p className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-200">
                       {text.currentStatus}
                     </p>
@@ -3216,7 +3217,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       )}
                     >
                       {selectedClientName && (
-                        <div className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 px-3.5 py-4 dark:bg-[#101715]/88">
+                        <div className="relative flex h-full min-h-0 flex-col justify-center rounded-[1.45rem] bg-white/88 px-3.5 py-4 dark:bg-[#070b0a]">
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-200">
@@ -3263,7 +3264,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       {showSelectedLocationSummary && (
                         <div
                           className={cn(
-                            "relative rounded-[1.45rem] bg-white/88 dark:bg-[#101715]/88",
+                            "relative rounded-[1.45rem] bg-white/88 dark:bg-[#070b0a]",
                             selectedClientName ? "px-3.5 py-4" : "px-3.5 py-5",
                           )}
                         >

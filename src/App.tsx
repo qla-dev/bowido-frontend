@@ -33,6 +33,7 @@ import { useApp } from "./AppContext";
 import { Button, Card, Input, cn } from "./components/ui";
 import { ApiError, apiService, type KvkRegistrationLookup } from "./services/api";
 import logoImage from "./assets/logo.png";
+import logoNightImage from "./assets/logo-night.png";
 import { languageOptions } from "./i18n";
 
 const CURRENT_USER_STORAGE_KEY = "trackpal_current_user";
@@ -2358,7 +2359,7 @@ export default function App() {
             setActiveTab(activeTab === "settings" ? "dashboard" : "settings")
           }
           onLogout={handleLogout}
-          logoSrc={logoImage}
+          logoSrc={isNightMode ? logoNightImage : logoImage}
           bodyClassName={
             activeTab === "settings" || activeTab === "client-table"
               ? "px-4"

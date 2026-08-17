@@ -2456,7 +2456,10 @@ export const formatSystemNote = (
         const translatedValue = ["Direct pickup", "Direct ophalen", "Odmah preuzeti"]
           .some((label) => label.toLocaleLowerCase() === value.trim().toLocaleLowerCase())
           ? ` ${copy.directPickup}`
-          : value;
+          : value.replace(
+              /\((?:Paired from a pallet without a QR code on|Gekoppeld vanuit een bok zonder QR-code op|Upareno s paletom bez QR koda dana)\s+([^)]*)\)/i,
+              `(${copy.paired} $1)`,
+            );
 
         return `${replacement}:${translatedValue}`;
       };
@@ -2467,7 +2470,7 @@ export const formatSystemNote = (
           .replace(/^(Own warehouse|Eigen magazijn|Vlastiti magacin)$/i, copy.warehouse)
           .replace(/^(Other location|Andere locatie|Druga lokacija)$/i, copy.otherLocation)
           .replace(
-            /\(Paired from a pallet without a QR code on\s+([^)]*)\)/i,
+            /\((?:Paired from a pallet without a QR code on|Gekoppeld vanuit een bok zonder QR-code op|Upareno s paletom bez QR koda dana)\s+([^)]*)\)/i,
             `(${copy.paired} $1)`,
           );
     })
@@ -2623,7 +2626,7 @@ export const formatServiceReportDescription = (
     group.aliases.some((alias) => normalizeDescription(alias) === descriptionKey),
   );
 
-  return generatedDescription?.translations[language] || description;
+  return generatedDescription?.translations[language] || formatSystemNote(description, language);
 };
 
 /**
