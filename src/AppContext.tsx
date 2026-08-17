@@ -814,6 +814,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       ? ""
       : ["bih-nl-transport", "nl-bih-transport"].includes(status.slug)
       ? "Na putu"
+      // "Na putu" is the automatic transport marker, not a physical
+      // location. Do not carry it into Voor retour when no location was set.
+      : status.slug === "ophalen-klant" && !location
+        ? ""
       : location ?? pallet.current_location;
     const nextClientName = preserveClientAssignment
       ? nextClientId

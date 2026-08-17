@@ -115,7 +115,7 @@ type ZoomableMediaTrack = MediaStreamTrack & {
 };
 
 type OpenChangeMenu = "client" | "status" | "location" | "gps" | null;
-type DriverLocationMode = "warehouse_1" | "warehouse_2" | "delivery";
+type DriverLocationMode = "unset" | "warehouse_1" | "warehouse_2" | "delivery";
 type PalletPhotoDraft = {
   id: string;
   file: File;
@@ -919,6 +919,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     const warehouse2Address = getClientWarehouseAddress(client, 2);
 
     switch (mode) {
+      case "unset":
+        return { label: t("notAvailable"), address: "" };
       case "warehouse_2":
         return { label: text.warehouseSecondary, address: warehouse2Address };
       case "delivery":
@@ -2044,6 +2046,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
           return;
         }
       }
+      if (nextStatus?.slug === "ophalen-klant") {
+        setDraftLocationMode("unset");
+      }
       setOpenChangeMenu("location");
       return;
     }
@@ -2085,6 +2090,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       // pallet's previous client here makes the close button accidentally
       // save that client even though the driver never selected one.
       setDraftClientId(undefined);
+      setDraftLocationMode("unset");
       setOpenChangeMenu("client");
       return;
     }
@@ -2101,7 +2107,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       statusIdAllowsCustomer(statuses, statusId) &&
       !hasClientWarehouseOneAddress(nextClient)
     ) {
-      setDraftLocationMode("delivery");
+      setDraftLocationMode(
+        draftStatus?.slug === "ophalen-klant" ? "unset" : "delivery",
+      );
       setOpenChangeMenu("location");
       return;
     }
@@ -2131,7 +2139,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       void persistDriverStatus(
         draftStatusId,
         nextClientId,
-        "N/A",
+        "",
         {
           title: text.clientUpdatedTitle,
           detail: text.clientUpdatedDetail,
@@ -2144,7 +2152,9 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       // A location is optional, but it is always offered after assigning a
       // client. Closing that next step saves the status and client with no
       // location instead of abandoning the transition.
-      setDraftLocationMode("delivery");
+      setDraftLocationMode(
+        draftStatus?.slug === "ophalen-klant" ? "unset" : "delivery",
+      );
       setOpenChangeMenu("location");
     }
   };
@@ -2212,7 +2222,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         isClosingUnassignedClientStep ||
         (statusIdAllowsCustomer(statuses, draftStatusId) && Boolean(draftClientId)));
 
-    const unchangedLocation = selectedPallet?.current_location || "";
+    const isMovingToCustomerReturn =
+      statuses.find((status) => status.id === draftStatusId)?.slug === "ophalen-klant";
+    const unchangedLocation =
+      isMovingToCustomerReturn && draftLocationMode === "unset"
+        ? ""
+        : selectedPallet?.current_location || "";
 
     setOpenChangeMenu(null);
 
@@ -3285,11 +3300,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                                 {text.summaryLocation}
                               </p>
                               <p className="mt-1 line-clamp-2 break-words text-[1.22rem] font-black leading-6 tracking-[-0.02em] text-emerald-950 dark:text-white">
-                                {isTransportStatus
+                                {isDraftTransportStatus
                                   ? transportLocationLabel
                                   : fixedWarehouseLocationMeta
                                     ? fixedWarehouseLocationMeta.label
-                                    : !selectedPallet.current_location?.trim()
+                                    : draftLocationMode === "unset" ||
+                                        !selectedPallet.current_location?.trim()
                                       ? t("notAvailable")
                                     : selectedLocationMeta.label}
                               </p>
