@@ -310,7 +310,7 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
               ? '-'
               : remainingDays < 0
                 ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`
-                : `${remainingDays} ${language === 'bs' ? 'dana preostalo' : language === 'nl' ? 'dagen over' : 'days left'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
+                : `${remainingDays} ${language === 'bs' ? 'dana u roku' : language === 'nl' ? 'dagen resterend' : 'days left'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
             deadlineValue: dueDate?.getTime() ?? null,
             deadlineTone: remainingDays === null
               ? 'muted'
@@ -867,14 +867,12 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                   </td>
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
-                      <Badge
-                        variant={
-                          row.pallet.is_for_repair
-                            ? 'danger'
-                            : row.pallet.current_status_id === 4
+                        <Badge
+                          variant={
+                            row.pallet.current_status_id === 4
                               ? 'success'
                               : 'info'
-                        }
+                          }
                         className="min-h-[1.875rem] rounded-lg px-2.5 py-1 text-[11px] font-bold normal-case"
                       >
                         {(row.pallet.current_status_id === atClientStatus?.id || row.pallet.current_status_id === returnStatus?.id) ? (
