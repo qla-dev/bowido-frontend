@@ -119,6 +119,7 @@ export interface AppNotification {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const APP_DATA_CACHE_KEY = "trackpal_app_data_cache";
+const GHOST_REPORT_OPEN_STORAGE_KEY = "trackpal_ghost_report_open";
 // Active users see remote changes within two seconds. Background tabs do not need
 // fresh UI data, so polling pauses until the tab is visible again.
 const DATA_POLL_INTERVAL_MS = 2_000;
@@ -171,6 +172,14 @@ const clearAppDataCache = () => {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(APP_DATA_CACHE_KEY);
   }
+};
+
+const readStoredGhostReportOpen = (): boolean => {
+  if (typeof window === "undefined" || !apiService.hasToken()) {
+    return false;
+  }
+
+  return window.localStorage.getItem(GHOST_REPORT_OPEN_STORAGE_KEY) === "true";
 };
 
 const isDriverSession = (): boolean => {
@@ -233,7 +242,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     () => readAppDataCache().palletDashboardStats || null,
   );
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isGhostReportOpen, setIsGhostReportOpen] = useState(false);
+  // This is a data-entry workflow rather than a transient browser prompt, so
+  // restore it with the signed-in session after a mobile browser restart.
+  const [isGhostReportOpen, setIsGhostReportOpen] = useState(
+    readStoredGhostReportOpen,
+  );
   const palletLoadGenerationRef = useRef(0);
   // Do not swap a populated pallet cache for the first page while a full
   // refresh is still loading; mobile views should keep showing their current
@@ -249,6 +262,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     invoicesRef.current = invoices;
   }, [invoices]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (isGhostReportOpen && apiService.hasToken()) {
+      window.localStorage.setItem(GHOST_REPORT_OPEN_STORAGE_KEY, "true");
+      return;
+    }
+
+    window.localStorage.removeItem(GHOST_REPORT_OPEN_STORAGE_KEY);
+  }, [isGhostReportOpen]);
 
   useEffect(() => {
     setApiLocale(language);

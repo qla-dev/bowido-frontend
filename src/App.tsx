@@ -747,6 +747,7 @@ export default function App() {
           apiService.clearToken();
           storeCurrentUser(null);
           setCurrentUser(null);
+          setIsGhostReportOpen(false);
           resetData();
         }
       } finally {
