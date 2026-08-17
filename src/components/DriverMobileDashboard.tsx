@@ -2986,7 +2986,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     <div
                       className={cn(
                         "mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center",
-                        selectedPalletTheme.softSurface,
+                        "bg-transparent",
                       )}
                     >
                       <div className="flex min-w-0 flex-col items-center">
@@ -3014,8 +3014,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       <div
                         className={cn(
                           "mt-3 grid w-full grid-cols-3 items-start gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0",
-                          selectedPalletTheme.softSurface,
-                          "dark:bg-[#070b0a]",
+                          "bg-transparent",
                         )}
                       >
                         <div className="flex min-w-0 w-full flex-col items-start text-left">
@@ -3081,7 +3080,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       <div
                         className={cn(
                           "mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center",
-                          selectedPalletTheme.softSurface,
+                          "bg-transparent",
                         )}
                       >
                         <div className="flex min-w-0 flex-col items-center">
@@ -3108,7 +3107,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     <div
                       className={cn(
                         "mt-3 w-full rounded-[1rem] px-0 pt-2.5 pb-0",
-                        selectedPalletTheme.softSurface,
+                        "bg-transparent",
                       )}
                     >
                       <div className="grid grid-cols-3 items-start gap-2.5">

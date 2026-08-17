@@ -11,6 +11,7 @@ import {
   PalletStatus,
   Permission,
   Role,
+  RoleType,
   ServiceReport,
 } from "./types";
 import { apiService, setApiLocale } from "./services/api";
@@ -169,6 +170,26 @@ const writeAppDataCache = (data: Partial<AppDataCache>) => {
 const clearAppDataCache = () => {
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(APP_DATA_CACHE_KEY);
+  }
+};
+
+const isDriverSession = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    const storedUser = JSON.parse(
+      window.localStorage.getItem("trackpal_current_user") || "null",
+    ) as { role_name?: string; backend_role_name?: string } | null;
+
+    return (
+      storedUser?.role_name === RoleType.VOZAC ||
+      storedUser?.backend_role_name === "driver" ||
+      storedUser?.role_name === "driver"
+    );
+  } catch {
+    return false;
   }
 };
 
@@ -350,12 +371,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             try {
               return JSON.parse(
                 window.localStorage.getItem("trackpal_current_user") || "null",
-              ) as { permission_codes?: string[]; role_name?: string } | null;
+              ) as {
+                permission_codes?: string[];
+                role_name?: string;
+                backend_role_name?: string;
+              } | null;
             } catch {
               return null;
             }
           })();
       const accessCodes = storedUser?.permission_codes || [];
+      const isDriver =
+        storedUser?.role_name === RoleType.VOZAC ||
+        storedUser?.backend_role_name === "driver" ||
+        storedUser?.role_name === "driver";
       const canLoadAccessSettings =
       accessCodes.includes("*") ||
       (accessCodes.includes("roles") && accessCodes.includes("modules"));
@@ -383,8 +412,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       safeLoad(() => apiService.statuses.list(), []),
       safeLoad(() => apiService.pallets.page({ limit: 50 }), emptyPalletPage),
       safeLoad(() => apiService.clients.list(), []),
-      safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
-      safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
+      isDriver
+        ? Promise.resolve([])
+        : safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
+      isDriver
+        ? Promise.resolve([])
+        : safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
       canLoadInvoices
         ? safeLoad(() => apiService.invoices.list(), [])
         : Promise.resolve([]),
@@ -510,6 +543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         items: [],
         meta: { total: 0, limit: 50, offset: 0, count: 0 },
       };
+      const isDriver = isDriverSession();
       const syncStartedAt = new Date().toISOString();
       const palletCursor = livePalletSyncCursorRef.current;
       let palletSyncSucceeded = true;
@@ -538,8 +572,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       };
       const [livePalletResult, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
         loadLivePallets(),
-        safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
-        safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
+        isDriver
+          ? Promise.resolve([])
+          : safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
+        isDriver
+          ? Promise.resolve([])
+          : safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
         safeLoad(() => apiService.pallets.stats(), null),
       ]);
       const livePallets = livePalletResult.items;
@@ -656,6 +694,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const fetchAuditLogs = async () => {
+    if (isDriverSession()) {
+      return;
+    }
+
     try {
       const data = await apiService.auditLogs.list({ limit: 50 });
       setAuditLogs(data);
