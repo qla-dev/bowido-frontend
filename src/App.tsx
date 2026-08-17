@@ -716,7 +716,13 @@ export default function App() {
     }
 
     let isMounted = true;
+    let restoreInFlight = false;
     const restoreSession = async () => {
+      if (restoreInFlight || !apiService.hasToken()) {
+        return;
+      }
+
+      restoreInFlight = true;
       try {
         const restoredUser = await apiService.auth.me();
 
@@ -733,11 +739,18 @@ export default function App() {
           return;
         }
 
-        apiService.clearToken();
-        storeCurrentUser(null);
-        setCurrentUser(null);
-        resetData();
+        // A newly opened mobile browser can briefly report as online while its
+        // connection is not ready yet. Keep the saved session and last screen
+        // in that case; only an actual unauthorized response means the token
+        // has expired and must be discarded.
+        if (error instanceof ApiError && error.status === 401) {
+          apiService.clearToken();
+          storeCurrentUser(null);
+          setCurrentUser(null);
+          resetData();
+        }
       } finally {
+        restoreInFlight = false;
         if (isMounted) {
           setIsRestoringSession(false);
         }
@@ -746,8 +759,24 @@ export default function App() {
 
     void restoreSession();
 
+    const retrySessionRestore = () => {
+      if (document.visibilityState === "visible") {
+        void restoreSession();
+      }
+    };
+
+    // Safari and mobile Chrome may restore a tab from their page cache when
+    // reopening the browser. Revalidate the saved session as soon as that tab
+    // is visible or its connection comes back, without forcing a full reload.
+    window.addEventListener("pageshow", retrySessionRestore);
+    window.addEventListener("online", retrySessionRestore);
+    document.addEventListener("visibilitychange", retrySessionRestore);
+
     return () => {
       isMounted = false;
+      window.removeEventListener("pageshow", retrySessionRestore);
+      window.removeEventListener("online", retrySessionRestore);
+      document.removeEventListener("visibilitychange", retrySessionRestore);
     };
   }, []);
 
