@@ -575,6 +575,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const [activePalletPhotoId, setActivePalletPhotoId] = useState<string | null>(null);
   const [isPalletPhotoModeOpen, setIsPalletPhotoModeOpen] = useState(false);
   const [damagePhotos, setDamagePhotos] = useState<Array<{ file: File; url: string }>>([]);
+  const [activeDamagePhotoIndex, setActiveDamagePhotoIndex] = useState<number | null>(null);
   const [damageDescription, setDamageDescription] = useState("");
   const [damageDraftPalletId, setDamageDraftPalletId] = useState<number | null>(
     null,
@@ -633,6 +634,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
   const palletPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoGalleryInputRef = useRef<HTMLInputElement | null>(null);
   const damagePhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const damagePhotoGalleryInputRef = useRef<HTMLInputElement | null>(null);
   const palletPhotoUrlsRef = useRef<string[]>([]);
   const palletPhotoUploadIdsRef = useRef(new Set<string>());
   const palletPhotoSequenceRef = useRef(0);
@@ -1886,10 +1888,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     if (damagePhotoInputRef.current) {
       damagePhotoInputRef.current.value = "";
     }
+    if (damagePhotoGalleryInputRef.current) {
+      damagePhotoGalleryInputRef.current.value = "";
+    }
 
     damagePhotoUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     damagePhotoUrlsRef.current = [];
     setDamagePhotos([]);
+    setActiveDamagePhotoIndex(null);
     setDamageDescription("");
     setDamageDraftPalletId(null);
     setDamageReportError("");
@@ -1901,6 +1907,11 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       if (photo) URL.revokeObjectURL(photo.url);
       const next = current.filter((_, currentIndex) => currentIndex !== index);
       damagePhotoUrlsRef.current = next.map((item) => item.url);
+      setActiveDamagePhotoIndex((activeIndex) => {
+        if (next.length === 0) return null;
+        if (activeIndex === null || activeIndex === index) return Math.min(index, next.length - 1);
+        return activeIndex > index ? activeIndex - 1 : activeIndex;
+      });
       return next;
     });
     setDamageReportError("");
@@ -2419,6 +2430,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       setDamagePhotos((current) => {
         const next = [...current, ...preparedPhotos];
         damagePhotoUrlsRef.current = next.map((photo) => photo.url);
+        setActiveDamagePhotoIndex(next.length - 1);
         return next;
       });
     } catch (error) {
@@ -4222,32 +4234,85 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                   type="file"
                   accept="image/*"
                   capture="environment"
+                  className="hidden"
+                  onChange={handleDamagePhotoChange}
+                />
+                <input
+                  ref={damagePhotoGalleryInputRef}
+                  type="file"
+                  accept="image/*"
                   multiple
                   className="hidden"
                   onChange={handleDamagePhotoChange}
                 />
 
-                {damagePhotos.length > 0 && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {damagePhotos.map((photo, index) => (
-                      <div key={photo.url} className="relative overflow-hidden rounded-[1.1rem] border border-emerald-100 dark:border-white/10">
-                        <img src={photo.url} alt={`${text.damageModalPhoto} ${index + 1}`} className="h-28 w-full object-cover" />
-                        <button type="button" onClick={() => clearDamagePhoto(index)} className="absolute right-2 top-2 rounded-full bg-white/92 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:bg-[#101715]/92 dark:text-emerald-100">
-                          {text.damageModalRemove}
+                <div className="mt-2 overflow-hidden rounded-[1.5rem] bg-emerald-50 p-2 dark:bg-[#151d1a]">
+                  <div className="relative flex h-52 items-center justify-center overflow-hidden rounded-[1.15rem] bg-white dark:bg-[#101715]">
+                    {activeDamagePhotoIndex !== null && damagePhotos[activeDamagePhotoIndex] ? (
+                      <>
+                        <img
+                          src={damagePhotos[activeDamagePhotoIndex].url}
+                          alt={`${text.damageModalPhoto} ${activeDamagePhotoIndex + 1}`}
+                          className="h-full w-full object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => clearDamagePhoto(activeDamagePhotoIndex)}
+                          className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg"
+                          aria-label={text.damageModalRemove}
+                        >
+                          <Trash2 size={16} />
                         </button>
+                      </>
+                    ) : (
+                      <div className="px-6 text-center">
+                        <Camera size={32} className="mx-auto text-emerald-500" />
+                        <p className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-100">
+                          {text.damageModalPhoto}
+                        </p>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
+
+                  {damagePhotos.length > 0 && (
+                    <div className="mt-2 flex h-[4.75rem] gap-2 overflow-x-auto overscroll-x-contain no-scrollbar">
+                      {damagePhotos.map((photo, index) => (
+                        <button
+                          key={photo.url}
+                          type="button"
+                          onClick={() => setActiveDamagePhotoIndex(index)}
+                          className={cn(
+                            "relative h-full w-[4.75rem] shrink-0 overflow-hidden rounded-xl border-2 bg-white",
+                            index === activeDamagePhotoIndex ? "border-[#00A655]" : "border-transparent",
+                          )}
+                        >
+                          <img src={photo.url} alt={`${text.damageModalPhoto} ${index + 1}`} className="h-full w-full object-cover" />
+                          <span className="absolute bottom-1 left-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-black text-white">{index + 1}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {damagePhotos.length < 10 && (
-                  <button
-                    type="button"
-                    onClick={() => damagePhotoInputRef.current?.click()}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-[1.4rem] border border-dashed border-emerald-200 bg-emerald-50/55 px-4 py-6 text-[12px] font-black uppercase tracking-[0.16em] text-emerald-700 transition-all hover:border-emerald-300 hover:text-emerald-900 dark:border-white/10 dark:bg-[#151d1a] dark:text-emerald-100 dark:hover:text-white"
-                  >
-                    <Camera size={16} className="shrink-0" />
-                    {text.damageModalUpload}
-                  </button>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => damagePhotoInputRef.current?.click()}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-emerald-50 px-3 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 transition-all hover:bg-emerald-100 dark:bg-[#151d1a] dark:text-emerald-100"
+                    >
+                      <Camera size={16} className="shrink-0" />
+                      {text.takeNextPalletPhoto}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => damagePhotoGalleryInputRef.current?.click()}
+                      className="flex min-h-12 items-center justify-center gap-2 rounded-[1.1rem] bg-emerald-50 px-3 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 transition-all hover:bg-emerald-100 dark:bg-[#151d1a] dark:text-emerald-100"
+                    >
+                      <ImagePlus size={16} className="shrink-0" />
+                      {text.choosePalletPhotos}
+                    </button>
+                  </div>
                 )}
               </div>
 
