@@ -1311,7 +1311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         metadata: {
           entries: entryDetails,
         },
-        image: normalizedDetails.image,
+        images: normalizedDetails.images,
       });
 
       setPallets((previous) => [

@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import {
   ArrowUpDown,
   Funnel,
+  Image as ImageIcon,
+  Maximize2,
   RotateCcw,
   Save,
   Search,
@@ -14,7 +16,7 @@ import { useApp } from '../AppContext';
 import { formatSystemNote, getStatusLabel } from '../i18n';
 import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
-import { Pallet } from '../types';
+import { Pallet, PalletPhoto } from '../types';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
@@ -26,6 +28,7 @@ import { NoQrCodeIcon } from './NoQrCodeIcon';
 import { rankSearchResults } from '../lib/searchRanking';
 import { SearchableSelect } from './SearchableSelect';
 import { appAlert } from './AppAlert';
+import { ServiceReportPhotoLightbox } from './ServiceReportPhotoLightbox';
 
 type NoQrColumnKey =
   | 'serial'
@@ -54,6 +57,42 @@ type NoQrTableRow = {
 
 type FilterSelections = Record<NoQrColumnKey, string[]>;
 type FilterSearch = Record<NoQrColumnKey, string>;
+
+const NoQrPhotoPreview: React.FC<{ photo: PalletPhoto; className?: string }> = ({
+  photo,
+  className = 'h-full w-full object-cover',
+}) => {
+  const [source, setSource] = useState('');
+
+  useEffect(() => {
+    let objectUrl = '';
+
+    if (photo.url) {
+      void apiService.gallery.image(photo.url)
+        .then((blob) => {
+          objectUrl = URL.createObjectURL(blob);
+          setSource(objectUrl);
+        })
+        .catch(() => setSource(''));
+    }
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [photo.id, photo.url]);
+
+  return source ? (
+    <img
+      src={source}
+      alt={photo.original_name || 'Pallet photo'}
+      className={className}
+    />
+  ) : (
+    <div className="flex h-full w-full items-center justify-center bg-zinc-50 text-zinc-300">
+      <ImageIcon size={20} />
+    </div>
+  );
+};
 
 const NO_QR_TABLE_COLUMN_ORDER = [
   'serial',
@@ -130,6 +169,9 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
         : 'Show full comment';
   const detailTitle =
     language === 'bs' ? 'Detalji palete bez QR koda' : language === 'nl' ? 'Details bok zonder QR-code' : 'No-QR pallet details';
+  const photosLabel = language === 'bs' ? 'Fotografije' : language === 'nl' ? 'Foto\'s' : 'Photos';
+  const noPhotosLabel =
+    language === 'bs' ? 'Nema dodanih fotografija.' : language === 'nl' ? 'Geen foto\'s toegevoegd.' : 'No photos attached.';
   const assignedClientLabel =
     language === 'bs' ? 'Dodijeljeni klijent' : language === 'nl' ? 'Toegewezen klant' : 'Assigned client';
   const saveLabel =
@@ -183,6 +225,9 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
   const [openFilterKey, setOpenFilterKey] = useState<NoQrColumnKey | null>(null);
   const [activeCommentRow, setActiveCommentRow] = useState<NoQrTableRow | null>(null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const [editingPalletPhotos, setEditingPalletPhotos] = useState<PalletPhoto[]>([]);
+  const [isEditingPalletPhotosLoading, setIsEditingPalletPhotosLoading] = useState(false);
+  const [isPalletPhotoViewerOpen, setIsPalletPhotoViewerOpen] = useState(false);
   const [filterMenuStyle, setFilterMenuStyle] = useState<{
     top: number;
     left: number;
@@ -196,6 +241,34 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
       note: formatSystemNote(pallet.note, language),
     });
   };
+
+  useEffect(() => {
+    if (!editingPallet) {
+      setEditingPalletPhotos([]);
+      setIsEditingPalletPhotosLoading(false);
+      setIsPalletPhotoViewerOpen(false);
+      return;
+    }
+
+    let isCurrent = true;
+    setIsEditingPalletPhotosLoading(true);
+
+    void apiService.gallery.list({ pallet_id: editingPallet.id })
+      .then((photos) => {
+        if (isCurrent) setEditingPalletPhotos(photos);
+      })
+      .catch((error) => {
+        console.error('Failed to load no-QR pallet photos', error);
+        if (isCurrent) setEditingPalletPhotos([]);
+      })
+      .finally(() => {
+        if (isCurrent) setIsEditingPalletPhotosLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [editingPallet?.id]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -746,13 +819,13 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                           }}
                           className={cn(
                             bodyTextClass,
-                            'w-full truncate text-left text-zinc-500 underline decoration-dotted underline-offset-2 transition-colors hover:text-zinc-900'
+                            'w-full truncate text-left text-zinc-500 underline decoration-dotted underline-offset-2 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white'
                           )}
                         >
                           {row.commentLabel}
                         </button>
                       ) : (
-                        <span className={cn(bodyTextClass, 'text-left text-zinc-500')}>
+                        <span className={cn(bodyTextClass, 'text-left text-zinc-500 dark:text-zinc-300')}>
                           {row.commentLabel}
                         </span>
                       )}
@@ -769,11 +842,11 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
       {openFilterKey && renderFilterMenu(openFilterKey)}
       {activeCommentRow && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]"
+          className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]"
           onClick={() => setActiveCommentRow(null)}
         >
           <div
-            className="w-full max-w-lg rounded-[1.5rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)]"
+            className="w-full max-w-lg rounded-[1.5rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-[#101715]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -781,7 +854,7 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
                   {commentModalTitle}
                 </p>
-                <h3 className="mt-2 text-xl font-black tracking-tight text-zinc-950">
+                <h3 className="mt-2 text-xl font-black tracking-tight text-zinc-950 dark:text-white">
                   {activeCommentRow.clientName}
                 </h3>
               </div>
@@ -789,15 +862,15 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
               <button
                 type="button"
                 onClick={() => setActiveCommentRow(null)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:border-white/10 dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-white"
                 aria-label={t('close')}
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-              <p className="whitespace-pre-wrap text-sm font-medium leading-6 text-zinc-700">
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 dark:border-white/10 dark:bg-white/[0.04]">
+              <p className="whitespace-pre-wrap text-sm font-medium leading-6 text-zinc-700 dark:text-zinc-100">
                 {activeCommentRow.commentLabel}
               </p>
             </div>
@@ -807,13 +880,13 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
 
       {editingPallet && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]"
+          className="modal-overlay fixed inset-0 z-[120] flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]"
           onClick={() => setEditingPallet(null)}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] no-scrollbar"
+            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)] no-scrollbar dark:border-white/10 dark:bg-[#101715]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="absolute inset-x-0 top-0 h-1.5 bg-[#00A655]" />
@@ -823,14 +896,14 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
                   {detailTitle}
                 </p>
-                <h3 className="mt-2 text-2xl font-black uppercase tracking-tight text-zinc-950">
+                <h3 className="mt-2 text-2xl font-black uppercase tracking-tight text-zinc-950 dark:text-white">
                   #{rows.find((row) => row.id === editingPallet.id)?.serial || editingPallet.id}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingPallet(null)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:border-white/10 dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-white"
                 aria-label={t('close')}
               >
                 <X size={16} />
@@ -910,8 +983,38 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                 onChange={(event) =>
                   setEditingPallet({ ...editingPallet, note: event.target.value })
                 }
-                className="min-h-32 w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[12px] font-bold text-zinc-800 outline-none transition-colors focus:border-emerald-400"
+                className="min-h-32 w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[12px] font-bold text-zinc-800 outline-none transition-colors focus:border-emerald-400 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-100 dark:placeholder:text-zinc-500"
               />
+            </div>
+
+            <div className="mt-5 space-y-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-zinc-400">
+                {photosLabel}
+              </p>
+              {isEditingPalletPhotosLoading ? (
+                <div className="flex h-24 items-center justify-center rounded-2xl border border-zinc-200 bg-zinc-50 text-[10px] font-black uppercase tracking-[0.14em] text-zinc-400">
+                  {t('loading')}
+                </div>
+              ) : editingPalletPhotos.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsPalletPhotoViewerOpen(true)}
+                  className="group relative block aspect-video w-full overflow-hidden rounded-[1.5rem] border border-zinc-200 bg-zinc-50 text-left"
+                  aria-label={`${editingPalletPhotos.length} ${photosLabel}`}
+                >
+                  <NoQrPhotoPreview photo={editingPalletPhotos[0]} />
+                  <span className="absolute left-3 top-3 rounded-full bg-[#00A655] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-lg">
+                    {editingPalletPhotos.length} {photosLabel}
+                  </span>
+                  <span className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <Maximize2 size={16} />
+                  </span>
+                </button>
+              ) : (
+                <div className="flex h-24 items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 text-center text-[10px] font-black uppercase tracking-[0.12em] text-zinc-400">
+                  {noPhotosLabel}
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
@@ -955,6 +1058,12 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
             </div>
           </motion.div>
         </div>
+      )}
+      {isPalletPhotoViewerOpen && editingPalletPhotos.length > 0 && (
+        <ServiceReportPhotoLightbox
+          photos={editingPalletPhotos}
+          onClose={() => setIsPalletPhotoViewerOpen(false)}
+        />
       )}
       <DeleteConfirmModal
         open={Boolean(palletPendingDeletion)}

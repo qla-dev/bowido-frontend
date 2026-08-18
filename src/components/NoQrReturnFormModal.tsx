@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, Camera, MapPin, Minus, Plus, Send, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Building2, Camera, ImagePlus, MapPin, Minus, Plus, Send, Trash2, X } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { ClientDetail, DeliveryLocationInput, RoleType, User } from '../types';
 import { Button, Input, Select, cn } from './ui';
@@ -153,8 +153,10 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
   const [directPickup, setDirectPickup] = useState(true);
   const [pickupDate, setPickupDate] = useState('');
   const [comment, setComment] = useState('');
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [images, setImages] = useState<Array<{ file: File; preview: string }>>([]);
+  const imagePreviewsRef = useRef<string[]>([]);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -197,6 +199,14 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
       )
     );
   }, [selectedClientId]);
+
+  useEffect(() => {
+    imagePreviewsRef.current = images.map((image) => image.preview);
+  }, [images]);
+
+  useEffect(() => () => {
+    imagePreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview));
+  }, []);
 
   const formatPickupDate = (value: string) => {
     if (!value) {
@@ -274,7 +284,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
         location: entries[0]?.location,
         note: sharedNote,
         entries,
-        image: image || undefined,
+        images: images.map((image) => image.file),
       });
       await appAlert.fire({
         icon: 'success',
@@ -296,6 +306,31 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const addImages = async (files: FileList | null) => {
+    if (!files) return;
+
+    try {
+      const preparedImages = await Promise.all(
+        Array.from(files).slice(0, Math.max(0, 10 - images.length)).map(async (file) => {
+          const compressed = await compressPhotoForUpload(file);
+          return { file: compressed, preview: URL.createObjectURL(compressed) };
+        }),
+      );
+      setImages((current) => [...current, ...preparedImages]);
+      setSubmitError(null);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : copy.reportErrorText);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages((current) => {
+      const image = current[index];
+      if (image) URL.revokeObjectURL(image.preview);
+      return current.filter((_, currentIndex) => currentIndex !== index);
+    });
   };
 
   return (
@@ -342,50 +377,68 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
 
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[#9fcbb3]">
-            Photo (optional)
+            Photos (optional)
           </label>
-          {imagePreview ? (
-            <div className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-2 dark:border-white/10 dark:bg-[#151d1a]">
-              <img src={imagePreview} alt="No QR pallet" className="h-40 w-full rounded-xl object-cover" />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            className="hidden"
+            onChange={async (event) => {
+              await addImages(event.target.files);
+              event.target.value = '';
+            }}
+          />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            className="hidden"
+            onChange={async (event) => {
+              await addImages(event.target.files);
+              event.target.value = '';
+            }}
+          />
+          {images.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {images.map((image, index) => (
+                <div key={image.preview} className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-1.5 dark:border-white/10 dark:bg-[#151d1a]">
+                  <img src={image.preview} alt={`No QR pallet ${index + 1}`} className="h-28 w-full rounded-xl object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-xl bg-black/65 text-white"
+                    aria-label="Remove photo"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {images.length < 10 && (
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  URL.revokeObjectURL(imagePreview);
-                  setImagePreview(null);
-                  setImage(null);
-                }}
-                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-xl bg-black/65 text-white"
-                aria-label="Remove photo"
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-5 text-[11px] font-black uppercase tracking-[0.12em] text-zinc-600 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200"
               >
-                <X size={15} />
+                <Camera size={16} />
+                Take photo
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-5 text-[11px] font-black uppercase tracking-[0.12em] text-zinc-600 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200"
+              >
+                <ImagePlus size={16} />
+                Choose photos
               </button>
             </div>
-          ) : (
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-5 text-[11px] font-black uppercase tracking-[0.12em] text-zinc-600 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200">
-              <Camera size={16} />
-              Take photo
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                capture="environment"
-                className="hidden"
-                onChange={async (event) => {
-                  const nextImage = event.target.files?.[0];
-                  event.target.value = '';
-                  if (!nextImage) return;
-                  try {
-                    const compressed = await compressPhotoForUpload(nextImage);
-                    if (imagePreview) URL.revokeObjectURL(imagePreview);
-                    setImage(compressed);
-                    setImagePreview(URL.createObjectURL(compressed));
-                  } catch (error) {
-                    setSubmitError(error instanceof Error ? error.message : copy.reportErrorText);
-                  }
-                }}
-              />
-            </label>
           )}
-          <p className="text-[10px] font-bold leading-4 text-zinc-400">The photo is saved in the database when you send this report.</p>
+          <p className="text-[10px] font-bold leading-4 text-zinc-400">Up to 10 photos are saved in the database when you send this report.</p>
         </div>
 
         {submitError && <p className="text-sm font-semibold text-rose-600">{submitError}</p>}

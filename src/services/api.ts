@@ -1330,7 +1330,7 @@ export const apiService = {
       description?: string;
       notes?: string;
       metadata?: Record<string, unknown>;
-      image?: File;
+      images?: File[];
     }): Promise<Pallet[]> => {
       const formData = new FormData();
       formData.append('user_id', String(data.user_id));
@@ -1339,7 +1339,7 @@ export const apiService = {
       if (data.description) formData.append('description', data.description);
       if (data.notes) formData.append('notes', data.notes);
       if (data.metadata) formData.append('metadata', JSON.stringify(data.metadata));
-      if (data.image) formData.append('image', data.image);
+      data.images?.forEach((image) => formData.append('images[]', image));
 
       const report = await apiData<ApiRecord>('/ghost_pallet_reports', {
         method: 'POST',

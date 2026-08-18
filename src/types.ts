@@ -267,7 +267,7 @@ export interface GhostPalletReportInput {
   note?: string;
   location?: string;
   entries?: GhostPalletReportEntry[];
-  image?: File;
+  images?: File[];
 }
 
 export interface Invoice {
