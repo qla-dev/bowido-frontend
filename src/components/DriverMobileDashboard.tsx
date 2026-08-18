@@ -4159,7 +4159,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       );
 
                       if (!statusSaved) {
-                        throw new Error("The pallet status could not be saved. Try again before saving the delivery location.");
+                        throw new Error(t("palletStatusSaveBeforeLocationError"));
                       }
                     }
 

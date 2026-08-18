@@ -711,8 +711,8 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
                               ? 'border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700'
                               : 'border-emerald-200 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-50 hover:text-emerald-800'
                           )}
-                          title={row.pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
-                          aria-label={row.pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
+                          title={row.pallet.is_for_repair ? t('unmarkForRepair') : t('markForRepair')}
+                          aria-label={row.pallet.is_for_repair ? t('unmarkForRepair') : t('markForRepair')}
                           aria-pressed={row.pallet.is_for_repair}
                           onClick={() => {
                             const pallet = row.pallet!;

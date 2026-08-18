@@ -135,7 +135,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
   onClose,
   onSubmitted,
 }) => {
-  const { clients, language, reportGhostPallets } = useApp();
+  const { clients, language, reportGhostPallets, t } = useApp();
   const copy = copyByLanguage[language] || copyByLanguage.en;
   const isClient = currentUser.role_name === RoleType.KLIJENT;
   const roleClients = useMemo(() => {
@@ -405,12 +405,12 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {images.map((image, index) => (
                 <div key={image.preview} className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-1.5 dark:border-white/10 dark:bg-[#151d1a]">
-                  <img src={image.preview} alt={`No QR pallet ${index + 1}`} className="h-28 w-full rounded-xl object-cover" />
+                  <img src={image.preview} alt={`${t('noQrPallets')} ${index + 1}`} className="h-28 w-full rounded-xl object-cover" />
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
                     className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-xl bg-black/65 text-white"
-                    aria-label="Remove photo"
+                    aria-label={t('removePhoto')}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -426,7 +426,7 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                 className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-5 text-[11px] font-black uppercase tracking-[0.12em] text-zinc-600 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200"
               >
                 <Camera size={16} />
-                Take photo
+                {t('takePhoto')}
               </button>
               <button
                 type="button"
@@ -434,11 +434,11 @@ export const NoQrReturnFormModal: React.FC<NoQrReturnFormModalProps> = ({
                 className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-5 text-[11px] font-black uppercase tracking-[0.12em] text-zinc-600 dark:border-white/15 dark:bg-[#151d1a] dark:text-zinc-200"
               >
                 <ImagePlus size={16} />
-                Choose photos
+                {t('choosePhotos')}
               </button>
             </div>
           )}
-          <p className="text-[10px] font-bold leading-4 text-zinc-400">Up to 10 photos are saved in the database when you send this report.</p>
+          <p className="text-[10px] font-bold leading-4 text-zinc-400">{t('photoDatabaseLimit')}</p>
         </div>
 
         {submitError && <p className="text-sm font-semibold text-rose-600">{submitError}</p>}

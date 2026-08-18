@@ -22,6 +22,7 @@ function SecureGalleryImage({
   onPointerUp,
   onPointerCancel,
   draggable,
+  alt,
 }: {
   photo: PalletPhoto;
   className?: string;
@@ -31,6 +32,7 @@ function SecureGalleryImage({
   onPointerUp?: (event: ReactPointerEvent<HTMLImageElement>) => void;
   onPointerCancel?: (event: ReactPointerEvent<HTMLImageElement>) => void;
   draggable?: boolean;
+  alt: string;
 }) {
   const [source, setSource] = useState('');
 
@@ -57,7 +59,7 @@ function SecureGalleryImage({
     <img
       src={source}
       loading="lazy"
-      alt={photo.pallet?.name || 'Pallet'}
+      alt={alt}
       className={cn('h-full w-full object-cover', className)}
       style={style}
       onPointerDown={onPointerDown}
@@ -479,9 +481,9 @@ export function ImageGallery() {
                 type="button"
                 onClick={() => void openDeliveryGallery(group.id, group.palletId, group.photos)}
                 className="group relative aspect-video w-full bg-zinc-100 text-left dark:bg-black/20"
-                aria-label={`${photo.pallet?.name || 'Pallet'} - ${group.photos.length} ${palletPhotosLabel}`}
+                aria-label={`${photo.pallet?.name || t('palletLabel')} - ${group.photos.length} ${palletPhotosLabel}`}
               >
-                <SecureGalleryImage photo={photo} />
+                <SecureGalleryImage photo={photo} alt={photo.pallet?.name || t('palletLabel')} />
                 <span className="absolute left-3 top-3 rounded-full bg-[#00A655] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-lg">
                   {group.photos.length} {palletPhotosLabel}
                 </span>
@@ -516,6 +518,7 @@ export function ImageGallery() {
             {selectedPhoto ? (
               <SecureGalleryImage
                 photo={selectedPhoto}
+                alt={selectedPhoto.pallet?.name || t('palletLabel')}
                 className={cn(
                   'object-contain select-none',
                   selectedPhotoZoom > 1
@@ -540,7 +543,7 @@ export function ImageGallery() {
                   onClick={() => changeSelectedPhotoZoom(-0.25)}
                   disabled={selectedPhotoZoom <= 1}
                   className="flex h-11 w-11 items-center justify-center transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Zoom out"
+                  aria-label={t('zoomOut')}
                 >
                   <Minus size={20} />
                 </button>
@@ -552,7 +555,7 @@ export function ImageGallery() {
                   onClick={() => changeSelectedPhotoZoom(0.25)}
                   disabled={selectedPhotoZoom >= 3}
                   className="flex h-11 w-11 items-center justify-center transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Zoom in"
+                  aria-label={t('zoomIn')}
                 >
                   <Plus size={20} />
                 </button>
@@ -565,7 +568,7 @@ export function ImageGallery() {
                   type="button"
                   onClick={() => selectPhoto((selectedPhotoIndex - 1 + selectedPalletPhotos.length) % selectedPalletPhotos.length)}
                   className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80"
-                  aria-label="Previous photo"
+                  aria-label={t('previousPhoto')}
                 >
                   <ChevronLeft size={22} />
                 </button>
@@ -573,7 +576,7 @@ export function ImageGallery() {
                   type="button"
                   onClick={() => selectPhoto((selectedPhotoIndex + 1) % selectedPalletPhotos.length)}
                   className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80"
-                  aria-label="Next photo"
+                  aria-label={t('nextPhoto')}
                 >
                   <ChevronRight size={22} />
                 </button>
@@ -593,7 +596,7 @@ export function ImageGallery() {
                     index === selectedPhotoIndex ? 'border-[#00A655]' : 'border-transparent opacity-65',
                   )}
                 >
-                  <SecureGalleryImage photo={photo} />
+                  <SecureGalleryImage photo={photo} alt={photo.pallet?.name || t('palletLabel')} />
                 </button>
               ))}
             </div>

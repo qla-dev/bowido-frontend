@@ -1660,8 +1660,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                               event.stopPropagation();
                               togglePalletService(pallet);
                             }}
-                            title={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
-                            aria-label={pallet.is_for_repair ? 'Unmark the pallet for repair' : 'Mark the pallet for repair'}
+                            title={pallet.is_for_repair ? t('unmarkForRepair') : t('markForRepair')}
+                            aria-label={pallet.is_for_repair ? t('unmarkForRepair') : t('markForRepair')}
                             aria-pressed={pallet.is_for_repair}
                           >
                             <Wrench size={15} />

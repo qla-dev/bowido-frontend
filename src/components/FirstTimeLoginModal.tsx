@@ -18,7 +18,7 @@ const copyFor = (language: string) => {
       intro: 'Ovo je vaša prva prijava. Ispod možete postaviti novu lozinku ili zadržati dodijeljenu lozinku.',
       newPassword: 'Nova lozinka', confirmPassword: 'Potvrdite lozinku', save: 'Sačuvaj lozinku', keep: 'Zadrži trenutnu lozinku',
       mismatch: 'Lozinke se ne podudaraju.', required: 'Unesite novu lozinku od najmanje 8 znakova.', failed: 'Lozinka nije mogla biti sačuvana.',
-      savedTitle: 'Lozinka je sačuvana', savedText: 'Vaša lozinka je sačuvana. Sada provjerite podatke o firmi i kontaktu.', review: 'Provjeri podatke',
+      savedTitle: 'Lozinka je sačuvana', savedText: 'Vaša lozinka je sačuvana. Sada provjerite podatke o firmi i kontaktu.', review: 'Provjeri podatke', showPassword: 'Prikaži lozinku', hidePassword: 'Sakrij lozinku',
     };
   }
   if (language === 'en') {
@@ -27,7 +27,7 @@ const copyFor = (language: string) => {
       intro: 'This is your first login. You can set a new password below or keep the assigned password.',
       newPassword: 'New password', confirmPassword: 'Confirm password', save: 'Save password', keep: 'Keep current password',
       mismatch: 'The passwords do not match.', required: 'Enter a new password of at least 8 characters.', failed: 'The password could not be saved.',
-      savedTitle: 'Password saved', savedText: 'Your password has been saved. Now check your company and contact details.', review: 'Check details',
+      savedTitle: 'Password saved', savedText: 'Your password has been saved. Now check your company and contact details.', review: 'Check details', showPassword: 'Show password', hidePassword: 'Hide password',
     };
   }
 
@@ -36,7 +36,7 @@ const copyFor = (language: string) => {
     intro: 'Dit is de eerste keer dat u inlogt. U kunt hieronder een nieuw wachtwoord instellen of ervoor kiezen om het toegewezen wachtwoord te behouden.',
     newPassword: 'Nieuw wachtwoord', confirmPassword: 'Bevestig wachtwoord', save: 'Wachtwoord opslaan', keep: 'Huidig wachtwoord behouden',
     mismatch: 'De wachtwoorden komen niet overeen.', required: 'Vul een nieuw wachtwoord van minimaal 8 tekens in.', failed: 'Het wachtwoord kon niet worden opgeslagen.',
-    savedTitle: 'Wachtwoord opgeslagen', savedText: 'Uw wachtwoord is opgeslagen. Controleer nu uw bedrijfs- en contactgegevens om er zeker van te zijn dat alles correct is.', review: 'Gegevens controleren',
+    savedTitle: 'Wachtwoord opgeslagen', savedText: 'Uw wachtwoord is opgeslagen. Controleer nu uw bedrijfs- en contactgegevens om er zeker van te zijn dat alles correct is.', review: 'Gegevens controleren', showPassword: 'Wachtwoord tonen', hidePassword: 'Wachtwoord verbergen',
   };
 };
 
@@ -120,7 +120,7 @@ export const FirstTimeLoginModal = ({ user, language, onCompleted }: FirstTimeLo
                 {copy.newPassword}
                 <div className="relative mt-1">
                   <Input type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={isSubmitting} className="pr-12" />
-                  <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-400">
+                  <button type="button" aria-label={showPassword ? copy.hidePassword : copy.showPassword} onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-400">
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>

@@ -8,6 +8,7 @@ import { useApp } from '../AppContext';
 import { RoleType } from '../types';
 import { Button, Card } from './ui';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
+import { getRoleLabel } from '../i18n';
 
 interface KnowledgeBaseProps {
   onClose: () => void;
@@ -15,29 +16,29 @@ interface KnowledgeBaseProps {
 }
 
 export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ role, onClose }) => {
-  const { t } = useApp();
+  const { t, language } = useApp();
   const getRoleContent = () => {
     switch (role) {
       case RoleType.ADMIN:
         return [
-          { title: 'Global Settings', desc: 'Configure status behaviors, pricing, and grace periods.', icon: <Settings /> },
-          { title: 'Debt Management', desc: 'Overview of client debts and pallet stay durations.', icon: <BookOpen /> },
-          { title: 'Exporting Data', desc: 'How to export fleet reports to PDF/Excel.', icon: <ExternalLink /> },
+          { title: t('knowledgeAdminGlobalSettingsTitle'), desc: t('knowledgeAdminGlobalSettingsDescription'), icon: <Settings /> },
+          { title: t('knowledgeAdminDebtTitle'), desc: t('knowledgeAdminDebtDescription'), icon: <BookOpen /> },
+          { title: t('knowledgeAdminExportTitle'), desc: t('knowledgeAdminExportDescription'), icon: <ExternalLink /> },
         ];
       case RoleType.VOZAC:
         return [
-          { title: 'Bulk Scanning', desc: 'Skenirajte više paleta odjednom za bržu isporuku.', icon: <PlayCircle /> },
-          { title: 'Picking a Client', desc: 'Sistem automatski nudi pretragu klijenata kod Bij de klant statusa.', icon: <BookOpen /> },
-          { title: 'Voor Retour', desc: 'Kako označiti palete koje su spremne za preuzimanje.', icon: <ExternalLink /> },
+          { title: t('knowledgeDriverBulkTitle'), desc: t('knowledgeDriverBulkDescription'), icon: <PlayCircle /> },
+          { title: t('knowledgeDriverClientTitle'), desc: t('knowledgeDriverClientDescription'), icon: <BookOpen /> },
+          { title: t('knowledgeDriverReturnTitle'), desc: t('knowledgeDriverReturnDescription'), icon: <ExternalLink /> },
         ];
       case RoleType.MAGACINER:
         return [
-          { title: 'Inbound/Outbound', desc: 'Evidencija ulaza i izlaza paleta iz skladišta BiH/NL.', icon: <PlayCircle /> },
-          { title: 'Reporting Damage', desc: 'Obavezno slikanje i opis oštećenja pri slanju na servis.', icon: <AlertTriangle /> },
+          { title: t('knowledgeWarehouseFlowTitle'), desc: t('knowledgeWarehouseFlowDescription'), icon: <PlayCircle /> },
+          { title: t('knowledgeWarehouseDamageTitle'), desc: t('knowledgeWarehouseDamageDescription'), icon: <AlertTriangle /> },
         ];
       case RoleType.KLIJENT:
         return [
-          { title: 'Grace Period', desc: 'Kako funkcioniše besplatnih 14 dana stay perioda.', icon: <BookOpen /> },
+          { title: t('knowledgeClientGraceTitle'), desc: t('knowledgeClientGraceDescription'), icon: <BookOpen /> },
           { title: t('noQrPallets'), desc: t('ghostReportCardText'), icon: <NoQrCodeIcon size={20} /> },
         ];
       default:
@@ -62,7 +63,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ role, onClose }) =
                 </div>
                 <div>
                    <h2 className="text-lg font-black uppercase tracking-tighter text-black font-display">{t('knowledgeBase')}</h2>
-                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('contextualHelp')} {role}</p>
+                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('contextualHelp')} {getRoleLabel(role, language)}</p>
                 </div>
              </div>
              <button onClick={onClose} className="p-2 rounded-lg hover:bg-zinc-100 transition-colors text-zinc-400 hover:text-black">
@@ -96,7 +97,7 @@ export const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ role, onClose }) =
                    </div>
                 </div>
                 <Button variant="outline" size="sm" className="bg-white border-blue-200 text-blue-700 hover:bg-blue-50">
-                   <ExternalLink size={14} className="mr-2" /> Open
+                   <ExternalLink size={14} className="mr-2" /> {t('open')}
                 </Button>
              </div>
           </div>

@@ -644,13 +644,13 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                     <CheckCircle2 size={28} />
                   </div>
                   <h3 className="text-xl font-black uppercase tracking-tight text-zinc-950">{detectedPallet.pallet_name || detectedPallet.qr_code}</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Pallet scanned</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{t('palletScanned')}</p>
                 </div>
 
                 <div className="border border-zinc-200 bg-zinc-50 p-4">
                   {scanPhotoPreview ? (
                     <div className="relative overflow-hidden border border-zinc-200 bg-white">
-                      <img src={scanPhotoPreview} alt="Pallet" className="h-48 w-full object-cover" />
+                      <img src={scanPhotoPreview} alt={t('palletLabel')} className="h-48 w-full object-cover" />
                       <button
                         type="button"
                         onClick={clearScanPhoto}
@@ -663,7 +663,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                   ) : (
                     <label htmlFor="scan-pallet-photo" className="flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 border border-dashed border-zinc-300 bg-white text-zinc-500 hover:border-emerald-500 hover:text-emerald-700">
                       <Camera size={24} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Add pallet photo</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest">{t('addPalletPhoto')}</span>
                     </label>
                   )}
                   <input
@@ -706,10 +706,10 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                       }
                     }}
                   >
-                    Skip photo
+                    {t('skipPhoto')}
                   </Button>
                   <Button className="flex-1" disabled={isSavingScanPhoto} onClick={continueAfterPhoto}>
-                    {isSavingScanPhoto ? 'Saving...' : scanPhoto ? 'Save photo' : 'Continue'}
+                    {isSavingScanPhoto ? t('saving') : scanPhoto ? t('savePhoto') : t('continueAction')}
                   </Button>
                 </div>
               </div>

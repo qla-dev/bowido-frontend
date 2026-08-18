@@ -1864,7 +1864,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </h3>
                   {selectedPallet.is_for_repair && (
                     <span className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-rose-700">
-                      <Wrench size={11} /> For repair
+                      <Wrench size={11} /> {t('forRepair')}
                     </span>
                   )}
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
@@ -2053,7 +2053,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </p>
                           {editingPallet.is_for_repair && (
                             <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-rose-700 dark:bg-rose-500/15 dark:text-rose-200">
-                              <Wrench size={12} /> For repair
+                              <Wrench size={12} /> {t('forRepair')}
                             </span>
                           )}
                         </div>

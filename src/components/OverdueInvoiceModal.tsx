@@ -4,6 +4,7 @@ import { Badge, Button, Card } from './ui';
 import { CheckCircle2, Clock3, FileText, Mail, Package, Send, X } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { formatAppDateTime } from '../lib/dateFormat';
+import { getLocationLabel } from '../i18n';
 
 export interface OverdueInvoicePreview {
   id: number;
@@ -95,7 +96,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                     {invoice.pallet_qr}
                   </p>
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-400 mt-2">
-                    {invoice.location}
+                    {getLocationLabel(invoice.location, language)}
                   </p>
                 </div>
               </div>
@@ -111,7 +112,7 @@ export const OverdueInvoiceModal: React.FC<OverdueInvoiceModalProps> = ({
                     </p>
                   </div>
                   <Badge variant={invoice.status === 'sent' ? 'success' : 'warning'}>
-                    {invoice.status}
+                    {invoice.status === 'sent' ? t('invoiceSent') : t('invoiceActive')}
                   </Badge>
                 </div>
 

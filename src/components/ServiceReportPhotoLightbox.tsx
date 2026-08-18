@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Minus, Plus, X } from 'lucide-react';
 import type { PalletPhoto } from '../types';
 import { apiService } from '../services/api';
 import { cn } from './ui';
+import { useApp } from '../AppContext';
 
 function SecurePhoto({
   photo,
@@ -12,6 +13,7 @@ function SecurePhoto({
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+  alt,
 }: {
   photo: PalletPhoto;
   className?: string;
@@ -20,6 +22,7 @@ function SecurePhoto({
   onPointerMove?: (event: ReactPointerEvent<HTMLImageElement>) => void;
   onPointerUp?: (event: ReactPointerEvent<HTMLImageElement>) => void;
   onPointerCancel?: (event: ReactPointerEvent<HTMLImageElement>) => void;
+  alt: string;
 }) {
   const [source, setSource] = useState('');
 
@@ -34,10 +37,11 @@ function SecurePhoto({
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [photo.id, photo.url]);
 
-  return source ? <img src={source} alt="Damage report" className={cn('h-full w-full object-contain', className)} style={style} draggable={false} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} /> : null;
+  return source ? <img src={source} alt={alt} className={cn('h-full w-full object-contain', className)} style={style} draggable={false} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel} /> : null;
 }
 
 export function ServiceReportPhotoLightbox({ photos, onClose }: { photos: PalletPhoto[]; onClose: () => void }) {
+  const { t } = useApp();
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -85,21 +89,21 @@ export function ServiceReportPhotoLightbox({ photos, onClose }: { photos: Pallet
 
   return <div className="modal-overlay fixed inset-0 z-[2300] flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={onClose}>
     <div className="relative flex h-full max-h-[calc(100dvh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-      <button type="button" onClick={onClose} className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label="Close"><X size={20} /></button>
+      <button type="button" onClick={onClose} className="absolute right-3 top-3 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label={t('close')}><X size={20} /></button>
       <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden bg-black">
-        {photo && <SecurePhoto photo={photo} className={cn('select-none', zoom > 1 ? isPanning ? 'cursor-grabbing' : 'cursor-grab' : 'transition-transform duration-200')} style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})` }} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={stopPan} onPointerCancel={stopPan} />}
+        {photo && <SecurePhoto photo={photo} alt={t('serviceReportImage')} className={cn('select-none', zoom > 1 ? isPanning ? 'cursor-grabbing' : 'cursor-grab' : 'transition-transform duration-200')} style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})` }} onPointerDown={startPan} onPointerMove={movePan} onPointerUp={stopPan} onPointerCancel={stopPan} />}
         <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 overflow-hidden rounded-full bg-black/65 text-white shadow-lg backdrop-blur">
-          <button type="button" onClick={() => changeZoom(-0.25)} disabled={zoom <= 1} className="flex h-11 w-11 items-center justify-center hover:bg-black/80 disabled:opacity-40" aria-label="Zoom out"><Minus size={20} /></button>
+          <button type="button" onClick={() => changeZoom(-0.25)} disabled={zoom <= 1} className="flex h-11 w-11 items-center justify-center hover:bg-black/80 disabled:opacity-40" aria-label={t('zoomOut')}><Minus size={20} /></button>
           <span className="flex min-w-14 items-center justify-center border-x border-white/15 text-xs font-black tabular-nums">{Math.round(zoom * 100)}%</span>
-          <button type="button" onClick={() => changeZoom(0.25)} disabled={zoom >= 3} className="flex h-11 w-11 items-center justify-center hover:bg-black/80 disabled:opacity-40" aria-label="Zoom in"><Plus size={20} /></button>
+          <button type="button" onClick={() => changeZoom(0.25)} disabled={zoom >= 3} className="flex h-11 w-11 items-center justify-center hover:bg-black/80 disabled:opacity-40" aria-label={t('zoomIn')}><Plus size={20} /></button>
         </div>
         {photos.length > 1 && <>
-          <button type="button" onClick={() => selectPhoto((index - 1 + photos.length) % photos.length)} className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label="Previous photo"><ChevronLeft size={22} /></button>
-          <button type="button" onClick={() => selectPhoto((index + 1) % photos.length)} className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label="Next photo"><ChevronRight size={22} /></button>
+          <button type="button" onClick={() => selectPhoto((index - 1 + photos.length) % photos.length)} className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label={t('previousPhoto')}><ChevronLeft size={22} /></button>
+          <button type="button" onClick={() => selectPhoto((index + 1) % photos.length)} className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white backdrop-blur hover:bg-black/80" aria-label={t('nextPhoto')}><ChevronRight size={22} /></button>
         </>}
       </div>
       {photos.length > 1 && <div className="flex shrink-0 gap-2 overflow-x-auto bg-zinc-900 px-4 py-3 no-scrollbar">
-        {photos.map((item, itemIndex) => <button key={item.id} type="button" onClick={() => selectPhoto(itemIndex)} className={cn('h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 bg-black', itemIndex === index ? 'border-[#00A655]' : 'border-transparent opacity-65')}><SecurePhoto photo={item} /></button>)}
+        {photos.map((item, itemIndex) => <button key={item.id} type="button" onClick={() => selectPhoto(itemIndex)} className={cn('h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 bg-black', itemIndex === index ? 'border-[#00A655]' : 'border-transparent opacity-65')}><SecurePhoto photo={item} alt={t('serviceReportImage')} /></button>)}
       </div>}
       <div className="shrink-0 bg-zinc-950 px-5 py-4 text-right text-xs font-black text-zinc-300">{index + 1} / {photos.length}</div>
     </div>

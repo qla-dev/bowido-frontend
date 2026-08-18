@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { createQrMatrix } from '../lib/qrCode';
+import { useApp } from '../AppContext';
 
 interface PalletQrCodeProps {
   value: string;
@@ -7,6 +8,7 @@ interface PalletQrCodeProps {
 }
 
 export const PalletQrCode: React.FC<PalletQrCodeProps> = ({ value, className }) => {
+  const { t } = useApp();
   const matrix = useMemo(() => {
     try {
       return createQrMatrix(value);
@@ -19,7 +21,7 @@ export const PalletQrCode: React.FC<PalletQrCodeProps> = ({ value, className }) 
     return (
       <div className={className}>
         <div className="flex aspect-square items-center justify-center rounded-3xl bg-zinc-100 px-6 text-center text-xs font-black uppercase tracking-widest text-zinc-400">
-          QR value too long
+          {t('qrValueTooLong')}
         </div>
       </div>
     );
