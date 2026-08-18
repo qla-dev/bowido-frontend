@@ -26,6 +26,7 @@ import { formatAppDate } from '../lib/dateFormat';
 import { DeliveryLocationMap } from './DeliveryLocationMap';
 import { DriverModalShell } from './DriverModalShell';
 import { rankSearchResults } from '../lib/searchRanking';
+import { useLivePallet } from '../hooks/useLivePallet';
 
 type SortKey =
   | 'pallet'
@@ -130,6 +131,12 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
   const headerCellRefs = useRef<Partial<Record<SortKey, HTMLTableCellElement | null>>>({});
   const locationButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [gpsLocationPallet, setGpsLocationPallet] = useState<Pallet | null>(null);
+  const liveGpsLocationPallet = useLivePallet(gpsLocationPallet?.id ?? null);
+  useEffect(() => {
+    if (liveGpsLocationPallet) {
+      setGpsLocationPallet((current) => current?.id === liveGpsLocationPallet.id ? liveGpsLocationPallet : current);
+    }
+  }, [liveGpsLocationPallet]);
   // Details are now shown directly in the list. Kept null so legacy detail markup
   // remains inert until it is removed in the next table cleanup.
   const selectedPallet: PalletRow | null = null;

@@ -10,6 +10,7 @@ import { formatServiceReportDescription, getLocationLabel, getPalletTypeLabel, g
 import { formatAppDate, formatAppTime } from '../lib/dateFormat';
 import { NoQrCodeIcon } from './NoQrCodeIcon';
 import { SoftHyphenatedText } from './SoftHyphenatedText';
+import { useLivePallet } from '../hooks/useLivePallet';
 
 interface WorkerDashboardProps {
   role: RoleType;
@@ -22,6 +23,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
   const [showPairModal, setShowPairModal] = useState(false);
   const [selectedGhostId, setSelectedGhostId] = useState<number | null>(null);
   const [selectedPalletId, setSelectedPalletId] = useState<number | null>(null);
+  const liveSelectedPallet = useLivePallet(selectedPalletId);
   const [newQrCode, setNewQrCode] = useState('');
   const [activeTab, setActiveTab] = useState<'scan' | 'inventory' | 'history' | 'service'>('scan');
   const isDriver = role === RoleType.VOZAC;
@@ -684,7 +686,7 @@ export const WorkerDashboard: React.FC<WorkerDashboardProps> = ({ role, user }) 
                className="bg-white overflow-hidden rounded-[3rem] w-full max-w-md shadow-2xl relative"
              >
                 {(() => {
-                  const pallet = pallets.find(p => p.id === selectedPalletId);
+                  const pallet = liveSelectedPallet || pallets.find(p => p.id === selectedPalletId);
                   if (!pallet) return null;
                   return (
                     <>

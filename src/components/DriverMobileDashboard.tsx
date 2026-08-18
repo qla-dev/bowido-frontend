@@ -62,6 +62,7 @@ import {
   limitDamageDescription,
 } from "../lib/damageDescription";
 import { resolveSelectedPallet } from "../lib/palletSelection";
+import { useLivePallet } from "../hooks/useLivePallet";
 import {
   configureQrCamera,
   createQrCameraZoomController,
@@ -845,11 +846,14 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
     return legacyComment || "-";
   };
-  const selectedPallet = resolveSelectedPallet(
-    allDriverPallets,
-    selectedPalletId,
-    selectedPalletSnapshot,
-  );
+  const liveSelectedPallet = useLivePallet(selectedPalletId);
+  const selectedPallet =
+    liveSelectedPallet ||
+    resolveSelectedPallet(
+      allDriverPallets,
+      selectedPalletId,
+      selectedPalletSnapshot,
+    );
   const driverStatusOptions = DRIVER_STATUS_SLUG_ORDER.map((slug) =>
     statuses.find((item) => item.slug === slug) ||
     // Preserve the option when a cached response or an older API still uses

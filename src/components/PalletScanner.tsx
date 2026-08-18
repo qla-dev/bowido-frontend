@@ -23,6 +23,7 @@ import {
   releaseActiveQrCameraStream,
   setQrCameraTorch,
 } from '../lib/qrCameraSupport';
+import { useLivePallet } from '../hooks/useLivePallet';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
@@ -59,6 +60,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const [isTorchSupported, setIsTorchSupported] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [detectedPallet, setDetectedPallet] = useState<Pallet | null>(null);
+  const liveDetectedPallet = useLivePallet(detectedPallet?.id ?? null);
   const [scanPhoto, setScanPhoto] = useState<File | null>(null);
   const [scanPhotoPreview, setScanPhotoPreview] = useState<string | null>(null);
   const [isSavingScanPhoto, setIsSavingScanPhoto] = useState(false);
@@ -79,6 +81,12 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const isCameraControlInteractingRef = React.useRef(false);
   const cameraInteractionUntilRef = React.useRef(0);
   const cameraZoomControllerRef = React.useRef(createQrCameraZoomController());
+
+  React.useEffect(() => {
+    if (liveDetectedPallet) {
+      setDetectedPallet((current) => current?.id === liveDetectedPallet.id ? liveDetectedPallet : current);
+    }
+  }, [liveDetectedPallet]);
 
   const getAllowedStatusIds = () => {
     return statuses.map((status) => status.id);

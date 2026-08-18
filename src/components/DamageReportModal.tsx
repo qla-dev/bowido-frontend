@@ -11,6 +11,7 @@ import {
   getDamageDescriptionCharacterCount,
   limitDamageDescription,
 } from '../lib/damageDescription';
+import { useLivePallet } from '../hooks/useLivePallet';
 
 interface DamageReportModalProps {
   onClose: () => void;
@@ -21,10 +22,17 @@ export const DamageReportModal: React.FC<DamageReportModalProps> = ({ onClose })
   const { pallets, reportDamage, t, language } = useApp();
   const [search, setSearch] = useState('');
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
+  const liveSelectedPallet = useLivePallet(selectedPallet?.id ?? null);
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<Array<{ file: File; preview: string }>>([]);
   const imagePreviewsRef = useRef<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (liveSelectedPallet) {
+      setSelectedPallet((current) => current?.id === liveSelectedPallet.id ? liveSelectedPallet : current);
+    }
+  }, [liveSelectedPallet]);
 
   const filteredPallets =
     search.length > 1

@@ -73,6 +73,7 @@ type DeliveryLocationMapProps = {
   palletId?: number;
   language: AppLanguage;
   initialLocation?: DeliveryLocation;
+  initialInput?: DeliveryLocationInput;
   initialLocationIsSaved?: boolean;
   mapClassName?: string;
   layout?: "default" | "desktop-split";
@@ -344,6 +345,7 @@ export const DeliveryLocationMap = ({
   palletId,
   language,
   initialLocation,
+  initialInput,
   initialLocationIsSaved = true,
   mapClassName,
   layout = "default",
@@ -354,10 +356,11 @@ export const DeliveryLocationMap = ({
 }: DeliveryLocationMapProps) => {
   const text = copy[language] || copy.en;
   const isDesktopSplit = layout === "desktop-split";
-  const initialCoordinates = initialLocation
+  const displayedInitialLocation = initialInput || initialLocation;
+  const initialCoordinates = displayedInitialLocation
     ? {
-        latitude: initialLocation.latitude,
-        longitude: initialLocation.longitude,
+        latitude: displayedInitialLocation.latitude,
+        longitude: displayedInitialLocation.longitude,
       }
     : null;
   const [selectedCoordinates, setSelectedCoordinates] =
@@ -371,17 +374,17 @@ export const DeliveryLocationMap = ({
     initialLocation?.formatted_address || "",
   );
   const [addressFields, setAddressFields] = useState<AddressFields>(() =>
-    toAddressFields(initialLocation),
+    toAddressFields(displayedInitialLocation),
   );
   const [manualMapEnabled, setManualMapEnabled] = useState(
-    Boolean(initialLocation) || isDesktopSplit,
+    Boolean(displayedInitialLocation) || isDesktopSplit,
   );
   const [recenterVersion, setRecenterVersion] = useState(0);
   const [capturedAt, setCapturedAt] = useState(
-    initialLocation?.captured_at || new Date().toISOString(),
+    displayedInitialLocation?.captured_at || new Date().toISOString(),
   );
   const [selectedAccuracy, setSelectedAccuracy] = useState<number | undefined>(
-    initialLocation?.accuracy_meters,
+    displayedInitialLocation?.accuracy_meters,
   );
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -396,10 +399,10 @@ export const DeliveryLocationMap = ({
     setSelectedCoordinates(initialCoordinates);
     setGeocodeCoordinates(null);
     setDisplayedAddress(initialLocation?.formatted_address || "");
-    setAddressFields(toAddressFields(initialLocation));
-    setManualMapEnabled(Boolean(initialLocation));
-    setCapturedAt(initialLocation?.captured_at || new Date().toISOString());
-    setSelectedAccuracy(initialLocation?.accuracy_meters);
+    setAddressFields(toAddressFields(displayedInitialLocation));
+    setManualMapEnabled(Boolean(displayedInitialLocation));
+    setCapturedAt(displayedInitialLocation?.captured_at || new Date().toISOString());
+    setSelectedAccuracy(displayedInitialLocation?.accuracy_meters);
     setSaveError("");
     setSaveMessage("");
     setAddressSearchInput("");

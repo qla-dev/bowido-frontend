@@ -168,7 +168,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   title,
   description,
 }) => {
-  const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, t, language } = useApp();
+  const { clients: cachedClients, pallets, statuses, invoices, addClient, deleteClient, updateClient, watchPallet, t, language } = useApp();
   const tableColumns: SortKey[] = readOnly
     ? COLUMN_ORDER.filter((key) => key !== 'warehouse1' && key !== 'warehouse2')
     : [...COLUMN_ORDER];
@@ -192,6 +192,22 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
   const [isCredentialDistributionOpen, setIsCredentialDistributionOpen] = useState(false);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+
+  useEffect(() => {
+    if (selectedClientPallets.length === 0) {
+      return;
+    }
+
+    const stopWatching = selectedClientPallets.map((pallet) => watchPallet(pallet.id));
+    return () => stopWatching.forEach((stop) => stop());
+  }, [selectedClientPallets.map((pallet) => pallet.id).join(','), watchPallet]);
+
+  useEffect(() => {
+    setSelectedClientPallets((current) => {
+      const next = current.map((pallet) => pallets.find((item) => item.id === pallet.id) || pallet);
+      return next.every((pallet, index) => pallet === current[index]) ? current : next;
+    });
+  }, [pallets]);
   const [clientPendingDeletion, setClientPendingDeletion] = useState<ClientManagerRow | null>(null);
   const [newClientDraft, setNewClientDraft] = useState<Omit<ClientDetail, 'id' | 'user_id'>>({
     name: '',

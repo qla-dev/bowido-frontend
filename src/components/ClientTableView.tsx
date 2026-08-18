@@ -33,6 +33,7 @@ import { getPalletDisplayName } from '../lib/palletDisplay';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { rankSearchResults } from '../lib/searchRanking';
+import { useLivePallet } from '../hooks/useLivePallet';
 
 type SortKey =
   | 'client'
@@ -242,6 +243,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     index: number;
     view: MobilePalletListView;
   } | null>(null);
+  const liveSelectedMobilePallet = useLivePallet(selectedMobilePallet?.item.pallet.id ?? null);
   const [mobilePalletDisplayMode, setMobilePalletDisplayMode] = useState<MobilePalletDisplayMode>('compact');
   const [mobilePalletSearch, setMobilePalletSearch] = useState('');
   const [mobilePalletStatusFilter, setMobilePalletStatusFilter] = useState('all');
@@ -623,6 +625,24 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           new Date(left.pallet.last_status_changed_at).getTime(),
       );
   }, [mobileClientRow, pallets, statuses]);
+
+  useEffect(() => {
+    if (!liveSelectedMobilePallet) {
+      return;
+    }
+
+    const refreshedItem = [...mobileQrPallets, ...mobileNoQrPallets]
+      .find((item) => item.pallet.id === liveSelectedMobilePallet.id);
+
+    setSelectedMobilePallet((current) => {
+      if (!current || current.item.pallet.id !== liveSelectedMobilePallet.id) {
+        return current;
+      }
+
+      const nextItem = refreshedItem || { ...current.item, pallet: liveSelectedMobilePallet };
+      return current.item === nextItem ? current : { ...current, item: nextItem };
+    });
+  }, [liveSelectedMobilePallet, mobileNoQrPallets, mobileQrPallets]);
 
   const mobileClientStatusCounts = useMemo(() => {
     const clientPallets = mobileClientRow

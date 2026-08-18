@@ -24,6 +24,7 @@ import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { ServiceReportPhotoLightbox } from './ServiceReportPhotoLightbox';
 import { SoftHyphenatedText } from './SoftHyphenatedText';
 import { RepairCompletionUndoModal } from './RepairCompletionUndoModal';
+import { useLivePallet } from '../hooks/useLivePallet';
 
 type ViewMode = 'service' | 'warehouse' | 'finance';
 type SortDirection = 'asc' | 'desc';
@@ -80,6 +81,7 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
   const tableRef = useRef<HTMLDivElement | null>(null);
   const headerCellRefs = useRef<Partial<Record<string, HTMLTableCellElement | null>>>({});
   const [selectedRow, setSelectedRow] = useState<OperationRow | null>(null);
+  useLivePallet(selectedRow?.pallet?.id ?? null);
   const [serviceReportImageUrl, setServiceReportImageUrl] = useState('');
   const [isServiceReportImageLoading, setIsServiceReportImageLoading] = useState(false);
   const [serviceReportImageFailed, setServiceReportImageFailed] = useState(false);
@@ -340,12 +342,15 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       });
     }
 
-    const relevantPallets =
+    const relevantPalletSnapshots =
       mode === 'service'
         ? repairPallets
         : mode === 'warehouse'
           ? warehousePallets
           : pallets;
+    const relevantPallets = relevantPalletSnapshots.map(
+      (pallet) => pallets.find((current) => current.id === pallet.id) || pallet,
+    );
 
     return relevantPallets.map((pallet) => {
       const openReport = serviceReports.find((report) => report.pallet_id === pallet.id && !report.resolved_at);
@@ -410,6 +415,14 @@ export const AdminRoleOperationsView: React.FC<{ mode: ViewMode }> = ({ mode }) 
       };
     });
   }, [clients, currencyFormatter, invoices, language, mode, pallets, repairPallets, serviceReports, statuses, warehousePallets]);
+
+  useEffect(() => {
+    setSelectedRow((current) => {
+      if (!current) return current;
+      const refreshedRow = rows.find((row) => row.id === current.id);
+      return refreshedRow || current;
+    });
+  }, [rows]);
 
   const getOperationValue = (row: OperationRow, key: OperationColumnKey) => key === 'actions' ? '' : row[key];
   const filterOptions = useMemo<Record<OperationColumnKey, AdminTableFilterOption[]>>(

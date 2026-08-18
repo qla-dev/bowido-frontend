@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   AuditLog,
   ClientDetail,
@@ -104,6 +104,7 @@ interface AppContextType {
   updateRole: (role: Role) => Promise<void>;
   deleteRole: (id: number) => Promise<void>;
   refreshData: () => Promise<void>;
+  watchPallet: (palletId: number) => () => void;
   resetData: () => void;
 }
 
@@ -255,6 +256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const liveRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const livePalletSyncCursorRef = useRef<string | null>(null);
+  const watchedPalletIdsRef = useRef(new Map<number, number>());
   const refreshDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const refreshLiveDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const invoicesRef = useRef(invoices);
@@ -596,8 +598,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           return { items: [] };
         }
       };
-      const [livePalletResult, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
+      const watchedPalletIds: number[] = [...watchedPalletIdsRef.current.keys()];
+      const [livePalletResult, watchedPalletResults, auditLogsData, serviceReportsData, dashboardStatsData] = await Promise.all([
         loadLivePallets(),
+        Promise.all(
+          watchedPalletIds.map((palletId) =>
+            safeLoad(() => apiService.pallets.get(palletId), null as Pallet | null),
+          ),
+        ),
         isDriver
           ? Promise.resolve([])
           : safeLoad(() => apiService.auditLogs.list({ limit: 50 }), []),
@@ -606,10 +614,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           : safeLoad(() => apiService.serviceReports.list({ limit: 100 }), []),
         safeLoad(() => apiService.pallets.stats(), null),
       ]);
-      const livePallets = livePalletResult.items;
+      const watchedPallets = watchedPalletResults.filter((pallet): pallet is Pallet => Boolean(pallet));
+      const livePalletsById = new Map(livePalletResult.items.map((pallet) => [pallet.id, pallet]));
+      watchedPallets.forEach((pallet) => livePalletsById.set(pallet.id, pallet));
+      const livePallets = Array.from(livePalletsById.values());
       const shouldReplacePallets =
         !palletCursor &&
-        ((livePalletResult.total ?? 0) <= livePallets.length || !hasVisiblePalletDataRef.current);
+        ((livePalletResult.total ?? 0) <= livePalletResult.items.length || !hasVisiblePalletDataRef.current);
 
       // Do not replace a full pallet cache with its first page. Merge its live
       // changes instead, so currently visible pallet rows update immediately.
@@ -659,6 +670,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     refreshLiveDataRef.current = refreshLiveData;
   }, [refreshLiveData]);
+
+  const watchPallet = useCallback((palletId: number) => {
+    const currentWatchCount = watchedPalletIdsRef.current.get(palletId) || 0;
+    watchedPalletIdsRef.current.set(palletId, currentWatchCount + 1);
+
+    if (currentWatchCount === 0) {
+      void apiService.pallets.get(palletId).then((pallet) => {
+        setPallets((current) => {
+          const exists = current.some((item) => item.id === pallet.id);
+          const next = exists
+            ? current.map((item) => item.id === pallet.id ? pallet : item)
+            : [pallet, ...current];
+          return keepCurrentValueWhenEqual(current, next);
+        });
+      }).catch(() => undefined);
+    }
+
+    return () => {
+      const nextWatchCount = (watchedPalletIdsRef.current.get(palletId) || 1) - 1;
+      if (nextWatchCount <= 0) {
+        watchedPalletIdsRef.current.delete(palletId);
+      } else {
+        watchedPalletIdsRef.current.set(palletId, nextWatchCount);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") {
@@ -1561,6 +1598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         updateRole,
         deleteRole,
         refreshData,
+        watchPallet,
         resetData,
       }}
     >

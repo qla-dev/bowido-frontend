@@ -393,4 +393,46 @@ describe("DeliveryLocationMap", () => {
     expect(screen.getByText(/43\.8563000, 18\.4131000/)).toBeInTheDocument();
     expect(screen.getByTestId("delivery-marker")).toBeInTheDocument();
   });
+
+  it("restores and confirms a draft location without requiring a persisted location", async () => {
+    const onLocationSelected = vi.fn();
+
+    render(
+      <DeliveryLocationMap
+        palletId={12}
+        language="en"
+        initialInput={{
+          latitude: 43.8563,
+          longitude: 18.4131,
+          accuracy_meters: 12,
+          street: "Draft Street",
+          house_number: "7",
+          postal_code: "71000",
+          city: "Sarajevo",
+        }}
+        initialLocationIsSaved={false}
+        showSaveSuccessMessage={false}
+        onLocationSelected={onLocationSelected}
+      />,
+    );
+
+    expect(screen.getByDisplayValue("Draft Street")).toBeInTheDocument();
+    expect(screen.getByTestId("delivery-marker")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save as delivery location" }),
+    );
+
+    expect(onLocationSelected).toHaveBeenCalledWith(
+      expect.objectContaining({
+        latitude: 43.8563,
+        longitude: 18.4131,
+        street: "Draft Street",
+        house_number: "7",
+      }),
+    );
+    expect(
+      screen.queryByText("Delivery location saved for this pallet."),
+    ).not.toBeInTheDocument();
+  });
 });

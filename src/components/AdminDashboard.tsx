@@ -52,6 +52,7 @@ import {
   ClientDetail,
   User,
   AuditLog,
+  DeliveryLocationInput,
 } from "../types";
 import {
   CreditCard,
@@ -78,6 +79,7 @@ import { formatAppDate, formatAppDateTime, formatAppTime } from "../lib/dateForm
 import { deduplicateAuditLogs } from "../lib/auditLog";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 import { PasswordChangeForm } from "./PasswordChangeForm";
+import { useLivePallet } from "../hooks/useLivePallet";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
 import { DeliveryLocationMap } from "./DeliveryLocationMap";
 import { DriverModalShell } from "./DriverModalShell";
@@ -221,6 +223,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     string | null
   >(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
+  const liveSelectedPallet = useLivePallet(selectedPallet?.id ?? null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
   const [editingPalletClientSearch, setEditingPalletClientSearch] =
     useState("");
@@ -235,6 +238,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editingPalletClientMenuPosition, setEditingPalletClientMenuPosition] = useState({ top: 0, left: 0, width: 0 });
   const [showEditingPalletDeliveryMap, setShowEditingPalletDeliveryMap] =
     useState(false);
+  const [editingPalletPendingDeliveryLocation, setEditingPalletPendingDeliveryLocation] =
+    useState<DeliveryLocationInput | null>(null);
   const [
     isEditingPalletMapLocationSelected,
     setIsEditingPalletMapLocationSelected,
@@ -329,6 +334,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onPalletDetailOpened?.();
     }
   }, [openPalletId, onPalletDetailOpened, pallets]);
+
+  React.useEffect(() => {
+    if (!liveSelectedPallet) {
+      return;
+    }
+
+    setSelectedPallet((current) =>
+      current?.id === liveSelectedPallet.id ? liveSelectedPallet : current,
+    );
+  }, [liveSelectedPallet]);
 
   const activeDetailPalletId = selectedPallet?.id ?? editingPallet?.id ?? null;
 
@@ -603,6 +618,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
     setIsEditingPalletClientListOpen(false);
     setShowEditingPalletDeliveryMap(false);
+    setEditingPalletPendingDeliveryLocation(null);
     setIsEditingPalletMapLocationSelected(Boolean(pallet.delivery_location));
     setEditingPallet({
       ...pallet,
@@ -920,7 +936,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const editingPalletClient = clients.find(
     (client) => client.user_id === editingPallet?.user_id,
   );
-  const editingPalletStatusSlug = editingPallet?.current_status_slug || editingPalletStatus?.slug || "";
+  // The status object follows the modal draft immediately. The pallet slug can
+  // still describe the persisted status until the modal is saved.
+  const editingPalletStatusSlug = editingPalletStatus?.slug || editingPallet?.current_status_slug || "";
   const editingPalletUsesCustomerTimer = ["bij-de-klant", "ophalen-klant"].includes(
     editingPalletStatusSlug,
   );
@@ -1011,7 +1029,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     editingPalletClient,
     2,
   );
-  const editingPalletDeliveryAddress = getDeliveryLocationAddress(editingPallet);
+  const editingPalletPendingDeliveryAddress = editingPalletPendingDeliveryLocation
+    ? formatPalletLocationAddress(
+        editingPalletPendingDeliveryLocation.street,
+        editingPalletPendingDeliveryLocation.house_number,
+        editingPalletPendingDeliveryLocation.postal_code,
+        editingPalletPendingDeliveryLocation.city,
+      )
+    : "";
+  const editingPalletDeliveryAddress =
+    editingPalletPendingDeliveryAddress || getDeliveryLocationAddress(editingPallet);
   const canSelectEditingPalletLocation = Boolean(
     editingPallet &&
       editingPalletClient &&
@@ -1982,7 +2009,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     aria-label={t("closeDetails")}
                     onClick={() => {
                       setEditingPallet(null);
+                      setEditingPalletPendingDeliveryLocation(null);
                       setShowEditingPalletDetails(false);
+                      setShowEditingPalletDeliveryMap(false);
                     }}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-50 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:bg-white/[0.07] dark:text-zinc-300 dark:hover:bg-white/[0.12] dark:hover:text-white"
                   >
@@ -2159,9 +2188,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   needsClientAssignment,
                                 );
                                 setShowEditingPalletDeliveryMap(false);
+                                if (
+                                  isTransportStatus ||
+                                  selectedStatus?.slug === "onbekend" ||
+                                  Boolean(getFixedWarehouseLocation(sid, sname))
+                                ) {
+                                  setEditingPalletPendingDeliveryLocation(null);
+                                }
                                 setEditingPallet({
                                   ...editingPallet,
                                   current_status_id: sid,
+                                  current_status_slug: selectedStatus?.slug,
                                   user_id: allowsCustomer && !needsClientAssignment
                                     ? editingPallet.user_id
                                     : undefined,
@@ -2296,6 +2333,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                           event.preventDefault()
                                         }
                                         onClick={() => {
+                                          setEditingPalletPendingDeliveryLocation(null);
                                           setEditingPallet({
                                             ...editingPallet,
                                             user_id: undefined,
@@ -2333,6 +2371,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                               event.preventDefault()
                                             }
                                             onClick={() => {
+                                          setEditingPalletPendingDeliveryLocation(null);
                                           setEditingPallet({
                                             ...editingPallet,
                                             user_id: client.user_id,
@@ -2398,6 +2437,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    setEditingPalletPendingDeliveryLocation(null);
                                     setEditingPallet({
                                       ...editingPallet,
                                       current_location:
@@ -2426,6 +2466,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   type="button"
                                   disabled={!editingPalletWarehouseTwo}
                                   onClick={() => {
+                                    setEditingPalletPendingDeliveryLocation(null);
                                     setEditingPallet({
                                       ...editingPallet,
                                       current_location:
@@ -2704,6 +2745,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   onClick={() => {
                     setEditingPallet(null);
+                    setEditingPalletPendingDeliveryLocation(null);
                     setShowEditingPalletDetails(false);
                     setShowEditingPalletDeliveryMap(false);
                   }}
@@ -2725,7 +2767,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       },
                       { id: user.id, name: user.name },
                       );
+                      if (editingPalletPendingDeliveryLocation) {
+                        await savePalletDeliveryLocation(
+                          editingPallet.id,
+                          editingPalletPendingDeliveryLocation,
+                        );
+                      }
                       setEditingPallet(null);
+                    setEditingPalletPendingDeliveryLocation(null);
                     setShowEditingPalletDetails(false);
                     setShowEditingPalletDeliveryMap(false);
                     setSelectedPallet(null);
@@ -2779,37 +2828,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               mapClassName="md:!h-[520px] md:!max-h-none"
               onSelectionChange={setIsEditingPalletMapLocationSelected}
               initialLocation={editingPallet.delivery_location}
+              initialInput={editingPalletPendingDeliveryLocation || undefined}
               initialLocationIsSaved={Boolean(
-                editingPallet.delivery_location,
+                editingPallet.delivery_location &&
+                  !editingPalletPendingDeliveryLocation,
               )}
-              onSave={async (palletId, data) => {
-                const savedLocation = await savePalletDeliveryLocation(
-                  palletId,
-                  data,
-                );
+              showSaveSuccessMessage={false}
+              onLocationSelected={(data) => {
                 const savedAddress =
                   formatPalletLocationAddress(
-                    savedLocation.street,
-                    savedLocation.house_number,
-                    savedLocation.postal_code,
-                    savedLocation.city,
+                    data.street,
+                    data.house_number,
+                    data.postal_code,
+                    data.city,
                   ) ||
-                  savedLocation.formatted_address ||
                   "";
 
+                setEditingPalletPendingDeliveryLocation(data);
                 setEditingPallet((current) =>
-                  current?.id === palletId
+                  current
                     ? {
                         ...current,
-                        delivery_location: savedLocation,
                         current_location:
                           savedAddress || current.current_location,
                       }
                     : current,
                 );
                 setShowEditingPalletDeliveryMap(false);
-
-                return savedLocation;
               }}
             />
           </DriverModalShell>
