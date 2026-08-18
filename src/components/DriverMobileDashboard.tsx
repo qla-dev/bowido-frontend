@@ -1197,22 +1197,23 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return;
     }
 
-    // A poll replaces pallet objects. Initialize the editor when a pallet is
-    // opened, not each time the same pallet is refreshed in the background.
-    if (initializedPalletIdRef.current === selectedPallet.id) {
-      return;
-    }
-
+    const isNewSelection = initializedPalletIdRef.current !== selectedPallet.id;
     initializedPalletIdRef.current = selectedPallet.id;
 
-    setOpenChangeMenu(null);
+    // The after-scan card renders status, client and location from these draft
+    // fields. Keep them synchronized whenever the canonical pallet changes;
+    // otherwise only the status heading updates while the location remains at
+    // its value from the moment the pallet was scanned.
+    if (isNewSelection) {
+      setOpenChangeMenu(null);
+      setClientSearchTerm("");
+    }
     setDraftStatusId(
       [1, 2, 3, 4, 5, 6, 7, 8].includes(selectedPallet.current_status_id)
         ? selectedPallet.current_status_id
         : 0,
     );
     setDraftClientId(isCustomer ? user.id : selectedPallet.user_id);
-    setClientSearchTerm("");
     const client = clients.find(
       (item) => item.user_id === selectedPallet.user_id,
     );
