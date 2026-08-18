@@ -4285,13 +4285,20 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                           <Trash2 size={16} />
                         </button>
                       </>
-                    ) : (
-                      <div className="px-6 text-center">
+                    ) : damagePhotos.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => damagePhotoInputRef.current?.click()}
+                        className="h-full w-full px-6 text-center transition-colors hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:hover:bg-emerald-500/10"
+                        aria-label={text.damageModalUpload}
+                      >
                         <Camera size={32} className="mx-auto text-emerald-500" />
                         <p className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-100">
                           {text.damageModalPhoto}
                         </p>
-                      </div>
+                      </button>
+                    ) : (
+                      <div className="px-6 text-center" />
                     )}
                   </div>
 

@@ -1452,7 +1452,13 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             </p>
           </div>
         }
-        renderTable={({ columnWidths, totalTableWidth, registerHeaderCell, renderResizeHandle }) => (
+        renderTable={({
+          columnWidths,
+          totalTableWidth,
+          registerHeaderCell,
+          registerAutoSizeContent,
+          renderResizeHandle,
+        }) => (
           <table
             className="border-collapse text-left [table-layout:fixed]"
             style={{ width: `max(100%, ${totalTableWidth}px)` }}
@@ -1632,7 +1638,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                               getDeadlineToneClass(timelineInfo.tone).split(' ')[0]
                             )}
                           />
-                          <span className="truncate">{timelineInfo.deadlineLabel}</span>
+                          <span ref={registerAutoSizeContent('deadline')} className="truncate">
+                            {timelineInfo.deadlineLabel}
+                          </span>
                         </span>
                       </div>
                     </td>

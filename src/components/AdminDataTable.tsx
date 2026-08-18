@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Card, cn } from './ui';
 
 export const adminTableStyles = {
@@ -24,6 +24,7 @@ export type AdminTableRenderHelpers<K extends string> = {
   totalTableWidth: number;
   tableRef: React.MutableRefObject<HTMLDivElement | null>;
   registerHeaderCell: (key: K) => (element: HTMLTableCellElement | null) => void;
+  registerAutoSizeContent: (key: K) => (element: HTMLElement | null) => void;
   renderResizeHandle: (key: K) => React.ReactNode;
 };
 
@@ -56,6 +57,7 @@ export const AdminDataTable = <K extends string>({
 }: AdminDataTableProps<K>) => {
   const internalTableRef = useRef<HTMLDivElement | null>(null);
   const internalHeaderCellRefs = useRef<Partial<Record<K, HTMLTableCellElement | null>>>({});
+  const autoSizeContentRefs = useRef<Partial<Record<K, Set<HTMLElement>>>>({});
   const resizeStateRef = useRef<{ key: K; startX: number; startWidth: number } | null>(null);
   const resolvedTableRef = tableRef ?? internalTableRef;
   const resolvedHeaderCellRefs = headerCellRefs ?? internalHeaderCellRefs;
@@ -113,6 +115,65 @@ export const AdminDataTable = <K extends string>({
     resolvedHeaderCellRefs.current[key] = element;
   };
 
+  const registerAutoSizeContent = (key: K) => (element: HTMLElement | null) => {
+    const elements = autoSizeContentRefs.current[key] ?? new Set<HTMLElement>();
+
+    if (element) {
+      elements.add(element);
+    } else {
+      // React calls a ref with null before replacing its element. Remove stale
+      // disconnected nodes during measurement so changing rows stay accurate.
+      for (const item of elements) {
+        if (!item.isConnected) {
+          elements.delete(item);
+        }
+      }
+    }
+
+    autoSizeContentRefs.current[key] = elements;
+  };
+
+  useLayoutEffect(() => {
+    setColumnWidths((current) => {
+      let next: Record<K, number> | null = null;
+
+      for (const key of columnOrder) {
+        const elements = autoSizeContentRefs.current[key];
+        if (!elements?.size) {
+          continue;
+        }
+
+        let requiredWidth = minColumnWidths[key];
+
+        for (const element of elements) {
+          if (!element.isConnected) {
+            elements.delete(element);
+            continue;
+          }
+
+          const cell = element.closest('td');
+          if (!cell) {
+            continue;
+          }
+
+          // scrollWidth is the complete, untruncated text. The difference to
+          // the cell adds its padding plus any sibling content (such as icons).
+          requiredWidth = Math.max(
+            requiredWidth,
+            Math.ceil(element.scrollWidth + cell.clientWidth - element.clientWidth + 1)
+          );
+        }
+
+        if (requiredWidth > current[key]) {
+          next ??= { ...current };
+          next[key] = requiredWidth;
+        }
+      }
+
+      return next ?? current;
+    });
+  });
+
   const startColumnResize = (event: React.PointerEvent<HTMLButtonElement>, key: K) => {
     event.preventDefault();
     event.stopPropagation();
@@ -155,6 +216,7 @@ export const AdminDataTable = <K extends string>({
           totalTableWidth,
           tableRef: resolvedTableRef,
           registerHeaderCell,
+          registerAutoSizeContent,
           renderResizeHandle,
         })}
 
