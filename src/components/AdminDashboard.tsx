@@ -80,6 +80,7 @@ import { deduplicateAuditLogs } from "../lib/auditLog";
 import { ThemeSettingsToggle } from "./ThemeSettingsToggle";
 import { PasswordChangeForm } from "./PasswordChangeForm";
 import { useLivePallet } from "../hooks/useLivePallet";
+import { mergeLivePalletIntoDraft } from "../lib/livePalletDraft";
 import { PalletDeliveryPhotoUpload } from "./PalletDeliveryPhotoUpload";
 import { DeliveryLocationMap } from "./DeliveryLocationMap";
 import { DriverModalShell } from "./DriverModalShell";
@@ -223,8 +224,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     string | null
   >(null);
   const [selectedPallet, setSelectedPallet] = useState<Pallet | null>(null);
-  const liveSelectedPallet = useLivePallet(selectedPallet?.id ?? null);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const editingPalletBaselineRef = React.useRef<Pallet | null>(null);
+  const liveDetailPallet = useLivePallet(selectedPallet?.id ?? editingPallet?.id ?? null);
   const [editingPalletClientSearch, setEditingPalletClientSearch] =
     useState("");
   const [isEditingPalletClientListOpen, setIsEditingPalletClientListOpen] =
@@ -336,14 +338,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [openPalletId, onPalletDetailOpened, pallets]);
 
   React.useEffect(() => {
-    if (!liveSelectedPallet) {
+    if (!liveDetailPallet) {
       return;
     }
 
     setSelectedPallet((current) =>
-      current?.id === liveSelectedPallet.id ? liveSelectedPallet : current,
+      current?.id === liveDetailPallet.id ? liveDetailPallet : current,
     );
-  }, [liveSelectedPallet]);
+    setEditingPallet((current) => {
+      if (!current || current.id !== liveDetailPallet.id) {
+        return current;
+      }
+
+      const baseline = editingPalletBaselineRef.current;
+      const next = baseline && baseline.id === current.id
+        ? mergeLivePalletIntoDraft(current, baseline, liveDetailPallet)
+        : liveDetailPallet;
+      editingPalletBaselineRef.current = liveDetailPallet;
+      return next;
+    });
+  }, [liveDetailPallet]);
 
   const activeDetailPalletId = selectedPallet?.id ?? editingPallet?.id ?? null;
 
@@ -620,11 +634,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setShowEditingPalletDeliveryMap(false);
     setEditingPalletPendingDeliveryLocation(null);
     setIsEditingPalletMapLocationSelected(Boolean(pallet.delivery_location));
-    setEditingPallet({
+    const editingDraft = {
       ...pallet,
       current_location: fixedLocation || pallet.current_location,
       type: normalizePalletTypeCode(pallet.type) || pallet.type,
-    });
+    };
+    editingPalletBaselineRef.current = editingDraft;
+    setEditingPallet(editingDraft);
   };
 
   const handleDeletePallet = (pallet: Pallet) => {
