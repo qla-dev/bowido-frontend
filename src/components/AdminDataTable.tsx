@@ -58,6 +58,7 @@ export const AdminDataTable = <K extends string>({
   const internalTableRef = useRef<HTMLDivElement | null>(null);
   const internalHeaderCellRefs = useRef<Partial<Record<K, HTMLTableCellElement | null>>>({});
   const autoSizeContentRefs = useRef<Partial<Record<K, Set<HTMLElement>>>>({});
+  const manuallyResizedColumns = useRef<Set<K>>(new Set());
   const resizeStateRef = useRef<{ key: K; startX: number; startWidth: number } | null>(null);
   const resolvedTableRef = tableRef ?? internalTableRef;
   const resolvedHeaderCellRefs = headerCellRefs ?? internalHeaderCellRefs;
@@ -139,7 +140,7 @@ export const AdminDataTable = <K extends string>({
 
       for (const key of columnOrder) {
         const elements = autoSizeContentRefs.current[key];
-        if (!elements?.size) {
+        if (!elements?.size || manuallyResizedColumns.current.has(key)) {
           continue;
         }
 
@@ -156,15 +157,20 @@ export const AdminDataTable = <K extends string>({
             continue;
           }
 
-          // scrollWidth is the complete, untruncated text. The difference to
-          // the cell adds its padding plus any sibling content (such as icons).
+          const cellStyles = window.getComputedStyle(cell);
+          const horizontalPadding =
+            Number.parseFloat(cellStyles.paddingLeft) + Number.parseFloat(cellStyles.paddingRight);
+
+          // The registered element contains the complete deadline indicator and
+          // label. Measure it directly, then add the cell padding and a little
+          // breathing room; do not include unused space from the current cell.
           requiredWidth = Math.max(
             requiredWidth,
-            Math.ceil(element.scrollWidth + cell.clientWidth - element.clientWidth + 1)
+            Math.ceil(element.scrollWidth + horizontalPadding + 16)
           );
         }
 
-        if (requiredWidth > current[key]) {
+        if (requiredWidth !== current[key]) {
           next ??= { ...current };
           next[key] = requiredWidth;
         }
@@ -178,6 +184,7 @@ export const AdminDataTable = <K extends string>({
     event.preventDefault();
     event.stopPropagation();
 
+    manuallyResizedColumns.current.add(key);
     resizeStateRef.current = {
       key,
       startX: event.clientX,

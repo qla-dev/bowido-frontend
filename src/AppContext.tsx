@@ -889,11 +889,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         : undefined
       : undefined;
     const timestamp = new Date().toISOString();
-    const freezesCustomerTimer = previousStatus?.slug === 'bij-de-klant' && status.slug === 'ophalen-klant';
-    const startsCustomerTimer = previousStatus?.slug !== 'bij-de-klant' && status.slug === 'bij-de-klant';
+    const isAtCustomerStatus = (slug?: string) => ['bij-de-klant', 'at_customer'].includes(slug || '');
+    const isPickupStatus = (slug?: string) => ['ophalen-klant', 'pending_return'].includes(slug || '');
+    const freezesCustomerTimer = isAtCustomerStatus(previousStatus?.slug) && isPickupStatus(status.slug);
     const restartsCustomerTimer =
       nextClientId !== pallet.user_id &&
-      ['bij-de-klant', 'at_customer'].includes(status.slug);
+      isAtCustomerStatus(status.slug);
+    const resumesCustomerTimer =
+      isPickupStatus(previousStatus?.slug) &&
+      isAtCustomerStatus(status.slug) &&
+      !restartsCustomerTimer;
+    const startsCustomerTimer =
+      !resumesCustomerTimer &&
+      !restartsCustomerTimer &&
+      !isAtCustomerStatus(previousStatus?.slug) &&
+      isAtCustomerStatus(status.slug);
 
     setPallets((prev) =>
       prev.map((item) => {
@@ -915,7 +925,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             : item.customer_timer_started_at || (freezesCustomerTimer ? item.last_status_changed_at : undefined),
           customer_timer_frozen_at: freezesCustomerTimer
             ? timestamp
-            : startsCustomerTimer || restartsCustomerTimer
+            : startsCustomerTimer || restartsCustomerTimer || resumesCustomerTimer
               ? undefined
               : item.customer_timer_frozen_at,
           user_id: nextClientId,

@@ -832,7 +832,13 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
             </p>
           </div>
         }
-        renderTable={({ columnWidths, totalTableWidth, registerHeaderCell, renderResizeHandle }) => (
+        renderTable={({
+          columnWidths,
+          totalTableWidth,
+          registerHeaderCell,
+          registerAutoSizeContent,
+          renderResizeHandle,
+        }) => (
           <table
             className="border-collapse text-left [table-layout:fixed]"
             style={{ width: `max(100%, ${totalTableWidth}px)` }}
@@ -930,9 +936,19 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
                   </td>
                   <td className={bodyCellClass}>
                     <div className={bodyCellInnerClass}>
-                      <span className={cn(bodyTextClass, 'flex items-center gap-1.5', getTimelineInfo(row).tone === 'danger' ? 'text-rose-600' : getTimelineInfo(row).tone === 'warning' ? 'text-amber-600' : 'text-emerald-600')}>
+                      <span
+                        ref={registerAutoSizeContent('overdueDays')}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold tracking-tight',
+                          getTimelineInfo(row).tone === 'danger'
+                            ? 'text-rose-600'
+                            : getTimelineInfo(row).tone === 'warning'
+                              ? 'text-amber-600'
+                              : 'text-emerald-600'
+                        )}
+                      >
                         <span className={cn('h-2 w-2 shrink-0 rounded-full', getTimelineInfo(row).tone === 'danger' ? 'bg-rose-500' : getTimelineInfo(row).tone === 'warning' ? 'bg-amber-500' : getTimelineInfo(row).tone === 'success' ? 'bg-emerald-500' : 'bg-zinc-300')} />
-                        {getTimelineInfo(row).deadlineLabel}
+                        <span>{getTimelineInfo(row).deadlineLabel}</span>
                       </span>
                     </div>
                   </td>

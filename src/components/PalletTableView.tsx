@@ -1625,8 +1625,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     <td className={bodyCellClass}>
                       <div className={bodyCellInnerClass}>
                         <span
+                          ref={registerAutoSizeContent('deadline')}
                           className={cn(
-                            'inline-flex min-w-0 items-center gap-2.5 whitespace-nowrap text-[11px] font-bold tracking-tight',
+                            'inline-flex items-center gap-2.5 whitespace-nowrap text-[11px] font-bold tracking-tight',
                             timelineInfo.tone === 'muted'
                               ? 'text-zinc-300'
                               : getDeadlineToneClass(timelineInfo.tone).split(' ')[1]
@@ -1638,7 +1639,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                               getDeadlineToneClass(timelineInfo.tone).split(' ')[0]
                             )}
                           />
-                          <span ref={registerAutoSizeContent('deadline')} className="truncate">
+                          <span>
                             {timelineInfo.deadlineLabel}
                           </span>
                         </span>
