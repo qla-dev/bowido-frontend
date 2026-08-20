@@ -1979,13 +1979,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
         user.id,
         user.name,
         nextLocation,
-        nextStatus?.slug === "bij-de-klant"
-          ? "Driver marked pallet as Bij de klant."
-          : nextStatus?.slug === "ophalen-klant"
-            ? "Driver marked pallet as Voor retour."
-            : transportStatusIds.includes(nextStatusId)
-                ? "Driver marked pallet in transport."
-                : "Driver marked pallet in Bowido warehouse.",
+        undefined,
         nextClientId,
       );
 

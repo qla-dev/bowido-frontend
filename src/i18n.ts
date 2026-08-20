@@ -2616,6 +2616,18 @@ export const formatServiceReportDescription = (
   const [firstLine, ...remainingLines] = trimmedDescription.split(/\r?\n/);
   const remainingDescription = remainingLines.length > 0 ? `\n${remainingLines.join("\n")}` : "";
 
+  const roleTranslations: Record<string, Record<AppLanguage, string>> = {
+    Administrator: { en: "Administrator", nl: "Beheerder", bs: "Administrator" },
+    "Service administrator": { en: "Service administrator", nl: "Servicebeheerder", bs: "Administrator servisa" },
+    "Warehouse administrator": { en: "Warehouse administrator", nl: "Magazijnbeheerder", bs: "Administrator magacina" },
+    Driver: { en: "Driver", nl: "Chauffeur", bs: "Vozač" },
+    "Warehouse employee": { en: "Warehouse employee", nl: "Magazijnmedewerker", bs: "Magacinski radnik" },
+    Customer: { en: "Customer", nl: "Klant", bs: "Klijent" },
+    Technician: { en: "Technician", nl: "Servicemonteur", bs: "Serviser" },
+    "Finance administrator": { en: "Finance administrator", nl: "Financieel beheerder", bs: "Finansijski administrator" },
+    User: { en: "User", nl: "Gebruiker", bs: "Korisnik" },
+  };
+
   const serviceActionPatterns: Array<{
     pattern: RegExp;
     action: "admitted" | "removed";
@@ -2633,17 +2645,48 @@ export const formatServiceReportDescription = (
     if (!match) continue;
 
     const actor = match[1].trim();
+    const translatedActor = roleTranslations[actor]?.[language] || actor;
     const copy = action === "admitted"
       ? {
-          en: `${actor} admitted pallet to service.`,
-          nl: `${actor} heeft de bok aangemeld voor service.`,
-          bs: `${actor} je prijavio paletu u servis.`,
+          en: `${translatedActor} admitted pallet to service.`,
+          nl: `${translatedActor} heeft de bok aangemeld voor service.`,
+          bs: `${translatedActor} je prijavio paletu u servis.`,
         }
       : {
-          en: `${actor} removed pallet from service.`,
-          nl: `${actor} heeft de bok uit service verwijderd.`,
-          bs: `${actor} je uklonio paletu iz servisa.`,
+          en: `${translatedActor} removed pallet from service.`,
+          nl: `${translatedActor} heeft de bok uit service verwijderd.`,
+          bs: `${translatedActor} je uklonio paletu iz servisa.`,
         };
+
+    return `${copy[language]}${remainingDescription}`;
+  }
+
+  const statusTranslations: Record<string, Record<AppLanguage, string>> = {
+    "At client": { en: "At client", nl: "Bij de klant", bs: "Kod klijenta" },
+    "Ready for Return": { en: "Ready for Return", nl: "Voor retour", bs: "Za preuzimanje kod klijenta" },
+    "in transport": { en: "in transport", nl: "onderweg", bs: "u transportu" },
+  };
+  const roleStatusMatch = firstLine.match(
+    /^(Administrator|Service administrator|Warehouse administrator|Driver|Warehouse employee|Customer|Technician|Finance administrator|User) marked pallet as (.+)\.$/i,
+  );
+
+  if (roleStatusMatch) {
+    const actor = roleTranslations[roleStatusMatch[1]] || {
+      en: roleStatusMatch[1],
+      nl: roleStatusMatch[1],
+      bs: roleStatusMatch[1],
+    };
+    const status = statusTranslations[roleStatusMatch[2]] || {
+      en: roleStatusMatch[2],
+      nl: roleStatusMatch[2],
+      bs: roleStatusMatch[2],
+    };
+
+    const copy = {
+      en: `${actor.en} marked pallet as ${status.en}.`,
+      nl: `${actor.nl} heeft de bok gemarkeerd als ${status.nl}.`,
+      bs: `${actor.bs} je označio paletu kao ${status.bs}.`,
+    };
 
     return `${copy[language]}${remainingDescription}`;
   }

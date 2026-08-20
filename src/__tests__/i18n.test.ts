@@ -88,6 +88,15 @@ describe("service report translations", () => {
     );
   });
 
+  it("renders role-based pallet status notes in the viewer's language", () => {
+    expect(
+      formatServiceReportDescription("Customer marked pallet as Ready for Return.", "nl"),
+    ).toBe("Klant heeft de bok gemarkeerd als Voor retour.");
+    expect(
+      formatServiceReportDescription("Warehouse employee marked pallet as At client.", "bs"),
+    ).toBe("Magacinski radnik je označio paletu kao Kod klijenta.");
+  });
+
   it("also formats no-QR system notes shown in pallet comment views", () => {
     expect(
       formatServiceReportDescription("Comment: Leave at the gate", "nl"),
