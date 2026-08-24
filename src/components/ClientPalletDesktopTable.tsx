@@ -27,6 +27,7 @@ import { DeliveryLocationMap } from './DeliveryLocationMap';
 import { DriverModalShell } from './DriverModalShell';
 import { rankSearchResults } from '../lib/searchRanking';
 import { useLivePallet } from '../hooks/useLivePallet';
+import { getClientPalletTimeline } from '../lib/clientPalletTimeline';
 
 type SortKey =
   | 'pallet'
@@ -257,80 +258,37 @@ export const ClientPalletDesktopTable: React.FC<ClientPalletDesktopTableProps> =
     );
   }, [cachedPallets]);
 
-  const getDaysSince = (date: string, frozenAt?: string) => {
-    const changedAt = new Date(date);
-    const changedAtMidnight = new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate());
-    const today = frozenAt ? new Date(frozenAt) : new Date();
-    const todayAtMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    return Math.max(0, Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / (24 * 60 * 60 * 1000)));
-  };
-
   const rows = useMemo<PalletRow[]>(
     () =>
       pallets
         .filter((pallet) => pallet.user_id === client.user_id && pallet.has_qr_code && !pallet.is_ghost)
         .map((pallet) => {
           const status = statuses.find((item) => item.id === pallet.current_status_id);
-          const statusSlug = pallet.current_status_slug || '';
-          const usesCustomerTimer = ['bij-de-klant', 'ophalen-klant'].includes(statusSlug);
-          const changedAt = new Date(
-            usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
-          );
-          const hasValidChangeDate = !Number.isNaN(changedAt.getTime());
-          const isWarehouseStatus =
-            ['bowido-nl', 'bowido-bih', 'bowido_warehouse', 'bowido_nl'].includes(statusSlug) ||
-            pallet.current_status_id === 1 || pallet.current_status_id === 3;
-          const hasSentDate = hasValidChangeDate && !isWarehouseStatus;
-          const daysOut = hasSentDate
-            ? getDaysSince(
-                usesCustomerTimer ? pallet.customer_timer_started_at || pallet.last_status_changed_at : pallet.last_status_changed_at,
-                usesCustomerTimer ? pallet.customer_timer_frozen_at : undefined,
-              )
-            : 0;
-          const graceDays = (
-            ['bih-nl-transport', 'nl-bih-transport', 'transport', 'transport_bih_nl', 'transport_nl_bih'].includes(statusSlug) ||
-            [2, 6].includes(pallet.current_status_id)
-          )
-            ? pallet.grace_days ?? status?.grace_period_days ?? 3
-            : status?.is_billable || (usesCustomerTimer && Boolean(pallet.customer_timer_frozen_at))
-              ? pallet.grace_days ?? client.grace_period_days ?? status.grace_period_days ?? 0
-              : 0;
-          const hasDueDate = hasSentDate && graceDays > 0;
-          const dueDate = hasDueDate
-            ? new Date(changedAt.getFullYear(), changedAt.getMonth(), changedAt.getDate())
-            : null;
-          dueDate?.setDate(dueDate.getDate() + graceDays);
-          const remainingDays = hasDueDate ? graceDays - daysOut : null;
-          const overdueDays = graceDays > 0 ? Math.max(daysOut - graceDays, 0) : 0;
-          const debt = overdueDays * client.price_per_day;
+          const timeline = getClientPalletTimeline({
+            pallet,
+            status,
+            client,
+            language,
+            formatDate: (value) => dateFormatter.format(value),
+          });
 
           return {
             pallet,
             palletLabel: getPalletDisplayName(pallet),
             typeLabel: getPalletTypeLabel(pallet.type, language),
             statusLabel: getStatusLabel(pallet.current_status_name, language),
-            lastUpdateLabel: hasSentDate ? dateFormatter.format(changedAt) : '-',
-            lastUpdateValue: hasSentDate ? changedAt.getTime() : null,
-            returnLabel: dueDate ? dateFormatter.format(dueDate) : '-',
-            returnValue: dueDate?.getTime() ?? null,
-            deadlineLabel: remainingDays === null
-              ? '-'
-              : remainingDays < 0
-                ? `${Math.abs(remainingDays)} ${language === 'bs' ? 'dana kasni' : language === 'nl' ? 'dagen te laat' : 'days late'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`
-                : `${remainingDays} ${language === 'bs' ? 'dana u roku' : language === 'nl' ? 'dagen resterend' : 'days left'}${usesCustomerTimer && pallet.customer_timer_frozen_at ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
-            deadlineValue: dueDate?.getTime() ?? null,
-            deadlineTone: remainingDays === null
-              ? 'muted'
-              : remainingDays < 0
-                ? 'danger'
-                : remainingDays <= 2
-                  ? 'warning'
-                  : 'success',
+            lastUpdateLabel: timeline.sentLabel,
+            lastUpdateValue: timeline.sentAt?.getTime() ?? null,
+            returnLabel: timeline.returnLabel,
+            returnValue: timeline.returnAt?.getTime() ?? null,
+            deadlineLabel: timeline.deadlineLabel,
+            deadlineValue: timeline.returnAt?.getTime() ?? null,
+            deadlineTone: timeline.deadlineTone,
             locationLabel: getLocationLabel(pallet.current_location, language) || '-',
-            daysOut,
-            overdueDays,
-            debt,
-            debtLabel: `EUR ${currencyFormatter.format(debt)}`,
+            daysOut: timeline.daysOutside,
+            overdueDays: timeline.overdueDays,
+            debt: timeline.cost,
+            debtLabel: `EUR ${currencyFormatter.format(timeline.cost)}`,
           };
         }),
     [client.grace_period_days, client.price_per_day, client.user_id, currencyFormatter, dateFormatter, language, pallets, statuses]

@@ -34,6 +34,7 @@ import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { formatAppDate } from '../lib/dateFormat';
 import { rankSearchResults } from '../lib/searchRanking';
 import { useLivePallet } from '../hooks/useLivePallet';
+import { getClientPalletTimeline, type PalletTimelineTone } from '../lib/clientPalletTimeline';
 
 type SortKey =
   | 'client'
@@ -77,6 +78,10 @@ type MobileClientPalletItem = {
   daysOutside: number;
   overdueDays: number;
   overdueCost: number;
+  sentDateLabel: string;
+  returnDateLabel: string;
+  deadlineLabel: string;
+  deadlineTone: PalletTimelineTone;
 };
 
 const isAtClientStatus = (pallet: Pallet) =>
@@ -320,6 +325,11 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           daysShort: 'Dana',
           overdueShort: 'Kasni',
           dateShort: 'Datum',
+          sent: 'Poslano',
+          pallet: 'Paleta',
+          return: 'Povrat',
+          term: 'Rok',
+          cost: 'Iznos duga',
           noMatches: 'Nema paleta koje odgovaraju filterima.',
         }
       : language === 'nl'
@@ -336,6 +346,11 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             daysShort: 'Dagen',
             overdueShort: 'Te laat',
             dateShort: 'Datum',
+            sent: 'Verzonden',
+            pallet: 'Bok',
+            return: 'Retour',
+            term: 'Termijn',
+            cost: 'Schuldbedrag',
             noMatches: 'Geen pallets gevonden voor deze filters.',
           }
         : {
@@ -351,6 +366,11 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
             daysShort: 'Days',
             overdueShort: 'Late',
             dateShort: 'Date',
+            sent: 'Sent',
+            pallet: 'Pallet',
+            return: 'Return',
+            term: 'Term',
+            cost: 'Debt amount',
             noMatches: 'No pallets match these filters.',
           };
   const resizeAriaLabel = t('resizeColumn');
@@ -422,24 +442,23 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
     };
   }, [openFilterKey]);
 
-  const getDaysSince = (date: string) =>
-    Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
-
   const getBillingStatus = (pallet: Pallet) =>
     statuses.find((item) => item.id === pallet.current_status_id);
 
-  const getPalletOverdueDays = (pallet: Pallet, client: ClientDetail) => {
-    const status = getBillingStatus(pallet);
+  const getPalletTimeline = (pallet: Pallet, client: ClientDetail) =>
+    getClientPalletTimeline({
+      pallet,
+      status: getBillingStatus(pallet),
+      client,
+      language,
+      formatDate: (value) => mobileDateFormatter.format(value),
+    });
 
-    if (!status?.is_billable) {
-      return 0;
-    }
-
-    return Math.max(getDaysSince(pallet.last_status_changed_at) - client.grace_period_days, 0);
-  };
+  const getPalletOverdueDays = (pallet: Pallet, client: ClientDetail) =>
+    getPalletTimeline(pallet, client).overdueDays;
 
   const getPalletOverdueCost = (pallet: Pallet, client: ClientDetail) =>
-    getPalletOverdueDays(pallet, client) * client.price_per_day;
+    getPalletTimeline(pallet, client).cost;
 
   const rows = useMemo<ClientTableRow[]>(
     () =>
@@ -578,12 +597,19 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
 
     return pallets
       .filter((pallet) => pallet.user_id === mobileClientRow.client.user_id && pallet.has_qr_code && !pallet.is_ghost)
-      .map((pallet) => ({
-        pallet,
-        daysOutside: getDaysSince(pallet.last_status_changed_at),
-        overdueDays: getPalletOverdueDays(pallet, mobileClientRow.client),
-        overdueCost: getPalletOverdueCost(pallet, mobileClientRow.client),
-      }))
+      .map((pallet) => {
+        const timeline = getPalletTimeline(pallet, mobileClientRow.client);
+        return {
+          pallet,
+          daysOutside: timeline.daysOutside,
+          overdueDays: timeline.overdueDays,
+          overdueCost: timeline.cost,
+          sentDateLabel: timeline.sentLabel,
+          returnDateLabel: timeline.returnLabel,
+          deadlineLabel: timeline.deadlineLabel,
+          deadlineTone: timeline.deadlineTone,
+        };
+      })
       .sort((left, right) => {
         if (right.overdueCost !== left.overdueCost) {
           return right.overdueCost - left.overdueCost;
@@ -594,7 +620,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           new Date(left.pallet.last_status_changed_at).getTime()
         );
       });
-  }, [mobileClientRow, pallets, statuses]);
+  }, [language, mobileClientRow, pallets, statuses]);
 
   const mobileQrPallets = useMemo(
     () => mobileClientPallets,
@@ -613,18 +639,25 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
           pallet.is_ghost &&
           isClientPossessionStatus(pallet),
       )
-      .map((pallet) => ({
-        pallet,
-        daysOutside: getDaysSince(pallet.last_status_changed_at),
-        overdueDays: getPalletOverdueDays(pallet, mobileClientRow.client),
-        overdueCost: getPalletOverdueCost(pallet, mobileClientRow.client),
-      }))
+      .map((pallet) => {
+        const timeline = getPalletTimeline(pallet, mobileClientRow.client);
+        return {
+          pallet,
+          daysOutside: timeline.daysOutside,
+          overdueDays: timeline.overdueDays,
+          overdueCost: timeline.cost,
+          sentDateLabel: timeline.sentLabel,
+          returnDateLabel: timeline.returnLabel,
+          deadlineLabel: timeline.deadlineLabel,
+          deadlineTone: timeline.deadlineTone,
+        };
+      })
       .sort(
         (left, right) =>
           new Date(right.pallet.last_status_changed_at).getTime() -
           new Date(left.pallet.last_status_changed_at).getTime(),
       );
-  }, [mobileClientRow, pallets, statuses]);
+  }, [language, mobileClientRow, pallets, statuses]);
 
   useEffect(() => {
     if (!liveSelectedMobilePallet) {
@@ -663,29 +696,37 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
   const unfilteredActiveMobilePalletItems =
     activeMobilePalletList === 'withoutQr' ? mobileNoQrPallets : mobileQrPallets;
   const mobilePalletStatusOptions = useMemo(() => {
-    const options = new Map<string, string>();
+    const options = new Map<string, string>([
+      ['at-client', getStatusLabel('Bij de klant', language)],
+      ['for-return', getStatusLabel('Voor retour', language)],
+    ]);
 
     unfilteredActiveMobilePalletItems.forEach(({ pallet }) => {
+      if (isAtClientStatus(pallet) || isCustomerPickupStatus(pallet)) {
+        return;
+      }
+
       options.set(
-        String(pallet.current_status_id),
+        `status:${pallet.current_status_id}`,
         pallet.is_ghost
           ? mobileStatusVoorRetourLabel
           : getStatusLabel(pallet.current_status_name, language),
       );
     });
 
-    return Array.from(options, ([value, label]) => ({ value, label })).sort((left, right) =>
-      left.label.localeCompare(right.label, undefined, { sensitivity: 'base' }),
-    );
+    return Array.from(options, ([value, label]) => ({ value, label }));
   }, [language, mobileStatusVoorRetourLabel, unfilteredActiveMobilePalletItems]);
   const activeMobilePalletItems = useMemo(() => {
     const normalizedSearch = mobilePalletSearch.trim().toLocaleLowerCase();
 
     return unfilteredActiveMobilePalletItems.filter(({ pallet }) => {
-      if (
-        mobilePalletStatusFilter !== 'all' &&
-        String(pallet.current_status_id) !== mobilePalletStatusFilter
-      ) {
+      const matchesStatusFilter =
+        mobilePalletStatusFilter === 'all' ||
+        (mobilePalletStatusFilter === 'at-client' && isAtClientStatus(pallet)) ||
+        (mobilePalletStatusFilter === 'for-return' && isCustomerPickupStatus(pallet)) ||
+        mobilePalletStatusFilter === `status:${pallet.current_status_id}`;
+
+      if (!matchesStatusFilter) {
         return false;
       }
 
@@ -1181,21 +1222,38 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                       {statusLabel}
                                     </span>
                                   </div>
-                                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-zinc-500 dark:text-zinc-300">
-                                    <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-semibold">
-                                      <MapPin size={12} className="shrink-0" />
-                                      <span className="truncate">{getLocationLabel(item.pallet.current_location, language) || t('notAvailable')}</span>
-                                    </span>
-                                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[10px] font-black uppercase tracking-tight">
-                                      <Clock3 size={12} />
-                                      {item.daysOutside} {mobilePalletViewCopy.days}
-                                    </span>
+                                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-100 pt-3 dark:border-white/10">
+                                    <div className="min-w-0">
+                                      <p className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 dark:text-[#9fcbb3]">
+                                        {mobilePalletViewCopy.sent}
+                                      </p>
+                                      <p className="mt-1 truncate text-[10px] font-black tracking-tight text-zinc-900 dark:text-white">
+                                        {item.sentDateLabel}
+                                      </p>
+                                    </div>
+                                    <div className="min-w-0 text-center">
+                                      <p className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 dark:text-[#9fcbb3]">
+                                        {mobilePalletViewCopy.term}
+                                      </p>
+                                      <p className={cn(
+                                        'mt-1 text-[10px] font-black leading-4 tracking-tight',
+                                        item.deadlineTone === 'danger' ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-900 dark:text-white',
+                                      )}>
+                                        {item.deadlineLabel}
+                                      </p>
+                                    </div>
+                                    <div className="min-w-0 text-right">
+                                      <p className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-400 dark:text-[#9fcbb3]">
+                                        {mobilePalletViewCopy.cost}
+                                      </p>
+                                      <p className={cn(
+                                        'mt-1 truncate text-[10px] font-black tracking-tight',
+                                        isOverdue ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-900 dark:text-white',
+                                      )}>
+                                        EUR {currencyFormatter.format(item.overdueCost)}
+                                      </p>
+                                    </div>
                                   </div>
-                                  {isOverdue && (
-                                    <p className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-rose-600 dark:text-rose-200">
-                                      {mobilePalletViewCopy.overdue}: {item.overdueDays} {mobilePalletViewCopy.days}
-                                    </p>
-                                  )}
                                 </div>
                                 <ChevronRight size={17} className="mt-1 shrink-0 text-zinc-300 dark:text-zinc-500" />
                               </div>
@@ -1242,14 +1300,16 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         </ul>
                         </div>
                     ) : (
-                      <div className="min-w-[740px]">
-                        <div className="mobile-pallet-table-header sticky top-0 z-10 isolate grid grid-cols-[150px_120px_190px_58px_58px_70px] items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.11em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
-                          <span className="mobile-pallet-sticky-column sticky left-0 z-20 bg-white shadow-[12px_0_18px_-18px_rgba(15,23,42,0.7)] dark:bg-[#101715]">QR</span>
+                      <div className="min-w-[1040px]">
+                        <div className="mobile-pallet-table-header sticky top-0 z-10 isolate grid grid-cols-[150px_130px_130px_180px_105px_105px_145px_120px] items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 text-[9px] font-black uppercase tracking-[0.11em] text-zinc-400 dark:border-white/10 dark:bg-[#101715] dark:text-[#9fcbb3]">
+                          <span className="mobile-pallet-sticky-column sticky left-0 z-20 bg-white shadow-[12px_0_18px_-18px_rgba(15,23,42,0.7)] dark:bg-[#101715]">{mobilePalletViewCopy.pallet}</span>
+                          <span>{t('type')}</span>
                           <span>{t('status')}</span>
-                          <span>{mobilePalletViewCopy.locationShort}</span>
-                          <span className="text-right">{mobilePalletViewCopy.daysShort}</span>
-                          <span className="text-right">{mobilePalletViewCopy.overdueShort}</span>
-                          <span className="h-full bg-white text-right dark:bg-[#101715]">EUR</span>
+                          <span>{t('location')}</span>
+                          <span>{mobilePalletViewCopy.sent}</span>
+                          <span>{mobilePalletViewCopy.return}</span>
+                          <span>{mobilePalletViewCopy.term}</span>
+                          <span className="h-full bg-white text-right dark:bg-[#101715]">{mobilePalletViewCopy.cost}</span>
                         </div>
 
                         <ul className="divide-y divide-zinc-100 dark:divide-white/10">
@@ -1265,7 +1325,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                   })
                                 }
                                 className={cn(
-                                  'mobile-pallet-table-row grid w-full grid-cols-[150px_120px_190px_58px_58px_70px] items-center gap-3 px-4 py-3 text-left transition-colors dark:hover:bg-white/5',
+                                  'mobile-pallet-table-row grid w-full grid-cols-[150px_130px_130px_180px_105px_105px_145px_120px] items-center gap-3 px-4 py-3 text-left transition-colors dark:hover:bg-white/5',
                                   item.overdueDays > 0 ? 'bg-rose-50/70 hover:bg-rose-50 dark:bg-rose-400/5' : 'hover:bg-white/70',
                                 )}
                                 title={`${getPalletTypeLabel(item.pallet.type, language)} - ${getLocationLabel(item.pallet.current_location, language) || '-'}`}
@@ -1275,6 +1335,9 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                   item.overdueDays > 0 ? 'bg-rose-50 dark:bg-[#1b1516]' : 'bg-zinc-50 dark:bg-[#151d1a]',
                                 )}>
                                   {getPalletDisplayName(item.pallet)}
+                                </span>
+                                <span className="truncate text-[10px] font-semibold text-zinc-600 dark:text-zinc-200">
+                                  {getPalletTypeLabel(item.pallet.type, language)}
                                 </span>
                                 <span className={cn(
                                   'inline-flex w-fit max-w-full truncate rounded-full px-2 py-1 text-[8px] font-black uppercase tracking-[0.09em]',
@@ -1287,11 +1350,17 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                 <span className="truncate text-[10px] font-semibold text-zinc-600 dark:text-zinc-200">
                                   {getLocationLabel(item.pallet.current_location, language) || '-'}
                                 </span>
-                                <span className="text-right text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                                  {item.daysOutside}
+                                <span className="text-[10px] font-black tracking-tight text-zinc-950 dark:text-white">
+                                  {item.sentDateLabel}
                                 </span>
-                                <span className="text-right text-[10px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                                  {item.overdueDays}
+                                <span className="text-[10px] font-black tracking-tight text-zinc-950 dark:text-white">
+                                  {item.returnDateLabel}
+                                </span>
+                                <span className={cn(
+                                  'text-[10px] font-black leading-4 tracking-tight',
+                                  item.deadlineTone === 'danger' ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950 dark:text-white',
+                                )}>
+                                  {item.deadlineLabel}
                                 </span>
                                 <span
                                   className={cn(
@@ -1299,7 +1368,7 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                                     item.overdueCost > 0 ? 'text-rose-600 dark:text-rose-200' : 'text-zinc-950'
                                   )}
                                 >
-                                  {currencyFormatter.format(item.overdueCost)}
+                                  EUR {currencyFormatter.format(item.overdueCost)}
                                 </span>
                               </button>
                             </li>
@@ -1382,10 +1451,12 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                     </div>
                     <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
                       <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                        {mobileReturnDateLabel}
+                        {selectedMobilePallet.view === 'withoutQr' ? mobileReturnDateLabel : mobilePalletViewCopy.sent}
                       </p>
                       <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {getMobilePalletDate(selectedMobilePallet.item)}
+                        {selectedMobilePallet.view === 'withoutQr'
+                          ? getMobilePalletDate(selectedMobilePallet.item)
+                          : selectedMobilePallet.item.sentDateLabel}
                       </p>
                     </div>
                     {!selectedMobilePallet.item.pallet.is_ghost && (
@@ -1406,23 +1477,47 @@ export const ClientTableView: React.FC<ClientTableViewProps> = ({ onAddClient, o
                         {getPalletTypeLabel(selectedMobilePallet.item.pallet.type, language)}
                       </p>
                     </div>
-                    <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
-                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
-                        {mobilePalletViewCopy.timeInStatus}
-                      </p>
-                      <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
-                        {selectedMobilePallet.item.daysOutside} {mobilePalletViewCopy.days}
-                      </p>
-                    </div>
-                    {selectedMobilePallet.item.overdueDays > 0 && (
-                      <div className="rounded-[1.15rem] border border-rose-200 bg-rose-50 px-3 py-3 dark:border-rose-400/30 dark:bg-rose-400/10">
-                        <p className="text-[8px] font-black uppercase tracking-[0.14em] text-rose-500 dark:text-rose-200">
-                          {mobilePalletViewCopy.overdue}
-                        </p>
-                        <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-rose-700 dark:text-rose-100">
-                          {selectedMobilePallet.item.overdueDays} {mobilePalletViewCopy.days} · EUR {currencyFormatter.format(selectedMobilePallet.item.overdueCost)}
-                        </p>
-                      </div>
+                    {selectedMobilePallet.view === 'withQr' && (
+                      <>
+                        <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
+                          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                            {mobilePalletViewCopy.return}
+                          </p>
+                          <p className="mt-2 text-[11px] font-black uppercase tracking-tight text-zinc-950 dark:text-white">
+                            {selectedMobilePallet.item.returnDateLabel}
+                          </p>
+                        </div>
+                        <div className={cn(
+                          'rounded-[1.15rem] border px-3 py-3',
+                          selectedMobilePallet.item.deadlineTone === 'danger'
+                            ? 'border-rose-200 bg-rose-50 dark:border-rose-400/30 dark:bg-rose-400/10'
+                            : 'border-zinc-100 bg-white dark:border-white/10 dark:bg-[#151d1a]',
+                        )}>
+                          <p className={cn(
+                            'text-[8px] font-black uppercase tracking-[0.14em]',
+                            selectedMobilePallet.item.deadlineTone === 'danger' ? 'text-rose-500 dark:text-rose-200' : 'text-zinc-400 dark:text-[#9fcbb3]',
+                          )}>
+                            {mobilePalletViewCopy.term}
+                          </p>
+                          <p className={cn(
+                            'mt-2 text-[11px] font-black uppercase tracking-tight',
+                            selectedMobilePallet.item.deadlineTone === 'danger' ? 'text-rose-700 dark:text-rose-100' : 'text-zinc-950 dark:text-white',
+                          )}>
+                            {selectedMobilePallet.item.deadlineLabel}
+                          </p>
+                        </div>
+                        <div className="rounded-[1.15rem] border border-zinc-100 bg-white px-3 py-3 dark:border-white/10 dark:bg-[#151d1a]">
+                          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400 dark:text-[#9fcbb3]">
+                            {mobilePalletViewCopy.cost}
+                          </p>
+                          <p className={cn(
+                            'mt-2 text-[11px] font-black uppercase tracking-tight',
+                            selectedMobilePallet.item.overdueCost > 0 ? 'text-rose-700 dark:text-rose-100' : 'text-zinc-950 dark:text-white',
+                          )}>
+                            EUR {currencyFormatter.format(selectedMobilePallet.item.overdueCost)}
+                          </p>
+                        </div>
+                      </>
                     )}
                   </div>
 

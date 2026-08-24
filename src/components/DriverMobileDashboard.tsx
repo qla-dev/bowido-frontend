@@ -63,6 +63,7 @@ import {
 } from "../lib/damageDescription";
 import { resolveSelectedPallet } from "../lib/palletSelection";
 import { useLivePallet } from "../hooks/useLivePallet";
+import { getClientPalletTimeline } from "../lib/clientPalletTimeline";
 import {
   configureQrCamera,
   createQrCameraZoomController,
@@ -469,6 +470,7 @@ const driverReturnWindowCopy = {
     overdue: "Overdue",
     daysLeft: "days left",
     daysLate: "days overdue",
+    cost: "Debt amount",
   },
   nl: {
     sentAt: "Verzonden",
@@ -479,6 +481,7 @@ const driverReturnWindowCopy = {
     overdue: "Over tijd",
     daysLeft: "dagen resterend",
     daysLate: "dagen over",
+    cost: "Schuldbedrag",
   },
   bs: {
     sentAt: "Poslana",
@@ -489,6 +492,7 @@ const driverReturnWindowCopy = {
     overdue: "Van roka",
     daysLeft: "dana u roku",
     daysLate: "dana preko",
+    cost: "Iznos duga",
   },
 } as const;
 
@@ -688,9 +692,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
           buttonText: "Pregled prijavljenih paleta spremnih za preuzimanje.",
           title: "Prijavljene palete bez QR koda",
           subtitle: "Preuzimanje kod kupaca",
-          search: "Pretraži po imenu klijenta",
+          search: "Pretraži po klijentu ili lokaciji",
           pallet: "Paleta",
           location: "Lokacija",
+          warehouse: "Magacin",
+          ownWarehouse: "Vlastiti magacin",
+          otherLocation: "Druga lokacija",
           pickup: "Datum preuzimanja",
           comment: "Komentar",
           returned: "Paleta vraćena",
@@ -705,9 +712,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
               "Bekijk gemelde bokken die klaarstaan om opgehaald te worden.",
             title: "Gemelde bokken zonder QR-code",
             subtitle: "Ophalen bij klanten",
-            search: "Zoek op klantnaam",
+            search: "Zoek op klant of locatie",
             pallet: "Bok",
             location: "Locatie",
+            warehouse: "Magazijn",
+            ownWarehouse: "Eigen magazijn",
+            otherLocation: "Andere locatie",
             pickup: "Ophaaldatum",
             comment: "Commentaar",
             returned: "Bok opgehaald",
@@ -720,9 +730,12 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
             buttonText: "View reported pallets that are ready for pickup.",
             title: "Reported pallets without QR code",
             subtitle: "Client pickups",
-            search: "Search by client name",
+            search: "Search by client or location",
             pallet: "Pallet",
             location: "Location",
+            warehouse: "Warehouse",
+            ownWarehouse: "Own warehouse",
+            otherLocation: "Other location",
             pickup: "Pickup date",
             comment: "Comment",
             returned: "Pallet returned",
@@ -781,12 +794,15 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
     (pallet) => pallet.is_active && pallet.is_for_repair,
   );
   const noQrPickupPallets = pallets.filter(
-    (pallet) =>
-      pallet.is_ghost &&
-      pallet.is_active &&
-      (pallet.client_name || "")
-        .toLowerCase()
-        .includes(noQrClientSearch.trim().toLowerCase()),
+    (pallet) => {
+      if (!pallet.is_ghost || !pallet.is_active) {
+        return false;
+      }
+
+      const search = noQrClientSearch.trim().toLowerCase();
+      return !search || [pallet.client_name, pallet.current_location]
+        .some((value) => (value || "").toLowerCase().includes(search));
+    },
   );
   const getNoQrNoteValue = (note: string | undefined, labels: string[]) => {
     if (!note) {
@@ -810,6 +826,34 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       "Beschikbaar voor het ophalen",
       "Dostupno za preuzimanje",
     ]) || noQrPickupCopy.direct;
+  const getNoQrLocationInfo = (pallet: Pallet) => {
+    const location = (pallet.current_location || "").trim();
+    const client = clients.find((item) => item.user_id === pallet.user_id);
+    const warehouseAddresses = (client?.warehouse_addresses || [])
+      .map((address) => address.trim())
+      .filter(Boolean);
+    const normalizeAddress = (address: string) =>
+      address.toLocaleLowerCase().replace(/[\s,]+/g, " ").trim();
+    const warehouseIndex = location
+      ? warehouseAddresses.findIndex(
+          (address) => normalizeAddress(address) === normalizeAddress(location),
+        )
+      : -1;
+    const isOwnWarehouse = [
+      "Own warehouse",
+      "Eigen magazijn",
+      "Vlastiti magacin",
+    ].some((label) => (pallet.note || "").toLowerCase().includes(label.toLowerCase()));
+
+    return {
+      address: location || t("notAvailable"),
+      label: warehouseIndex >= 0
+        ? `${noQrPickupCopy.warehouse} ${warehouseIndex + 1}`
+        : isOwnWarehouse
+          ? noQrPickupCopy.ownWarehouse
+          : noQrPickupCopy.otherLocation,
+    };
+  };
   const getNoQrCommentLabel = (pallet: Pallet) => {
     const structuredComment = getNoQrNoteValue(pallet.note, [
       "Comment",
@@ -984,10 +1028,6 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       return null;
     }
 
-    const sentDate = new Date(pallet.customer_timer_started_at || pallet.last_status_changed_at);
-    const frozenAt = pallet.customer_timer_frozen_at
-      ? new Date(pallet.customer_timer_frozen_at)
-      : null;
     const dateFormatter = {
       format: (value: string | number | Date) =>
         formatAppDate(value, language),
@@ -996,47 +1036,26 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
       ? clients.find((client) => client.user_id === clientId)
       : undefined;
 
-    if (!clientDetail) {
-      return {
-        statusChangedAtLabel: dateFormatter.format(sentDate),
-        dueDateLabel: null,
-        deadlineLabel: returnWindowText.deadlineStatus,
-        deadlineText: null,
-        isOverdue: false,
-      };
-    }
-
-    const sentAtMidnight = new Date(
-      sentDate.getFullYear(),
-      sentDate.getMonth(),
-      sentDate.getDate(),
-    );
-    const today = frozenAt && !Number.isNaN(frozenAt.getTime()) ? frozenAt : new Date();
-    const todayAtMidnight = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    );
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const daysSinceSent = Math.max(
-      0,
-      Math.floor(
-        (todayAtMidnight.getTime() - sentAtMidnight.getTime()) / msPerDay,
-      ),
-    );
-    const dueDate = new Date(sentAtMidnight);
-    dueDate.setDate(dueDate.getDate() + clientDetail.grace_period_days);
-    const remainingDays = clientDetail.grace_period_days - daysSinceSent;
-    const isOverdue = remainingDays < 0;
+    const status = statuses.find((item) => item.id === pallet.current_status_id);
+    const timeline = getClientPalletTimeline({
+      pallet,
+      status,
+      client: clientDetail,
+      language,
+      formatDate: (value) => dateFormatter.format(value),
+    });
+    const currencyFormatter = new Intl.NumberFormat(language === 'nl' ? 'nl-NL' : 'en-GB', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
     return {
-      statusChangedAtLabel: dateFormatter.format(sentDate),
-      dueDateLabel: dateFormatter.format(dueDate),
+      statusChangedAtLabel: timeline.sentLabel,
+      dueDateLabel: timeline.returnLabel,
       deadlineLabel: returnWindowText.deadlineStatus,
-      deadlineText: `${isOverdue
-        ? `${Math.abs(remainingDays)} ${returnWindowText.daysLate}`
-        : `${remainingDays} ${returnWindowText.daysLeft}`}${frozenAt ? ` - ${language === 'bs' ? 'zaustavljeno' : language === 'nl' ? 'bevroren' : 'frozen'}` : ''}`,
-      isOverdue,
+      deadlineText: timeline.deadlineLabel,
+      isOverdue: timeline.deadlineTone === 'danger',
+      costLabel: `EUR ${currencyFormatter.format(timeline.cost)}`,
     };
   };
   const getTransportWindowInfo = (pallet: Pallet | null) => {
@@ -3036,7 +3055,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                     </div>
                   )}
                   {clientStatusInfo &&
-                    selectedPallet.current_status_id === 4 && (
+                    [4, 5].includes(selectedPallet.current_status_id) && (
                       <div
                         className={cn(
                           "mt-3 grid w-full grid-cols-3 items-start gap-2.5 rounded-[1rem] px-0 pt-2.5 pb-0",
@@ -3068,7 +3087,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                               selectedPalletTheme.label,
                             )}
                           >
-                            {returnWindowText.returnDue}
+                            {clientStatusInfo.deadlineLabel}
                           </p>
                           <p
                             className={cn(
@@ -3076,7 +3095,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                               selectedPalletTheme.heading,
                             )}
                           >
-                            {clientStatusInfo.dueDateLabel}
+                            {clientStatusInfo.deadlineText}
                           </p>
                         </div>
                         <div className="flex min-w-0 w-full flex-col items-end text-right">
@@ -3086,7 +3105,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                               selectedPalletTheme.label,
                             )}
                           >
-                            {clientStatusInfo.deadlineLabel}
+                            {returnWindowText.cost}
                           </p>
                           <p
                             className={cn(
@@ -3096,35 +3115,7 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                                 : selectedPalletTheme.heading,
                             )}
                           >
-                            {clientStatusInfo.deadlineText}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  {clientStatusInfo &&
-                    selectedPallet.current_status_id === 5 && (
-                      <div
-                        className={cn(
-                          "mt-3 flex w-full justify-center rounded-[1rem] px-0 pt-2.5 pb-0 text-center",
-                          "bg-transparent",
-                        )}
-                      >
-                        <div className="flex min-w-0 flex-col items-center">
-                          <p
-                            className={cn(
-                              "text-[11px] font-black uppercase tracking-[0.14em]",
-                              selectedPalletTheme.label,
-                            )}
-                          >
-                            {returnWindowText.reportedAt}
-                          </p>
-                          <p
-                            className={cn(
-                              "mt-1 text-[13px] font-black tracking-tight",
-                              selectedPalletTheme.heading,
-                            )}
-                          >
-                            {clientStatusInfo.statusChangedAtLabel}
+                            {clientStatusInfo.costLabel}
                           </p>
                         </div>
                       </div>
@@ -3773,7 +3764,10 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
 
               {noQrPickupPallets.length > 0 ? (
                 <div className="max-h-[64dvh] space-y-3 overflow-y-auto pr-1 no-scrollbar">
-                  {noQrPickupPallets.map((pallet, index) => (
+                  {noQrPickupPallets.map((pallet, index) => {
+                    const locationInfo = getNoQrLocationInfo(pallet);
+
+                    return (
                     <div
                       key={`driver-no-qr-pickup-${pallet.id}`}
                       className="rounded-[1.5rem] border border-zinc-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#101715]"
@@ -3793,6 +3787,19 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                       </div>
 
                       <div className="mt-4 grid gap-3">
+                        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-3 dark:border-emerald-400/20 dark:bg-emerald-400/10">
+                          <div className="flex items-start gap-2.5">
+                            <MapPin size={15} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-200" />
+                            <div className="min-w-0">
+                              <p className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
+                                {noQrPickupCopy.location} · {locationInfo.label}
+                              </p>
+                              <p className="mt-1 break-words text-[12px] font-black leading-5 text-emerald-950 dark:text-white">
+                                {locationInfo.address}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-[#101715]">
                             <p className="text-[8px] font-black uppercase tracking-[0.14em] text-zinc-400">
@@ -3830,7 +3837,8 @@ export const DriverMobileDashboard: React.FC<DriverMobileDashboardProps> = ({
                         {noQrPickupCopy.returned}
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="rounded-[1.5rem] border border-dashed border-zinc-200 bg-white px-5 py-10 text-center dark:border-white/10 dark:bg-[#101715]">
