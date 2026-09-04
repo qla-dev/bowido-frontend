@@ -238,10 +238,18 @@ const requestBlob = async (path: string, options: RequestInit = {}) => {
   const token = getStoredToken();
   headers.set(TOKEN_ONLY_HEADER, 'true');
   headers.set(LOCALE_HEADER, getRequestLocale());
+  headers.set('Accept', 'application/json, application/octet-stream;q=0.9');
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (token) headers.set('Authorization', `Bearer ${token}`);
   const target = /^https?:\/\//i.test(path) ? path : `${API_BASE_URL}${path}`;
   const response = await fetch(target, { credentials: 'include', ...options, headers });
-  if (!response.ok) throw new ApiError(`Request failed with status ${response.status}`, response.status);
+  if (!response.ok) {
+    const responseText = await response.text();
+    console.error('[TrackPal export request failed]', { path, status: response.status, response: responseText });
+    throw new ApiError(`Request failed with status ${response.status}`, response.status);
+  }
   return response.blob();
 };
 
@@ -1026,6 +1034,14 @@ export const apiService = {
       ),
     stats: async (): Promise<PalletDashboardStats> =>
       normalizePalletDashboardStats(await apiData<ApiRecord>('/pallets/dashboard-stats')),
+    qrExportList: async (): Promise<Array<{ id: number; qr_code: string; pallet_name: string }>> =>
+      (await apiData<ApiRecord[]>('/pallets/qr-export-list')).map((pallet) => ({
+        id: Number(pallet.id),
+        qr_code: String(pallet.qr_code || ''),
+        pallet_name: String(pallet.pallet_name || pallet.qr_code || ''),
+      })),
+    exportQr: (palletIds: number[], formats: string[]) => requestBlob('/pallets/export-qr', { method: 'POST', body: jsonBody({ pallet_ids: palletIds, formats }) }),
+    exportExcelReport: (clientIds?: number[], language?: AppLanguage) => requestBlob('/pallets/export-excel-report', { method: 'POST', body: jsonBody({ client_ids: clientIds, language }) }),
     page: (params: ListParams = {}) => listPage<Pallet>('/pallets', params, normalizePallet),
     list: async (params: ListParams = {}): Promise<Pallet[]> => (await listAll<ApiRecord>('/pallets', params)).map(normalizePallet),
     get: async (id: number): Promise<Pallet> => normalizePallet(await apiData<ApiRecord>(`/pallets/${id}`)),

@@ -73,6 +73,7 @@ import {
 } from "../i18n";
 import { getPalletDisplayName } from "../lib/palletDisplay";
 import { rankSearchResults } from "../lib/searchRanking";
+import { exportPalletQrCodes, QrExportFormat } from "../lib/palletQrExport";
 import { statusIdAllowsCustomer } from "../lib/palletCustomerAssignment";
 import { SearchableSelect as PalletDetailDropdown } from "./SearchableSelect";
 import { formatAppDate, formatAppDateTime, formatAppTime } from "../lib/dateFormat";
@@ -215,6 +216,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [bulkQrPrefix, setBulkQrPrefix] = useState("BOWNL-");
   const [bulkQrStart, setBulkQrStart] = useState("");
   const [bulkQrEnd, setBulkQrEnd] = useState("");
+  const [exportCreatedQrCodes, setExportCreatedQrCodes] = useState(false);
+  const [qrExportFormats, setQrExportFormats] = useState<QrExportFormat[]>(['svg']);
+  const [isCreatingPallets, setIsCreatingPallets] = useState(false);
   const [showAddClient, setShowAddClient] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showDamageModal, setShowDamageModal] = useState(false);
@@ -461,6 +465,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setBulkQrPrefix("BOWNL-");
     setBulkQrStart("");
     setBulkQrEnd("");
+    setExportCreatedQrCodes(false);
+    setQrExportFormats(['svg']);
   };
 
   const openAddPalletModal = () => {
@@ -510,7 +516,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  const handleCreatePallets = () => {
+  const toggleQrExportFormat = (format: QrExportFormat) => {
+    setQrExportFormats((current) => current.includes(format)
+      ? current.filter((value) => value !== format)
+      : [...current, format]);
+  };
+
+  const handleCreatePallets = async () => {
     const normalizedType =
       normalizePalletTypeCode(newPalletType) || newPalletType;
 
@@ -519,8 +531,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         return;
       }
 
-      addPallet(newPalletQr, normalizedType);
-      closeAddPalletModal();
+      setIsCreatingPallets(true);
+      try {
+        const created = await addPallet(newPalletQr, normalizedType);
+        if (exportCreatedQrCodes && qrExportFormats.length > 0) {
+          await exportPalletQrCodes([created.qr_code], qrExportFormats);
+        }
+        closeAddPalletModal();
+        await appAlert.fire({
+          icon: 'success', title: t('palletsCreatedTitle'),
+          text: exportCreatedQrCodes ? t('palletsCreatedAndExported') : t('palletsCreatedConfirmation'),
+        });
+      } catch (error) {
+        await appAlert.fire({ icon: 'error', title: t('palletCreateFailed'), text: error instanceof Error ? error.message : t('palletCreateFailed') });
+      } finally {
+        setIsCreatingPallets(false);
+      }
       return;
     }
 
@@ -530,8 +556,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    addPalletBatch(qrCodes.map((qrCode) => ({ qrCode, type: normalizedType })));
-    closeAddPalletModal();
+    setIsCreatingPallets(true);
+    try {
+      const created = await addPalletBatch(qrCodes.map((qrCode) => ({ qrCode, type: normalizedType })));
+      if (exportCreatedQrCodes && qrExportFormats.length > 0) {
+        await exportPalletQrCodes(created.map((pallet) => pallet.qr_code), qrExportFormats);
+      }
+      closeAddPalletModal();
+      await appAlert.fire({
+        icon: 'success',
+        title: t('palletsCreatedTitle'),
+        text: exportCreatedQrCodes
+          ? t('palletsCreatedAndExported')
+          : t('palletsCreatedConfirmation'),
+      });
+    } catch (error) {
+      await appAlert.fire({
+        icon: 'error',
+        title: t('palletCreateFailed'),
+        text: error instanceof Error ? error.message : t('palletCreateFailed'),
+      });
+    } finally {
+      setIsCreatingPallets(false);
+    }
   };
 
   const buildOverdueInvoicePreview = (
@@ -3197,6 +3244,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 )}
 
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-400/20 dark:bg-emerald-500/10">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <input type="checkbox" checked={exportCreatedQrCodes} onChange={(event) => setExportCreatedQrCodes(event.target.checked)} className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800 dark:text-emerald-100">{t('generateAndExportQr')}</span>
+                  </label>
+                  {exportCreatedQrCodes && <>
+                    <div className="mt-3 grid grid-cols-4 gap-2">
+                      {(['svg', 'png', 'jpg', 'pdf'] as QrExportFormat[]).map((format) => {
+                        const selected = qrExportFormats.includes(format);
+                        return <label key={format} className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${selected ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-emerald-800 hover:bg-emerald-100 dark:bg-white/10 dark:text-emerald-100'}`}>
+                          <input type="checkbox" checked={selected} onChange={() => toggleQrExportFormat(format)} className="sr-only" />{format}
+                        </label>;
+                      })}
+                    </div>
+                    <p className="mt-2 text-[9px] font-bold leading-relaxed text-emerald-700 dark:text-emerald-200">{t('qrMultiExportHint')}</p>
+                  </>}
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                     {t("palletType")}
@@ -3225,12 +3290,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={handleCreatePallets}
                   disabled={
                     newPalletMode === "single"
-                      ? !newPalletQr.trim()
-                      : !hasValidBulkRange
+                      ? !newPalletQr.trim() || isCreatingPallets
+                      : !hasValidBulkRange || isCreatingPallets
                   }
                   className="flex-1 py-4 bg-black text-white rounded-2xl font-black uppercase text-xs disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {newPalletMode === "bulk" ? createBulkLabel : t("createUnit")}
+                  {newPalletMode === "bulk" && isCreatingPallets ? t('creatingPallets') : newPalletMode === "bulk" ? createBulkLabel : t("createUnit")}
                 </button>
               </div>
             </motion.div>

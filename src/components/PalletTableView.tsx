@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Input, Badge, Button, cn } from './ui';
 import {
   Search,
@@ -14,6 +15,7 @@ import {
   X,
   Check,
   LoaderCircle,
+  QrCode,
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { motion } from 'motion/react';
@@ -23,17 +25,14 @@ import { AdminDataTable, adminTableStyles } from './AdminDataTable';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
 import { PageLoadingModal } from './PageLoadingModal';
+import { appAlert } from './AppAlert';
 import { apiService } from '../services/api';
-import {
-  buildCustomerPalletReportWorkbook,
-  type CustomerPalletReportGroup,
-  type CustomerPalletReportRow,
-  type CustomerPalletReportText,
-} from '../lib/customerPalletReportExport';
+import { type CustomerPalletReportText } from '../lib/customerPalletReportExport';
 import { getPalletDisplayName } from '../lib/palletDisplay';
 import { formatAppDate } from '../lib/dateFormat';
 import { useInfinitePagination } from '../hooks/useInfinitePagination';
 import { rankSearchResults } from '../lib/searchRanking';
+import { type QrExportFormat } from '../lib/palletQrExport';
 
 interface PalletTableViewProps {
   onAddPallet?: () => void;
@@ -116,6 +115,29 @@ const MIN_COLUMN_WIDTHS: ColumnWidths = {
 
 const PALLET_PAGE_SIZE = 25;
 
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+};
+
+const getQrExportFilename = (pallets: Array<{ pallet_name: string; qr_code: string }>) => {
+  const labels = pallets.map((pallet) => pallet.pallet_name || pallet.qr_code).filter(Boolean);
+  if (labels.length === 1) return `qr-export-${labels[0].replace(/[^A-Za-z0-9_-]/g, '-')}`;
+  const suffixes = labels.map((label) => label.match(/(\d+)$/)?.[1]);
+  if (suffixes.length > 1 && suffixes.every(Boolean)) {
+    const width = Math.max(...suffixes.map((suffix) => suffix!.length));
+    const numbers = suffixes.map((suffix) => Number(suffix));
+    return `qr-export-${String(Math.min(...numbers)).padStart(width, '0')}-${String(Math.max(...numbers)).padStart(width, '0')}`;
+  }
+  return 'qr-export';
+};
+
 const formatDateFilterValue = (value: string | Date) => {
   const date = value instanceof Date ? value : new Date(value);
   const year = date.getFullYear();
@@ -175,6 +197,19 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const [openQuickFilter, setOpenQuickFilter] = useState<QuickFilterKey | null>(null);
   const [selectedDeadlineFilters, setSelectedDeadlineFilters] = useState<DeadlineFilter[]>([]);
   const [showReportExportModal, setShowReportExportModal] = useState(false);
+  const [isExportingExcelReport, setIsExportingExcelReport] = useState(false);
+  const [showQrExportModal, setShowQrExportModal] = useState(false);
+  const [qrExportFormats, setQrExportFormats] = useState<QrExportFormat[]>(['svg']);
+  const [isExportingQrCodes, setIsExportingQrCodes] = useState(false);
+  const [isLoadingQrExportData, setIsLoadingQrExportData] = useState(false);
+  const [qrExportPallets, setQrExportPallets] = useState<Array<{ id: number; qr_code: string; pallet_name: string }>>([]);
+  const [qrExportMode, setQrExportMode] = useState<'current' | 'range' | 'single'>('current');
+  const [qrRangePrefix, setQrRangePrefix] = useState('BOWNL-');
+  const [qrRangeStart, setQrRangeStart] = useState('');
+  const [qrRangeEnd, setQrRangeEnd] = useState('');
+  const [selectedQrExportPalletIds, setSelectedQrExportPalletIds] = useState<string[]>([]);
+  const [isQrPalletPickerOpen, setIsQrPalletPickerOpen] = useState(false);
+  const [qrPalletSearch, setQrPalletSearch] = useState('');
   const [selectedReportClientId, setSelectedReportClientId] = useState<string>('all');
   const [isReportClientSelectOpen, setIsReportClientSelectOpen] = useState(false);
   const reportClientSelectRef = useRef<HTMLDivElement | null>(null);
@@ -419,7 +454,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const reportCopy: CustomerPalletReportText & {
     fabLabel: string;
     modalTitle: string;
-    modalSubtitle: string;
     selectedClientLabel: string;
     allClientsOptionLabel: string;
     clientsCountLabel: string;
@@ -430,6 +464,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     loadingLabel: string;
     emptyStateLabel: string;
     reportFilePrefix: string;
+    reportClientFileFallback: string;
   } =
     language === 'bs'
       ? {
@@ -441,19 +476,19 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           summaryOverdueLabel: 'Palete s dugom',
           summaryDebtLabel: 'Ukupan dug (EUR)',
           clientSheetPrefix: 'Kupac',
+          clientSheetFallback: 'Kupac',
           palletLabel: 'Paleta',
           typeLabel: 'Tip',
           statusLabel: 'Status',
           sentDateLabel: 'Poslana',
           daysAtClientLabel: 'Dana kod kupca',
-          graceDaysLabel: 'Grace',
+          graceDaysLabel: 'Dani tolerancije',
           overdueDaysLabel: 'Dana preko',
           debtLabel: 'Dug (EUR)',
           locationLabel: 'Lokacija',
           totalLabel: 'Ukupno',
-          fabLabel: 'Excel report',
-          modalTitle: 'Excel report po kupcu',
-          modalSubtitle: 'Izvoz paleta kod kupca sa brojem dana i dugom po kupcu.',
+          fabLabel: 'Excel izvještaj',
+          modalTitle: 'Excel izvještaj po kupcu',
           selectedClientLabel: 'Kupac',
           allClientsOptionLabel: 'Svi kupci',
           clientsCountLabel: 'Kupci',
@@ -462,8 +497,9 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
           exportSelectedLabel: 'Izvezi kupca',
           exportAllLabel: 'Izvezi sve kupce',
           loadingLabel: 'Podaci se učitavaju, molimo sačekajte',
-          emptyStateLabel: 'Nema paleta u naplativom statusu za ovaj report.',
+          emptyStateLabel: 'Nema paleta u naplativom statusu za ovaj izvještaj.',
           reportFilePrefix: 'palete-po-kupcu',
+          reportClientFileFallback: 'kupac',
         }
       : language === 'nl'
         ? {
@@ -475,19 +511,19 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             summaryOverdueLabel: 'Bokken met schuld',
             summaryDebtLabel: 'Totale schuld (EUR)',
             clientSheetPrefix: 'Klant',
+            clientSheetFallback: 'Klant',
             palletLabel: 'Bok',
             typeLabel: 'Type',
             statusLabel: 'Status',
             sentDateLabel: 'Verzonden',
             daysAtClientLabel: 'Dagen bij klant',
-            graceDaysLabel: 'Grace',
+            graceDaysLabel: 'Tolerantiedagen',
             overdueDaysLabel: 'Dagen te laat',
             debtLabel: 'Schuld (EUR)',
             locationLabel: 'Locatie',
             totalLabel: 'Totaal',
-            fabLabel: 'Excel report',
-            modalTitle: 'Excel report per klant',
-            modalSubtitle: 'Exporteer bokken bij de klant met aantallen dagen en openstaande schuld.',
+            fabLabel: 'Excel-rapport',
+            modalTitle: 'Excel-rapport per klant',
             selectedClientLabel: 'Klant',
             allClientsOptionLabel: 'Alle klanten',
             clientsCountLabel: 'Klanten',
@@ -498,6 +534,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             loadingLabel: 'Gegevens worden geladen, een moment geduld',
             emptyStateLabel: 'Geen bokken in factureerbare status voor dit rapport.',
             reportFilePrefix: 'bokken-per-klant',
+            reportClientFileFallback: 'klant',
           }
         : {
             workbookTitle: 'Pallets by customer',
@@ -508,6 +545,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             summaryOverdueLabel: 'Pallets with debt',
             summaryDebtLabel: 'Total debt (EUR)',
             clientSheetPrefix: 'Customer',
+            clientSheetFallback: 'Customer',
             palletLabel: 'Pallet',
             typeLabel: 'Type',
             statusLabel: 'Status',
@@ -520,7 +558,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             totalLabel: 'Total',
             fabLabel: 'Excel report',
             modalTitle: 'Excel report by customer',
-            modalSubtitle: 'Export pallets at customer with day count and debt totals.',
             selectedClientLabel: 'Customer',
             allClientsOptionLabel: 'All customers',
             clientsCountLabel: 'Customers',
@@ -531,8 +568,15 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             loadingLabel: 'Data is loading, please wait',
             emptyStateLabel: 'No pallets in billable status for this report.',
             reportFilePrefix: 'pallets-by-customer',
+            reportClientFileFallback: 'customer',
           };
   const transportStatusIds = [2, 6];
+  const exportFeedbackCopy =
+    language === 'bs'
+      ? { title: 'Priprema se izvoz', subtitle: 'Vaš fajl će se automatski preuzeti kada bude spreman.', error: 'Izvoz nije uspio. Molimo pokušajte ponovo.' }
+      : language === 'nl'
+        ? { title: 'Export wordt voorbereid', subtitle: 'Uw bestand wordt automatisch gedownload zodra het klaar is.', error: 'Exporteren is niet gelukt. Probeer het opnieuw.' }
+        : { title: 'Preparing export', subtitle: 'Your file will download automatically when it is ready.', error: 'The export could not be completed. Please try again.' };
   const resizeAriaLabel =
     language === 'bs'
       ? 'Promijeni širinu kolone'
@@ -715,138 +759,166 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   );
 
   const getTimelineInfo = (pallet: Pallet) => palletTimelineMap[pallet.id];
-  const getDaysSinceStatusChange = (dateString: string, frozenAt?: string) => {
-    const changedAt = new Date(dateString);
-    const changedAtMidnight = new Date(
-      changedAt.getFullYear(),
-      changedAt.getMonth(),
-      changedAt.getDate()
-    );
-    const endDate = frozenAt ? new Date(frozenAt) : new Date();
-    const todayAtMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-    return Math.max(
-      0,
-      Math.floor((todayAtMidnight.getTime() - changedAtMidnight.getTime()) / (24 * 60 * 60 * 1000))
-    );
-  };
-
-  const customerReportGroups = useMemo<CustomerPalletReportGroup[]>(() => {
-    const groupedReports = new Map<number, CustomerPalletReportGroup>();
-
-    // `pallets` contains only the pages currently rendered in the table. Reports
-    // must use the complete dataset returned for the active search instead, so
-    // their availability does not depend on pagination or sorting.
-      filterPallets.forEach((pallet) => {
-        const status = statuses.find((item) => item.id === pallet.current_status_id);
-
-      if (!pallet.user_id || !status?.is_billable) {
-        return;
-      }
-
-      const client = pallet.user_id
-        ? clients.find((item) => item.user_id === pallet.user_id)
-        : undefined;
-      const clientId = pallet.user_id ?? 0;
-      const clientName = client?.name || pallet.client_name?.trim() || '';
-      const normalizedClientName = clientName.trim().toLocaleLowerCase();
-
-      // Stock and unassigned pallets are not customer-held pallets, so they do
-      // not belong in the customer report or its selector.
-      if (
-        !normalizedClientName ||
-        normalizedClientName === 'na stanju'
-      ) {
-        return;
-      }
-
-      const timerStartedAt = pallet.customer_timer_started_at || pallet.last_status_changed_at;
-      const frozenAt = pallet.customer_timer_frozen_at;
-      const daysAtClient = getDaysSinceStatusChange(timerStartedAt, frozenAt);
-      const graceDays = client?.grace_period_days ?? status.grace_period_days ?? 0;
-      const ratePerDay = client?.price_per_day ?? status.price_per_day ?? 0;
-      const overdueDays = Math.max(daysAtClient - graceDays, 0);
-      const debt = Number((overdueDays * ratePerDay).toFixed(2));
-      const row: CustomerPalletReportRow = {
-        palletName: getPalletDisplayName(pallet),
-        palletType: getTypeLabel(pallet),
-        statusLabel: getStatusLabelText(pallet),
-        sentDate: dateFormatter.format(new Date(timerStartedAt)),
-        daysAtClient,
-        graceDays,
-        overdueDays,
-        debt,
-        location: getLocationLabel(pallet),
-      };
-      const existingGroup = groupedReports.get(clientId);
-
-      if (existingGroup) {
-        existingGroup.rows.push(row);
-        existingGroup.totalPallets += 1;
-        existingGroup.overduePallets += overdueDays > 0 ? 1 : 0;
-        existingGroup.totalDebt = Number((existingGroup.totalDebt + debt).toFixed(2));
-        return;
-      }
-
-      groupedReports.set(clientId, {
-        clientId,
-        clientName,
-        rows: [row],
-        totalDebt: debt,
-        totalPallets: 1,
-        overduePallets: overdueDays > 0 ? 1 : 0,
-      });
-    });
-
-    return Array.from(groupedReports.values())
-      .map((group) => ({
-        ...group,
-        rows: [...group.rows].sort((left, right) => {
-          if (right.debt !== left.debt) {
-            return right.debt - left.debt;
-          }
-
-          if (right.daysAtClient !== left.daysAtClient) {
-            return right.daysAtClient - left.daysAtClient;
-          }
-
-          return left.palletName.localeCompare(right.palletName, undefined, {
-            numeric: true,
-            sensitivity: 'base',
-          });
-        }),
-      }))
-      .sort((left, right) =>
-        left.clientName.localeCompare(right.clientName, undefined, {
-          numeric: true,
-          sensitivity: 'base',
-        })
-      );
-  }, [clients, dateFormatter, filterPallets, statuses]);
+  // Client choices come from the already-loaded client directory. The actual
+  // report data is intentionally fetched and calculated only by the backend.
+  const reportExportClients = useMemo(
+    () => [...clients]
+      .filter((client) => client.is_active)
+      .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })),
+    [clients]
+  );
 
   useEffect(() => {
     if (selectedReportClientId === 'all') {
       return;
     }
 
-    if (!customerReportGroups.some((group) => String(group.clientId) === selectedReportClientId)) {
+    if (!reportExportClients.some((client) => String(client.user_id) === selectedReportClientId)) {
       setSelectedReportClientId('all');
     }
-  }, [customerReportGroups, selectedReportClientId]);
+  }, [reportExportClients, selectedReportClientId]);
 
-  const selectedCustomerReportGroup =
+  const selectedReportClient =
     selectedReportClientId === 'all'
       ? null
-      : customerReportGroups.find((group) => String(group.clientId) === selectedReportClientId) || null;
-  const reportCustomersCount = customerReportGroups.length;
-  const reportPalletsCount = customerReportGroups.reduce(
-    (sum, group) => sum + group.totalPallets,
-    0
+      : reportExportClients.find((client) => String(client.user_id) === selectedReportClientId) || null;
+  const reportSummary = useMemo(() => {
+    const clientIds = new Set<number>();
+    let palletsCount = 0;
+    let totalDebt = 0;
+
+    filterPallets.forEach((pallet) => {
+      const status = statuses.find((item) => item.id === pallet.current_status_id);
+      if (!pallet.user_id || !status?.is_billable) return;
+
+      const client = clients.find((item) => item.user_id === pallet.user_id);
+      const clientName = client?.name || pallet.client_name?.trim() || '';
+      if (!clientName || clientName.trim().toLocaleLowerCase() === 'na stanju') return;
+
+      const startedAt = pallet.customer_timer_started_at || pallet.last_status_changed_at;
+      const endAt = pallet.customer_timer_frozen_at || new Date().toISOString();
+      const daysAtClient = Math.max(0, Math.floor((new Date(endAt).setHours(0, 0, 0, 0) - new Date(startedAt).setHours(0, 0, 0, 0)) / 86_400_000));
+      const overdueDays = Math.max(0, daysAtClient - (client?.grace_period_days ?? status.grace_period_days ?? 0));
+
+      clientIds.add(pallet.user_id);
+      palletsCount += 1;
+      totalDebt += overdueDays * (client?.price_per_day ?? status.price_per_day ?? 0);
+    });
+
+    return { clientsCount: clientIds.size, palletsCount, totalDebt: Number(totalDebt.toFixed(2)) };
+  }, [clients, filterPallets, statuses]);
+  const reportCurrencyFormatter = new Intl.NumberFormat(
+    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
   );
-  const reportTotalDebt = customerReportGroups.reduce(
-    (sum, group) => Number((sum + group.totalDebt).toFixed(2)),
-    0
+  // “Current list” must follow the same active column/deadline filters as the
+  // table. Without a column filter, keep the complete search result instead of
+  // only the currently rendered pagination page.
+  const hasActiveQrExportFilters =
+    selectedDeadlineFilters.length > 0 ||
+    (Object.keys(selectedFilters) as SortKey[]).some((key) => selectedFilters[key].length > 0);
+  const currentListPallets = hasActiveQrExportFilters
+    ? filterPallets.filter((pallet) => {
+        const timelineInfo = getTimelineInfo(pallet);
+        const matchesColumnFilters = (Object.keys(selectedFilters) as SortKey[]).every((key) => {
+          const values = selectedFilters[key];
+          if (values.length === 0) return true;
+          const value = key === 'qr' ? getPalletDisplayName(pallet)
+            : key === 'type' ? getTypeLabel(pallet)
+              : key === 'client' ? getClientLabel(pallet)
+                : key === 'status' ? getStatusLabelText(pallet)
+                  : key === 'lastUpdate' ? timelineInfo.dateFilterValue
+                    : key === 'dueDate' ? timelineInfo.termFilterValue
+                      : key === 'deadline' ? timelineInfo.deadlineFilterValue
+                        : getLocationLabel(pallet);
+          return values.includes(value);
+        });
+        const matchesDeadlineFilters = selectedDeadlineFilters.length === 0 || selectedDeadlineFilters.some((filter) =>
+          (filter === 'overdue' && timelineInfo.tone === 'danger') ||
+          (filter === 'dueSoon' && timelineInfo.tone === 'warning') ||
+          (filter === 'withinTerm' && timelineInfo.tone === 'success') ||
+          (filter === 'withoutTerm' && timelineInfo.tone === 'muted')
+        );
+        return matchesColumnFilters && matchesDeadlineFilters;
+      })
+    : filterPallets;
+  const exportablePallets = currentListPallets.filter((pallet) => Boolean(pallet.qr_code?.trim()));
+  const rangePallets = qrExportPallets.filter((pallet) => {
+    const start = Number(qrRangeStart);
+    const end = Number(qrRangeEnd);
+    const normalizedPrefix = qrRangePrefix.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    if (!normalizedPrefix || !Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+      return false;
+    }
+
+    // QR payloads may be a raw code or a scan URL, while pallet_name is always
+    // the visible code. Match either value and compare the numeric suffix as a
+    // number, so 15 and 0015 select exactly the same pallet.
+    return [pallet.pallet_name, pallet.qr_code].some((value) => {
+      const match = value.trim().toUpperCase().match(/([A-Z]+)[-_ ]*(\d+)\D*$/);
+      return Boolean(
+        match
+          && match[1].replace(/[^A-Z0-9]/g, '') === normalizedPrefix
+          && Number(match[2]) >= start
+          && Number(match[2]) <= end
+      );
+    });
+  });
+  const selectedQrExportPallets = qrExportMode === 'current'
+    ? (exportablePallets.length > 0 ? exportablePallets : qrExportPallets)
+    : qrExportMode === 'range'
+      ? rangePallets
+      : qrExportPallets.filter((pallet) => selectedQrExportPalletIds.includes(String(pallet.id)));
+  const visibleQrPalletOptions = useMemo(() => {
+    const search = qrPalletSearch.trim().toLowerCase();
+    const matchingPallets = qrExportPallets.filter((pallet) =>
+      `${pallet.pallet_name} ${pallet.qr_code}`.toLowerCase().includes(search)
+    );
+    const selectedPallets = selectedQrExportPalletIds
+      .map((id) => matchingPallets.find((pallet) => String(pallet.id) === id))
+      .filter((pallet): pallet is { id: number; qr_code: string; pallet_name: string } => Boolean(pallet));
+    const selectedIds = new Set(selectedQrExportPalletIds);
+    return [...selectedPallets, ...matchingPallets.filter((pallet) => !selectedIds.has(String(pallet.id)))].slice(0, 80);
+  }, [qrExportPallets, qrPalletSearch, selectedQrExportPalletIds]);
+  const selectedQrPalletLabel = selectedQrExportPallets.length === 1
+    ? selectedQrExportPallets[0].pallet_name
+    : '';
+  const qrSelectedCountLabel = language === 'nl'
+    ? `${selectedQrExportPallets.length} ${selectedQrExportPallets.length === 1 ? 'bok' : 'bokken'} geselecteerd`
+    : language === 'bs'
+      ? `${selectedQrExportPallets.length} ${selectedQrExportPallets.length === 1 ? 'paleta' : 'paleta'} odabrano`
+      : `${selectedQrExportPallets.length} ${selectedQrExportPallets.length === 1 ? 'pallet' : 'pallets'} selected`;
+  const toggleQrExportFormat = (format: QrExportFormat) => setQrExportFormats((current) =>
+    current.includes(format) ? current.filter((value) => value !== format) : [...current, format]
   );
+  const handleExportQrCodes = async () => {
+    if (qrExportFormats.length === 0 || selectedQrExportPallets.length === 0) return;
+    setIsExportingQrCodes(true);
+    try {
+      const blob = await apiService.pallets.exportQr(selectedQrExportPallets.map((pallet) => pallet.id), qrExportFormats);
+      downloadBlob(blob, `${getQrExportFilename(selectedQrExportPallets)}.zip`);
+      setShowQrExportModal(false);
+    } catch {
+      void appAlert.fire({ icon: 'error', title: exportFeedbackCopy.error });
+    } finally {
+      setIsExportingQrCodes(false);
+    }
+  };
+  const loadQrExportPallets = async () => {
+    setIsLoadingQrExportData(true);
+    try {
+      setQrExportPallets(await apiService.pallets.qrExportList());
+    } catch {
+      setQrExportPallets(exportablePallets);
+    } finally {
+      setIsLoadingQrExportData(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadQrExportPallets();
+  }, []);
 
   const getFilterValue = (pallet: Pallet, key: SortKey) => {
     const timelineInfo = getTimelineInfo(pallet);
@@ -1122,56 +1194,20 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     setOpenFilterKey(null);
     setOpenQuickFilter(null);
   };
-  const reportCurrencyFormatter = new Intl.NumberFormat(
-    language === 'nl' ? 'nl-NL' : language === 'bs' ? 'bs-BA' : 'en-GB',
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }
-  );
-
-  const downloadReportWorkbook = (
-    groups: CustomerPalletReportGroup[],
-    fileNameBase: string
-  ) => {
-    const workbookXml = buildCustomerPalletReportWorkbook(groups, reportCopy);
-    const blob = new Blob([workbookXml], {
-      type: 'application/vnd.ms-excel;charset=utf-8;',
-    });
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const dateSuffix = formatDateFilterValue(new Date());
-
-    link.href = downloadUrl;
-    link.download = `${fileNameBase}-${dateSuffix}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
-  };
-
   const handleExportCustomerReport = (mode: 'selected' | 'all') => {
-    const groupsToExport =
-      mode === 'all'
-        ? customerReportGroups
-        : selectedCustomerReportGroup
-          ? [selectedCustomerReportGroup]
-          : [];
-
-    if (groupsToExport.length === 0) {
+    if (mode === 'selected' && !selectedReportClient) {
       return;
     }
 
-    const fileNameBase =
-      mode === 'all'
-        ? `${reportCopy.reportFilePrefix}-all`
-        : `${reportCopy.reportFilePrefix}-${groupsToExport[0].clientName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '') || 'client'}`;
-
-    downloadReportWorkbook(groupsToExport, fileNameBase);
-    setShowReportExportModal(false);
+    setIsExportingExcelReport(true);
+    void apiService.pallets
+      .exportExcelReport(mode === 'all' ? undefined : [selectedReportClient.user_id], language)
+      .then((blob) => {
+        downloadBlob(blob, `${reportCopy.reportFilePrefix}.xlsx`);
+        setShowReportExportModal(false);
+      })
+      .catch(() => appAlert.fire({ icon: 'error', title: exportFeedbackCopy.error }))
+      .finally(() => setIsExportingExcelReport(false));
   };
 
   const renderSortButton = (key: SortKey, label: string) => {
@@ -1717,37 +1753,50 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       />
       {openFilterKey && renderFilterMenu(openFilterKey)}
 
+      {typeof document !== 'undefined' && createPortal(
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] right-4 z-20 flex items-center gap-3 md:bottom-20 md:right-8">
         <div className="group relative">
           <button
             type="button"
             onClick={() => setShowReportExportModal(true)}
-            disabled={isFilterDatasetLoading || customerReportGroups.length === 0}
-            aria-busy={isFilterDatasetLoading}
-            aria-describedby={isFilterDatasetLoading ? 'report-data-loading-tooltip' : undefined}
+            disabled={isExportingExcelReport}
+            aria-busy={isExportingExcelReport}
             className={cn(
               'inline-flex h-14 items-center gap-2 rounded-full px-5 text-[11px] font-black uppercase tracking-[0.14em] shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform disabled:cursor-default',
-              isFilterDatasetLoading
+              isExportingExcelReport
                 ? 'bg-emerald-600 text-white/90'
-                : customerReportGroups.length === 0
-                  ? 'bg-emerald-200 text-white/80'
-                  : 'bg-[#00A655] text-white hover:scale-[1.02]'
+                : 'bg-[#00A655] text-white hover:scale-[1.02]'
             )}
           >
-            {isFilterDatasetLoading ? (
+            {isExportingExcelReport ? (
               <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
             ) : (
               <FileSpreadsheet size={16} />
             )}
             {reportCopy.fabLabel}
           </button>
-          {isFilterDatasetLoading && (
-            <div
-              id="report-data-loading-tooltip"
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full right-0 mb-3 w-max max-w-[min(19rem,calc(100vw-2rem))] rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] px-3 py-2 text-center text-[11px] font-bold normal-case tracking-normal text-[var(--text-primary)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-            >
-              {reportCopy.loadingLabel}
+        </div>
+
+        <div className="group relative">
+          <button
+            type="button"
+            onClick={() => setShowQrExportModal(true)}
+            disabled={isLoadingQrExportData}
+            aria-busy={isLoadingQrExportData}
+            aria-describedby={isLoadingQrExportData ? 'qr-export-data-loading-tooltip' : undefined}
+            className={cn(
+              'inline-flex h-14 items-center gap-2 rounded-full px-5 text-[11px] font-black uppercase tracking-[0.14em] shadow-[0_18px_36px_-18px_rgba(0,166,85,0.8)] transition-transform disabled:cursor-default',
+              isLoadingQrExportData
+                ? 'bg-emerald-600 text-white/90'
+                : 'bg-[#00A655] text-white hover:scale-[1.02]'
+            )}
+          >
+            {isLoadingQrExportData ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <QrCode size={16} />}
+            {t('qrExport')}
+          </button>
+          {isLoadingQrExportData && (
+            <div id="qr-export-data-loading-tooltip" role="tooltip" className="pointer-events-none absolute bottom-full right-0 mb-3 w-max max-w-[min(19rem,calc(100vw-2rem))] rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-panel)] px-3 py-2 text-center text-[11px] font-bold normal-case tracking-normal text-[var(--text-primary)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+              {t('qrExportLoading')}
             </div>
           )}
         </div>
@@ -1762,7 +1811,19 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
             {addPalletLabel}
           </button>
         )}
-      </div>
+      </div>, document.body)}
+
+      {(isExportingExcelReport || isExportingQrCodes) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]" role="status" aria-live="polite">
+          <div className="w-full max-w-sm rounded-[1.75rem] border border-zinc-200 bg-white p-7 text-center shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+              <LoaderCircle size={28} className="animate-spin" aria-hidden="true" />
+            </div>
+            <h3 className="mt-5 text-xl font-black tracking-tight text-zinc-950">{exportFeedbackCopy.title}</h3>
+            <p className="mt-2 text-sm font-medium leading-6 text-zinc-500">{exportFeedbackCopy.subtitle}</p>
+          </div>
+        </div>
+      )}
 
       {showReportExportModal && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]">
@@ -1775,9 +1836,6 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                 <h3 className="mt-2 text-2xl font-black tracking-tight text-zinc-950">
                   {reportCopy.modalTitle}
                 </h3>
-                <p className="mt-2 max-w-xl text-sm font-medium leading-6 text-zinc-500">
-                  {reportCopy.modalSubtitle}
-                </p>
               </div>
 
               <button
@@ -1792,32 +1850,20 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                  {reportCopy.clientsCountLabel}
-                </p>
-                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">
-                  {reportCustomersCount}
-                </p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{reportCopy.clientsCountLabel}</p>
+                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">{reportSummary.clientsCount}</p>
               </div>
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                  {reportCopy.palletsCountLabel}
-                </p>
-                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">
-                  {reportPalletsCount}
-                </p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{reportCopy.palletsCountLabel}</p>
+                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">{reportSummary.palletsCount}</p>
               </div>
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                  {reportCopy.totalDebtLabel}
-                </p>
-                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">
-                  {reportCurrencyFormatter.format(reportTotalDebt)} EUR
-                </p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{reportCopy.totalDebtLabel}</p>
+                <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">{reportCurrencyFormatter.format(reportSummary.totalDebt)} EUR</p>
               </div>
             </div>
 
-            {customerReportGroups.length > 0 ? (
+            {(
               <>
                 <div className="mt-6">
                   <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
@@ -1832,7 +1878,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                       className="flex w-full items-center justify-between gap-3 rounded-xl border border-[color:var(--border-subtle)] bg-[var(--surface-input)] px-4 py-3 text-left text-[14px] font-semibold tracking-normal text-[var(--text-primary)] outline-none transition-all hover:border-[color:var(--action-primary)] focus:border-[color:var(--action-primary)] focus:bg-[var(--surface-panel)]"
                     >
                       <span className="min-w-0 truncate">
-                        {selectedCustomerReportGroup?.clientName || reportCopy.allClientsOptionLabel}
+                        {selectedReportClient?.name || reportCopy.allClientsOptionLabel}
                       </span>
                       <ChevronDown
                         size={16}
@@ -1866,16 +1912,16 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                           <span className="min-w-0 truncate">{reportCopy.allClientsOptionLabel}</span>
                           {selectedReportClientId === 'all' && <Check size={15} className="shrink-0" />}
                         </button>
-                        {customerReportGroups.map((group) => {
-                          const isSelected = selectedReportClientId === String(group.clientId);
+                        {reportExportClients.map((client) => {
+                          const isSelected = selectedReportClientId === String(client.user_id);
                           return (
                             <button
-                              key={`report-client-${group.clientId}`}
+                              key={`report-client-${client.user_id}`}
                               type="button"
                               role="option"
                               aria-selected={isSelected}
                               onClick={() => {
-                                setSelectedReportClientId(String(group.clientId));
+                                setSelectedReportClientId(String(client.user_id));
                                 setIsReportClientSelectOpen(false);
                               }}
                               className={cn(
@@ -1883,7 +1929,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                                 isSelected && 'bg-[var(--status-success-bg)] text-[var(--status-success-text)]'
                               )}
                             >
-                              <span className="min-w-0 truncate">{group.clientName}</span>
+                              <span className="min-w-0 truncate">{client.name}</span>
                               {isSelected && <Check size={15} className="shrink-0" />}
                             </button>
                           );
@@ -1899,7 +1945,7 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     variant="outline"
                     className="px-5 py-3"
                     onClick={() => handleExportCustomerReport('selected')}
-                    disabled={!selectedCustomerReportGroup}
+                    disabled={!selectedReportClient || isExportingExcelReport}
                   >
                     {reportCopy.exportSelectedLabel}
                   </Button>
@@ -1907,18 +1953,74 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
                     type="button"
                     className="px-5 py-3"
                     onClick={() => handleExportCustomerReport('all')}
+                    disabled={isExportingExcelReport}
                   >
                     {reportCopy.exportAllLabel}
                   </Button>
                 </div>
               </>
-            ) : (
-              <div className="mt-6 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-400">
-                  {reportCopy.emptyStateLabel}
-                </p>
-              </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showQrExportModal && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-zinc-950/35 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-lg rounded-[1.75rem] border border-zinc-200 bg-white p-6 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.35)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">{t('qrExport')}</p>
+                <h3 className="mt-2 text-2xl font-black tracking-tight text-zinc-950">{t('qrExportTitle')}</h3>
+              </div>
+              <button type="button" onClick={() => setShowQrExportModal(false)} className="inline-flex h-10 min-h-10 w-10 min-w-10 shrink-0 basis-10 items-center justify-center rounded-full border border-zinc-200 p-0 text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-900" aria-label={t('close')}><X size={16} /></button>
+            </div>
+            <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{t('qrExportPalletCount')}</p>
+              <p className="mt-2 text-xl font-black tracking-tight text-zinc-950">{selectedQrExportPallets.length}</p>
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-zinc-100 p-1.5">
+              {(['current', 'range', 'single'] as const).map((mode) => <button key={mode} type="button" onClick={() => setQrExportMode(mode)} className={`rounded-xl px-2 py-2 text-[9px] font-black uppercase tracking-[0.1em] ${qrExportMode === mode ? 'bg-white text-zinc-950 shadow-sm' : 'text-zinc-500'}`}>{t(`qrExportMode${mode.charAt(0).toUpperCase() + mode.slice(1)}`)}</button>)}
+            </div>
+            {qrExportMode === 'range' && <div className="mt-4 grid grid-cols-3 gap-2">
+              <Input value={qrRangePrefix} onChange={(event) => setQrRangePrefix(event.target.value.toUpperCase())} placeholder={t('qrPrefix')} className="h-11 bg-zinc-50 text-xs font-bold" />
+              <Input value={qrRangeStart} onChange={(event) => setQrRangeStart(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={t('rangeFrom')} className="h-11 bg-zinc-50 text-xs font-bold" />
+              <Input value={qrRangeEnd} onChange={(event) => setQrRangeEnd(event.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder={t('rangeTo')} className="h-11 bg-zinc-50 text-xs font-bold" />
+            </div>}
+            {qrExportMode === 'single' && <div className="relative mt-4">
+              <button type="button" onClick={() => setIsQrPalletPickerOpen((open) => !open)} className="flex h-11 w-full items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-left text-sm font-bold text-zinc-800 transition-colors hover:border-emerald-300"><span className="truncate">{selectedQrPalletLabel || (selectedQrExportPallets.length > 1 ? qrSelectedCountLabel : t('qrExportChoosePallet'))}</span><ChevronDown size={16} className={cn('shrink-0 text-zinc-400 transition-transform', isQrPalletPickerOpen && 'rotate-180')} /></button>
+              {isQrPalletPickerOpen && <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white p-2 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.28)]">
+                <Input autoFocus value={qrPalletSearch} onChange={(event) => setQrPalletSearch(event.target.value)} placeholder={t('qrExportSearchPallet')} className="h-10 bg-zinc-50 text-sm" />
+                <div className="mt-2 max-h-56 overflow-y-auto rounded-lg bg-zinc-50 p-1">
+                  {visibleQrPalletOptions.map((pallet) => {
+                    const isSelected = selectedQrExportPalletIds.includes(String(pallet.id));
+                    const togglePallet = () => setSelectedQrExportPalletIds((current) =>
+                      isSelected ? current.filter((id) => id !== String(pallet.id)) : [...current, String(pallet.id)]
+                    );
+                    return (
+                      <div key={pallet.id} className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors', isSelected ? 'bg-emerald-50' : 'hover:bg-white')}>
+                        <button type="button" onClick={togglePallet} className={cn('min-w-0 flex-1 truncate px-1 text-left text-sm font-bold', isSelected ? 'text-emerald-800' : 'text-zinc-700')}>
+                          {pallet.pallet_name || pallet.qr_code}
+                        </button>
+                        <button type="button" role="checkbox" aria-checked={isSelected} aria-label={pallet.pallet_name || pallet.qr_code} onClick={togglePallet} className={cn('inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors', isSelected ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-zinc-200 bg-white text-transparent hover:border-emerald-300')}>
+                          <Check size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>}
+              <p className="mt-2 text-xs font-semibold text-zinc-500">{qrSelectedCountLabel}</p>
+            </div>}
+            <div className="mt-5 grid grid-cols-4 gap-2">
+              {(['svg', 'png', 'jpg', 'pdf'] as QrExportFormat[]).map((format) => {
+                const selected = qrExportFormats.includes(format);
+                return <label key={format} className={`flex cursor-pointer items-center justify-center rounded-xl px-2 py-3 text-[10px] font-black uppercase tracking-widest transition-colors ${selected ? 'bg-emerald-600 text-white shadow-sm' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}><input type="checkbox" checked={selected} onChange={() => toggleQrExportFormat(format)} className="sr-only" />{format}</label>;
+              })}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowQrExportModal(false)}>{t('cancel')}</Button>
+              <Button type="button" disabled={qrExportFormats.length === 0 || selectedQrExportPallets.length === 0 || isExportingQrCodes} onClick={() => void handleExportQrCodes()}>{isExportingQrCodes ? t('exporting') : t('download')}</Button>
+            </div>
           </div>
         </div>
       )}

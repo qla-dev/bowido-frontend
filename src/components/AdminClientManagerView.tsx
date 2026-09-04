@@ -368,7 +368,7 @@ export const AdminClientManagerView: React.FC<AdminClientManagerViewProps> = ({
     overdueDays:
       language === 'bs' ? 'Broj dana kašnjenja' : language === 'nl' ? 'Dagen te laat' : 'Overdue days',
     gracePeriod:
-      language === 'bs' ? 'Grace period' : language === 'nl' ? 'Grace period' : 'Grace period',
+      language === 'bs' ? 'Period tolerancije' : language === 'nl' ? 'Respijtperiode' : 'Grace period',
     overdueTotal:
       language === 'bs' ? 'Ukupan dug' : language === 'nl' ? 'Totale schuld' : 'Total overdue',
     warehouse1:

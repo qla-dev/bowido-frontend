@@ -28,6 +28,7 @@ export type CustomerPalletReportText = {
   summaryOverdueLabel: string;
   summaryDebtLabel: string;
   clientSheetPrefix: string;
+  clientSheetFallback: string;
   palletLabel: string;
   typeLabel: string;
   statusLabel: string;
@@ -126,7 +127,7 @@ const buildClientWorksheet = (
   ];
 
   return wrapWorksheet(
-    sanitizeSheetName(group.clientName, `Client-${group.clientId}`),
+    sanitizeSheetName(group.clientName, `${text.clientSheetFallback}-${group.clientId}`),
     [120, 85, 110, 85, 85, 75, 85, 90, 210],
     rows
   );

@@ -56,8 +56,8 @@ interface AppContextType {
   ) => Promise<Pallet | null>;
   updatePalletRepairStatus: (palletId: number, isForRepair: boolean) => Promise<Pallet>;
   markNotificationRead: (id: number) => void;
-  addPallet: (qrCode: string, type: string) => void;
-  addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => void;
+  addPallet: (qrCode: string, type: string) => Promise<Pallet>;
+  addPalletBatch: (entries: Array<{ qrCode: string; type: string }>) => Promise<Pallet[]>;
   updatePallet: (pallet: Pallet, actor?: { id: number; name: string }) => Promise<Pallet>;
   savePalletDeliveryLocation: (
     palletId: number,
@@ -1002,39 +1002,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   };
 
-  const addPallet = (qrCode: string, type: string) => {
+  const addPallet = async (qrCode: string, type: string): Promise<Pallet> => {
     const nextId =
       pallets.length > 0
         ? Math.max(...pallets.map((pallet) => pallet.id)) + 1
         : 1;
     const optimisticPallet = buildNewPallet(nextId, qrCode, type);
-    const fallbackClient = clients[0];
-
     setPallets((prev) => [...prev, optimisticPallet]);
-
-    if (!fallbackClient) {
-      return;
+    try {
+      const createdPallet = await apiService.pallets.create(optimisticPallet);
+      setPallets((prev) => prev.map((pallet) =>
+        pallet.id === optimisticPallet.id ? createdPallet : pallet,
+      ));
+      return createdPallet;
+    } catch (error) {
+      setPallets((prev) => prev.filter((pallet) => pallet.id !== optimisticPallet.id));
+      throw error;
     }
-
-    void apiService.pallets
-      .create({
-        ...optimisticPallet,
-        user_id: fallbackClient.user_id,
-        client_name: fallbackClient.name,
-      })
-      .then((createdPallet) => {
-        setPallets((prev) =>
-          prev.map((pallet) =>
-            pallet.id === optimisticPallet.id ? createdPallet : pallet,
-          ),
-        );
-      })
-      .catch((error) => console.error("Failed to create pallet", error));
   };
 
-  const addPalletBatch = (entries: Array<{ qrCode: string; type: string }>) => {
+  const addPalletBatch = async (entries: Array<{ qrCode: string; type: string }>): Promise<Pallet[]> => {
     if (entries.length === 0) {
-      return;
+      return [];
     }
 
     const nextId =
@@ -1044,32 +1033,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const nextPallets = entries.map((entry, index) =>
       buildNewPallet(nextId + index, entry.qrCode, entry.type),
     );
-    const fallbackClient = clients[0];
-
     setPallets((prev) => [...prev, ...nextPallets]);
+    const results = await Promise.allSettled(
+      nextPallets.map((pallet) => apiService.pallets.create(pallet)),
+    );
+    const createdPallets = results
+      .filter((result): result is PromiseFulfilledResult<Pallet> => result.status === 'fulfilled')
+      .map((result) => result.value);
+    const failedIndexes = results
+      .map((result, index) => result.status === 'rejected' ? index : -1)
+      .filter((index) => index >= 0);
+    const createdByQr = new Map(createdPallets.map((pallet) => [pallet.qr_code, pallet]));
+    const failedIds = new Set(failedIndexes.map((index) => nextPallets[index].id));
+    setPallets((prev) => prev
+      .filter((pallet) => !failedIds.has(pallet.id))
+      .map((pallet) => createdByQr.get(pallet.qr_code) || pallet),
+    );
 
-    if (!fallbackClient) {
-      return;
+    if (failedIndexes.length > 0) {
+      throw new Error(`${failedIndexes.length} pallet(s) could not be created.`);
     }
 
-    void Promise.all(
-      nextPallets.map((pallet) =>
-        apiService.pallets.create({
-          ...pallet,
-          user_id: fallbackClient.user_id,
-          client_name: fallbackClient.name,
-        }),
-      ),
-    )
-      .then((createdPallets) => {
-        const createdByQr = new Map(
-          createdPallets.map((pallet) => [pallet.qr_code, pallet]),
-        );
-        setPallets((prev) =>
-          prev.map((pallet) => createdByQr.get(pallet.qr_code) || pallet),
-        );
-      })
-      .catch((error) => console.error("Failed to create pallet batch", error));
+    return createdPallets;
   };
 
   const updatePallet = async (
