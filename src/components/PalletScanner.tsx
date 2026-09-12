@@ -22,6 +22,8 @@ import {
   registerActiveQrCameraStream,
   releaseActiveQrCameraStream,
   setQrCameraTorch,
+  refocusQrCamera,
+  qrCameraFocusPoint,
 } from '../lib/qrCameraSupport';
 import { useLivePallet } from '../hooks/useLivePallet';
 
@@ -68,6 +70,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   const [scanError, setScanError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraRestartKey, setCameraRestartKey] = useState(0);
+  const [focusFeedback, setFocusFeedback] = useState<{ x: number; y: number; failed: boolean } | null>(null);
+  const focusBusyRef = React.useRef(false);
+  const focusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const scanCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const scanImageInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -146,6 +151,8 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
     let cameraBusyRetryCount = 0;
 
     const stopCamera = () => {
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+      setFocusFeedback(null);
       // Invalidate any in-flight getUserMedia/play request before releasing the
       // current stream. Mobile browsers may resolve a previous request after a
       // tab has been backgrounded, otherwise reviving a stale preview.
@@ -485,6 +492,31 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
       cameraZoomControllerRef.current.request(streamRef.current, nextZoom);
     }
   };
+  const refocusCamera = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream || !isCameraActive || focusBusyRef.current) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.detail === 0 ? rect.width / 2 : event.clientX - rect.left;
+    const y = event.detail === 0 ? rect.height / 2 : event.clientY - rect.top;
+    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    setFocusFeedback({ x, y, failed: false });
+    focusBusyRef.current = true;
+    cameraInteractionUntilRef.current = performance.now() + 1100;
+    try {
+      const applied = await refocusQrCamera(stream, qrCameraFocusPoint(
+        x, y, rect.width, rect.height, video.videoWidth, video.videoHeight,
+        isCameraHardwareZoomSupported ? 1 : cameraZoom,
+      ));
+      if (streamRef.current !== stream) return;
+      setFocusFeedback({ x, y, failed: !applied });
+      focusTimerRef.current = setTimeout(() => setFocusFeedback(null), 1800);
+    } finally {
+      focusBusyRef.current = false;
+    }
+  };
+  const focusLabel = language === 'bs' ? 'Dodirnite za fokusiranje' : language === 'nl' ? 'Tik om scherp te stellen' : 'Tap to refocus';
+  const focusUnavailableLabel = language === 'bs' ? 'Ručni zahtjev za fokusiranje nije dostupan.' : language === 'nl' ? 'Opnieuw scherpstellen is niet beschikbaar.' : 'Refocus is unavailable on this camera.';
   const pauseCameraDetectionForControl = () => {
     isCameraControlInteractingRef.current = true;
   };
@@ -876,7 +908,7 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                       <div
                         className={cn(
                           "absolute inset-0 origin-center transition-opacity duration-300 ease-out",
-                          isCameraActive ? "opacity-20" : "opacity-100"
+                          isCameraActive ? "opacity-0" : "opacity-100"
                         )}
                         style={{ transform: isCameraHardwareZoomSupported ? 'scale(1)' : `scale(${cameraZoom})` }}
                       >
@@ -902,10 +934,27 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
                           <ScanLine size={54} className="text-white/20 transition-all duration-500 group-hover:text-white/35" />
                         )}
                       </div>
+                      <button
+                        type="button"
+                        className="absolute inset-0 z-10 cursor-crosshair touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"
+                        disabled={!isCameraActive}
+                        aria-label={focusLabel}
+                        onClick={(event) => void refocusCamera(event)}
+                      >
+                        {focusFeedback && (
+                          <span
+                            className={cn('pointer-events-none absolute h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-lg border-2', focusFeedback.failed ? 'border-amber-400' : 'border-white')}
+                            style={{ left: focusFeedback.x, top: focusFeedback.y }}
+                          />
+                        )}
+                      </button>
                     </div>
                   </div>
 
                   <div className="mb-5 flex w-full max-w-[240px] flex-col gap-2">
+                    <p className="text-center text-xs text-zinc-500" role="status">
+                      {focusFeedback?.failed ? focusUnavailableLabel : focusLabel}
+                    </p>
                     <Button variant="outline" size="sm" onClick={() => scanImageInputRef.current?.click()}>
                       <QrCode size={15} className="mr-2" /> Scan QR image
                     </Button>
