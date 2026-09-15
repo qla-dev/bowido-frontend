@@ -162,6 +162,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
   const tableRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const quickFilterRef = useRef<HTMLDivElement | null>(null);
+  // Column filters use a complete, independently loaded dataset. Keep a ref
+  // to the shared cache so a slow initial filter request cannot overwrite a
+  // status or location update delivered by the live polling loop.
+  const cachedPalletsRef = useRef(cachedPallets);
   const headerCellRefs = useRef<Partial<Record<ColumnKey, HTMLTableCellElement | null>>>({});
   const [selectedFilters, setSelectedFilters] = useState<FilterSelections>({
     qr: [],
@@ -219,6 +223,10 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
     width: number;
     maxHeight: number;
   } | null>(null);
+
+  useEffect(() => {
+    cachedPalletsRef.current = cachedPallets;
+  }, [cachedPallets]);
 
   useEffect(() => {
     if (!isReportClientSelectOpen) {
@@ -279,7 +287,8 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
       })
       .then((allPallets) => {
         if (isCurrentRequest) {
-          setFilterPallets(allPallets);
+          const livePalletsById = new Map(cachedPalletsRef.current.map((pallet) => [pallet.id, pallet]));
+          setFilterPallets(allPallets.map((pallet) => livePalletsById.get(pallet.id) || pallet));
         }
       })
       .catch((error) => {
@@ -309,7 +318,27 @@ export const PalletTableView: React.FC<PalletTableViewProps> = ({
         .map((pallet) => cachedPallets.find((cachedPallet) => cachedPallet.id === pallet.id) || pallet)
         .filter((pallet) => pallet.has_qr_code && !pallet.is_ghost)
     );
-  }, [cachedPallets]);
+
+    // Unlike the paginated rows, the filter dataset normally includes every
+    // pallet. Replace matching entries only: this lets a pallet enter or leave
+    // an active status/location filter on the next poll without accidentally
+    // adding cache entries that do not belong to the active search result.
+    setFilterPallets((current) => {
+      const livePalletsById = new Map(cachedPallets.map((pallet) => [pallet.id, pallet]));
+      let changed = false;
+      const next = current.map((pallet) => {
+        const livePallet = livePalletsById.get(pallet.id);
+        if (!livePallet || livePallet === pallet) {
+          return pallet;
+        }
+
+        changed = true;
+        return livePallet;
+      });
+
+      return changed ? next : current;
+    });
+  }, [cachedPallets, setPagedPallets]);
 
   useEffect(() => {
     if (deletedPalletId === null || deletedPalletId === undefined) return;

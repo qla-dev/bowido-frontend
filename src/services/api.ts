@@ -349,6 +349,9 @@ const statusUiByName: Record<string, { id: number; name: string }> = {
   'Voor retour': statusUiBySlug.pending_return,
   Unknown: statusUiBySlug.unknown,
   Onbekend: statusUiBySlug.unknown,
+  'BiH - drugo': statusUiBySlug['bih-drugo'],
+  'BiH drugo': statusUiBySlug['bih-drugo'],
+  'bih-drugo': statusUiBySlug['bih-drugo'],
 };
 
 // Older installations can still return their original API status slugs. The

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History, QrCode, Search } from 'lucide-react';
 import { AuditLog, ClientDetail, Pallet } from '../types';
 import { Badge, Card, cn, Input, StatCard } from './ui';
-import { AppLanguage, getLocationLabel, getStatusLabel } from '../i18n';
+import { AppLanguage, formatServiceReportDescription, getLocationLabel, getStatusLabel } from '../i18n';
 import { formatAppDateTime } from '../lib/dateFormat';
 import { FlatpickrDateInput } from './FlatpickrDateInput';
 import { InfiniteScrollFooter } from './InfiniteScrollFooter';
@@ -159,7 +159,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
           ? `${log.old_qr_code || '-'} → ${log.new_qr_code || '-'}`
           : `${getStatusLabel(log.old_status_name || '-', language)} → ${getStatusLabel(log.new_status_name, language)}`;
       case 'note':
-        return log.note || '-';
+        return formatServiceReportDescription(log.note, language) || '-';
     }
   };
 
@@ -383,7 +383,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                               {log.context?.new_is_for_repair ? t('markedForRepair') : t('unmarkedForRepair')}
                             </p>
                             <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                              {log.note || '-'}
+                              {formatServiceReportDescription(log.note, language) || '-'}
                             </p>
                           </div>
                         ) : (
@@ -402,7 +402,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                         )}
                       </td>
                       <td className="px-6 py-4 text-zinc-500">
-                        <p className="max-w-xs leading-relaxed">{log.note || '-'}</p>
+                        <p className="max-w-xs leading-relaxed">{formatServiceReportDescription(log.note, language) || '-'}</p>
                       </td>
                     </tr>
                   );
@@ -549,7 +549,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                               {log.context?.new_is_for_repair ? t('markedForRepair') : t('unmarkedForRepair')}
                             </p>
                             <p className="text-[9px] font-black uppercase tracking-[0.14em] text-zinc-400">
-                              {log.note || '-'}
+                              {formatServiceReportDescription(log.note, language) || '-'}
                             </p>
                           </div>
                         ) : (
@@ -572,7 +572,7 @@ export const AdminAuditLogs: React.FC<AdminAuditLogsProps> = ({
                         <div className={bodyCellInnerClass}>
                           <div className="space-y-2 text-center">
                             {log.status_change_photo_url && <img src={log.status_change_photo_url} alt="Status change pallet" className="mx-auto h-14 w-20 rounded-lg object-cover" />}
-                            <p className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>{log.note || '-'}</p>
+                            <p className={cn(bodyTextClass, 'whitespace-normal text-zinc-500')}>{formatServiceReportDescription(log.note, language) || '-'}</p>
                           </div>
                         </div>
                       </td>

@@ -28,6 +28,7 @@ import { NoQrCodeIcon } from './NoQrCodeIcon';
 import { rankSearchResults } from '../lib/searchRanking';
 import { SearchableSelect } from './SearchableSelect';
 import { appAlert } from './AppAlert';
+import { orderStatusesForDisplay } from '../lib/statusDisplayOrder';
 import { ServiceReportPhotoLightbox } from './ServiceReportPhotoLightbox';
 
 type NoQrColumnKey =
@@ -949,7 +950,7 @@ export const NoQrPalletTableView: React.FC<NoQrPalletTableViewProps> = ({ readOn
                   ariaLabel={t('status')}
                   searchPlaceholder={searchPlaceholder}
                   noResultsLabel={noResultsLabel}
-                  options={statuses.map((status) => ({
+                  options={orderStatusesForDisplay(statuses).map((status) => ({
                     value: String(status.id),
                     label: getStatusLabel(status.name, language),
                   }))}

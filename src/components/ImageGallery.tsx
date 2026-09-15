@@ -12,6 +12,7 @@ import { FlatpickrDateInput } from './FlatpickrDateInput';
 import { rankSearchResults } from '../lib/searchRanking';
 import { AdminTableStickyToolbar } from './AdminTableStickyToolbar';
 import { groupDeliveryPhotos } from '../lib/deliveryPhotoGroups';
+import { orderStatusesForDisplay } from '../lib/statusDisplayOrder';
 
 function SecureGalleryImage({
   photo,
@@ -363,7 +364,7 @@ export function ImageGallery() {
   }[type]);
   const statusOptions: GalleryFilterOption[] = [
     { value: '', label: t('allStatuses') },
-    ...statuses.map((status) => ({ value: String(status.id), label: getStatusLabel(status.name, language) })),
+    ...orderStatusesForDisplay(statuses).map((status) => ({ value: String(status.id), label: getStatusLabel(status.name, language) })),
   ];
   const selectedClient = galleryClients.find((client) => String(client.user_id) === filters.client_id);
   const filteredClients = useMemo(

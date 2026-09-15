@@ -356,6 +356,8 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     Service: "Service",
     Nepoznato: "Unknown",
     "BiH - drugo": "BiH - Other",
+    "BiH drugo": "BiH - Other",
+    "bih-drugo": "BiH - Other",
   },
   nl: {
     "Bowido BIH": "Bowido BIH",
@@ -378,6 +380,8 @@ const statusLabels: Record<AppLanguage, Record<string, string>> = {
     Service: "Service",
     Nepoznato: "Onbekend",
     "BiH - drugo": "BiH - overig",
+    "BiH drugo": "BiH - overig",
+    "bih-drugo": "BiH - overig",
   },
   bs: {
     "Bowido BIH": "Bowido BIH",
@@ -2740,9 +2744,12 @@ export const formatServiceReportDescription = (
       bs: roleStatusMatch[1],
     };
     const status = statusTranslations[roleStatusMatch[2]] || {
-      en: roleStatusMatch[2],
-      nl: roleStatusMatch[2],
-      bs: roleStatusMatch[2],
+      // Warehouse, unknown, and custom statuses are persisted under their
+      // status name. Resolve those through the common label catalogue too,
+      // rather than leaving an English/Dutch source note in the audit trail.
+      en: getStatusLabel(roleStatusMatch[2], "en"),
+      nl: getStatusLabel(roleStatusMatch[2], "nl"),
+      bs: getStatusLabel(roleStatusMatch[2], "bs"),
     };
 
     const copy = {

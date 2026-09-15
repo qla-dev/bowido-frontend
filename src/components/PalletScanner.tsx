@@ -24,6 +24,7 @@ import {
   setQrCameraTorch,
 } from '../lib/qrCameraSupport';
 import { useLivePallet } from '../hooks/useLivePallet';
+import { orderStatusesForDisplay } from '../lib/statusDisplayOrder';
 
 const CAMERA_ZOOM_MIN = 1;
 const CAMERA_ZOOM_MAX = 3;
@@ -93,7 +94,9 @@ export const PalletScanner: React.FC<ScannerProps> = ({ onClose, currentUser, on
   };
 
   const allowedStatusIds = getAllowedStatusIds();
-  const filteredStatuses = statuses.filter((status) => allowedStatusIds.includes(status.id));
+  const filteredStatuses = orderStatusesForDisplay(
+    statuses.filter((status) => allowedStatusIds.includes(status.id)),
+  );
 
   React.useEffect(() => {
     if (!allowedStatusIds.includes(selectedStatusId) && filteredStatuses.length > 0) {

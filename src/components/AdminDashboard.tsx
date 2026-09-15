@@ -45,6 +45,7 @@ import { useApp } from "../AppContext";
 import { apiService } from "../services/api";
 import { motion, AnimatePresence } from "motion/react";
 import { appAlert } from "./AppAlert";
+import { orderStatusesForDisplay } from "../lib/statusDisplayOrder";
 import {
   RoleType,
   Pallet,
@@ -1601,7 +1602,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       <Card title={t("statusConfiguratorTitle")}>
         <div className="p-4 space-y-2">
-          {statuses.map((status) => (
+          {orderStatusesForDisplay(statuses).map((status) => (
             <div
               key={`status-cfg-${status.id}`}
               className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-lg hover:border-black transition-all group"
@@ -2205,7 +2206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </label>
                             <PalletDetailDropdown
                               value={String(editingPallet.current_status_id)}
-                              options={statuses.map((status) => ({
+                              options={orderStatusesForDisplay(statuses).map((status) => ({
                                 value: String(status.id),
                                 label: getStatusLabel(status.name, language),
                               }))}
