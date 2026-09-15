@@ -21,6 +21,7 @@ type ExtendedCameraCapabilities = MediaTrackCapabilities & {
 type ExtendedCameraSettings = MediaTrackSettings & { zoom?: number };
 
 type ExtendedConstraintSet = MediaTrackConstraintSet & {
+  pointsOfInterest?: { x: number; y: number }[];
   torch?: boolean;
   focusMode?: string;
   exposureMode?: string;
@@ -38,7 +39,7 @@ export const qrCameraConstraintAttempts: MediaStreamConstraints[] = [
   {
     audio: false,
     video: {
-      facingMode: { ideal: 'environment' },
+      facingMode: { exact: 'environment' },
       width: { ideal: 1920 },
       height: { ideal: 1080 },
       aspectRatio: { ideal: 16 / 9 },
@@ -47,13 +48,12 @@ export const qrCameraConstraintAttempts: MediaStreamConstraints[] = [
   {
     audio: false,
     video: {
-      facingMode: { ideal: 'environment' },
+      facingMode: { exact: 'environment' },
       width: { ideal: 1280 },
       height: { ideal: 720 },
     },
   },
-  { audio: false, video: { facingMode: 'environment' } },
-  { audio: false, video: true },
+  { audio: false, video: { facingMode: { exact: 'environment' } } },
 ];
 
 // A scanner can be remounted while a previous getUserMedia request is still
@@ -82,6 +82,66 @@ export const clearActiveQrCameraStream = (stream: MediaStream | null | undefined
 
 const getVideoTrack = (stream: MediaStream | null | undefined) =>
   stream?.getVideoTracks()[0] as ExtendedVideoTrack | undefined;
+
+// applyConstraints replaces constraints. Serialize controls and merge at execution
+// time so focus, torch and zoom cannot erase resolution or each other's settings.
+const cameraUpdates = new WeakMap<MediaStreamTrack, Promise<void>>();
+const updateCamera = (track: ExtendedVideoTrack, update: ExtendedConstraintSet): Promise<void> => {
+  const operation = (cameraUpdates.get(track) ?? Promise.resolve()).then(async () => {
+    if (track.readyState === 'ended') throw new Error('Camera stopped');
+    const current = track.getConstraints?.() ?? {};
+    const advanced = (current.advanced ?? []).map((item) => {
+      const retained = { ...item };
+      for (const key of Object.keys(update)) delete retained[key];
+      return retained;
+    }).filter((item) => Object.keys(item).length > 0);
+    await track.applyConstraints({ ...current, advanced: [...advanced, update] });
+  });
+  cameraUpdates.set(track, operation.catch(() => undefined));
+  return operation;
+};
+
+// Convert a tap on the square, object-cover preview to normalized video coordinates.
+export const qrCameraFocusPoint = (
+  x: number, y: number, width: number, height: number,
+  videoWidth: number, videoHeight: number, displayZoom = 1,
+) => {
+  if (width <= 0 || height <= 0 || videoWidth <= 0 || videoHeight <= 0) return { x: 0.5, y: 0.5 };
+  const scale = Math.max(width / videoWidth, height / videoHeight) * Math.max(1, displayZoom);
+  const clamp = (value: number) => Math.min(1, Math.max(0, value));
+  return {
+    x: clamp(0.5 + (x - width / 2) / (videoWidth * scale)),
+    y: clamp(0.5 + (y - height / 2) / (videoHeight * scale)),
+  };
+};
+
+export const refocusQrCamera = async (
+  stream: MediaStream | null | undefined,
+  point: { x: number; y: number },
+): Promise<boolean> => {
+  const track = getVideoTrack(stream);
+  const modes = (track?.getCapabilities?.() as ExtendedCameraCapabilities | undefined)?.focusMode ?? [];
+  if (!track || track.readyState === 'ended') return false;
+  const mode = modes.includes('continuous') ? 'continuous' : modes.includes('single-shot') ? 'single-shot' : null;
+  if (!mode) return false;
+  const supported = navigator.mediaDevices?.getSupportedConstraints?.() as
+    (MediaTrackSupportedConstraints & { pointsOfInterest?: boolean }) | undefined;
+  try {
+    // Keep point metering independent: drivers may reject it while supporting AF.
+    if (supported?.pointsOfInterest) {
+      await updateCamera(track, { pointsOfInterest: [point] }).catch(() => undefined);
+    }
+    if (mode === 'continuous' && modes.includes('single-shot')) {
+      await updateCamera(track, { focusMode: 'single-shot' }).catch(() => undefined);
+      await new Promise((resolve) => window.setTimeout(resolve, 800));
+    }
+    await updateCamera(track, { focusMode: mode });
+    const actual = track.getSettings?.() as (MediaTrackSettings & { focusMode?: string }) | undefined;
+    return !actual?.focusMode || actual.focusMode === mode;
+  } catch {
+    return false;
+  }
+};
 
 export const isQrCameraStreamLive = (stream: MediaStream | null | undefined): boolean =>
   Boolean(
@@ -138,6 +198,8 @@ export const configureQrCamera = async (stream: MediaStream): Promise<QrCameraFe
 
   if (capabilities?.focusMode?.includes('continuous')) {
     preferredSettings.focusMode = 'continuous';
+  } else if (capabilities?.focusMode?.includes('single-shot')) {
+    preferredSettings.focusMode = 'single-shot';
   }
 
   if (capabilities?.exposureMode?.includes('continuous')) {
@@ -149,7 +211,10 @@ export const configureQrCamera = async (stream: MediaStream): Promise<QrCameraFe
   }
 
   if (Object.keys(preferredSettings).length > 0) {
-    await track.applyConstraints({ advanced: [preferredSettings] }).catch(() => undefined);
+    // A rejected exposure/white-balance preference must not prevent autofocus.
+    for (const [key, value] of Object.entries(preferredSettings)) {
+      await updateCamera(track, { [key]: value }).catch(() => undefined);
+    }
   }
 
   const zoom = capabilities?.zoom;
@@ -185,7 +250,7 @@ export const setQrCameraTorch = async (
   }
 
   try {
-    await track.applyConstraints({ advanced: [{ torch: enabled }] });
+    await updateCamera(track, { torch: enabled });
     return true;
   } catch {
     return false;
@@ -204,7 +269,7 @@ export const setQrCameraZoom = async (
   }
 
   try {
-    await track.applyConstraints({ advanced: [{ zoom }] });
+    await updateCamera(track, { zoom });
     return true;
   } catch {
     return false;
